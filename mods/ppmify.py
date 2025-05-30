@@ -1,5 +1,12 @@
-# PPMify - Bring your images to the scene
 # Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+PPMify v1.0 - Bring your images to the scene
+
+PPMify is now inside BSM library. So this plugin
+is deprecated.
+"""
 
 from bascenev1 import newnode, getactivity, Activity
 from babase import Plugin, pushcall

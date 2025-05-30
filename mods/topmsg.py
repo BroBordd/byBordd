@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+TopMsg v1.0 - Chat on top right
+
+When chat is muted, show messages top right
+in the same place as kill logs. Blocks spam
+aswell. Combine with APW to see chat when muted.
+"""
+
 from babase import app, Plugin as P
 from bascenev1 import (
     get_chat_messages as gcm,

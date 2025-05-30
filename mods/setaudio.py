@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+SetAudio v1.0 - Make audio texts clickable
+
+SetAudio allows you to set a custom audio value
+in settings by making audio texts clikcable.
+Read code to know more.
+"""
+
 import bauiv1lib.settings.audio as A
 from babase import Plugin as P
 from bauiv1 import (

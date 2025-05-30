@@ -1,4 +1,3 @@
-# BSMedia - Play media in the scene
 # Copyright 2025 - Solely by BrotherBoard
 # Feedback is appreciated - Telegram >> @GalaxyA14user
 

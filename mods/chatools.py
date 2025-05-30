@@ -1,3 +1,13 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Chatools v1.0 - Simple chat window tools
+
+Kind of deprecated. Chatools gives you some
+cool partywindow features. I don't recall much
+"""
+
 from babase import Plugin as P
 import bauiv1lib.party
 from re import match, sub

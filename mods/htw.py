@@ -1,8 +1,15 @@
 # Copyright 2025 - Solely by BrotherBoard
-# Telegram >> @GalaxyA14user
-# Made in 1 hour in GNU Nano in Termux using my Galaxy A14
-# Because I was offline outside and bored
-# Highlight text widget - Code is very readable lmao
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+HTW v1.0 - Your highlight textwidget
+
+A simple bauiv1 textwidget with highlight support
+
+Made in 1 hour in GNU Nano in Termux using my Galaxy A14
+Because I was offline outside and bored.
+Refer to __doc__ of class htw for more info.
+"""
 
 from bauiv1 import textwidget as tw
 from babase import (

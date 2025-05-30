@@ -1,3 +1,12 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Pro v1.0 - Simple UI progressbar
+
+Kind of deprecated. Read code to know more.
+"""
+
 from babase import Plugin as P
 from bauiv1 import (
     containerwidget as cw,

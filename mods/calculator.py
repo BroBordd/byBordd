@@ -1,6 +1,13 @@
-# Calculator!
 # Copyright 2025 - Solely by BrotherBoard
 # Bug? Feedback? Telegram >> @GalaxyA14user
+
+"""
+Calculator v1.5 - Math operations in the scene
+
+Deploys buttons on the ground, controllong a simple
+LCD which shows numbers. Send /calc to chat for usage.
+"""
+
 from bascenev1 import (
     get_foreground_host_activity as ga,
     chatmessage as cm,

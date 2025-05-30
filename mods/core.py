@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Core v1.0 - Advanced action recorder bot
+
+Send 'start' for Core to start recording you,
+and 'stop' to stop recording. And 'load' for
+Core to load recorded moves.
+"""
+
 from babase import (
     InputType as IT,
     Plugin

@@ -1,6 +1,15 @@
-# Camera - This can't get simpler can it?
 # Copyright 2025 - Solely by BrotherBoard
 # Bug? Feedback? Telegram >> @GalaxyA14user
+
+"""
+Camera v1.0 - Say cheese.
+
+Adds a button to pause menu. Camera is advanced
+Camera allows you to change camera position and
+target with a very easy graphical visualization
+of how it would look like.
+"""
+
 from _babase import (
     get_display_resolution as GDR,
     clipboard_is_supported as CIS,

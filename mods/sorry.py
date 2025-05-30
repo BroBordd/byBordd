@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Sorry v3.0 - Because we need to.
+
+Sorry adds a button to party window which
+allows you to apologize if you made any mistake.
+Try it, it's fun.
+"""
+
 import babase
 import bauiv1 as bui
 import bauiv1lib.party

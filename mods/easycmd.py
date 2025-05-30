@@ -1,3 +1,12 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+EasyCMD v1.0 - Command manager
+
+Deprecated.
+"""
+
 import babase
 import bauiv1 as bui
 import bauiv1lib.party
