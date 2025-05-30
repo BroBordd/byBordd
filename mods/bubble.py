@@ -1,6 +1,13 @@
-# Bubble - Let out your Spaz thoughts that come in mind.
 # Copyright 2025 - Solely by BrotherBoard
 # Telegram >> GalaxyA14user
+
+"""
+Bubble v3.0 - Let out your Spaz thoughts that come in mind.
+
+An advanced pop up bubble, which can appear from any
+bascenev1.Node you like. Just call Bubble() in your
+code. Refer to __doc__ of Bubble class for examples.
+"""
 
 from babase import (
     get_string_width as ssw,

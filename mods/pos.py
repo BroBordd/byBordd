@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Pos v1.0 - Simple 2D UI positioner
+
+Simple usage:
+from pos import Pos
+Pos(widget,initial_pos)
+"""
+
 from babase import Plugin as P
 from bauiv1 import (
     Call,

@@ -1,3 +1,13 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+OnPause v1.0 - Call an action on pause
+
+This plugin is very interesting, import it
+inline and read code to know more!
+"""
+
 from babase import Plugin as P
 from bauiv1lib.mainmenu import MainMenuWindow as m
 from bascenev1 import apptimer as teck

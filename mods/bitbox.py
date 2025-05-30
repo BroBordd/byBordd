@@ -1,6 +1,14 @@
-# BitBox - Bored me brings bits to the game
 # Copyright 2025 - Solely by BroBordd
 # Bug? Feedback? Telegram >> @GalaxyA14user
+
+"""
+BitBox v1.0 - Bored me brings bits to the game
+
+A simple UI library. Initial release. Beta.
+Classes:
+    PixText: Imagine bauiv1.textwidget but with
+             pixelated monospace font
+"""
 
 from babase import Plugin
 from bauiv1 import textwidget as tw

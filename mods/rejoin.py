@@ -1,4 +1,13 @@
-# ba_meta require api 9
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Rejoin v2.0 - Rejoin any server
+
+Adds a button to pause menu, which rejoins
+currently connected server. Easy.
+"""
+
 import bascenev1 as bs
 from babase import Plugin as v
 from bauiv1 import buttonwidget as z, gettexture as x
@@ -6,7 +15,6 @@ from bauiv1lib.ingamemenu import InGameMenuWindow as m
 
 m.i = m.p = 0
 k = bs.connect_to_party
-
 
 def j(address, port=43210, print_progress=False):
     try:
@@ -26,9 +34,8 @@ def R(s):
         return s(t, *f, **g)
     return w
 
+# ba_meta require api 9
 # ba_meta export plugin
-
-
 class byBordd(v):
     def __init__(s):
         m._refresh_in_game = R(m._refresh_in_game)

@@ -1,6 +1,14 @@
-# AutoRespond v2.8 - API9
 # Copyright 2025 - Solely by BrotherBoard
 # Bug? Feedback? Telegram >> @GalaxyA14user
+
+"""
+AutoRespond v2.8 - Your simple chat bot
+
+This plugin gives you the ability to automatically
+respond to chat messages conditionally, besides
+having a lot of different options for overall behavior
+"""
+
 from babase import (
     clipboard_is_supported as CIS,
     clipboard_get_text as CGT,
@@ -33,8 +41,8 @@ from _babase import get_string_width as strw
 from datetime import datetime as DT
 from bauiv1lib import party
 
-"""Add a response"""
 class Add:
+    """Add a response"""
     def __init__(s,t):
         w = AR.cw(
             source=t,
@@ -111,8 +119,8 @@ class Add:
             on_activate_call=Call(s._add,a)
         )
         AR.swish()
-    """Actually add"""
     def _add(s,a):
+        """Actually add"""
         z = tw(query=s.t)
         try: z = float(z)
         except: AR.err('Invalid time. Fix your input!'); return
@@ -129,8 +137,8 @@ class Add:
         var('lc',lc)
         [tw(t,text='') for t in a]
         AR.ok()
-    """Paste"""
     def paste(s,t):
+        """Paste"""
         if not CIS(): AR.err('Unsupported!'); return
         if not CHT(): AR.err('Your clipboard is empty!'); return
         tw(t,text=CGT().replace('\n',' '),color=(0,1,0))
@@ -138,8 +146,8 @@ class Add:
         teck(0.3,Call(tw,t,color=(1,1,1)))
         push('Pasted!',color=(0,1,0))
 
-"""Nuke a response"""
 class Nuke:
+    """Nuke a response"""
     def __init__(s,t):
         i = len(var('l'))
         if not i: AR.err('Add some triggers first!'); return
@@ -169,8 +177,8 @@ class Nuke:
         s.sl = None
         s.fresh()
         AR.swish()
-    """Actually nuke"""
     def _nuke(s):
+        """Actually nuke"""
         if s.sl is None: AR.err('Select something!'); return
         l = var('l')
         lc = var('lc')
@@ -181,8 +189,8 @@ class Nuke:
         s.sl = None
         s.fresh()
         AR.bye()
-    """Refresh"""
     def fresh(s):
+        """Refresh"""
         [k.delete() for k in s.kids]
         s.kids.clear()
         l = var('l'); k = list(l); j = len(l)
@@ -196,14 +204,14 @@ class Nuke:
             on_activate_call=Call(s.hl,i),
         )) for i in range(j)]
         cw(s.c,size=(220,j*30))
-    """Highlight"""
     def hl(s,i):
+        """Highlight"""
         [tw(t,color=(1,1,1)) for t in s.kids]
         tw(s.kids[i],color=(0,1,0))
         s.sl = i
 
-"""The settings"""
 class Tune:
+    """The settings"""
     def __init__(s,t):
         w = AR.cw(
             source=t,
@@ -230,8 +238,8 @@ class Tune:
                 on_value_change_call=Call(var,c)
             )
 
-"""List responses"""
 class List:
+    """List responses"""
     def __init__(s,t):
         i = len(var('l'))
         if not i: AR.err('Add some triggers first!'); return

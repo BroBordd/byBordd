@@ -1,3 +1,19 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Sandbox v3.0 - Turn the scene into your very own sandbox
+
+Sandbox gives you the ability to:
+- Spawn bots with advanced settings
+- Control bots gracefully
+- Apply effects to players and bots
+- Deploy objects anywhere
+- Tweak game attributes in real time
+- Load premade presets of mine
+- And many more!
+"""
+
 import babase as ba
 import _babase as _ba  # music control
 from bauiv1lib.ingamemenu import InGameMenuWindow as igm

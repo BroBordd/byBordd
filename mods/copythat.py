@@ -1,3 +1,13 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+CopyThat v1.0 - To clipboard it goes
+
+Adds a button to chat window to copy text
+in chat box. Kind of deprecated too.
+"""
+
 import bauiv1lib.party
 from babase import Plugin as P
 from bascenev1 import screenmessage as p

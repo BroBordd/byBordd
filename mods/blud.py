@@ -1,6 +1,13 @@
-# Blud - A simple bombsquad bot with refined Q-table learning for the zigzag path
 # Copyright 2025 - Solely by BrotherBoard
 # Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+Blud v1.0 - A simple Q-table learning bot
+
+Blud aims to always move to the left
+His memory is saved to mods folder. Advanced.
+"""
+
 from bascenev1lib.actor.spazbot import SpazBot
 from babase import Plugin
 from bascenev1 import (
@@ -16,9 +23,6 @@ import math
 import json
 import os
 import time
-# from bubble import Bubble # Commented out: Import the Bubble class
-
-"""Blud"""
 
 Q_TABLE_FILENAME = '/sdcard/Android/data/net.froemling.bombsquad/files/mods/blud.json' # Using blud.json as requested
 
@@ -514,5 +518,5 @@ class Blud(SpazBot):
 #         s.pics = []
 #         s.nub = []
 
-
+# ba_meta require api 9
 class byBordd(Plugin): pass

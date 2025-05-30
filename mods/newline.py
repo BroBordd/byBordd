@@ -1,3 +1,13 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+NewLine v1.0 - Break chat lines
+
+Breaks long chat messages into small messages
+Modify code to adjust threshold. Deprecated.
+"""
+
 import babase
 import bauiv1 as bui
 import bauiv1lib.party

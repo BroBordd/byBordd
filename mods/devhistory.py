@@ -1,6 +1,13 @@
 # Copyright 2025 - Solely by BrotherBoard.
-# DevHistory - Simple dev console history revealer!
 # Bug? Feedback? @GalaxyA14user >> Telegram!
+
+"""
+DevHistory v1.0 - Simple dev console history revealer!
+
+Start by writing 'dh' in dev console. You don't even
+need to press enter. Experimental. DH aims to help
+me as a mobile user. It is really useful.
+"""
 
 from babase import (
     SpecialChar as S,

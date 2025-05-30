@@ -1,3 +1,14 @@
+# Copyright 2025 - Solely by BrotherBoard
+# Feedback is appreciated - Telegram >> @GalaxyA14user
+
+"""
+UpDown v2.0 - Climb up chat
+
+Adds up and down buttons to chat, which recall
+text sent in chat by all. Good for repeating
+messages and insults lmao.
+"""
+
 from bauiv1lib import party
 from babase import (
     SpecialChar as sc,
