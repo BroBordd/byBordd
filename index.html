@@ -6,9 +6,12 @@
     <title>Available Mods</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Custom font import for 'Inter' */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
+            background-color: #f8fafc; /* Lighter background */
             display: flex;
             justify-content: center;
             align-items: center;
@@ -16,21 +19,29 @@
             margin: 0;
             padding: 20px;
             box-sizing: border-box;
+            line-height: 1.6;
         }
         .container {
             background-color: #ffffff;
-            padding: 32px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem; /* Increased padding */
+            border-radius: 1rem; /* More rounded corners */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); /* Softer, larger shadow */
             width: 100%;
-            max-width: 600px;
+            max-width: 640px; /* Slightly wider max-width */
             text-align: center;
+            border: 1px solid #e2e8f0; /* Subtle border */
         }
         h1 {
             color: #1a202c;
-            margin-bottom: 24px;
-            font-size: 2.25rem; /* text-4xl */
-            font-weight: 700; /* font-bold */
+            margin-bottom: 1.5rem; /* Adjusted margin */
+            font-size: 2.5rem; /* Larger heading */
+            font-weight: 700;
+            letter-spacing: -0.025em; /* Slightly tighter letter spacing */
+        }
+        p {
+            color: #4a5568;
+            font-size: 1.125rem; /* Slightly larger paragraph text */
+            margin-bottom: 1.5rem;
         }
         ul {
             list-style: none;
@@ -39,32 +50,32 @@
             text-align: left;
         }
         li {
-            background-color: #e2e8f0;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            border-radius: 8px;
-            font-size: 1.125rem; /* text-lg */
+            background-color: #f0f4f8; /* Lighter background for list items */
+            padding: 0.75rem 1.25rem; /* Adjusted padding */
+            margin-bottom: 0.75rem; /* Adjusted margin */
+            border-radius: 0.5rem; /* Rounded corners for list items */
+            font-size: 1.05rem; /* Slightly smaller font for list items */
             color: #2d3748;
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            transition: background-color 0.2s ease-in-out;
+            justify-content: flex-start; /* Align text to the left */
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out; /* Smooth transition */
+            border: 1px solid #e2e8f0; /* Subtle border for list items */
         }
         li:hover {
-            background-color: #cbd5e0;
+            background-color: #e2e8f0; /* Slightly darker on hover */
+            transform: translateY(-2px); /* Subtle lift effect on hover */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); /* Small shadow on hover */
         }
-        .mod-icon {
-            margin-right: 10px;
-            color: #4a5568;
-        }
-        .loading-text {
-            color: #4a5568;
+        .loading-text, .error-text {
+            color: #64748b; /* More neutral color for info/error */
             font-style: italic;
-            margin-top: 20px;
+            margin-top: 1rem;
+            font-size: 1rem;
+            text-align: center;
         }
         .error-text {
-            color: #e53e3e;
-            margin-top: 20px;
+            color: #ef4444; /* Red for errors */
             font-weight: 600;
         }
     </style>
@@ -72,7 +83,7 @@
 <body>
     <div class="container">
         <h1>Available Mods</h1>
-        <p class="text-gray-600 mb-6">Below is a list of Python modules. This list is loaded dynamically from `mods/mods.json`.</p>
+        <p>This page lists Python modules found in your `mods` folder, loaded dynamically from `mods/mods.json`.</p>
         <ul id="mod-list">
             <li class="loading-text">Loading mods...</li>
         </ul>
@@ -81,8 +92,7 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             const modListElement = document.getElementById('mod-list');
-            // This path points to the 'mods.json' file inside the 'mods' folder
-            const modsJsonPath = './mods/mods.json'; 
+            const modsJsonPath = './mods/mods.json';
 
             try {
                 const response = await fetch(modsJsonPath);
@@ -98,7 +108,8 @@
                 if (Array.isArray(mods) && mods.length > 0) {
                     mods.forEach(modName => {
                         const listItem = document.createElement('li');
-                        listItem.innerHTML = `<span class="mod-icon">🐍</span> ${modName}`;
+                        // Display only the filename on the left
+                        listItem.textContent = modName;
                         modListElement.appendChild(listItem);
                     });
                 } else {
