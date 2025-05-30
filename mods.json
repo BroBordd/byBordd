@@ -1,0 +1,202 @@
+[
+    {
+        "mod_name": "AutoRespond",
+        "mod_fancy_name": "Your simple chat bot",
+        "mod_version": "2.8",
+        "mod_description": "This plugin gives you the ability to automatically\nrespond to chat messages conditionally, besides\nhaving a lot of different options for overall behavior",
+        "api_version": 9,
+        "mod_filename_base": "autorespond"
+    },
+    {
+        "mod_name": "BitBox",
+        "mod_fancy_name": "Bored me brings bits to the game",
+        "mod_version": "1.0",
+        "mod_description": "A simple UI library. Initial release. Beta.\nClasses:\n    PixText: Imagine bauiv1.textwidget but with\n             pixelated monospace font",
+        "api_version": 9,
+        "mod_filename_base": "bitbox"
+    },
+    {
+        "mod_name": "Blud",
+        "mod_fancy_name": "A simple Q-table learning bot",
+        "mod_version": "1.0",
+        "mod_description": "Blud aims to always move to the left\nHis memory is saved to mods folder. Advanced.",
+        "api_version": 9,
+        "mod_filename_base": "blud"
+    },
+    {
+        "mod_name": "BSM",
+        "mod_fancy_name": "The BombSquadMedia Library",
+        "mod_version": "2.0",
+        "mod_description": "Provides functionality to display static images (PPM format) and play video\nsequences (PPM frames with a stamps.json timing file) within the BombSquad\nscene using a grid of text nodes as pixels.\n\nSupports concurrent loading of media data and offers playback controls\nfor video media, including speed, looping, and rotation of the source media.\n\nClasses:\n    Pixel: Represents a single text node used as a pixel.\n    Image: Handles concurrent loading of a single PPM image with optional resizing and rotation.\n    Video: Handles concurrent loading and playback of a video sequence\n           from a folder containing PPM frames and a stamps.json file, with\n           optional resizing, rotation, speed control, and looping.\n    Screen: Manages a grid of Pixel nodes and loads/displays Image or Video media.\n            Provides methods to stop playback, clear, fill, and set the opacity of the screen.\n            Displays a simple colored \"BSM\" placeholder on creation.",
+        "api_version": 9,
+        "mod_filename_base": "bsm"
+    },
+    {
+        "mod_name": "Bubble",
+        "mod_fancy_name": "Let out your Spaz thoughts that come in mind.",
+        "mod_version": "3.0",
+        "mod_description": "An advanced pop up bubble, which can appear from any\nbascenev1.Node you like. Just call Bubble() in your\ncode. Refer to __doc__ of Bubble class for examples.",
+        "api_version": 9,
+        "mod_filename_base": "bubble"
+    },
+    {
+        "mod_name": "Calculator",
+        "mod_fancy_name": "Math operations in the scene",
+        "mod_version": "1.5",
+        "mod_description": "Deploys buttons on the ground, controllong a simple\nLCD which shows numbers. Send /calc to chat for usage.",
+        "api_version": 9,
+        "mod_filename_base": "calculator"
+    },
+    {
+        "mod_name": "Camera",
+        "mod_fancy_name": "Say cheese.",
+        "mod_version": "1.0",
+        "mod_description": "Adds a button to pause menu. Camera is advanced\nCamera allows you to change camera position and\ntarget with a very easy graphical visualization\nof how it would look like.",
+        "api_version": 9,
+        "mod_filename_base": "camera"
+    },
+    {
+        "mod_name": "Chatools",
+        "mod_fancy_name": "Simple chat window tools",
+        "mod_version": "1.0",
+        "mod_description": "Kind of deprecated. Chatools gives you some\ncool partywindow features. I don't recall much",
+        "api_version": 8,
+        "mod_filename_base": "chatools"
+    },
+    {
+        "mod_name": "CopyThat",
+        "mod_fancy_name": "To clipboard it goes",
+        "mod_version": "1.0",
+        "mod_description": "Adds a button to chat window to copy text\nin chat box. Kind of deprecated too.",
+        "api_version": 8,
+        "mod_filename_base": "copythat"
+    },
+    {
+        "mod_name": "Core",
+        "mod_fancy_name": "Advanced action recorder bot",
+        "mod_version": "1.0",
+        "mod_description": "Send 'start' for Core to start recording you,\nand 'stop' to stop recording. And 'load' for\nCore to load recorded moves.",
+        "api_version": 9,
+        "mod_filename_base": "core"
+    },
+    {
+        "mod_name": "DevHistory",
+        "mod_fancy_name": "Simple dev console history revealer!",
+        "mod_version": "1.0",
+        "mod_description": "Start by writing 'dh' in dev console. You don't even\nneed to press enter. Experimental. DH aims to help\nme as a mobile user. It is really useful.",
+        "api_version": 9,
+        "mod_filename_base": "devhistory"
+    },
+    {
+        "mod_name": "EasyCMD",
+        "mod_fancy_name": "Command manager",
+        "mod_version": "1.0",
+        "mod_description": "Deprecated.",
+        "api_version": 8,
+        "mod_filename_base": "easycmd"
+    },
+    {
+        "mod_name": "HTW",
+        "mod_fancy_name": "Your highlight textwidget",
+        "mod_version": "1.0",
+        "mod_description": "A simple bauiv1 textwidget with highlight support\n\nMade in 1 hour in GNU Nano in Termux using my Galaxy A14\nBecause I was offline outside and bored.\nRefer to __doc__ of class htw for more info.",
+        "api_version": 9,
+        "mod_filename_base": "htw"
+    },
+    {
+        "mod_name": "Kill",
+        "mod_fancy_name": "End bs life",
+        "mod_version": "1.0",
+        "mod_description": "Adds a button to pause menu and mainmenu iirc\nit kills the game. Deprecated.",
+        "api_version": 8,
+        "mod_filename_base": "kill"
+    },
+    {
+        "mod_name": "NewLine",
+        "mod_fancy_name": "Break chat lines",
+        "mod_version": "1.0",
+        "mod_description": "Breaks long chat messages into small messages\nModify code to adjust threshold. Deprecated.",
+        "api_version": 8,
+        "mod_filename_base": "newline"
+    },
+    {
+        "mod_name": "OnPause",
+        "mod_fancy_name": "Call an action on pause",
+        "mod_version": "1.0",
+        "mod_description": "This plugin is very interesting, import it\ninline and read code to know more!",
+        "api_version": 8,
+        "mod_filename_base": "on_pause"
+    },
+    {
+        "mod_name": "Pos",
+        "mod_fancy_name": "Simple 2D UI positioner",
+        "mod_version": "1.0",
+        "mod_description": "Simple usage:\nfrom pos import Pos\nPos(widget,initial_pos)",
+        "api_version": 9,
+        "mod_filename_base": "pos"
+    },
+    {
+        "mod_name": "PPMify",
+        "mod_fancy_name": "Bring your images to the scene",
+        "mod_version": "1.0",
+        "mod_description": "PPMify is now inside BSM library. So this plugin\nis deprecated.",
+        "api_version": 9,
+        "mod_filename_base": "ppmify"
+    },
+    {
+        "mod_name": "Pro",
+        "mod_fancy_name": "Simple UI progressbar",
+        "mod_version": "1.0",
+        "mod_description": "Kind of deprecated. Read code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "pro"
+    },
+    {
+        "mod_name": "Rejoin",
+        "mod_fancy_name": "Rejoin any server",
+        "mod_version": "2.0",
+        "mod_description": "Adds a button to pause menu, which rejoins\ncurrently connected server. Easy.",
+        "api_version": 9,
+        "mod_filename_base": "rejoin"
+    },
+    {
+        "mod_name": "Sandbox",
+        "mod_fancy_name": "Turn the scene into your very own sandbox",
+        "mod_version": "3.0",
+        "mod_description": "Sandbox gives you the ability to:\n- Spawn bots with advanced settings\n- Control bots gracefully\n- Apply effects to players and bots\n- Deploy objects anywhere\n- Tweak game attributes in real time\n- Load premade presets of mine\n- And many more!",
+        "api_version": 9,
+        "mod_filename_base": "sandbox"
+    },
+    {
+        "mod_name": "SetAudio",
+        "mod_fancy_name": "Make audio texts clickable",
+        "mod_version": "1.0",
+        "mod_description": "SetAudio allows you to set a custom audio value\nin settings by making audio texts clikcable.\nRead code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "setaudio"
+    },
+    {
+        "mod_name": "Sorry",
+        "mod_fancy_name": "Because we need to.",
+        "mod_version": "3.0",
+        "mod_description": "Sorry adds a button to party window which\nallows you to apologize if you made any mistake.\nTry it, it's fun.",
+        "api_version": 9,
+        "mod_filename_base": "sorry"
+    },
+    {
+        "mod_name": "TopMsg",
+        "mod_fancy_name": "Chat on top right",
+        "mod_version": "1.0",
+        "mod_description": "When chat is muted, show messages top right\nin the same place as kill logs. Blocks spam\naswell. Combine with APW to see chat when muted.",
+        "api_version": 9,
+        "mod_filename_base": "topmsg"
+    },
+    {
+        "mod_name": "UpDown",
+        "mod_fancy_name": "Climb up chat",
+        "mod_version": "2.0",
+        "mod_description": "Adds up and down buttons to chat, which recall\ntext sent in chat by all. Good for repeating\nmessages and insults lmao.",
+        "api_version": 9,
+        "mod_filename_base": "updown"
+    }
+]
