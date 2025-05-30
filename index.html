@@ -53,36 +53,73 @@
         li:hover {
             background-color: #cbd5e0;
         }
-        .placeholder-text {
-            color: #718096;
-            font-style: italic;
-            margin-top: 20px;
-        }
         .mod-icon {
             margin-right: 10px;
             color: #4a5568;
+        }
+        .loading-text {
+            color: #4a5568;
+            font-style: italic;
+            margin-top: 20px;
+        }
+        .error-text {
+            color: #e53e3e;
+            margin-top: 20px;
+            font-weight: 600;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Available Mods</h1>
-        <p class="text-gray-600 mb-6">Below is a list of Python modules found in your 'mods' folder.</p>
+        <p class="text-gray-600 mb-6">Below is a list of Python modules. This list is loaded dynamically from `mods/mods.json`.</p>
         <ul id="mod-list">
-            <!--
-                IMPORTANT: Please replace these placeholder list items with the actual names
-                of your .py files from the 'mods' folder. For example:
-                <li><span class="mod-icon">🐍</span> my_first_mod.py</li>
-                <li><span class="mod-icon">🐍</span> another_cool_mod.py</li>
-            -->
-            <li><span class="mod-icon">🐍</span> mod_example_1.py</li>
-            <li><span class="mod-icon">🐍</span> mod_example_2.py</li>
-            <li><span class="mod-icon">🐍</span> mod_example_3.py</li>
-            <li class="placeholder-text">
-                To update this list, edit this HTML file and replace the example entries
-                with your actual mod file names.
-            </li>
+            <li class="loading-text">Loading mods...</li>
         </ul>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            const modListElement = document.getElementById('mod-list');
+            const modsJsonPath = './mods/mods.json'; // Path to your JSON file
+
+            try {
+                // Fetch the JSON file containing the list of mods
+                const response = await fetch(modsJsonPath);
+
+                // Check if the response is successful (status code 200)
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}. Make sure '${modsJsonPath}' exists and is accessible.`);
+                }
+
+                // Parse the JSON data
+                const mods = await response.json();
+
+                // Clear the loading message
+                modListElement.innerHTML = '';
+
+                // Check if mods is an array and not empty
+                if (Array.isArray(mods) && mods.length > 0) {
+                    // Iterate over the mods and create list items
+                    mods.forEach(modName => {
+                        const listItem = document.createElement('li');
+                        listItem.innerHTML = `<span class="mod-icon">🐍</span> ${modName}`;
+                        modListElement.appendChild(listItem);
+                    });
+                } else {
+                    // Display a message if no mods are found or the JSON is empty/invalid
+                    const noModsItem = document.createElement('li');
+                    noModsItem.className = 'loading-text'; // Reusing style for general info
+                    noModsItem.textContent = 'No mods found in mods/mods.json.';
+                    modListElement.appendChild(noModsItem);
+                }
+
+            } catch (error) {
+                // Handle any errors during the fetch or parsing process
+                console.error('Failed to load mods:', error);
+                modListElement.innerHTML = `<li class="error-text">Error loading mods: ${error.message}. Please check your 'mods/mods.json' file.</li>`;
+            }
+        });
+    </script>
 </body>
 </html>
