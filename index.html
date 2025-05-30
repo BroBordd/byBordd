@@ -3,121 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Available Mods</title>
+    <title>Python Modules Index</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Custom styles for Inter font and general body styling */
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f0f4f8;
+            background-color: #f0f4f8; /* Light gray background */
             display: flex;
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
+            align-items: flex-start; /* Align items to the start of the cross axis */
+            min-height: 100vh; /* Full viewport height */
+            padding: 2rem; /* Padding around the content */
+            box-sizing: border-box; /* Include padding in element's total width and height */
         }
         .container {
-            background-color: #ffffff;
-            padding: 32px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
+            background-color: #ffffff; /* White background for the container */
+            border-radius: 1rem; /* Rounded corners */
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+            padding: 2.5rem; /* Ample padding inside the container */
+            width: 100%; /* Full width on small screens */
+            max-width: 600px; /* Max width for larger screens */
+            text-align: center; /* Center align text */
         }
-        h1 {
-            color: #1a202c;
-            margin-bottom: 24px;
-            font-size: 2.25rem; /* text-4xl */
-            font-weight: 700; /* font-bold */
+        .file-list-item {
+            background-color: #e2e8f0; /* Light blue-gray for list items */
+            padding: 1rem 1.5rem;
+            margin-bottom: 0.75rem;
+            border-radius: 0.5rem;
+            text-align: left; /* Left align text within list items */
+            font-size: 1.125rem; /* Larger font size */
+            color: #2d3748; /* Darker text color */
+            transition: background-color 0.2s ease-in-out; /* Smooth transition on hover */
         }
-        ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            text-align: left;
-        }
-        li {
-            background-color: #e2e8f0;
-            padding: 12px 16px;
-            margin-bottom: 12px;
-            border-radius: 8px;
-            font-size: 1.125rem; /* text-lg */
-            color: #2d3748;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            transition: background-color 0.2s ease-in-out;
-        }
-        li:hover {
-            background-color: #cbd5e0;
-        }
-        .mod-icon {
-            margin-right: 10px;
-            color: #4a5568;
-        }
-        .loading-text {
-            color: #4a5568;
-            font-style: italic;
-            margin-top: 20px;
-        }
-        .error-text {
-            color: #e53e3e;
-            margin-top: 20px;
-            font-weight: 600;
+        .file-list-item:hover {
+            background-color: #cbd5e0; /* Slightly darker on hover */
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Available Mods</h1>
-        <p class="text-gray-600 mb-6">Below is a list of Python modules. This list is loaded dynamically from `mods/mods.json`.</p>
-        <ul id="mod-list">
-            <li class="loading-text">Loading mods...</li>
-        </ul>
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-6">
+            Python Modules
+        </h1>
+        <p class="text-lg text-gray-600 mb-8">
+            Dynamically loaded files from the `mods` folder.
+        </p>
+        <div id="fileList" class="space-y-4">
+            </div>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const modListElement = document.getElementById('mod-list');
-            const modsJsonPath = './mods/mods.json'; // Path to your JSON file
+        // Function to dynamically load and display the file list
+        document.addEventListener('DOMContentLoaded', () => {
+            const fileListContainer = document.getElementById('fileList');
 
-            try {
-                // Fetch the JSON file containing the list of mods
-                const response = await fetch(modsJsonPath);
+            // In a real scenario, you would fetch this list from a server-side endpoint.
+            // For this example, we'll use a static array of placeholder filenames.
+            const pythonFiles = [
+                'data_processor.py',
+                'api_handler.py',
+                'utils.py',
+                'model_trainer.py',
+                'config_reader.py',
+                'database_connector.py',
+                'logger.py'
+            ];
 
-                // Check if the response is successful (status code 200)
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}. Make sure '${modsJsonPath}' exists and is accessible.`);
-                }
-
-                // Parse the JSON data
-                const mods = await response.json();
-
-                // Clear the loading message
-                modListElement.innerHTML = '';
-
-                // Check if mods is an array and not empty
-                if (Array.isArray(mods) && mods.length > 0) {
-                    // Iterate over the mods and create list items
-                    mods.forEach(modName => {
-                        const listItem = document.createElement('li');
-                        listItem.innerHTML = `<span class="mod-icon">🐍</span> ${modName}`;
-                        modListElement.appendChild(listItem);
-                    });
-                } else {
-                    // Display a message if no mods are found or the JSON is empty/invalid
-                    const noModsItem = document.createElement('li');
-                    noModsItem.className = 'loading-text'; // Reusing style for general info
-                    noModsItem.textContent = 'No mods found in mods/mods.json.';
-                    modListElement.appendChild(noModsItem);
-                }
-
-            } catch (error) {
-                // Handle any errors during the fetch or parsing process
-                console.error('Failed to load mods:', error);
-                modListElement.innerHTML = `<li class="error-text">Error loading mods: ${error.message}. Please check your 'mods/mods.json' file.</li>`;
+            // Check if there are files to display
+            if (pythonFiles.length === 0) {
+                fileListContainer.innerHTML = '<p class="text-gray-500">No Python files found in the `mods` folder.</p>';
+            } else {
+                // Create and append list items for each file
+                pythonFiles.forEach(filename => {
+                    const listItem = document.createElement('div');
+                    listItem.className = 'file-list-item'; // Apply Tailwind classes for styling
+                    listItem.textContent = filename;
+                    fileListContainer.appendChild(listItem);
+                });
             }
         });
     </script>
