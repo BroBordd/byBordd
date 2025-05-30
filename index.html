@@ -3,125 +3,545 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Available Mods</title>
+    <title>Mod List Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300..700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" integrity="sha512-9usAa10IRO0HhonpyAIVpjrylPvoDwiPUiKdWk5t3PyolY1cOd4DSE0Ga+ri4AuTroPR5aQvXU9xC6qOPnzFeg==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <style>
-        /* Custom font import for 'Inter' */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
+        /* Custom CSS for animations and specific styling */
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f8fafc; /* Lighter background */
-            display: flex;
+            font-family: 'Fira Code', monospace; /* Apply monospace font */
+            background-color: #000; /* Pure black background for terminal feel */
+            color: #00f; /* Default blue text */
+        }
+
+        /* Custom keyframes for fade-in effect */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Apply fade-in animation to list items */
+        .mod-item {
+            animation: fadeIn 0.5s ease-out forwards;
+            opacity: 0; /* Start invisible */
+        }
+
+        /* Modal specific animations */
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.8); /* Darker overlay */
+            transition: opacity 0.3s ease-in-out;
+            backdrop-filter: blur(5px); /* Added blur effect */
+        }
+
+        .modal-content {
+            background-color: #1a1a1a; /* Dark gray for modal background */
+            border: 1px solid #0000ff; /* Blue border */
+            box-shadow: 0 0 15px rgba(0, 0, 255, 0.5); /* Blue glow */
+            transform: scale(0.8); /* Start smaller */
+            opacity: 0; /* Start invisible */
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            padding: 2rem; /* Consistent padding for all sides */
+            padding-top: 3.5rem; /* Increased padding-top to ensure space for the X button */
+        }
+
+        .modal-content.show {
+            transform: scale(1); /* Scale to full size */
+            opacity: 1; /* Fade in */
+        }
+
+        /* Custom Scrollbar Styling */
+        /* For the main mod list and description box */
+        #mod-list::-webkit-scrollbar,
+        .mod-description-box::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #mod-list::-webkit-scrollbar-track,
+        .mod-description-box::-webkit-scrollbar-track {
+            background: #1a1a1a; /* Dark track */
+            border-radius: 4px;
+        }
+
+        #mod-list::-webkit-scrollbar-thumb,
+        .mod-description-box::-webkit-scrollbar-thumb {
+            background: #0000ff; /* Blue thumb */
+            border-radius: 4px;
+        }
+
+        #mod-list::-webkit-scrollbar-thumb:hover,
+        .mod-description-box::-webkit-scrollbar-thumb:hover {
+            background: #0000cc; /* Darker blue on hover */
+        }
+
+        /* Disable Android/iOS overscroll bounce/stretch effect */
+        #mod-list,
+        .mod-description-box {
+            overscroll-behavior-y: contain;
+        }
+
+        /* Style for the mod image container */
+        .mod-image-container {
+            display: flex; /* Default to flex to center content */
             justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            margin: 0;
-            padding: 20px;
-            box-sizing: border-box;
-            line-height: 1.6;
+            align-items: center; /* Center vertically if image/video is smaller */
+            margin-bottom: 1.5rem; /* mb-6 */
+            min-height: 100px; /* Ensure some space, will be overridden by display:none if no media */
+            margin-top: 1rem; /* Explicit margin-top to push it down from the X button area */
+            overflow: hidden; /* Prevent media from spilling out if slightly larger */
         }
-        .container {
-            background-color: #ffffff;
-            padding: 2.5rem; /* Increased padding */
-            border-radius: 1rem; /* More rounded corners */
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); /* Softer, larger shadow */
-            width: 100%;
-            max-width: 640px; /* Slightly wider max-width */
-            text-align: center;
-            border: 1px solid #e2e8f0; /* Subtle border */
+
+        .mod-image-container img,
+        .mod-image-container video {
+            max-width: 100%;
+            height: auto; /* Maintain aspect ratio */
+            border-radius: 0.375rem; /* rounded-md */
+            border: 1px solid #3b82f6; /* border-blue-500 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 255, 0.1), 0 2px 4px -2px rgba(0, 0, 255, 0.1); /* shadow-md with blue tint */
+            display: none; /* Initially hidden */
+            object-fit: contain; /* Ensure entire media is visible within bounds */
         }
-        h1 {
-            color: #1a202c;
-            margin-bottom: 1.5rem; /* Adjusted margin */
-            font-size: 2.5rem; /* Larger heading */
-            font-weight: 700;
-            letter-spacing: -0.025em; /* Slightly tighter letter spacing */
+
+        /* Styling for the close button */
+        #close-modal {
+            position: absolute; /* Absolute position relative to modal-content */
+            top: 0.75rem; /* Adjusted top position */
+            right: 0.75rem; /* Adjusted right position */
+            border: 1px solid #ff0000; /* Red border for emphasis */
+            border-radius: 0.375rem; /* rounded-md */
+            padding: 0.25rem 0.6rem; /* px-2 py-1 */
+            line-height: 1; /* Adjust line height to center X */
+            z-index: 10; /* Ensure it's above other content */
         }
-        p {
-            color: #4a5568;
-            font-size: 1.125rem; /* Slightly larger paragraph text */
-            margin-bottom: 1.5rem;
+
+        /* Custom command display container (the main rounded rectangle for code) */
+        .code-display-container {
+            @apply relative w-full mt-2 mb-6 bg-gray-900 border border-blue-700 rounded-md;
+            height: 2.5rem;
+            box-shadow: inset 0 0 5px rgba(0, 0, 255, 0.2), 0 0 8px rgba(0, 0, 255, 0.3);
+            overflow: hidden; /* Important to clip the extending pre element */
+            display: flex;
+            align-items: stretch;
+            /* The container itself stays within its parent's flow. */
         }
-        ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-            text-align: left;
-        }
-        li {
-            background-color: #f0f4f8; /* Lighter background for list items */
-            padding: 0.75rem 1.25rem; /* Adjusted padding */
-            margin-bottom: 0.75rem; /* Adjusted margin */
-            border-radius: 0.5rem; /* Rounded corners for list items */
-            font-size: 1.05rem; /* Slightly smaller font for list items */
-            color: #2d3748;
+
+        /* The actual code block (pre code) - This is the "text view" */
+        .code-display-container pre {
+            @apply text-sm font-mono cursor-text;
+            flex-grow: 1;
+            padding-top: 0.5rem;
+            padding-bottom: 0.5rem;
+            /* Move content 2rem to the left */
+            margin-left: -2rem; 
+            /* NEW: Expand width by the previous 4rem + new 4rem (total 8rem) */
+            width: calc(100% + 8rem); 
+            /* Add padding to the left to push text back from the new left edge */
+            padding-left: 2rem; 
+            /* Set padding-right to 0 */
+            padding-right: 0; 
+            
+            white-space: nowrap;
+            overflow-x: auto; /* Enable horizontal scrolling for the extended content */
+            overflow-y: hidden;
             display: flex;
             align-items: center;
-            justify-content: flex-start; /* Align text to the left */
-            transition: background-color 0.2s ease-in-out, transform 0.1s ease-in-out; /* Smooth transition */
-            border: 1px solid #e2e8f0; /* Subtle border for list items */
+            background-color: transparent !important;
+            border-radius: 0.375rem 0 0 0.375rem;
+            min-width: 0; /* Allows shrinking to enable overflow-x */
         }
-        li:hover {
-            background-color: #e2e8f0; /* Slightly darker on hover */
-            transform: translateY(-2px); /* Subtle lift effect on hover */
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05); /* Small shadow on hover */
+
+        /* Hide scrollbar for the code block but allow scrolling */
+        .code-display-container pre::-webkit-scrollbar {
+            height: 4px;
         }
-        .loading-text, .error-text {
-            color: #64748b; /* More neutral color for info/error */
-            font-style: italic;
-            margin-top: 1rem;
+
+        .code-display-container pre::-webkit-scrollbar-track {
+            background: #1a1a1a;
+        }
+
+        .code-display-container pre::-webkit-scrollbar-thumb {
+            background: #0000ff;
+            border-radius: 2px;
+        }
+
+        /* Styling for the copy button */
+        #copy-command-button {
+            width: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #0000ff;
+            color: #ffffff;
+            border-radius: 0 0.375rem 0.375rem 0;
+            transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            box-shadow: 0 0 8px rgba(0, 0, 255, 0.4);
+            cursor: pointer;
+            flex-shrink: 0;
+            border-left: 1px solid #0000ff;
             font-size: 1rem;
-            text-align: center;
+            height: 100%;
         }
-        .error-text {
-            color: #ef4444; /* Red for errors */
-            font-weight: 600;
+        #copy-command-button:hover {
+            background-color: #0000cc;
+            transform: scale(1.05);
+            box-shadow: 0 0 12px rgba(0, 0, 255, 0.6);
+        }
+        #copy-command-button:active {
+            transform: scale(0.95);
+            box-shadow: 0 0 5px rgba(0, 0, 255, 0.3);
         }
     </style>
 </head>
-<body>
-    <div class="container">
-        <h1>Available Mods</h1>
-        <p>This page lists Python modules found in your `mods` folder, loaded dynamically from `mods/mods.json`.</p>
-        <ul id="mod-list">
-            <li class="loading-text">Loading mods...</li>
-        </ul>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="terminal-window bg-gray-950 text-blue-400 border border-blue-600 rounded-lg shadow-lg p-6 w-full max-w-4xl mx-auto overflow-hidden">
+        <div class="terminal-header pb-4 border-b border-blue-700 mb-4">
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex space-x-2">
+                    <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+                    <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                    <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <a href="https://t.me/GalaxyA14user" target="_blank" title="Telegram: @GalaxyA14user" class="text-cyan-400 hover:text-cyan-200 transition-colors duration-200 text-lg">
+                        <i class="fab fa-telegram-plane"></i>
+                    </a>
+                    <a href="https://discord.com/users/590619555508912138" target="_blank" title="Discord: @BrotherBoard" class="text-cyan-400 hover:text-cyan-200 transition-colors duration-200 text-lg">
+                        <i class="fab fa-discord"></i>
+                    </a>
+                    <span class="text-sm font-bold">BroBordd@byBordd:~/mods</span>
+                    <span class="text-sm">_</span>
+                </div>
+            </div>
+            <div class="text-sm">
+                <span class="text-blue-300">BroBordd@byBordd:~# </span><span id="command-output"></span>
+            </div>
+        </div>
+
+        <h1 class="text-2xl font-bold mt-4 mb-4 text-cyan-400 animate-pulse">
+            <span class="inline-block transform rotate-90 text-cyan-400 mr-2">&gt;</span>BS Plugins - byBordd
+        </h1>
+
+        <div id="mod-list" class="space-y-4 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
+            <p class="text-yellow-400">Loading mods...</p>
+        </div>
     </div>
 
+    <div id="mod-modal" class="modal-overlay fixed inset-0 flex items-center justify-center z-50 hidden opacity-0">
+        <div class="modal-content p-8 rounded-lg max-w-lg w-11/12 mx-auto relative">
+            <button id="close-modal" class="absolute text-red-400 hover:text-red-600 text-2xl font-bold">&times;</button>
+            
+            <div class="mod-image-container" id="modal-media-container">
+                <img id="modal-mod-image" alt="Mod Image" />
+                <video id="modal-mod-video" controls loop muted playsinline>
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+
+            <h2 id="modal-mod-name" class="text-3xl font-bold text-cyan-400 mb-2 text-center"></h2>
+            <p id="modal-fancy-name" class="text-lg text-cyan-300 mb-2 text-center"></p>
+            <p class="text-sm mb-1"><strong class="text-blue-300">Version:</strong> <span id="modal-version"></span></p>
+            <p class="text-sm mb-4"><strong class="text-blue-300">API Version:</strong> <span id="modal-api-version"></span></p>
+            <div class="mod-description-box bg-gray-800 p-4 rounded-md mt-4 mb-6 max-h-40 overflow-y-auto text-gray-200">
+                <p id="modal-description"></p>
+            </div>
+            
+            <button id="download-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-md transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl mt-4">
+                Direct Download
+            </button>
+
+            <p class="text-sm text-center text-cyan-300 mt-6 mb-2">or paste dev console command:</p>
+            <div class="code-display-container">
+                <pre><code id="dev-console-command-code" class="language-python"># Example command
+import ba_meta
+print("Hello, World!")</code></pre>
+                <button id="copy-command-button" title="Copy command to clipboard">
+                    <i class="fas fa-copy"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>    
+
     <script>
-        document.addEventListener('DOMContentLoaded', async () => {
-            const modListElement = document.getElementById('mod-list');
-            const modsJsonPath = './mods/mods.json';
+        document.addEventListener('DOMContentLoaded', () => {
+            const modListContainer = document.getElementById('mod-list');
+            const modModal = document.getElementById('mod-modal');
+            const closeModalButton = document.getElementById('close-modal');
+            const modalModName = document.getElementById('modal-mod-name');
+            const modalFancyName = document.getElementById('modal-fancy-name');
+            const modalVersion = document.getElementById('modal-version');
+            const modalApiVersion = document.getElementById('modal-api-version');
+            const modalDescription = document.getElementById('modal-description');
+            const devConsoleCommandCode = document.getElementById('dev-console-command-code'); // This is the <code> element
+            const copyCommandButton = document.getElementById('copy-command-button');
+            const downloadButton = document.getElementById('download-button');
+            const commandOutput = document.getElementById('command-output');
 
-            try {
-                const response = await fetch(modsJsonPath);
+            // Media elements (new references)
+            const modalMediaContainer = document.getElementById('modal-media-container');
+            const modalModImage = document.getElementById('modal-mod-image');
+            const modalModVideo = document.getElementById('modal-mod-video');
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}. Make sure '${modsJsonPath}' exists and is accessible.`);
+            let currentActiveMod = null; 
+
+            // Simulate typing effect for terminal command
+            const commandText = "ls -l mods";
+            let i = 0;
+            function typeCommand() {
+                if (i < commandText.length) {
+                    commandOutput.textContent += commandText.charAt(i);
+                    i++;
+                    setTimeout(typeCommand, 70); // Typing speed
+                }
+            }
+            typeCommand();
+
+            // Asynchronous function to handle media loading
+            async function loadMediaForMod(modFilenameBase) {
+                const videoUrl = `res/${modFilenameBase}.mp4`;
+                const imageUrl = `res/${modFilenameBase}.png`;
+
+                // Reset current display
+                modalMediaContainer.style.display = 'flex'; // Assume media might be found
+                modalModImage.style.display = 'none';
+                modalModImage.src = '';
+                modalModVideo.style.display = 'none';
+                modalModVideo.src = '';
+                if (modalModVideo.readyState > 0) {
+                    modalModVideo.pause(); // Pause any currently playing video
                 }
 
-                const mods = await response.json();
+                try {
+                    // Try fetching video first (using HEAD request to check existence quickly)
+                    const videoResponse = await fetch(videoUrl, { method: 'HEAD' });
+                    if (videoResponse.ok) {
+                        modalModVideo.src = videoUrl;
+                        modalModVideo.style.display = 'block';
+                        modalModVideo.load(); // Load video data
+                        modalModVideo.play(); // Auto-play muted
+                        return; // Video found and set, exit function
+                    }
+                } catch (error) {
+                    // Log the error but continue to image, as it might just be a 404 or network issue
+                    console.warn(`(WARN) Failed to fetch video (HEAD) for ${videoUrl}:`, error);
+                }
 
-                modListElement.innerHTML = ''; // Clear loading message
+                try {
+                    // If video not found or fetch failed, try fetching image
+                    const imageResponse = await fetch(imageUrl, { method: 'HEAD' });
+                    if (imageResponse.ok) {
+                        modalModImage.src = imageUrl;
+                        modalModImage.style.display = 'block';
+                        return; // Image found and set, exit function
+                    }
+                } catch (error) {
+                    // Log the error but continue to hide container if no image either
+                    console.warn(`(WARN) Failed to fetch image (HEAD) for ${imageUrl}:`, error);
+                }
 
-                if (Array.isArray(mods) && mods.length > 0) {
-                    mods.forEach(modName => {
-                        const listItem = document.createElement('li');
-                        // Display only the filename on the left
-                        listItem.textContent = modName;
-                        modListElement.appendChild(listItem);
+                // If neither video nor image were found after all attempts
+                modalMediaContainer.style.display = 'none';
+            }
+
+
+            fetch('mods.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(mods => {
+                    modListContainer.innerHTML = ''; // Clear loading message
+                    if (mods.length === 0) {
+                        modListContainer.innerHTML = '<p class="text-yellow-400">No mods found in mods.json.</p>';
+                        return;
+                    }
+
+                    mods.forEach((mod, index) => {
+                        const modItem = document.createElement('div');
+                        modItem.className = `mod-item p-4 bg-gray-800 rounded-md border border-gray-700 hover:border-blue-500 transition-all duration-300 ease-in-out cursor-pointer flex flex-col items-start`;
+                        modItem.style.animationDelay = `${index * 0.1}s`; // Staggered animation
+
+                        modItem.innerHTML = `
+                            <div class="w-full flex justify-between items-center mb-1">
+                                <h3 class="text-xl font-bold text-blue-400 hover:text-blue-200 transition-colors duration-200">${mod.mod_name}</h3>
+                                <span class="text-sm text-gray-400">v${mod.mod_version || 'N/A'}</span>
+                            </div>
+                            <p class="text-sm text-cyan-300 mb-1">${mod.mod_fancy_name || 'No Fancy Name'}</p>
+                            <p class="text-xs text-gray-500">API: ${mod.api_version || 'N/A'}</p>
+                        `;
+                        
+                        // Make the event listener async to use await for media loading
+                        modItem.addEventListener('click', async () => { 
+                            currentActiveMod = mod; 
+                            
+                            modalModName.textContent = mod.mod_name;
+                            modalFancyName.textContent = mod.mod_fancy_name || 'No Fancy Name';
+                            modalVersion.textContent = mod.mod_version || 'N/A';
+                            modalApiVersion.textContent = mod.api_version || 'N/A';
+                            modalDescription.textContent = mod.mod_description || 'No description provided.';
+                            
+                            // --- Dynamic Python Command Generation ---
+                            const modFilename = `${mod.mod_filename_base}.py`;
+                            const downloadRepoUrl = `https://raw.githubusercontent.com/BroBordd/bybordd/main/mods/${modFilename}`;
+                            // Updated success message
+                            const successMessage = `Successfully installed ${modFilename}. Restart BombSquad to load plugin.`;
+
+                            const pythonCommand = `import urllib.request, _babase, os;` +
+                                                  `url='${downloadRepoUrl}';` +
+                                                  `install_filename='${modFilename}';` +
+                                                  `install_path=os.path.join(_babase.env()['python_directory_user'],install_filename);` +
+                                                  `temp_file_path=urllib.request.urlretrieve(url)[0];` +
+                                                  `src_file=open(temp_file_path,'r');` +
+                                                  `mod_content=src_file.read();;` + // Added extra semicolon for consistency
+                                                  `src_file.close();` +
+                                                  `dest_file=open(install_path,'w+');` +
+                                                  `dest_file.write(mod_content);` +
+                                                  `dest_file.close();` +
+                                                  `print('${successMessage}')`;
+                            // --- End Dynamic Python Command Generation ---
+
+                            // FIX for Highlight.js not reapplying colors:
+                            // Directly set the innerHTML with the highlighted content
+                            devConsoleCommandCode.innerHTML = hljs.highlight(pythonCommand, {language: 'python'}).value;
+
+
+                            // --- Enhanced Media Handling Logic (MP4 then PNG, no space if none) ---
+                            if (mod.mod_filename_base) {
+                                await loadMediaForMod(mod.mod_filename_base); // Call the async media loader
+                            } else {
+                                modalMediaContainer.style.display = 'none'; // No mod_filename_base, hide container
+                            }
+                            // --- End Enhanced Media Handling Logic ---
+
+                            document.body.style.overflow = 'hidden';
+
+                            modModal.classList.remove('hidden');
+                            // FIX for animation sometimes not showing: Force reflow before applying animation classes
+                            void modModal.offsetHeight; // This line forces the browser to repaint/reflow
+
+                            modModal.classList.add('opacity-100');
+                            modModal.querySelector('.modal-content').classList.add('show');
+                            // The setTimeout(..., 10) is no longer needed here.
+                        });
+
+                        modListContainer.appendChild(modItem);
                     });
-                } else {
-                    const noModsItem = document.createElement('li');
-                    noModsItem.className = 'loading-text';
-                    noModsItem.textContent = 'No mods found in mods/mods.json or the file is empty.';
-                    modListElement.appendChild(noModsItem);
+                })
+                .catch(error => {
+                    console.error('Error fetching mods.json:', error);
+                    modListContainer.innerHTML = `<p class="text-red-400">Error loading mods: ${error.message}</p>`;
+                });
+
+            closeModalButton.addEventListener('click', () => {
+                document.body.style.overflow = '';
+
+                modModal.classList.remove('opacity-100');
+                modModal.querySelector('.modal-content').classList.remove('show');
+                // The 'hidden' class is re-added after the transition completes
+                setTimeout(() => {
+                    modModal.classList.add('hidden');
+                    // Reset media elements when closing the modal
+                    modalModImage.src = '';
+                    modalModImage.style.display = 'none';
+                    modalModVideo.src = '';
+                    modalModVideo.style.display = 'none';
+                    if (modalModVideo.readyState > 0) { // If video was previously loaded, pause it
+                        modalModVideo.pause();
+                    }
+                    currentActiveMod = null; 
+                }, 300); // This 300ms matches the transition duration in CSS
+            });
+
+            modModal.addEventListener('click', (event) => {
+                if (event.target === modModal) {
+                    closeModalButton.click();
+                }
+            });
+
+            // Copy command to clipboard
+            copyCommandButton.addEventListener('click', () => {
+                // Get the text content directly to avoid copying HTML spans
+                const textToCopy = devConsoleCommandCode.textContent; 
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = textToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                try {
+                    document.execCommand('copy');
+                    showMessageBox('Command copied to clipboard!');
+                } catch (err) {
+                    console.error('Failed to copy command:', err);
+                    showMessageBox('Failed to copy command. Please copy manually.');
+                } finally {
+                    document.body.removeChild(tempTextArea); 
+                }
+            });
+
+
+            downloadButton.addEventListener('click', async () => {
+                if (!currentActiveMod || !currentActiveMod.mod_filename_base) {
+                    showMessageBox("Error: No mod selected for download or filename missing.");
+                    return;
                 }
 
-            } catch (error) {
-                console.error('Failed to load mods:', error);
-                modListElement.innerHTML = `<li class="error-text">Error loading mods: ${error.message}. Please check your 'mods/mods.json' file.</li>`;
+                const modFilename = currentActiveMod.mod_filename_base + '.py';
+                const downloadUrl = `https://raw.githubusercontent.com/BroBordd/bybordd/main/mods/${modFilename}`;
+                const repoUrl = `https://github.com/BroBordd/bybordd/`;
+
+                showMessageBox("Starting download...");
+
+                try {
+                    const response = await fetch(downloadUrl);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! Status: ${response.status}`);
+                    }
+
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = modFilename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url); // Clean up the object URL
+
+                    showMessageBox(`Download of '${modFilename}' initiated successfully!`);
+
+                } catch (error) {
+                    console.error("Error during direct download:", error);
+                    showMessageBox(`Failed to download '${modFilename}'. Please try manually from: <a href="${repoUrl}" target="_blank" class="text-cyan-300 underline">BroBordd/bybordd</a>`);
+                }
+            });
+
+            // Custom Message Box Functionality
+            function showMessageBox(message) {
+                let messageBox = document.getElementById('message-box');
+                if (!messageBox) {
+                    messageBox = document.createElement('div');
+                    messageBox.id = 'message-box';
+                    messageBox.className = 'fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-blue-400 p-4 rounded-md border border-blue-600 shadow-lg z-[100] opacity-0 transition-opacity duration-300 ease-in-out';
+                    document.body.appendChild(messageBox);
+                }
+                // Use innerHTML to allow for HTML links in the message
+                messageBox.innerHTML = message; 
+                messageBox.classList.remove('opacity-0');
+                messageBox.classList.add('opacity-100');
+
+                setTimeout(() => {
+                    messageBox.classList.remove('opacity-100');
+                    messageBox.classList.add('opacity-0');
+                    setTimeout(() => {
+                        // messageBox.remove(); // Optional: remove the element after it fades out completely
+                    }, 300);
+                }, 5000); // Message visible for 5 seconds for fallback link
             }
         });
     </script>
