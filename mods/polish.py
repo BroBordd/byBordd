@@ -1969,6 +1969,6 @@ class byBordd(Plugin):
             else: return r
         setattr(B,a,f)
         teck(1,s.ok)
-    def ok(s):
-        Polish()
+    def ok(s): # demo
+        Polish() if 0 else 0
         pass
