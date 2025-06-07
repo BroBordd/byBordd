@@ -745,7 +745,7 @@ class Man:
             K.append(ctw(
                 position=(x+65,r[1]-65),
                 fall=str(round(size,1)),
-                size=(po.width-40,30),
+                size=(po.width-70,30),
                 mode=0,
                 parent=po.p,
                 color=(1,0.7,0),
@@ -808,7 +808,7 @@ class Man:
             size=(po.width,r[1]-244)
         )
         K.append(p0)
-        xs = GSW(max(d,key=GSW)+" ")
+        xs = GSW(max(d,key=GSW)+" ") if len(d) else GSW(' ')
         xs = [po.width,xs][xs>po.width]
         c0 = cw(
             parent=p0,
