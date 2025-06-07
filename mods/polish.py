@@ -7,6 +7,7 @@ Polish v1.0 - Your very UI designer
 Beta - Aims to help modders like me draw UI.
 Use UI to create UI, thanos vibes.
 Polish uses a different static appearance to avoid visually conflicting with target container.
+You can use polish by writing Polish() in dev console, or via the settings UI.
 In a nutshell, Polish a container, get code, thrive.
 """
 
