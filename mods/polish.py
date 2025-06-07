@@ -11,7 +11,6 @@ In a nutshell, Polish a container, get code, thrive.
 """
 
 from babase import (
-    clipboard_get_text as PASTE,
     clipboard_set_text as COPY,
     PluginSubsystem as SUB,
     Plugin,
@@ -82,6 +81,7 @@ class Polish:
         s.sl = (None,None)
         s.grid = [5,5]
         s.gtrash = []
+        s.bt = []
         s.trash,s.ok,s.sps,s.bws,s.K,s.hell = [[] for _ in range(6)]
         K = s.K
         # parent
@@ -193,6 +193,7 @@ class Polish:
         if s.sl[0] is None: err('Select a widget first!'); return
         data = s.MEM[s.sl[0]]
         s.MEM.update({data[1](**data[0]):(data[0].copy(),data[1])})
+        s.bt.append(s.bt[s.sl[1]])
         s.bord(False)
         s.fresh()
         s.hl(s.sl[1])
@@ -201,12 +202,13 @@ class Polish:
     def bye(s):
         if s.sl[0] is None: err('Select a widget first!'); return
         s.MEM.pop(s.sl[0])
+        s.bt.pop(s.sl[1])
         s.sl[0].delete()
         s.sl = (None,None)
         s.bord(False)
         s.clear()
         s.fresh()
-        Nice('Deleted!')
+        nice('Deleted!')
     def hold(s):
         if getattr(s,'busy',0): return 1
         s.busy = 1; teck(0.2,Call(setattr,s,'busy',0))
@@ -292,7 +294,7 @@ class Polish:
             b = bw(
                 parent=s.bc,
                 position=(10,ys-37*(i+1)),
-                label=f"#{i+1} {s.MEM[w][1].__name__[:-6]}",
+                label=s.bt[i],
                 color=(0.7,0.4,0),
                 textcolor=(1,0.7,0),
                 texture=gt('white'),
@@ -380,49 +382,6 @@ class Polish:
         p = join(ROOT(),n)
         with open(p,'w') as f: f.write(s.tr())
         nice(f'Exported {n}\nAt {p}')
-    def _tr(s):
-        t, n, e = ' '*4, '\n', ','
-        im, fcs, sigt = set(), [], False
-
-        for i, (k, f) in enumerate(s.MEM.values()):
-            im.add(f.__name__)
-            kwp, oav, ck = [], None, k.copy()
-
-            if i == 0 and "out_anim" in ck: oav = ck.pop("out_anim")
-            for K, V in ck.items():
-                v_s = repr(V)
-                if K == 'parent' and i != 0: v_s = 'root'
-                elif hasattr(V, '__class__') and V.__class__.__name__ == 'Texture':
-                    sv = str(V)
-                    if sv.startswith("<bauiv1.Texture '") and sv.endswith("'>"):
-                        tn = sv[len("<bauiv1.Texture '"):-2]
-                        v_s, sigt = f"gettexture('{tn}')", True
-                    else: v_s = repr(sv)
-                elif isinstance(V, str): v_s = f"'{V}'"
-                kwp.append(f"{K}={v_s}")
-            fcs.append((f.__name__, (e + n + t*2).join(kwp) if kwp else '', i == 0, oav))
-
-        imp_list = sorted(list(im))
-        if sigt: imp_list.append('gettexture')
-
-        o = '# Polish autogen v1.0 - Manual inspection recommended.' + n
-        o += 'from bauiv1 import (' + n
-        for fn_imp in imp_list: o += t + fn_imp + e + n
-        o = o[:-len(e+n)] + n + ')' + n*2 + 'def make():' + n
-
-        for fn, gk, isf, oav in fcs:
-            if isf:
-                if gk:
-                    o += t + f"root = {fn}(" + n + t*2 + gk + n + t + ")" + n
-                else:
-                    o += t + f"root = {fn}()" + n
-                if oav is not None: o += t + f"back = lambda: {fn}(root,transition={repr(oav) if not isinstance(oav, str) else f"'{oav}'"})" + n
-            else:
-                if gk:
-                    o += t + f"{fn}(" + n + t*2 + gk + n + t + ")" + n
-                else:
-                    o += t + f"{fn}()" + n
-        return o
     def tr(s):
         t, n, e = ' '*4, '\n', ','
         im, fcs_initial, sigt = set(), [], False
@@ -717,14 +676,17 @@ class Preset:
             size=(po.width-26,30),
             position=(x+13,y+7+37*i),
             color=s.c[1],
+            enable_sound=False,
             textcolor=s.c[0],
             parent=po.p,
             texture=gt('white'),
             on_activate_call=Call(s.load,i)
         )) for i in range(5)]
     def load(s,i):
+        deek()
         m = s.po.MEM
         ps = list(m.values())[0][0]['size']
+        h = len(m)-1
         l = [
             (bw,{
                 'size':(30,30),
@@ -741,7 +703,7 @@ class Preset:
                 'button_type':'back',
                 'color':(0.75,0.2,0.2),
                 'position':(40,40),
-                'label':f'#{len(m)} Back',
+                'label':f'#{h} Back',
                 'parent':s.po.tar
             }),
             (bw,{
@@ -750,7 +712,7 @@ class Preset:
                 'button_type':'square',
                 'color':(0.2,0.7,0.8),
                 'position':ran(ps),
-                'label':f'#{len(m)} Slim',
+                'label':f'#{h} Slim',
                 'parent':s.po.tar
             }),
             (bw,{
@@ -768,12 +730,12 @@ class Preset:
                 'editable':True,
                 'position':ran(ps),
                 'size':(130,30),
-                'text':f'#{len(m)} Editable'
+                'text':f'#{h} Editable'
             })
         ][i]
         w = l[0](**l[1])
         m.update({w:(l[1],l[0])})
-        nice('Loaded!')
+        s.po.bt.append(f'#{h} {l[0].__name__[:-6]}')
         s.po.fresh()
 
 class Man:
@@ -1358,16 +1320,18 @@ class Add:
         deek()
         f = getattr(s.ui,s.a[i])
         p = s.at['size']; p = ran(p)
-        t = f'#{len(s.po.MEM)} {f.__name__[:-6]}'
+        h = len(s.po.MEM)-1
+        tt = f'#{h} {f.__name__[:-6]}'
         d = {
             'parent':s.tar,
             'position':p,
             'size':50 if t in ['spinner'] else (100,30),
-            **([{},{'text':t}][f.__name__[:-6] in ['text','checkbox']]),
-            **([{'label':t},{}][f!=bw])
+            **([{},{'text':tt}][f.__name__[:-6] in ['text','checkbox']]),
+            **([{'label':tt},{}][f!=bw])
         }
         w = f(**d)
         s.po.MEM.update({w:(d,f)})
+        s.po.bt.append(tt)
         s.po.fresh()
 
 class Anim:
