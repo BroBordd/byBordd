@@ -17,6 +17,10 @@ from babase import (
     Plugin,
     env
 )
+from _babase import (
+    get_dev_console_input_text as dget,
+    set_dev_console_input_text as dset
+)
 from bascenev1 import broadcastmessage as broad
 from bauiv1 import (
     get_virtual_screen_size as res,
@@ -61,6 +65,7 @@ class Polish:
         parent=None,
         **k
     ):
+        s.dead = 0
         s.__class__.INS = s
         r = res()
         s.stack_offset = k.get('stack_offset',(0,0))
@@ -366,7 +371,7 @@ class Polish:
     def exit(s):
         s.clear()
         fade(s.i,i=1,a=-0.1)
-        teck(0.2,lambda:(s.p.delete(),cw(s.tar,transition=s.MEM[s.tar][0].get('out_anim','out_left'))))
+        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=s.MEM[s.tar][0].get('out_anim','out_left'))))
     def cpcode(s):
         COPY(s.tr())
         nice('Copied python code!')
@@ -395,7 +400,7 @@ class Polish:
                     else: v_s = repr(sv)
                 elif isinstance(V, str): v_s = f"'{V}'"
                 kwp.append(f"{K}={v_s}")
-            fcs.append((f.__name__, ', '.join(kwp), i == 0, oav))
+            fcs.append((f.__name__, (e + n + t*2).join(kwp) if kwp else '', i == 0, oav))
 
         imp_list = sorted(list(im))
         if sigt: imp_list.append('gettexture')
@@ -407,9 +412,16 @@ class Polish:
 
         for fn, gk, isf, oav in fcs:
             if isf:
-                o += t + f"root = {fn}({gk})" + n
+                if gk:
+                    o += t + f"root = {fn}(" + n + t*2 + gk + n + t + ")" + n
+                else:
+                    o += t + f"root = {fn}()" + n
                 if oav is not None: o += t + f"back = lambda: {fn}(root,transition={repr(oav) if not isinstance(oav, str) else f"'{oav}'"})" + n
-            else: o += t + f"{fn}({gk})" + n
+            else:
+                if gk:
+                    o += t + f"{fn}(" + n + t*2 + gk + n + t + ")" + n
+                else:
+                    o += t + f"{fn}()" + n
         return o
 
 class File:
@@ -1956,9 +1968,12 @@ def fade(w,i=0,j=0.025,a=0.1):
 # ba_meta require api 9
 # ba_meta export plugin
 class byBordd(Plugin):
-    has_settings_ui = lambda c: True
-    show_settings_ui = lambda c,b: Polish()
+    has_settings_ui = lambda s: True
+    show_settings_ui = lambda s,b: s.make()
+    make = lambda s: setattr(s,'ins',Polish())
     def __init__(s):
+        s.last = ''
+        s.ins = None
         # dumb workaround
         B = __import__('_babase')
         a = 'dev_console_add_python_terminal'
@@ -1968,7 +1983,11 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,s.ok)
-    def ok(s): # demo
-        Polish() if 0 else 0
-        pass
+        teck(1,lambda: (s.eye(),print('Polish v1.0 - Start by writing Polish() here or via settings ui')))
+    def eye(s):
+        n = dget()
+        if n in ['Polish()','polish()']:
+            if getattr(s.ins,'dead',1): s.make()
+            else: broad('Already running!')
+            dset('')
+        teck(0.1,s.eye)
