@@ -5,9 +5,8 @@
 Polish v1.0 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
-Use UI to create UI, thanos vibes.
+Start by writing Polish() in dev console, or via settings UI.
 Polish uses a different static appearance to avoid visually conflicting with target container.
-You can use polish by writing Polish() in dev console, or via the settings UI.
 In a nutshell, Polish a container, get code, thrive.
 """
 
@@ -293,7 +292,7 @@ class Polish:
             b = bw(
                 parent=s.bc,
                 position=(10,ys-37*(i+1)),
-                label=w.get_widget_type(),
+                label=f"#{i+1} {s.MEM[w][1].__name__[:-6]}",
                 color=(0.7,0.4,0),
                 textcolor=(1,0.7,0),
                 texture=gt('white'),
@@ -381,7 +380,7 @@ class Polish:
         p = join(ROOT(),n)
         with open(p,'w') as f: f.write(s.tr())
         nice(f'Exported {n}\nAt {p}')
-    def tr(s):
+    def _tr(s):
         t, n, e = ' '*4, '\n', ','
         im, fcs, sigt = set(), [], False
 
@@ -423,6 +422,101 @@ class Polish:
                     o += t + f"{fn}(" + n + t*2 + gk + n + t + ")" + n
                 else:
                     o += t + f"{fn}()" + n
+        return o
+    def tr(s):
+        t, n, e = ' '*4, '\n', ','
+        im, fcs_initial, sigt = set(), [], False
+        fcs_deferred = []
+
+        generated_vars = {}
+        obj_id_to_var_name = {}
+        mem_items = list(s.MEM.items())
+
+        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+            obj_name_base = f.__name__
+            current_var_name = ""
+
+            if obj_name_base in generated_vars:
+                generated_vars[obj_name_base] += 1
+            else:
+                generated_vars[obj_name_base] = 1
+            current_var_name = f"{obj_name_base}{generated_vars[obj_name_base]}"
+            if i == 0:
+                current_var_name = "root"
+            obj_id_to_var_name[obj_id] = current_var_name
+            im.add(f.__name__)
+
+        root_obj_id = mem_items[0][0] if mem_items else None
+
+        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+            initial_kwp = []
+            deferred_kwp = []
+            oav = None
+            ck = k_original.copy()
+
+            if i == 0 and "out_anim" in ck:
+                oav = ck.pop("out_anim")
+            for K, V in ck.items():
+                v_s = repr(V)
+                if K == 'parent' and V == root_obj_id:
+                    v_s = obj_id_to_var_name[V]
+                    initial_kwp.append(f"{K}={v_s}")
+                    continue
+                elif V in obj_id_to_var_name:
+                    v_s = obj_id_to_var_name[V]
+                    deferred_kwp.append(f"{K}={v_s}")
+                    continue
+                elif hasattr(V, '__class__') and V.__class__.__name__ == 'Texture':
+                    sv = str(V)
+                    if sv.startswith("<bauiv1.Texture '") and sv.endswith("'>"):
+                        tn = sv[len("<bauiv1.Texture '"):-2]
+                        v_s, sigt = f"gettexture('{tn}')", True
+                    else:
+                        v_s = repr(sv)
+                elif isinstance(V, str):
+                    v_s = f"'{V}'"
+                initial_kwp.append(f"{K}={v_s}")
+
+            var_name = obj_id_to_var_name[obj_id]
+            fcs_initial.append((
+                f.__name__,
+                (e + n + t*2).join(initial_kwp) if initial_kwp else '',
+                i == 0,
+                oav,
+                var_name
+            ))
+
+            if deferred_kwp:
+                fcs_deferred.append((
+                    f.__name__,
+                    var_name,
+                    (e + n + t*2).join(deferred_kwp)
+                ))
+
+        imp_list = sorted(list(im))
+        if sigt: imp_list.append('gettexture')
+
+        o = 'from bauiv1 import (' + n
+        for fn_imp in imp_list: o += t + fn_imp + e + n
+        o = o[:-len(e+n)] + n + ')' + n*2 + 'def make():' + n
+
+        for fn, initial_gk, isf, oav, var_name in fcs_initial:
+            if isf:
+                if initial_gk:
+                    o += t + f"root = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
+                else:
+                    o += t + f"root = {fn}()" + n
+                if oav is not None:
+                    o += t + f"back = lambda: {fn}(root,transition={repr(oav) if not isinstance(oav, str) else f"'{oav}'"})" + n
+            else:
+                if initial_gk:
+                    o += t + f"{var_name} = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
+                else:
+                    o += t + f"{var_name} = {fn}()" + n
+        if fcs_deferred:
+            o += n
+        for fn, var_name, deferred_gk in fcs_deferred:
+            o += t + f"{fn}({var_name}," + n + t*2 + deferred_gk + n + t + ")" + n
         return o
 
 class File:
@@ -647,7 +741,7 @@ class Preset:
                 'button_type':'back',
                 'color':(0.75,0.2,0.2),
                 'position':(40,40),
-                'label':'Back',
+                'label':f'#{len(m)} Back',
                 'parent':s.po.tar
             }),
             (bw,{
@@ -656,7 +750,7 @@ class Preset:
                 'button_type':'square',
                 'color':(0.2,0.7,0.8),
                 'position':ran(ps),
-                'label':'Very slim',
+                'label':f'#{len(m)} Slim',
                 'parent':s.po.tar
             }),
             (bw,{
@@ -673,8 +767,8 @@ class Preset:
                 'parent':s.po.tar,
                 'editable':True,
                 'position':ran(ps),
-                'size':(100,30),
-                'text':'Editable!'
+                'size':(130,30),
+                'text':f'#{len(m)} Editable'
             })
         ][i]
         w = l[0](**l[1])
@@ -1264,11 +1358,13 @@ class Add:
         deek()
         f = getattr(s.ui,s.a[i])
         p = s.at['size']; p = ran(p)
+        t = f'#{len(s.po.MEM)} {f.__name__[:-6]}'
         d = {
             'parent':s.tar,
             'position':p,
             'size':50 if t in ['spinner'] else (100,30),
-            **([{'text':CH(['Spaz','Bomb','Agent','Lmao','Okay'])},{}][f!=tw])
+            **([{},{'text':t}][f.__name__[:-6] in ['text','checkbox']]),
+            **([{'label':t},{}][f!=bw])
         }
         w = f(**d)
         s.po.MEM.update({w:(d,f)})

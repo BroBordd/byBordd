@@ -203,7 +203,7 @@
         "mod_name": "Polish",
         "mod_fancy_name": "Your very UI designer",
         "mod_version": "1.0",
-        "mod_description": "Beta - Aims to help modders like me draw UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nYou can use polish by writing Polish() in dev console, or via the settings UI.\nIn a nutshell, Polish a container, get code, thrive.",
+        "mod_description": "Beta - Aims to help modders like me draw UI.\nStart by writing Polish() in dev console, or via settings UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nIn a nutshell, Polish a container, get code, thrive.",
         "api_version": 9,
         "mod_filename_base": "polish"
     }
