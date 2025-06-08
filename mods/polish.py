@@ -74,8 +74,9 @@ class Polish:
             **k
         }
         s.tar = cw(**at)
+        s.TAR = (s.tar,(at,cw))
         s.width = 200
-        s.MEM = {s.tar:(at,cw)}
+        s.MEM = []
         s.size = size
         s.kid = None
         s.sl = (None,None)
@@ -192,9 +193,9 @@ class Polish:
         s.setup(first=True)
     def cp(s):
         if s.sl[0] is None: err('Select a widget first!'); return
-        data = s.MEM[s.sl[0]]
-        s.MEM.update({data[1](**data[0]):(data[0].copy(),data[1])})
-        s.bt.insert(s.sl[1],s.bt[s.sl[1]])
+        data = s.MEM[s.sl[1]][1]
+        s.MEM.insert(s.sl[1]+1,(data[1](**data[0]),(data[0].copy(),data[1])))
+        s.bt.insert(s.sl[1]+1,s.bt[s.sl[1]])
         s.bord(False)
         s.fresh()
         s.flash(s.ok[s.sl[1]+1])
@@ -208,7 +209,7 @@ class Polish:
         teck(0.05,Call(s.flash,b,c))
     def bye(s):
         if s.sl[0] is None: err('Select a widget first!'); return
-        s.MEM.pop(s.sl[0])
+        s.MEM.pop(s.sl[1])
         s.bt.pop(s.sl[1])
         s.sl[0].delete()
         s.sl = (None,None)
@@ -257,7 +258,7 @@ class Polish:
         s.kid = cls(*ex)
         if cls == Root:
             s.bord(False)
-            p = list(s.MEM.values())[0][0]
+            p = s.TAR[1][0]
             s._bord((0,0),p['size'],p.get('scale',1),18,15)
     def setup(s,first=False):
         r = res()
@@ -315,14 +316,14 @@ class Polish:
         if len(s.gtrash): Grid(s,s.gtrash,dry=True)
         if isinstance(s.kid,Root):
             s.bord(False)
-            p = list(s.MEM.values())[0][0]
+            p = s.TAR[1][0]
             s._bord((0,0),p['size'],p.get('scale',1),18,15)
     def hl(s,i):
         s.bord(False)
         if s.sl[0] is not None:
             bw(s.ok[s.sl[1]],color=(0.7,0.4,0),textcolor=(1,0.7,0))
         if i is None: return
-        s.sl = (list(s.MEM.keys())[i+1],i)
+        s.sl = (s.MEM[i][0],i)
         w = s.ok[i]
         bw(w,color=(0.4,0.2,0),textcolor=(0.7,0.4,0))
         s.bord(i)
@@ -330,7 +331,7 @@ class Polish:
         [_.delete() for _ in s.trash]; s.trash.clear()
         if i is False: return
         if s.sl is None: return
-        at = s.MEM[s.sl[0]][0]
+        at = s.MEM[s.sl[1]][1][0]
         pos = at['position']
         size = at['size']
         gx,gy = (18,15)
@@ -372,7 +373,7 @@ class Polish:
                 )
                 s.trash.append(t)
     def kids(s):
-        return [_ for _ in s.tar.get_children() if _ not in (s.trash+s.gtrash)]
+        return [_[0] for _ in s.MEM]
     def wid(s,i):
         o = getattr(s.kid,'w',69)
         s.clear()
@@ -381,12 +382,12 @@ class Polish:
         if o == w:
             s.hl(None)
             return
-        s.kid = Man(w,s)
+        s.kid = Man(w,s,i)
         s.hl(i)
     def exit(s):
         s.clear()
         fade(s.i,i=1,a=-0.1)
-        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=s.MEM[s.tar][0].get('out_anim','out_left'))))
+        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=s.TAR[1][0].get('out_anim','out_left'))))
     def cpcode(s):
         COPY(s.tr())
         nice('Copied python code!')
@@ -395,7 +396,7 @@ class Polish:
         p = join(ROOT(),n)
         with open(p,'w') as f: f.write(s.tr())
         nice(f'Exported {n}\nAt {p}')
-    def tr(s):
+    def _tr(s):
         t, n, e = ' '*4, '\n', ','
         im, fcs_initial, sigt = set(), [], False
         fcs_deferred = []
@@ -419,6 +420,106 @@ class Polish:
             im.add(f.__name__)
 
         root_obj_id = mem_items[0][0] if mem_items else None
+
+        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+            initial_kwp = []
+            deferred_kwp = []
+            oav = None
+            ck = k_original.copy()
+
+            if i == 0 and "out_anim" in ck:
+                oav = ck.pop("out_anim")
+            for K, V in ck.items():
+                v_s = repr(V)
+                if K == 'parent' and V == root_obj_id:
+                    v_s = obj_id_to_var_name[V]
+                    initial_kwp.append(f"{K}={v_s}")
+                    continue
+                elif V in obj_id_to_var_name:
+                    v_s = obj_id_to_var_name[V]
+                    deferred_kwp.append(f"{K}={v_s}")
+                    continue
+                elif hasattr(V, '__class__') and V.__class__.__name__ == 'Texture':
+                    sv = str(V)
+                    if sv.startswith("<bauiv1.Texture '") and sv.endswith("'>"):
+                        tn = sv[len("<bauiv1.Texture '"):-2]
+                        v_s, sigt = f"gettexture('{tn}')", True
+                    else:
+                        v_s = repr(sv)
+                elif isinstance(V, str):
+                    v_s = f"'{V}'"
+                initial_kwp.append(f"{K}={v_s}")
+
+            var_name = obj_id_to_var_name[obj_id]
+            fcs_initial.append((
+                f.__name__,
+                (e + n + t*2).join(initial_kwp) if initial_kwp else '',
+                i == 0,
+                oav,
+                var_name
+            ))
+
+            if deferred_kwp:
+                fcs_deferred.append((
+                    f.__name__,
+                    var_name,
+                    (e + n + t*2).join(deferred_kwp)
+                ))
+
+        imp_list = sorted(list(im))
+        if sigt: imp_list.append('gettexture')
+
+        o = 'from bauiv1 import (' + n
+        for fn_imp in imp_list: o += t + fn_imp + e + n
+        o = o[:-len(e+n)] + n + ')' + n*2 + 'def make():' + n
+
+        for fn, initial_gk, isf, oav, var_name in fcs_initial:
+            if isf:
+                if initial_gk:
+                    o += t + f"root = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
+                else:
+                    o += t + f"root = {fn}()" + n
+                if oav is not None:
+                    o += t + f"back = lambda: {fn}(root,transition={repr(oav) if not isinstance(oav, str) else f"'{oav}'"})" + n
+            else:
+                if initial_gk:
+                    o += t + f"{var_name} = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
+                else:
+                    o += t + f"{var_name} = {fn}()" + n
+        if fcs_deferred:
+            o += n
+        for fn, var_name, deferred_gk in fcs_deferred:
+            o += t + f"{fn}({var_name}," + n + t*2 + deferred_gk + n + t + ")" + n
+        return o
+    def tr(s):
+        t, n, e = ' '*4, '\n', ','
+        im, fcs_initial, sigt = set(), [], False
+        fcs_deferred = []
+        generated_vars = {}
+        obj_id_to_var_name = {}
+
+        # s.MEM is now a list of (obj, (kwargs, func)) tuples, and s.TAR holds the root
+        # Start with the root object from s.TAR
+        root_obj_id, (root_k_original, root_f) = s.TAR
+        mem_items = [(root_obj_id, (root_k_original, root_f))] + list(s.MEM)
+
+        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+            obj_name_base = f.__name__
+            current_var_name = ""
+
+            if obj_name_base in generated_vars:
+                generated_vars[obj_name_base] += 1
+            else:
+                generated_vars[obj_name_base] = 1
+
+            current_var_name = f"{obj_name_base}{generated_vars[obj_name_base]}"
+            if i == 0:
+                current_var_name = "root"
+            obj_id_to_var_name[obj_id] = current_var_name
+            im.add(f.__name__)
+
+        # root_obj_id is now directly from s.TAR
+        root_obj_id = s.TAR[0]
 
         for i, (obj_id, (k_original, f)) in enumerate(mem_items):
             initial_kwp = []
@@ -644,7 +745,7 @@ class Grid:
         s.po.grid = [x,y]
     def make(s, w, h):
         s.nuke()
-        zw, zh = s.po.MEM[s.po.tar][0]['size']
+        zw, zh = s.po.TAR[1][0]['size']
 
         for i in range(h + 1):
             y = i * (zh / h) if h > 0 else 0
@@ -697,8 +798,7 @@ class Preset:
         )) for i in range(8)]
     def load(s,i):
         deek()
-        m = s.po.MEM
-        ps = list(m.values())[0][0]['size']
+        ps = s.po.TAR[1][0]['size']
         h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
         l = [
             (bw,{
@@ -770,15 +870,16 @@ class Preset:
             })
         ][i]
         w = l[0](**l[1])
-        m.update({w:(l[1],l[0])})
+        s.po.MEM.append((w,(l[1],l[0])))
         s.po.bt.append(f'#{h} {l[0].__name__[:-6]}')
         s.po.fresh()
 
 class Man:
-    def __init__(s,w,po):
+    def __init__(s,w,po,wi):
         s.po = po
         x = -po.width-5
-        mem = po.MEM[w]
+        s.wi = wi
+        mem = po.MEM[s.wi][1]
         d = s.d = mem[0]
         s.f = f = mem[1]
         pos = d['position']
@@ -1056,7 +1157,7 @@ class Man:
         s.K.append(ij)
         s.p3junk.append(ij)
         # custom value
-        at = po.MEM[s.w][0]
+        at = po.MEM[s.wi][1][0]
         v = at.get(k,None)
         b = bw(
             parent=po.p,
@@ -1209,7 +1310,7 @@ class Man:
         except Exception as e: err(str(e)); return
         nice('Saved!')
         tw(s.val1v,text=brk(str(v)))
-        s.po.MEM[s.w][0].update({k:v})
+        s.po.MEM[s.wi][1][0].update({k:v})
         s.po.bord()
     def val2(s,k):
         po = s.po
@@ -1255,7 +1356,7 @@ class Man:
             t = tw(
                 parent=cv,
                 size=(po.width,30),
-                text=f'#{n+1} {w.get_widget_type()}',
+                text=po.bt[n],
                 position=(10,ys-30*(n+1)),
                 color=(0.7,0.5,1),
                 maxwidth=po.width-20,
@@ -1308,7 +1409,7 @@ class Man:
         try: w = s.po.kids()[o[1]]; s.f(s.w,**{k:w})
         except Exception as e: err(str(e)); return
         nice('Value set!')
-        s.po.MEM[s.w][0].update({k:w})
+        s.po.MEM[s.wi][1][0].update({k:w})
         tw(s.val1v,text=brk(str(w)))
         refresh()
     def val2p(s,w,i):
@@ -1356,7 +1457,6 @@ class Add:
         deek()
         f = getattr(s.ui,s.a[i])
         p = s.at['size']; p = ran(p)
-#        h = len(s.po.MEM)-1
         h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
         tt = f'#{h} {f.__name__[:-6]}'
         d = {
@@ -1367,17 +1467,16 @@ class Add:
             **([{'label':tt},{}][f!=bw])
         }
         w = f(**d)
-        s.po.MEM.update({w:(d,f)})
+        s.po.MEM.append((w,(d,f)))
         s.po.bt.append(tt)
         s.po.fresh()
 
 class Anim:
     def __init__(s):
-        po = Polish.INS
+        po = s.po = Polish.INS
         s.p = po.p
         s.width = po.width
         s.tar = po.tar
-        s.mem = po.MEM
         r = res()
         x,y = -s.width-5,r[1]-250
         K = s.K = []
@@ -1400,7 +1499,7 @@ class Anim:
         K.append(tw(
             parent=s.p,
             editable=True,
-            text=s.mem[s.tar][0].get('transition',None),
+            text=po.TAR[1][0].get('transition',None),
             size=(s.width-56,30),
             allow_clear_button=False,
             color=(0,0.6,0.6),
@@ -1417,7 +1516,7 @@ class Anim:
             parent=s.p,
             editable=True,
             size=(s.width-56,30),
-            text=s.mem[s.tar][0].get('out_anim',None),
+            text=po.TAR[1][0].get('out_anim',None),
             allow_clear_button=False,
             color=(0,0.6,0.6),
             position=(x+45,y+95)
@@ -1469,16 +1568,15 @@ class Anim:
         if not i: return
         ok = ['out_'+_ for _ in OK()]
         if o not in ok: err(f'Out animation varies from:\n{ok}'); return
-        s.mem[s.tar][0].update({'transition':i,'out_anim':o})
+        s.po.TAR[1][0].update({'transition':i,'out_anim':o})
         nice('Saved!')
 
 class Root:
     def __init__(s):
         po = s.po = Polish.INS
         s.p = po.p
-        s.MEM = po.MEM
         s.tar = po.tar
-        s.size = s.MEM[s.tar][0]['size']
+        s.size = s.po.TAR[1][0]['size']
         r = res()
         s.width = Polish.width
         x,y = -s.width-5,1
@@ -1493,7 +1591,7 @@ class Root:
         fade(s.I,a=0.2)
         K.append(s.I)
         # offset
-        off = s.MEM[s.tar][0]['stack_offset']
+        off = s.po.TAR[1][0]['stack_offset']
         K.append(tw(
             parent=s.p,
             position=(x+10,r[1]-35),
@@ -1684,7 +1782,7 @@ class Root:
         s.K.append(ij)
         s.p3junk.append(ij)
         # custom value
-        at = s.MEM[s.tar][0]
+        at = s.po.TAR[1][0]
         v = at.get(k,None)
         b = bw(
             parent=s.p,
@@ -1834,7 +1932,7 @@ class Root:
         except Exception as e: err(str(e)); return
         nice('Saved!')
         tw(s.val1v,text=brk(str(v)))
-        s.MEM[s.tar][0].update({k:v})
+        s.po.TAR[1][0].update({k:v})
         refresh()
     def val2(s,k):
         p4 = getattr(s,'p4',0)
@@ -1879,7 +1977,7 @@ class Root:
             t = tw(
                 parent=cv,
                 size=(s.width,30),
-                text=f'#{n+1} {w.get_widget_type()}',
+                text=s.po.bt[n],
                 position=(10,ys-30*(n+1)),
                 color=(0.7,0.5,1),
                 maxwidth=s.width-20,
@@ -1932,7 +2030,7 @@ class Root:
         try: w = s.po.kids()[o[1]]; cw(s.tar,**{k:w})
         except Exception as e: err(str(e)); return
         nice('Value set!')
-        s.MEM[s.tar][0].update({k:w})
+        s.po.TAR[1][0].update({k:w})
         tw(s.val1v,text=brk(str(w)))
         refresh()
     def val2p(s,w,i):
@@ -1941,20 +2039,20 @@ class Root:
         if o[0]: tw(o[0],color=(0.7,0.5,1))
         s.val2o = (w,i); tw(w,color=(0,0.7,0.7))
     def set(s,a,i,v):
-        o = list(s.MEM[s.tar][0][a])
+        o = list(s.po.TAR[1][0][a])
         o[i] = float(v)
         d = {a:tuple(o)}
         cw(s.tar,**d)
-        s.MEM[s.tar][0].update(d)
+        s.po.TAR[1][0].update(d)
         s.po.fresh()
         refresh()
     def mv(s,i,j=1):
-        o = s.MEM[s.tar][0]['stack_offset']
+        o = s.po.TAR[1][0]['stack_offset']
         if i == 0: o = (o[0]-j,o[1])
         if i == 1: o = (o[0],o[1]-j)
         if i == 2: o = (o[0],o[1]+j)
         if i == 3: o = (o[0]+j,o[1])
-        s.MEM[s.tar][0]['stack_offset'] = o
+        s.po.TAR[1][0]['stack_offset'] = o
         cw(s.tar,stack_offset=o)
         tw(s.K[2],text=str(round(o[0],1)))
         tw(s.K[3],text=str(round(o[1],1)))
