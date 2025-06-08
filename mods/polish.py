@@ -181,7 +181,8 @@ class Polish:
         # button scroll
         s.bs = sw(
             parent=s.p,
-            border_opacity=0
+            border_opacity=0,
+            highlight=False
         )
         s.bc = cw(
             parent=s.bs,
@@ -193,12 +194,18 @@ class Polish:
         if s.sl[0] is None: err('Select a widget first!'); return
         data = s.MEM[s.sl[0]]
         s.MEM.update({data[1](**data[0]):(data[0].copy(),data[1])})
-        s.bt.append(s.bt[s.sl[1]])
+        s.bt.insert(s.sl[1],s.bt[s.sl[1]])
         s.bord(False)
         s.fresh()
+        s.flash(s.ok[s.sl[1]+1])
         s.hl(s.sl[1])
         s.bord()
         nice('Copied!')
+    def flash(s,b,c=(1.7,1.4,1)):
+        c = (c[0]-0.1,c[1]-0.1,c[2]-0.1)
+        bw(b,color=c)
+        if c[2] <= 0.09: return
+        teck(0.05,Call(s.flash,b,c))
     def bye(s):
         if s.sl[0] is None: err('Select a widget first!'); return
         s.MEM.pop(s.sl[0])
@@ -331,6 +338,12 @@ class Polish:
             gx,gy = (43,39)
             size = (size,size)
         scale = at.get('scale',1)
+        if size[0] < 20:
+            pos = (pos[0]-(20-size[0])/2,pos[1])
+            size = (20,size[1])
+        if size[1] < 20:
+            pos = (pos[0],pos[1]-(20-size[1])/2)
+            size = (size[0],20)
         size = (size[0]*scale,size[1]*scale)
         s._bord(pos,size,scale,gx,gy)
     def _bord(s,pos,size,scale,gx,gy):
@@ -657,9 +670,9 @@ class Preset:
     def __init__(s,po):
         s.K = K = []
         s.po = po
-        sy = 192
+        sy = 304
         r = res()
-        x,y = -po.width-5,r[1]-sy*1.75
+        x,y = -po.width-5,r[1]-sy*1.34
         s.c = [(1,1,0),(0.65,0.65,0)]
         s.I = iw(
             parent=po.p,
@@ -672,7 +685,7 @@ class Preset:
         K.append(s.I)
         # presets
         [K.append(bw(
-            label=['Back small','Back big','Slim button','Agent','Text box'][i],
+            label=['Back small','Back big','Slim button','Agent','Text box','Title','H Separator','V Separator'][i],
             size=(po.width-26,30),
             position=(x+13,y+7+37*i),
             color=s.c[1],
@@ -681,19 +694,19 @@ class Preset:
             parent=po.p,
             texture=gt('white'),
             on_activate_call=Call(s.load,i)
-        )) for i in range(5)]
+        )) for i in range(8)]
     def load(s,i):
         deek()
         m = s.po.MEM
         ps = list(m.values())[0][0]['size']
-        h = len(m)-1
+        h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
         l = [
             (bw,{
-                'size':(30,30),
+                'size':(40,40),
                 'button_type':'backSmall',
                 'textcolor':(1,1,1),
                 'color':(0.75,0.2,0.2),
-                'position':(40,ps[1]-40),
+                'position':(50,ps[1]-50),
                 'label':cs(sc.BACK),
                 'parent':s.po.tar
             }),
@@ -731,6 +744,29 @@ class Preset:
                 'position':ran(ps),
                 'size':(130,30),
                 'text':f'#{h} Editable'
+            }),
+            (tw,{
+                'parent':s.po.tar,
+                'text':f'#{h} Title',
+                'size':(130,40),
+                'scale':2,
+                'v_align':'top',
+                'h_align':'right',
+                'position':(ps[0]/2,ps[1]/2)
+            }),
+            (iw,{
+                'texture':gt('white'),
+                'opacity':0.6,
+                'position':ran(ps),
+                'size':(200,1),
+                'parent':s.po.tar
+            }),
+            (iw,{
+                'texture':gt('white'),
+                'opacity':0.6,
+                'position':ran(ps),
+                'size':(1,200),
+                'parent':s.po.tar
             })
         ][i]
         w = l[0](**l[1])
@@ -1320,7 +1356,8 @@ class Add:
         deek()
         f = getattr(s.ui,s.a[i])
         p = s.at['size']; p = ran(p)
-        h = len(s.po.MEM)-1
+#        h = len(s.po.MEM)-1
+        h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
         tt = f'#{h} {f.__name__[:-6]}'
         d = {
             'parent':s.tar,
