@@ -1106,7 +1106,7 @@ class Man:
         tw(s.K[2],text=str(round(o[0],1)))
         tw(s.K[3],text=str(round(o[1],1)))
         s.po.bord()
-    def prev(s,k,t,mem):
+    def prev(s,k,t,mem,fa=1):
         on = t
         po = s.po
         o = getattr(s,'on',None)
@@ -1117,8 +1117,9 @@ class Man:
         if getattr(p3,'exists',lambda:False)():
             fade(p3,i=1,a=-0.2)
             p3j = getattr(s,'p3junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p3j])
-            teck(0.2,lambda:(p3.delete(),s.prev(k,t,mem)))
+            [_.delete() for _ in p3j]
+            p3.delete()
+            s.prev(k,t,mem,fa=0)
             return
         s.on = on
         x,y = -2*s.po.width-10,res()[1]-265
@@ -1131,7 +1132,7 @@ class Man:
             size=(po.width,265)
         )
         s.K.append(ij)
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=po.p,
@@ -1216,14 +1217,15 @@ class Man:
     def _val2(s,*a):
         deek()
         s.val2(*a)
-    def val1(s,k,o):
+    def val1(s,k,o,fa=1):
         p4 = getattr(s,'p4',0)
         po = s.po
         if getattr(p4,'exists',lambda:False)():
             fade(p4,i=1,a=-0.2)
             p4j = getattr(s,'p4junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p4j])
-            teck(0.2,lambda:(p4.delete(),s.val1(k,o)))
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val1(k,o,fa=0)
             return
         x,y = -3*po.width-15,res()[1]-200
         # bg
@@ -1234,7 +1236,7 @@ class Man:
             position=(x,y),
             size=(po.width,200)
         )
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         s.K.append(ij)
         s.p3junk.append(ij)
         s.p4junk = [ij]
@@ -1312,14 +1314,15 @@ class Man:
         tw(s.val1v,text=brk(str(v)))
         s.po.MEM[s.wi][1][0].update({k:v})
         s.po.bord()
-    def val2(s,k):
+    def val2(s,k,fa=1):
         po = s.po
         p4 = getattr(s,'p4',0)
         if getattr(p4,'exists',lambda:False)():
             fade(p4,i=1,a=-0.2)
             p4j = getattr(s,'p4junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p4j])
-            teck(0.2,lambda:(p4.delete(),s.val2(k)))
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val2(k,fa=0)
             return
         x,y = -3*s.po.width-15,res()[1]-200
         # bg
@@ -1330,7 +1333,7 @@ class Man:
             position=(x,y),
             size=(po.width,200)
         )
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         s.K.append(ij)
         s.p3junk.append(ij)
         s.p4junk = [ij]
@@ -1732,7 +1735,7 @@ class Root:
         dot = tw(parent=c1,position=(0,ys),text='.')
         cw(c1,visible_child=dot)
         dot.delete()
-    def prev(s,k,t,mem):
+    def prev(s,k,t,mem,fa=1):
         on = t
         o = getattr(s,'on',None)
         if o == on: return
@@ -1742,8 +1745,9 @@ class Root:
         if getattr(p3,'exists',lambda:False)():
             fade(p3,i=1,a=-0.2)
             p3j = getattr(s,'p3junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p3j])
-            teck(0.2,lambda:(p3.delete(),s.prev(k,t,mem)))
+            [_.delete() for _ in p3j]
+            p3.delete()
+            s.prev(k,t,mem,fa=0)
             return
         s.on = on
         x,y = -2*s.width-10,res()[1]-265
@@ -1756,7 +1760,7 @@ class Root:
             size=(s.width,265)
         )
         s.K.append(ij)
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=s.p,
@@ -1840,13 +1844,14 @@ class Root:
     def _val2(s,*a):
         deek()
         s.val2(*a)
-    def val1(s,k,o):
+    def val1(s,k,o,fa=1):
         p4 = getattr(s,'p4',0)
         if getattr(p4,'exists',lambda:False)():
             fade(p4,i=1,a=-0.2)
             p4j = getattr(s,'p4junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p4j])
-            teck(0.2,lambda:(p4.delete(),s.val1(k,o)))
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val1(k,o,fa=0)
             return
         x,y = -3*s.width-15,res()[1]-200
         # bg
@@ -1857,7 +1862,7 @@ class Root:
             position=(x,y),
             size=(s.width,200)
         )
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         s.K.append(ij)
         s.p3junk.append(ij)
         s.p4junk = [ij]
@@ -1934,13 +1939,14 @@ class Root:
         tw(s.val1v,text=brk(str(v)))
         s.po.TAR[1][0].update({k:v})
         refresh()
-    def val2(s,k):
+    def val2(s,k,fa=1):
         p4 = getattr(s,'p4',0)
         if getattr(p4,'exists',lambda:False)():
             fade(p4,i=1,a=-0.2)
             p4j = getattr(s,'p4junk',[]).copy()
-            teck(0.09,lambda:[_.delete() for _ in p4j])
-            teck(0.2,lambda:(p4.delete(),s.val2(k)))
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val2(k,fa=0)
             return
         x,y = -3*s.width-15,res()[1]-200
         # bg
@@ -1951,7 +1957,7 @@ class Root:
             position=(x,y),
             size=(s.width,200)
         )
-        fade(ij,a=0.2)
+        fade(ij,a=0.2) if fa else 0
         s.K.append(ij)
         s.p3junk.append(ij)
         s.p4junk = [ij]
