@@ -206,5 +206,13 @@
         "mod_description": "Beta - Aims to help modders like me draw UI.\nStart by writing Polish() in dev console, or via settings UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nIn a nutshell, Polish a container, get code, thrive.",
         "api_version": 9,
         "mod_filename_base": "polish"
+    },
+    {
+        "mod_name": "Power",
+        "mod_fancy_name": "Feel the power",
+        "mod_version": "1.0",
+        "mod_description": "Because we developers are powerful.\nPower is mainly focused on the multiplayer side.\nAdds a dev console tab with some features I find useful.\nPower can be considered a good tool to have around.",
+        "api_version": 9,
+        "mod_filename_base": "power"
     }
 ]
