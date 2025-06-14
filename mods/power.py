@@ -2,7 +2,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Power v1.0 - Feel the power
+Power v2.0 - Feel the power
 
 Because we developers are powerful.
 Power is mainly focused on the multiplayer side.
@@ -19,15 +19,16 @@ from babase import (
     app
 )
 from babase._devconsole import (
-    DevConsoleTab as TAB,
-    DevConsoleTabEntry as ENT
+    DevConsoleTabEntry as ENT,
+    DevConsoleTab as TAB
 )
 from bascenev1 import (
     get_connection_to_host_info_2 as HOST,
     disconnect_from_host as LEAVE,
-    connect_to_party as CON,
-    disconnect_client as kick,
+    disconnect_client as DISC,
     broadcastmessage as push,
+    get_chat_messages as GCM,
+    connect_to_party as CON,
     get_game_roster as ROST,
     chatmessage as chat
 )
@@ -41,14 +42,11 @@ from bauiv1 import (
 
 class Power(TAB):
     def __init__(s):
-        s.ri = 0
-        s.c = s.p = s.n = s.h = None
-        s.j = [None,None,None]
-        s.ji = 1
-        s.re = 0
-        s.r = []
-        s.hi = {}
-        s.ii = 0
+        s.j = [None,None,None]; s.ji = 1
+        [setattr(s,_,None) for _ in 'cpnh']
+        [setattr(s,_,{}) for _ in ['rr','hi']]
+        [setattr(s,_,[]) for _ in ['cm','og','r']]
+        [setattr(s,_,0) for _ in ['ii','eii','ci','re','ri','eri']]
         teck(3,s.spy)
     def rf(s):
         try: s.request_refresh()
@@ -56,33 +54,379 @@ class Power(TAB):
     def spy(s):
         _ = 0
         r = ROST()
-        if r != s.r: s.r = r; _ = 1
+        if r != s.r:
+            s.rr.update({i['display_string']:(i['client_id'],i['players'])})
+            s.r = r
+            _ = 1
         h = HOST()
         if h != s.h: s.h = h; _ = 1
+        ng = GCM()
+        if s.og != ng:
+            s.og = ng
+            ls = ng[-1]
+            ch = s.cm[0][1] if len(s.cm) else 0
+            if ch and ls == s.cm[0][0]: s.cm[0] = (ls,ch+1)
+            else: s.cm.insert(0,(ls,1))
+            if s.ci: s.ci += 1
+            _ = 1
         _ and s.rf()
         teck(0.1,s.spy)
     @override
     def refresh(s):
         sf = s.width / 1605.3
+        zf = s.height / 648
         x = -s.width/2
         T,B = s.text,s.button
         if len(s.r) and s.ri >= len(s.r): s.ri = len(s.r) - 1
+        if len(s.r) and s.eri >= len(s.r): s.eri = len(s.r) - 1
+        if not len(s.r) and s.c: s.c = None
         if s.j[0] == 'JRejoin' and s.ji <= s.re:
             s.ji = s.re + 1
             push('Job time cannot be less than rejoin time\nwhen job is JRejoin. Updated job time to '+str(s.ji),color=(1,1,0))
-        if s.height <= 100:
+        if s.height > 100:
+            B(
+                cs(sc.UP_ARROW),
+                pos=(x + 10 * sf, 606*zf),
+                size=(280*sf,35*zf),
+                disabled=s.eri <= 0,
+                call=Call(s.mv,'eri',-1)
+            )
+            B(
+                cs(sc.DOWN_ARROW),
+                pos=(x + 10 * sf, 290*zf),
+                size=(280*sf,35*zf),
+                disabled=s.eri >= len(s.r)-7,
+                call=Call(s.mv,'eri',1)
+            )
+            nt = "No roster detected\nJoin some public party"
+            w = GSW(nt)
+            0 if len(s.r) else T(
+                nt,
+                pos=(x + 150 * sf, 495*zf),
+                h_align='center',
+                v_align='top',
+                scale=1 if w<(290*sf) else (290*sf)/w
+            )
+            for i,z in enumerate(s.rr.items()):
+                if i < s.eri: continue
+                if i>=(s.eri+7): break
+                n,g = z
+                c,p = g
+                w = GSW(n)
+                B(
+                    n,
+                    size=(280 * sf, 37*zf),
+                    pos=(x + 10 * sf, (564-39*(i-s.eri))*zf),
+                    style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
+                    call=Call(s.prv,c,p,n),
+                    label_scale=1 if w < 280 * sf else (280 * sf)/w
+                )
+            B(
+                '',
+                size=(280 * sf, 2),
+                pos=(x + 10 * sf, 280*zf),
+                style='bright'
+            )
+            bb = s.c is None
+            B(
+                'Bomb' if bb else (['Client','Host'][s.c==-1]+f' {s.c}'),
+                pos=(x + 10 * sf, 230*zf),
+                size=(280 * sf, 40*zf),
+                disabled=bb,
+                call=Call(push,str(s.n))
+            )
+            B(
+                'Mention',
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 185*zf),
+                call=Call(chat,str(s.n)),
+                disabled=bb
+            )
+            B(
+                'Players',
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 140*zf),
+                call=Call(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
+                disabled=bb or (not s.p)
+            )
+            B(
+                'Kick',
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 95*zf),
+                call=Call(KICK,lambda:s.rr[s.n][0]),
+                disabled=bb or (s.c==-1)
+            )
+            B(
+                'JKick',
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 50*zf),
+                call=Call(s.job,Call(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
+                disabled=bb or (s.c==-1)
+            )
+            B(
+                'Vote',
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 5*zf),
+                call=Call(chat,'1'),
+                disabled=not s.r
+            )
+            B(
+                '',
+                size=(2, 635*zf),
+                pos=(x + 300 * sf, 5*zf),
+                style='bright'
+            )
+            t = getattr(s.h,'name','Not in a server')
+            a = getattr(s.h,'address','127.0.0.1')
+            p = getattr(s.h,'port','43210')
+            if s.h:
+                tt = t if t.strip() else '...'
+                s.hi.update({(tt,a):(tt,p)}) if (t.strip()) or (a not in s.hi) else None
+                0 if tt == '...' else [s.hi.pop((v,_)) for v,_ in s.hi.copy() if v == '...']
+            w = GSW(t)
+            B(
+                t if t.strip() else 'Loading...',
+                size=(400 * sf, 35*zf),
+                pos=(x + 311 * sf, 606*zf),
+                disabled=not s.h,
+                label_scale=1 if w < 390 * sf else (390 * sf)/w,
+                call=Call(push,f"{t}\nHosted on build {getattr(s.h,'build_number','0')}" if t.strip() else 'Server is still loading...\nIf it remains stuck on this\nthen either party is full, or a network issue.'),
+            )
+            w = GSW(a)
+            B(
+                a,
+                size=(300 * sf, 35*zf),
+                pos=(x + 311 * sf, 568*zf),
+                call=Call(COPY,a),
+                disabled=not s.h,
+                label_scale=1 if w < 290 * sf else (290 * sf)/w
+            )
+            w = GSW(str(p))
+            B(
+                str(p),
+                size=(97 * sf, 35*zf),
+                pos=(x + 614 * sf, 568*zf),
+                disabled=not s.h,
+                call=Call(COPY,str(p)),
+                label_scale=1 if w < 90 * sf else (90 * sf)/w
+            )
+            B(
+                'Leave',
+                size=(400 * sf, 35*zf),
+                pos=(x + 311 * sf, 530*zf),
+                call=LEAVE,
+                disabled=not s.h
+            )
+            B(
+                'Rejoin',
+                size=(200 * sf, 35*zf),
+                pos=(x + 311 * sf, 492*zf),
+                call=Call(REJOIN,a,p,lambda:s.re),
+                disabled=not s.h
+            )
+            B(
+                'JRejoin',
+                size=(197 * sf, 35*zf),
+                pos=(x + 514 * sf, 492*zf),
+                call=Call(s.job,Call(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
+                disabled=not s.h
+            )
+            B(
+                '+',
+                size=(131 * sf, 35*zf),
+                pos=(x + 579 * sf, 454*zf),
+                call=Call(s.mv,'re',1)
+            )
+            B(
+                str(s.re or 0.1),
+                size=(131 * sf, 35*zf),
+                pos=(x + 444 * sf, 454*zf),
+                call=Call(push,f"Rejoins after {s.re or 0.1} second{['','s'][s.re!=1]}\nKeep this 0.1 unless server kicks fast rejoins\nLife in server = job time - rejoin time")
+            )
+            B(
+                '-',
+                size=(131 * sf, 35*zf),
+                pos=(x + 311 * sf, 454*zf),
+                disabled=s.re<=0.5,
+                call=Call(s.mv,'re',-1)
+            )
+            B(
+                '',
+                size=(2, 635*zf),
+                pos=(x + 720 * sf, 5*zf),
+                style='bright'
+            )
+            B(
+                '',
+                size=(400 * sf, 2),
+                pos=(x + 311 * sf, 445*zf),
+                style='bright'
+            )
+            for i,e in enumerate(s.hi.items()):
+                if i < s.eii: continue
+                if i >= (s.eii+9): break
+                g,v = e
+                _,a = g
+                n,p = v
+                w = GSW(n)
+                B(
+                    n,
+                    size=(400 * sf, 37*zf),
+                    pos=(x + 311 * sf, (358-39*(i-s.eii))*zf),
+                    label_scale=1 if w < 290 * sf else (290 * sf)/w,
+                    call=Call(JOIN,a,p,False),
+                    disabled=n == '...'
+                )
+            nt = "Server join history\nServers you join are saved here"
+            w = GSW(nt)
+            0 if len(s.hi) else T(
+                nt,
+                pos=(x + 510 * sf, 265*zf),
+                h_align='center',
+                v_align='top',
+                scale=1 if w<(380*sf) else (380*sf)/w
+            )
+            B(
+                cs(sc.DOWN_ARROW),
+                pos=(x + 311 * sf, 8*zf),
+                size=(398*sf, 35*zf),
+                disabled=s.eii >= len(s.hi)-9,
+                call=Call(s.mv,'eii',1)
+            )
+            B(
+                cs(sc.UP_ARROW),
+                pos=(x + 311 * sf, 400*zf),
+                size=(400*sf, 35*zf),
+                disabled=s.eii <= 0,
+                call=Call(s.mv,'eii',-1)
+            )
+            bb = s.j[0] is None
+            B(
+                'No job' if bb else 'Job',
+                size=(300 * sf, 35*zf),
+                pos=(x + 727 * sf, 606*zf),
+                call=Call(push,s.j[0]),
+                disabled=bb
+            )
+            w = 0 if bb else GSW(str(s.j[1]))
+            B(
+                'Target' if bb else str(s.j[1]),
+                size=(300 * sf, 35*zf),
+                pos=(x + 727 * sf, 568*zf),
+                call=Call(push,s.j[2]),
+                disabled=bb,
+                label_scale=1 if w<110 * sf else (110 * sf)/w
+            )
+            B(
+                'Stop',
+                size=(300 * sf, 35*zf),
+                pos=(x + 727 * sf, 530*zf),
+                call=Call(s.job,None,[None,None,None]),
+                disabled=bb
+            )
+            B(
+                '+',
+                size=(96 * sf, 35*zf),
+                pos=(x + 931 * sf, 492*zf),
+                call=Call(s.mv,'ji',1)
+            )
+            B(
+                str(s.ji or 0.1),
+                size=(100 * sf, 35*zf),
+                pos=(x + 828 * sf, 492*zf),
+                call=Call(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
+            )
+            B(
+                '-',
+                size=(98 * sf, 35*zf),
+                pos=(x + 727 * sf, 492*zf),
+                disabled=s.ji<=0.5,
+                call=Call(s.mv,'ji',-1)
+            )
+            B(
+                'Power',
+                size=(300 * sf, 35*zf),
+                pos=(x + 727 * sf, 454*zf),
+                call=Call(push,"Power v2.0 FullUI\nCollapse dev console to switch to MinUI")
+            )
+            B(
+                '',
+                size=(300 * sf, 2),
+                pos=(x + 727 * sf, 445*zf),
+                style='bright'
+            )
+            B(
+                '',
+                size=(2, 635*zf),
+                pos=(x + 1034 * sf, 5*zf),
+                style='bright'
+            )
+            for i,g in enumerate(s.cm):
+                if i < s.ci: continue
+                if i >= s.ci+15: break
+                i = i - s.ci
+                m,_ = g
+                sn,ms = m.split(': ',1)
+                w = GSW(sn)
+                w = [w,30*sf][w<30*sf]
+                s1 = [w,200*sf][w>200*sf]
+                B(
+                    sn,
+                    size=(s1,35*zf),
+                    pos=(x + 1040*sf, (48+37*i)*zf),
+                    style='purple',
+                    label_scale=1 if w<(s1-10*sf) else (s1-10*sf)/w,
+                )
+                s2 = 555*sf - s1 - 53*(_>1)
+                B(
+                    '',
+                    size=(s2,35*zf),
+                    pos=(x + 1045*sf+s1, (48+37*i)*zf),
+                    style='black'
+                )
+                w = GSW(ms)
+                T(
+                    ms,
+                    pos=(x + s1+(1050)*sf, (48+17+37*i)*zf),
+                    scale=1 if w<(s2-10*sf) else (s2-10*sf)/w,
+                    h_align='left'
+                )
+                z = f'x{_}'
+                w = GSW(z)
+                _>1 and B(
+                    z,
+                    pos=(x+s1+s2+(1050)*sf,(48+37*i)*zf),
+                    size=(50*sf,35*zf),
+                    label_scale=1 if w<(40*sf) else (40*sf)/w,
+                    style='yellow_bright'
+                )
+            B(
+                cs(sc.DOWN_ARROW),
+                pos=(x+1042*sf,8*zf),
+                size=(555*sf,35*zf),
+                call=Call(s.mv,'ci',-1),
+                disabled=s.ci <= 0 or not s.cm
+            )
+            B(
+                cs(sc.UP_ARROW),
+                pos=(x+1042*sf,606*zf),
+                size=(555*sf,35*zf),
+                call=Call(s.mv,'ci',1),
+                disabled=(s.ci >= len(s.cm)-15) or not s.cm
+            )
+        else:
             B(
                 cs(sc.DOWN_ARROW),
                 pos=(x + 10 * sf, 10),
                 size=(30 * sf, s.height-17),
-                disabled=s.ri >= len(s.r)-3,
+                disabled=(s.ri >= len(s.r)-3) or not s.r,
                 call=Call(s.mv,'ri',1)
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x + 250 * sf, 10),
                 size=(30 * sf, s.height-17),
-                disabled=s.ri <= 0,
+                disabled=(s.ri <= 0) or not s.r,
                 call=Call(s.mv,'ri',-1)
             )
             nt = "No roster\nYou're alone"
@@ -94,12 +438,11 @@ class Power(TAB):
                 v_align='top',
                 scale=1 if w<(200*sf) else (200*sf)/w
             )
-            for i,k in enumerate(s.r):
+            for i,z in enumerate(s.rr.items()):
                 if i < s.ri: continue
                 if i>=(s.ri+3): break
-                c = k['client_id']
-                n = k['display_string']
-                p = k['players']
+                n,g = z
+                c,p = g
                 w = GSW(n)
                 B(
                     n,
@@ -135,14 +478,14 @@ class Power(TAB):
                 'Kick',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-34),
-                call=Call(kick,s.c),
+                call=Call(KICK,lambda:s.rr[s.n][0]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'JKick',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-62),
-                call=Call(s.job,Call(kick,s.c),['JKick',s.c,s.n]),
+                call=Call(s.job,Call(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1)
             )
             B(
@@ -154,12 +497,11 @@ class Power(TAB):
             )
             B(
                 '',
-                size=(1 * sf, s.height-17),
+                size=(2, s.height-17),
                 pos=(x + 535 * sf, 10),
                 style='bright'
             )
             bb = s.j[0] is None
-            ra = cs(sc.RIGHT_ARROW)
             B(
                 'No job' if bb else 'Job',
                 size=(120 * sf, 27),
@@ -204,7 +546,7 @@ class Power(TAB):
             )
             B(
                 '',
-                size=(1 * sf, s.height-17),
+                size=(2, s.height-17),
                 pos=(x + 722 * sf, 10),
                 style='bright'
             )
@@ -284,7 +626,7 @@ class Power(TAB):
             )
             B(
                 '',
-                size=(1 * sf, s.height-17),
+                size=(2, s.height-17),
                 pos=(x + 1092 * sf, 10),
                 style='bright'
             )
@@ -341,7 +683,7 @@ class Power(TAB):
             )
             B(
                 'Power',
-                call=Call(push,'Power v1.0 MinUI\nExpand dev console to switch to FullUI'),
+                call=Call(push,'Power v2.0 MinUI\nExpand dev console to switch to FullUI'),
                 pos=(x + 1469 * sf, s.height-90),
                 size=(130 * sf, 27)
             )
@@ -365,6 +707,7 @@ class Power(TAB):
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
+KICK = lambda f: DISC(f())
 FORCE = lambda: ((BACK() or 1) if HAS() else 1) and teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
