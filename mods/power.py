@@ -56,11 +56,12 @@ class Power(TAB):
         _ = 0
         r = ROST()
         if r != s.r:
+            s.rr.clear()
             s.rr.update({i['display_string']:(i['client_id'],i['players']) for i in r})
             s.r = r
             _ = 1
         h = HOST()
-        if h != s.h: s.h = h; _ = 1
+        if h != s.h: s.ri = 0; s.h = h; _ = 1
         ng = GCM()
         if s.og != ng:
             s.og = ng
@@ -80,9 +81,6 @@ class Power(TAB):
         T,B = s.text,s.button
         if len(s.r) and s.ri >= len(s.r): s.ri = len(s.r) - 1
         if len(s.r) and s.eri >= len(s.r): s.eri = len(s.r) - 1
-        if not len(s.r):
-            if s.rr: s.rr.clear()
-            if s.c: s.c = None
         if s.j[0] == 'JRejoin' and s.ji <= s.re:
             s.ji = s.re + 1
             push('Job time cannot be less than rejoin time\nwhen job is JRejoin. Updated job time to '+str(s.ji),color=(1,1,0))
@@ -761,7 +759,8 @@ class Power(TAB):
     def chk(s,pn):
         for n,g in s.rr.items():
             c,p = g
-            if pn == n or pn in p: s.prv(c,p,n); break
+            for _ in p:
+                if pn in [_['name'],_['name_full']]: s.prv(c,p,n); break
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
