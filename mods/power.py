@@ -2,7 +2,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Power v2.0 - Feel the power
+Power v2.5 - Feel the power
 
 Because we developers are powerful.
 Power is mainly focused on the multiplayer side.
@@ -10,6 +10,7 @@ Adds a dev console tab with some features I find useful.
 Power can be considered a good tool to have around.
 """
 
+from datetime import datetime as DT
 from typing import override
 from babase import (
     clipboard_is_supported as CIS,
@@ -45,8 +46,8 @@ class Power(TAB):
         s.j = [None,None,None]; s.ji = 1
         [setattr(s,_,None) for _ in 'cpnh']
         [setattr(s,_,{}) for _ in ['rr','hi']]
-        [setattr(s,_,[]) for _ in ['cm','og','r']]
-        [setattr(s,_,0) for _ in ['ii','eii','ci','re','ri','eri']]
+        [setattr(s,_,[]) for _ in ['cm','og','r','ls']]
+        [setattr(s,_,0) for _ in ['ii','eii','ci','re','ri','eri','li','lii']]
         teck(3,s.spy)
     def rf(s):
         try: s.request_refresh()
@@ -284,7 +285,6 @@ class Power(TAB):
             0 if len(s.hi) else T(
                 nt,
                 pos=(x + 510 * sf, 265*zf),
-                h_align='center',
                 v_align='top',
                 scale=1 if w<(380*sf) else (380*sf)/w
             )
@@ -349,7 +349,7 @@ class Power(TAB):
                 'Power',
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 454*zf),
-                call=Call(push,"Power v2.0 FullUI\nCollapse dev console to switch to MinUI")
+                call=Call(push,"Power v2.5 FullUI\nCollapse dev console to switch to MinUI")
             )
             B(
                 '',
@@ -421,6 +421,44 @@ class Power(TAB):
                 call=Call(s.mv,'ci',1),
                 disabled=(s.ci >= len(s.cm)-15) or not s.cm
             )
+            B(
+                cs(sc.DOWN_ARROW),
+                pos=(x+727*sf,8*zf),
+                size=(300*sf,35*zf),
+                disabled=(s.li >= len(s.ls)-16) or not s.ls,
+                call=Call(s.mv,'li',1)
+            )
+            B(
+                cs(sc.UP_ARROW),
+                pos=(x+727*sf,400*zf),
+                size=(300*sf,35*zf),
+                disabled=s.li<=0,
+                call=Call(s.mv,'li',-1)
+            )
+            0 if s.ls else T(
+                'Job logs here\nLike you even care',
+                pos=(x+875*sf,232*zf)
+            )
+            for _,g in enumerate(s.ls):
+                if _ < s.li: continue
+                if _ >= s.li+16: break
+                _ = _ - s.li
+                l,t = g
+                B(
+                    '',
+                    pos=(x+727*sf,(376-_*22)*zf),
+                    size=(300*sf,20*zf),
+                    label_scale=0.7,
+                    corner_radius=0,
+                    style='black',
+                    call=Call(push,t)
+                )
+                T(
+                    l,
+                    pos=(x+732*sf,(386-_*22)*zf),
+                    scale=0.6,
+                    h_align='left'
+                )
         else:
             B(
                 cs(sc.DOWN_ARROW),
@@ -690,16 +728,24 @@ class Power(TAB):
             )
             B(
                 'Power',
-                call=Call(push,'Power v2.0 MinUI\nExpand dev console to switch to FullUI'),
+                call=Call(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI'),
                 pos=(x + 1469 * sf, s.height-90),
                 size=(130 * sf, 27)
             )
+    def log(s,t):
+        s.ls.append((t,NOW()))
+        if s.lii < 99:
+            s.lii += 1
+            if s.li == s.lii-17: s.li += 1
+        else: s.ls.pop(0)
+        s.rf()
     def mv(s,a,i):
         setattr(s,a,getattr(s,a)+i)
         s.rf()
     def job(s,f,j):
         s.j = j
         s.lf = f
+        s.hd = j[1] if s.j[0] == 'JRejoin' else j[2]
         if f is not None:
             s._job(f)
             push('Job started',color=(1,1,0))
@@ -707,6 +753,7 @@ class Power(TAB):
         s.rf()
     def _job(s,f):
         if f != s.lf: return
+        s.log(f'[{s.lii:02}] [{s.j[0]}] {s.hd}')
         f(); teck(s.ji or 0.1,Call(s._job,f))
     def prv(s,c,p,n):
         s.c,s.p,s.n = c,p,n
@@ -714,12 +761,7 @@ class Power(TAB):
     def chk(s,pn):
         for n,g in s.rr.items():
             c,p = g
-            if pn == n or pn in p:
-                s.p = p
-                s.n = n
-                s.c = c
-                s.rf()
-                break
+            if pn == n or pn in p: s.prv(c,p,n); break
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
@@ -729,6 +771,7 @@ JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
 REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,Call(JOIN,a,p,False))
 COPY = lambda s: ((CST(s) or 1) if CIS() else push('Clipboard not supported!')) and push('Copied!',color=(0,1,0))
+NOW = lambda: DT.now().strftime("%H:%M:%S")
 
 # brobord collide grass
 # ba_meta require api 9
