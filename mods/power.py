@@ -55,7 +55,7 @@ class Power(TAB):
         _ = 0
         r = ROST()
         if r != s.r:
-            s.rr.update({i['display_string']:(i['client_id'],i['players'])})
+            s.rr.update({i['display_string']:(i['client_id'],i['players']) for i in r})
             s.r = r
             _ = 1
         h = HOST()
@@ -79,7 +79,9 @@ class Power(TAB):
         T,B = s.text,s.button
         if len(s.r) and s.ri >= len(s.r): s.ri = len(s.r) - 1
         if len(s.r) and s.eri >= len(s.r): s.eri = len(s.r) - 1
-        if not len(s.r) and s.c: s.c = None
+        if not len(s.r):
+            if s.rr: s.rr.clear()
+            if s.c: s.c = None
         if s.j[0] == 'JRejoin' and s.ji <= s.re:
             s.ji = s.re + 1
             push('Job time cannot be less than rejoin time\nwhen job is JRejoin. Updated job time to '+str(s.ji),color=(1,1,0))
@@ -376,6 +378,7 @@ class Power(TAB):
                     pos=(x + 1040*sf, (48+37*i)*zf),
                     style='purple',
                     label_scale=1 if w<(s1-10*sf) else (s1-10*sf)/w,
+                    call=Call(s.chk,sn)
                 )
                 s2 = 555*sf - s1 - 53*(_>1)
                 B(
@@ -704,6 +707,15 @@ class Power(TAB):
     def prv(s,c,p,n):
         s.c,s.p,s.n = c,p,n
         s.rf()
+    def chk(s,pn):
+        for n,g in s.rr.items():
+            c,p = g
+            if pn == n or pn in p:
+                s.p = p
+                s.n = n
+                s.c = c
+                s.rf()
+                break
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
