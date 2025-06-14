@@ -363,6 +363,10 @@ class Power(TAB):
                 pos=(x + 1034 * sf, 5*zf),
                 style='bright'
             )
+            0 if len(s.cm) else T(
+                'Chat is still empty.\nHurry up and fill it with nonesense',
+                pos=(x+1320 * sf, 330 * zf)
+            )
             for i,g in enumerate(s.cm):
                 if i < s.ci: continue
                 if i >= s.ci+15: break
