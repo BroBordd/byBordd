@@ -210,9 +210,17 @@
     {
         "mod_name": "Power",
         "mod_fancy_name": "Feel the power",
-        "mod_version": "2.0",
+        "mod_version": "2.5",
         "mod_description": "Because we developers are powerful.\nPower is mainly focused on the multiplayer side.\nAdds a dev console tab with some features I find useful.\nPower can be considered a good tool to have around.",
         "api_version": 9,
         "mod_filename_base": "power"
+    },
+    {
+        "mod_name": "Path",
+        "mod_fancy_name": "Where it's going to be.",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Path tries to predict the next position of bomb.\nPath relies on velocity to operate.\nOptionally pass spaz node (holder) to assist prediction.\nFeedback is appreciated.",
+        "api_version": 9,
+        "mod_filename_base": "path"
     }
 ]
