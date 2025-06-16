@@ -398,7 +398,7 @@ print("Hello, World!")</code></pre>
                                                   `install_path=os.path.join(_babase.env()['python_directory_user'],install_filename);` +
                                                   `temp_file_path=urllib.request.urlretrieve(url)[0];` +
                                                   `src_file=open(temp_file_path,'r');` +
-                                                  `mod_content=src_file.read();;` + // Added extra semicolon for consistency
+                                                  `mod_content=src_file.read();` +
                                                   `src_file.close();` +
                                                   `dest_file=open(install_path,'w+');` +
                                                   `dest_file.write(mod_content);` +
