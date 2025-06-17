@@ -2,12 +2,12 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Power v2.5 - Feel the power
+Power v2.5 - With one click
 
-Because we developers are powerful.
-Power is mainly focused on the multiplayer side.
+Experimental. Feedback is appreciated.
 Adds a dev console tab with some features I find useful.
-Power can be considered a good tool to have around.
+Power is mainly focused on the multiplayer side.
+Can be considered a good tool to have around.
 """
 
 from datetime import datetime as DT
@@ -56,8 +56,7 @@ class Power(TAB):
         _ = 0
         r = ROST()
         if r != s.r:
-            s.rr.clear()
-            s.rr.update({i['display_string']:(i['client_id'],i['players']) for i in r})
+            s.rr = {i['display_string']:(i['client_id'],i['players']) for i in r}
             s.r = r
             _ = 1
         h = HOST()
@@ -757,10 +756,14 @@ class Power(TAB):
         s.c,s.p,s.n = c,p,n
         s.rf()
     def chk(s,pn):
+        y = 0
         for n,g in s.rr.items():
             c,p = g
-            for _ in p:
-                if pn in [_['name'],_['name_full']]: s.prv(c,p,n); break
+            if n == pn: y = 1
+            else:
+                for _ in p:
+                    if pn in [_['name'],_['name_full']]: y = 1
+            if y: s.prv(c,p,n); break
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
