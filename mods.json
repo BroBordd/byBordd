@@ -222,5 +222,13 @@
         "mod_description": "Experimental. Path tries to predict the next position of bomb.\nPath relies on velocity to operate.\nOptionally pass spaz node (holder) to assist prediction.\nFeedback is appreciated.",
         "api_version": 9,
         "mod_filename_base": "path"
+    },
+    {
+        "mod_name": "Slider",
+        "mod_fancy_name": "UI Element",
+        "mod_version": "1.0",
+        "mod_description": "Simple UI slider, read code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "slider"
     }
 ]
