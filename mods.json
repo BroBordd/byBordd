@@ -230,5 +230,13 @@
         "mod_description": "Simple UI slider, read code to know more.",
         "api_version": 9,
         "mod_filename_base": "slider"
+    },
+    {
+        "mod_name": "Modcast",
+        "mod_fancy_name": "Test it there",
+        "mod_version": "1.0",
+        "mod_description": "Simple client that recieves mods from host.\nUsed by me to test faster on my tablet.\nHost: run from commandline or use your own host\nClient: install as plugin and press the button in the newly added dev console tab",
+        "api_version": 9,
+        "mod_filename_base": "modcast"
     }
 ]
