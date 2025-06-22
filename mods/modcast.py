@@ -32,7 +32,7 @@ from os import makedirs, remove
 from datetime import datetime
 from typing import override
 
-from babase import Plugin, app, PluginSpec, quit, QuitType
+from babase import Plugin, app, PluginSpec
 from _babase import env
 from babase._general import getclass
 from babase._devconsole import (
@@ -59,7 +59,6 @@ class Modcast(TAB):
         with open(install_fp, 'w+') as dest_f:
             dest_f.write(mod_content)
         remove(tmp_fp)
-        quit(False,QuitType.HARD)
     @override
     def refresh(s):
         x = -s.width / 2
@@ -69,7 +68,7 @@ class Modcast(TAB):
         btn_height = s.height / 3
 
         s.button(
-            f"Load {FILE} from server and quit",
+            f"Load {FILE} from server",
             pos=(x, 0),
             size=(btn_width, btn_height),
             corner_radius=0,
