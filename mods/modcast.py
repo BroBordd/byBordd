@@ -12,6 +12,7 @@ Client: install as plugin and press the button in the newly added dev console ta
 
 HOST = '1.1.1.1'
 PORT = 1111
+FILE = "polish.py" # This 'FILE' is local to the client and will be overridden by host's setting.
 
 if __name__ == '__main__':
     from http.server import SimpleHTTPRequestHandler
@@ -40,8 +41,6 @@ from babase._devconsole import (
     DevConsoleTabEntry as ENT,
     DevConsoleTab as TAB
 )
-
-FILE = "power.py" # This 'FILE' is local to the client and will be overridden by host's setting.
 
 class Modcast(TAB):
     def _get_host_file_variable(s, var_name):
