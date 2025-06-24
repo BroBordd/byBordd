@@ -31,7 +31,7 @@ class DumTab(TAB):
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
         I = app.devconsole

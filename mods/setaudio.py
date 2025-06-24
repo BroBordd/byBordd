@@ -75,7 +75,7 @@ class SetAudio(A.AudioSettingsWindow):
             t._update_display()
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(P):
     def __init__(s):
         A.AudioSettingsWindow = SetAudio

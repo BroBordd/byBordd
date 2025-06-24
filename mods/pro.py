@@ -65,7 +65,7 @@ class progressbar:
         return s.widget
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(P):
     has_settings_ui = lambda s: True
     show_settings_ui = lambda s, w: s.demo(w)

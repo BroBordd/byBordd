@@ -213,7 +213,7 @@ class PixText:
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     has_settings_ui = lambda s: True
     show_settings_ui = lambda s, src: s.demo(src)

@@ -28,7 +28,7 @@ from _babase import (
 )
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(P):
     __nam__ = 'DevHistory'
     __ver__ = '1.0'

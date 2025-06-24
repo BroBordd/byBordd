@@ -80,7 +80,7 @@ class Path:
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
         _ = __import__('bascenev1lib').actor.bomb.Bomb

@@ -274,5 +274,5 @@ class Bubble:
         ) for i in s.kids]
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin): pass

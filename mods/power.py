@@ -15,7 +15,6 @@ from typing import override
 from babase import (
     clipboard_is_supported as CIS,
     clipboard_set_text as CST,
-    push_back_press as BACK,
     Plugin,
     app
 )
@@ -718,8 +717,8 @@ class Power(TAB):
                 label_scale=0.9
             )
             B(
-                'Back',
-                call=BACK,
+                'Laugh',
+                call=Call(chat,'hahaha'),
                 pos=(x + 1469 * sf, s.height-62),
                 size=(130 * sf, 27)
             )
@@ -768,7 +767,7 @@ class Power(TAB):
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
 KICK = lambda f: DISC(f())
-FORCE = lambda: ((BACK() or 1) if HAS() else 1) and teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
+FORCE = lambda: teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
 REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,Call(JOIN,a,p,False))
@@ -777,7 +776,7 @@ NOW = lambda: DT.now().strftime("%H:%M:%S")
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
         I = app.devconsole

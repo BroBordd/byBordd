@@ -17,7 +17,7 @@ from bascenev1 import (
 )
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(P):
     def __init__(s):s.l='';z(5,s.ear)
     def ear(s):
