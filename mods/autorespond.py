@@ -440,7 +440,7 @@ def sn(s):
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     me = lambda c=0: APP.plus.get_v1_account_name() if APP.plus.get_v1_account_state() == 'signed_in' else '???'
     v2 = cs(sc.V2_LOGO)

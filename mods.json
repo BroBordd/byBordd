@@ -246,5 +246,13 @@
         "mod_description": "Simple demo to show how a custom dev console tab is added.\nSee code to know more.",
         "api_version": 9,
         "mod_filename_base": "dumtab"
+    },
+    {
+        "mod_name": "Car",
+        "mod_fancy_name": "vroom vroom",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nCreates a stupid car to ride in.",
+        "api_version": 9,
+        "mod_filename_base": "car"
     }
 ]

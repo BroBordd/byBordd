@@ -496,6 +496,6 @@ def bruh(e):
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(P):
     def __init__(s): party.PartyWindow = PWIDK

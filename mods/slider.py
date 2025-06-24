@@ -64,7 +64,7 @@ class Slider:
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
         teck(1, s.demo) if 0 else 0

@@ -519,4 +519,5 @@ class Blud(SpazBot):
 #         s.nub = []
 
 # ba_meta require api 9
+# ba_meta export babase.Plugin
 class byBordd(Plugin): pass

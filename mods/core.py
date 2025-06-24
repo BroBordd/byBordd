@@ -122,5 +122,5 @@ def spy():
 teck(5,spy)
 
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin): pass

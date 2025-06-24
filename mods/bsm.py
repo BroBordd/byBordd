@@ -957,6 +957,6 @@ def calc(p, t_res = None, rotate_angle: int = 0):
 
 # brobord collide grass
 # ba_meta require api 9
-# ba_meta export plugin
+# ba_meta export babase.Plugin
 class byBordd(Plugin): pass
 
