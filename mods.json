@@ -26,7 +26,7 @@
     {
         "mod_name": "BSM",
         "mod_fancy_name": "The BombSquadMedia Library",
-        "mod_version": "2.0",
+        "mod_version": "2.1",
         "mod_description": "Provides functionality to display static images (PPM format) and play video\nsequences (PPM frames with a stamps.json timing file) within the BombSquad\nscene using a grid of text nodes as pixels.\n\nSupports concurrent loading of media data and offers playback controls\nfor video media, including speed, looping, and rotation of the source media.\n\nClasses:\n    Pixel: Represents a single text node used as a pixel.\n    Image: Handles concurrent loading of a single PPM image with optional resizing and rotation.\n    Video: Handles concurrent loading and playback of a video sequence\n           from a folder containing PPM frames and a stamps.json file, with\n           optional resizing, rotation, speed control, and looping.\n    Screen: Manages a grid of Pixel nodes and loads/displays Image or Video media.\n            Provides methods to stop playback, clear, fill, and set the opacity of the screen.\n            Displays a simple colored \"BSM\" placeholder on creation.",
         "api_version": 9,
         "mod_filename_base": "bsm"
