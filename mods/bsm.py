@@ -2,7 +2,7 @@
 # Feedback is appreciated - Telegram >> @GalaxyA14user
 
 """
-BSM v2.0 - The BombSquadMedia Library
+BSM v2.1 - The BombSquadMedia Library
 
 Provides functionality to display static images (PPM format) and play video
 sequences (PPM frames with a stamps.json timing file) within the BombSquad
@@ -586,7 +586,7 @@ class Screen:
         print (f"BSMScreen: New Screen at {position} with resolution {resolution}")
         if media: s.load(media)
 
-    def bsm(o) -> None:
+    def bsma(o) -> None:
         if o.res[0] < 11 or o.res[1] < 3: return
         w,h=o.res;lw,lh,ls=3,3,1;tw,th=(lw*3)+(ls*2),lh;sx,sy=(w-tw)//2,(h-th)//2;p=o.pixels
         C=[(1.,0,0),(0,1.,0),(0,0,1.)]
@@ -597,6 +597,37 @@ class Screen:
                 so=(lh-1-(ri//lw))*w+(ri%lw)
                 si=(sy*w)+sx+lo[li]+so
                 if 0<=si<len(p)and p[si]:p[si].set(C[li])
+
+    def bsm(s) -> None:
+        if s.res[0] < 22 or s.res[1] < 6: return
+        w, h = s.res; p = s.pixels
+        d, g = 6, 2
+        n = 3
+        tw, th = (d * n) + (g * (n - 1)), d
+        sx, sy = (w - tw) // 2, (h - th) // 2
+        C = [(1., 0, 0), (0, 1., 0), (0, 0, 1.)]
+        P = [[0, 3, 4, 5, 6, 7, 8],[1, 2, 4, 6, 7],[0, 1, 2, 3, 4, 5, 6, 8]]
+        def sf(op, obs=3, f=2):
+            np = []
+            nbs = obs * f
+            for oi in op:
+                orw, ocl = oi // obs, oi % obs
+                for rfo in range(f):
+                    for cfo in range(f):
+                        nrw, ncl = (orw * f) + rfo, (ocl * f) + cfo
+                        npi = (nrw * nbs) + ncl
+                        np.append(npi)
+            return sorted(list(set(np)))
+        SP = [sf(c) for c in P]
+        for ci, pi in enumerate(SP):
+            cc = C[ci]
+            cxo = sx + (ci * (d + g))
+            for pip in pi:
+                rrw, rcl = pip // d, pip % d
+                apy = sy + (d - 1 - rrw)
+                apx = cxo + rcl
+                bi = apy * w + apx
+                if 0 <= bi < len(p) and p[bi]: p[bi].set(cc)
 
     def load(s, media: Image | Video, speed: float = 1.0, loop: bool = False) -> None:
         """
