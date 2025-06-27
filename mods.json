@@ -254,5 +254,13 @@
         "mod_description": "Experimental. Feedback is appreciated.\nCreates a stupid car to ride in.",
         "api_version": 9,
         "mod_filename_base": "car"
+    },
+    {
+        "mod_name": "Salad",
+        "mod_fancy_name": "Delicious!",
+        "mod_version": "1.0",
+        "mod_description": "Dumb salad pot maker. Can be used inline.\nBasically use anything to make salad (or anyone...).\nRead code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "salad"
     }
 ]
