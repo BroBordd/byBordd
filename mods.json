@@ -270,5 +270,13 @@
         "mod_description": "Experimental - Feedback is appreciated.\nSimple combination between bauiv1 and bascenev1.\nCreates UI in the 3D scene in a dumb way.",
         "api_version": 9,
         "mod_filename_base": "beam"
+    },
+    {
+        "mod_name": "# PlugTools",
+        "mod_fancy_name": "Live Plugin Action",
+        "mod_version": "1.0",
+        "mod_description": "Beta. Feedback is appreciated.\nAdds a dev console tab for plugin management.\n\nFeatures vary between:\n- Real-time Monitoring: Reports status of plugin files (new, modified, deleted).\n- Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).\n- Dynamic Control: Enables immediate loading and reloading of plugins.\n- Plugin Data: Provides file path, size, timestamps, and code structure analysis.\n- Navigation: Offers controls for Browse the plugin list",
+        "api_version": 9,
+        "mod_filename_base": "plugtools"
     }
 ]
