@@ -2,7 +2,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-# PlugTools v1.0 - Live Plugin Action
+PlugTools v1.0 - Live Plugin Action
 
 Beta. Feedback is appreciated.
 Adds a dev console tab for plugin management.
