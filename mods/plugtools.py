@@ -81,7 +81,7 @@ class PlugTools(TAB):
         for _ in s.bys.copy():
             if not exists(PAT(_)):
                 s.bys.remove(_)
-                push(f'{_} suddenly disappeared!\nAnd so, was removed from list.',color=(1,1,0))
+                push(f'Plugin {_} suddenly disappeared!\nAnd so, was removed from list.',color=(1,1,0))
                 gs('block').play()
                 s.eye = look()
                 if s.hl() == _: s.hl(None)
@@ -102,6 +102,8 @@ class PlugTools(TAB):
                 continue
             if MT(_) != s.mem[_] and _ not in s.bad:
                 s.bad.append(_)
+                push(f'Plugin {_} was modified!\nSee if you want to take action.',color=(1,1,0))
+                gs('dingSmall').play()
                 b = 1
         if hasattr(s,'sp'):
             e = getattr(s.sp,'enabled',False)
