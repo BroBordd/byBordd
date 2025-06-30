@@ -1,4 +1,4 @@
-# Copyright 2025 - Solely by BrotherBoard.
+# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
 # Bug? Feedback? @GalaxyA14user >> Telegram!
 
 """
