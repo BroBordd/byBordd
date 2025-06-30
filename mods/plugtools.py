@@ -12,7 +12,7 @@ Features vary between:
 - Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).
 - Dynamic Control: Enables immediate loading and reloading of plugins.
 - Plugin Data: Provides file path, size, timestamps, and code structure analysis.
-- Navigation: Offers controls for Browse the plugin list
+- Navigation: Offers controls to browse the plugin list.
 """
 
 from os.path import (
