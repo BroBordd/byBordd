@@ -8,6 +8,14 @@
         "mod_filename_base": "autorespond"
     },
     {
+        "mod_name": "Beam",
+        "mod_fancy_name": "UI, right there.",
+        "mod_version": "1.0",
+        "mod_description": "Experimental - Feedback is appreciated.\nSimple combination between bauiv1 and bascenev1.\nCreates UI in the 3D scene in a dumb way.",
+        "api_version": 9,
+        "mod_filename_base": "beam"
+    },
+    {
         "mod_name": "BitBox",
         "mod_fancy_name": "Bored me brings bits to the game",
         "mod_version": "1.0",
@@ -40,6 +48,14 @@
         "mod_filename_base": "bubble"
     },
     {
+        "mod_name": "Byte",
+        "mod_fancy_name": "At your service.",
+        "mod_version": "1.0",
+        "mod_description": "Simple bombsquad AI that takes orders.\nRead code to know more.\n\nTo get your free gemini API key:\n- Go to https://ai.google.dev/gemini-api/docs\n- Press Get API Key and copy it",
+        "api_version": 9,
+        "mod_filename_base": "byte"
+    },
+    {
         "mod_name": "Calculator",
         "mod_fancy_name": "Math operations in the scene",
         "mod_version": "1.5",
@@ -54,6 +70,14 @@
         "mod_description": "Adds a button to pause menu. Camera is advanced\nCamera allows you to change camera position and\ntarget with a very easy graphical visualization\nof how it would look like.",
         "api_version": 9,
         "mod_filename_base": "camera"
+    },
+    {
+        "mod_name": "Car",
+        "mod_fancy_name": "vroom vroom",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nCreates a stupid car to ride in.",
+        "api_version": 9,
+        "mod_filename_base": "car"
     },
     {
         "mod_name": "Chatools",
@@ -88,6 +112,14 @@
         "mod_filename_base": "devhistory"
     },
     {
+        "mod_name": "DumTab",
+        "mod_fancy_name": "Dummy dev console tab example",
+        "mod_version": "1.0",
+        "mod_description": "Simple demo to show how a custom dev console tab is added.\nSee code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "dumtab"
+    },
+    {
         "mod_name": "EasyCMD",
         "mod_fancy_name": "Command manager",
         "mod_version": "1.0",
@@ -112,6 +144,14 @@
         "mod_filename_base": "kill"
     },
     {
+        "mod_name": "Modcast",
+        "mod_fancy_name": "Test it there",
+        "mod_version": "1.0",
+        "mod_description": "Simple client that recieves mods from host.\nUsed by me to test faster on my tablet.\nHost: run from commandline or use your own host\nClient: install as plugin and press the button in the newly added dev console tab",
+        "api_version": 9,
+        "mod_filename_base": "modcast"
+    },
+    {
         "mod_name": "NewLine",
         "mod_fancy_name": "Break chat lines",
         "mod_version": "1.0",
@@ -128,12 +168,44 @@
         "mod_filename_base": "on_pause"
     },
     {
+        "mod_name": "Path",
+        "mod_fancy_name": "Where it's going to be.",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Path tries to predict the next position of bomb.\nPath relies on velocity to operate.\nOptionally pass spaz node (holder) to assist prediction.\nFeedback is appreciated.",
+        "api_version": 9,
+        "mod_filename_base": "path"
+    },
+    {
+        "mod_name": "PlugTools",
+        "mod_fancy_name": "Live Plugin Action",
+        "mod_version": "1.0",
+        "mod_description": "Beta. Feedback is appreciated.\nAdds a dev console tab for plugin management.\n\nFeatures vary between:\n- Real-time Monitoring: Reports status of plugin files (new, modified, deleted).\n- Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).\n- Dynamic Control: Enables immediate loading and reloading of plugins.\n- Plugin Data: Provides file path, size, timestamps, and code structure analysis.\n- Navigation: Offers controls to browse the plugin list.",
+        "api_version": 9,
+        "mod_filename_base": "plugtools"
+    },
+    {
+        "mod_name": "Polish",
+        "mod_fancy_name": "Your very UI designer",
+        "mod_version": "1.0",
+        "mod_description": "Beta - Aims to help modders like me draw UI.\nStart by writing Polish() in dev console, or via settings UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nIn a nutshell, Polish a container, get code, thrive.",
+        "api_version": 9,
+        "mod_filename_base": "polish"
+    },
+    {
         "mod_name": "Pos",
         "mod_fancy_name": "Simple 2D UI positioner",
         "mod_version": "1.0",
         "mod_description": "Simple usage:\nfrom pos import Pos\nPos(widget,initial_pos)",
         "api_version": 9,
         "mod_filename_base": "pos"
+    },
+    {
+        "mod_name": "Power",
+        "mod_fancy_name": "With one click",
+        "mod_version": "2.5",
+        "mod_description": "Experimental. Feedback is appreciated.\nAdds a dev console tab with some features I find useful.\nPower is mainly focused on the multiplayer side.\nCan be considered a good tool to have around.",
+        "api_version": 9,
+        "mod_filename_base": "power"
     },
     {
         "mod_name": "PPMify",
@@ -160,6 +232,14 @@
         "mod_filename_base": "rejoin"
     },
     {
+        "mod_name": "Salad",
+        "mod_fancy_name": "Delicious!",
+        "mod_version": "1.0",
+        "mod_description": "Dumb salad pot maker. Can be used inline.\nBasically use anything to make salad (or anyone...).\nRead code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "salad"
+    },
+    {
         "mod_name": "Sandbox",
         "mod_fancy_name": "Turn the scene into your very own sandbox",
         "mod_version": "3.0",
@@ -174,6 +254,14 @@
         "mod_description": "SetAudio allows you to set a custom audio value\nin settings by making audio texts clikcable.\nRead code to know more.",
         "api_version": 9,
         "mod_filename_base": "setaudio"
+    },
+    {
+        "mod_name": "Slider",
+        "mod_fancy_name": "UI Element",
+        "mod_version": "1.0",
+        "mod_description": "Simple UI slider, read code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "slider"
     },
     {
         "mod_name": "Sorry",
@@ -198,93 +286,5 @@
         "mod_description": "Adds up and down buttons to chat, which recall\ntext sent in chat by all. Good for repeating\nmessages and insults lmao.",
         "api_version": 9,
         "mod_filename_base": "updown"
-    },
-    {
-        "mod_name": "Polish",
-        "mod_fancy_name": "Your very UI designer",
-        "mod_version": "1.0",
-        "mod_description": "Beta - Aims to help modders like me draw UI.\nStart by writing Polish() in dev console, or via settings UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nIn a nutshell, Polish a container, get code, thrive.",
-        "api_version": 9,
-        "mod_filename_base": "polish"
-    },
-    {
-        "mod_name": "Power",
-        "mod_fancy_name": "With one click",
-        "mod_version": "2.5",
-        "mod_description": "Experimental. Feedback is appreciated.\nAdds a dev console tab with some features I find useful.\nPower is mainly focused on the multiplayer side.\nCan be considered a good tool to have around.",
-        "api_version": 9,
-        "mod_filename_base": "power"
-    },
-    {
-        "mod_name": "Path",
-        "mod_fancy_name": "Where it's going to be.",
-        "mod_version": "1.0",
-        "mod_description": "Experimental. Path tries to predict the next position of bomb.\nPath relies on velocity to operate.\nOptionally pass spaz node (holder) to assist prediction.\nFeedback is appreciated.",
-        "api_version": 9,
-        "mod_filename_base": "path"
-    },
-    {
-        "mod_name": "Slider",
-        "mod_fancy_name": "UI Element",
-        "mod_version": "1.0",
-        "mod_description": "Simple UI slider, read code to know more.",
-        "api_version": 9,
-        "mod_filename_base": "slider"
-    },
-    {
-        "mod_name": "Modcast",
-        "mod_fancy_name": "Test it there",
-        "mod_version": "1.0",
-        "mod_description": "Simple client that recieves mods from host.\nUsed by me to test faster on my tablet.\nHost: run from commandline or use your own host\nClient: install as plugin and press the button in the newly added dev console tab",
-        "api_version": 9,
-        "mod_filename_base": "modcast"
-    },
-    {
-        "mod_name": "DumTab",
-        "mod_fancy_name": "Dummy dev console tab example",
-        "mod_version": "1.0",
-        "mod_description": "Simple demo to show how a custom dev console tab is added.\nSee code to know more.",
-        "api_version": 9,
-        "mod_filename_base": "dumtab"
-    },
-    {
-        "mod_name": "Car",
-        "mod_fancy_name": "vroom vroom",
-        "mod_version": "1.0",
-        "mod_description": "Experimental. Feedback is appreciated.\nCreates a stupid car to ride in.",
-        "api_version": 9,
-        "mod_filename_base": "car"
-    },
-    {
-        "mod_name": "Salad",
-        "mod_fancy_name": "Delicious!",
-        "mod_version": "1.0",
-        "mod_description": "Dumb salad pot maker. Can be used inline.\nBasically use anything to make salad (or anyone...).\nRead code to know more.",
-        "api_version": 9,
-        "mod_filename_base": "salad"
-    },
-    {
-        "mod_name": "Beam",
-        "mod_fancy_name": "UI, right there.",
-        "mod_version": "1.0",
-        "mod_description": "Experimental - Feedback is appreciated.\nSimple combination between bauiv1 and bascenev1.\nCreates UI in the 3D scene in a dumb way.",
-        "api_version": 9,
-        "mod_filename_base": "beam"
-    },
-    {
-        "mod_name": "PlugTools",
-        "mod_fancy_name": "Live Plugin Action",
-        "mod_version": "1.0",
-        "mod_description": "Beta. Feedback is appreciated.\nAdds a dev console tab for plugin management.\n\nFeatures vary between:\n- Real-time Monitoring: Reports status of plugin files (new, modified, deleted).\n- Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).\n- Dynamic Control: Enables immediate loading and reloading of plugins.\n- Plugin Data: Provides file path, size, timestamps, and code structure analysis.\n- Navigation: Offers controls to browse the plugin list.",
-        "api_version": 9,
-        "mod_filename_base": "plugtools"
-    },
-    {
-        "mod_name": "Byte",
-        "mod_fancy_name": "At your service.",
-        "mod_version": "1.0",
-        "mod_description": "Simple bombsquad AI that takes orders.\nRead code to know more.\n\nTo get your free gemini API key:\n- Go to https://ai.google.dev/gemini-api/docs\n- Press Get API Key and copy it",
-        "api_version": 9,
-        "mod_filename_base": "byte"
     }
 ]
