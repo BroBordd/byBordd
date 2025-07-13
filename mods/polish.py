@@ -1,8 +1,9 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Polish v1.0 - Your very UI designer
+Polish v1.5 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
 Start by writing Polish() in dev console, or via settings UI.
@@ -42,6 +43,7 @@ from bauiv1 import (
 )
 from contextlib import redirect_stdout as REMAP
 from random import choice as CH, uniform as uf
+from colorsys import hsv_to_rgb as HTR
 from io import StringIO as SIO
 from os.path import join
 from os import makedirs
@@ -76,6 +78,7 @@ class Polish:
         s.tar = cw(**at)
         s.TAR = (s.tar,(at,cw))
         s.width = 200
+        s.c = [0,0,0]
         s.MEM = []
         s.size = size
         s.kid = None
@@ -119,8 +122,8 @@ class Polish:
             size=(s.width-30,30),
             label='Root',
             enable_sound=False,
-            color=(0,0.4,0.4),
-            textcolor=(0,0.7,0.7),
+            color=Root.COL1,
+            textcolor=Root.COL2,
             on_activate_call=Call(s.go,Root)
         ))
         # Tran
@@ -192,7 +195,7 @@ class Polish:
         # finally
         s.setup(first=True)
     def cp(s):
-        if s.sl[0] is None: err('Select a widget first!'); return
+        if s.sl[0] is None: btw('Select a widget first!'); return
         data = s.MEM[s.sl[1]][1]
         s.MEM.insert(s.sl[1]+1,(data[1](**data[0]),(data[0].copy(),data[1])))
         s.bt.insert(s.sl[1]+1,s.bt[s.sl[1]])
@@ -208,7 +211,7 @@ class Polish:
         if c[2] <= 0.09: return
         teck(0.05,Call(s.flash,b,c))
     def bye(s):
-        if s.sl[0] is None: err('Select a widget first!'); return
+        if s.sl[0] is None: btw('Select a widget first!'); return
         s.MEM.pop(s.sl[1])
         s.bt.pop(s.sl[1])
         s.sl[0].delete()
@@ -303,8 +306,8 @@ class Polish:
                 parent=s.bc,
                 position=(10,ys-37*(i+1)),
                 label=s.bt[i],
-                color=(0.7,0.4,0),
-                textcolor=(1,0.7,0),
+                color=Man.COL1,
+                textcolor=Man.COL2,
                 texture=gt('white'),
                 enable_sound=False,
                 size=(s.width-30,30),
@@ -321,11 +324,11 @@ class Polish:
     def hl(s,i):
         s.bord(False)
         if s.sl[0] is not None:
-            bw(s.ok[s.sl[1]],color=(0.7,0.4,0),textcolor=(1,0.7,0))
+            bw(s.ok[s.sl[1]],color=Man.COL1,textcolor=Man.COL2)
         if i is None: return
         s.sl = (s.MEM[i][0],i)
         w = s.ok[i]
-        bw(w,color=(0.4,0.2,0),textcolor=(0.7,0.4,0))
+        bw(w,color=Man.COL3,textcolor=Man.COL1)
         s.bord(i)
     def bord(s,i=None):
         [_.delete() for _ in s.trash]; s.trash.clear()
@@ -739,7 +742,7 @@ class Grid:
         if (not x or not y): b = False
         if (False in [_ in ok for _ in x]): b = False
         if (False in [_ in ok for _ in y]): b = False
-        if not b: err('Fix your input!'); return
+        if not b: btw('Fix your input!'); return
         x,y = [int(float(_)) for _ in [x,y]]
         s.make(x,y)
         s.po.grid = [x,y]
@@ -875,6 +878,10 @@ class Preset:
         s.po.fresh()
 
 class Man:
+    COL1 = (0.5,0.0,0.5)
+    COL2 = (0.8,0.6,0.8)
+    COL3 = (0.6,0.5,0.7)
+    COL4 = (1.0,1.0,1.0)
     def __init__(s,w,po,wi):
         s.po = po
         x = -po.width-5
@@ -891,7 +898,7 @@ class Man:
             texture=gt('white'),
             position=(x,1),
             size=(po.width,r[1]-2),
-            color=(0.7,0.4,0)
+            color=s.COL1
         )
         fade(s.I,a=0.2)
         K.append(s.I)
@@ -900,7 +907,7 @@ class Man:
             parent=po.p,
             position=(x+10,r[1]-35),
             text='Pos',
-            color=(1,0.7,0)
+            color=s.COL2
         ))
         K.append(ctw(
             position=(x+65,r[1]-35),
@@ -908,7 +915,7 @@ class Man:
             size=(po.width/2-40,30),
             mode=0,
             parent=po.p,
-            color=(1,0.7,0),
+            color=s.COL2,
             on_edit=Call(s.set,'position',0)
         ).widget)
         K.append(ctw(
@@ -917,7 +924,7 @@ class Man:
             size=(po.width/2-35,30),
             mode=0,
             parent=po.p,
-            color=(1,0.7,0),
+            color=s.COL2,
             on_edit=Call(s.set,'position',1)
         ).widget)
         # size
@@ -925,7 +932,7 @@ class Man:
             parent=po.p,
             position=(x+10,r[1]-65),
             text='Size',
-            color=(1,0.7,0)
+            color=s.COL2
         ))
         s.fine = type(size) is tuple
         if s.fine:
@@ -935,7 +942,7 @@ class Man:
                 size=(po.width/2-40,30),
                 mode=0,
                 parent=po.p,
-                color=(1,0.7,0),
+                color=s.COL2,
                 on_edit=Call(s.set,'size',0)
             ).widget)
             K.append(ctw(
@@ -944,7 +951,7 @@ class Man:
                 size=(po.width/2-35,30),
                 mode=0,
                 parent=po.p,
-                color=(1,0.7,0),
+                color=s.COL2,
                 on_edit=Call(s.set,'size',1)
             ).widget)
         else:
@@ -954,7 +961,7 @@ class Man:
                 size=(po.width-70,30),
                 mode=0,
                 parent=po.p,
-                color=(1,0.7,0),
+                color=s.COL2,
                 on_edit=Call(s.set,'size',None)
             ).widget)
         # separator
@@ -976,8 +983,8 @@ class Man:
                 position=(x+i*(po.width/4.2)+11,r[1]-115),
                 parent=po.p,
                 size=(po.width/5-2,po.width/5-2),
-                color=(1,0.7,0),
-                textcolor=(0.7,0.4,0),
+                color=s.COL2,
+                textcolor=s.COL1,
                 on_activate_call=Call(s.mv,i)
             )
             K.append(b)
@@ -991,8 +998,8 @@ class Man:
                 position=(x+i*(po.width/4.2)+11,r[1]-160),
                 parent=po.p,
                 size=(po.width/5-2,po.width/5-2),
-                color=(1,0.7,0),
-                textcolor=(0.7,0.4,0),
+                color=s.COL2,
+                textcolor=s.COL1,
                 on_activate_call=Call(s.mv,i,10)
             )
             K.append(b)
@@ -1042,7 +1049,7 @@ class Man:
                 selectable=True,
                 v_align='center',
                 size=(xs,30),
-                color=(0.8,0.7,1),
+                color=s.COL3,
             )
             tw(t,on_activate_call=Call(s.prev,k,t,mem=d))
         # dot
@@ -1066,8 +1073,8 @@ class Man:
             enable_sound=False,
             on_activate_call=po.cp,
             label='Copy',
-            color=(1,0.7,0),
-            textcolor=(0.7,0.4,0)
+            color=s.COL2,
+            textcolor=s.COL1
         ))
         # delete
         K.append(bw(
@@ -1078,8 +1085,8 @@ class Man:
             enable_sound=False,
             label='Delete',
             on_activate_call=po.bye,
-            color=(1,0.7,0),
-            textcolor=(0.7,0.4,0)
+            color=s.COL2,
+            textcolor=s.COL1
         ))
     def set(s,a,i,v):
         if i is None:
@@ -1111,8 +1118,8 @@ class Man:
         po = s.po
         o = getattr(s,'on',None)
         if o == on: return
-        if o: tw(o,color=(0.8,0.7,1))
-        tw(on,color=(1,0.7,0))
+        if o: tw(o,color=s.COL3)
+        tw(on,color=s.COL4)
         p3 = getattr(s,'p3',0)
         if getattr(p3,'exists',lambda:False)():
             fade(p3,i=1,a=-0.2)
@@ -1122,28 +1129,28 @@ class Man:
             s.prev(k,t,mem,fa=0)
             return
         s.on = on
-        x,y = -2*s.po.width-10,res()[1]-265
+        x,y = -2*s.po.width-10,res()[1]-303
         # bg
         ij = s.p3 = iw(
             parent=po.p,
             texture=gt('white'),
-            color=(0.7,0.4,0),
+            color=s.COL1,
             position=(x,y),
-            size=(po.width,265)
+            size=(po.width,303)
         )
         s.K.append(ij)
         fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=po.p,
-            position=(x+15,y+225),
+            position=(x+15,y+263),
             label='Type hints',
             enable_sound=False,
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=(0.7,0.4,0),
-            color=(1,0.7,0),
-            on_activate_call=lambda: (broad(brk(mem[k],70),color=(0.7,0.4,0)),deek())
+            textcolor=s.COL1,
+            color=s.COL2,
+            on_activate_call=lambda: (broad(brk(mem[k],70),color=s.COL1),deek())
         )
         s.K.append(b)
         s.p3junk = [b]
@@ -1152,7 +1159,7 @@ class Man:
             parent=po.p,
             texture=gt('white'),
             size=(po.width-18,1),
-            position=(x+10,y+215.5),
+            position=(x+10,y+253.5),
             opacity=0.6
         )
         s.K.append(ij)
@@ -1162,28 +1169,42 @@ class Man:
         v = at.get(k,None)
         b = bw(
             parent=po.p,
-            position=(x+15,y+177),
+            position=(x+15,y+215),
             label='Eval',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=(0.7,0.4,0),
-            color=(1,0.7,0),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s._val1,k,v)
+            on_activate_call=Call(s._val1,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
         # pass widget
         b = bw(
             parent=po.p,
-            position=(x+15,y+139),
+            position=(x+15,y+177),
             label='Widget',
             size=(po.width-30,30),
             enable_sound=False,
             texture=gt('white'),
-            textcolor=(0.7,0.4,0),
-            color=(1,0.7,0),
+            textcolor=s.COL1,
+            color=s.COL2,
             on_activate_call=Call(s._val2,k)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
+        # color
+        b = bw(
+            parent=po.p,
+            position=(x+15,y+139),
+            label='Color',
+            size=(po.width-30,30),
+            enable_sound=False,
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            on_activate_call=Call(s._val3,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1200,7 +1221,7 @@ class Man:
         # value
         ij = s.val1v = tw(
             parent=po.p,
-            color=(1,0.7,0),
+            color=s.COL2,
             position=(x+po.width/2.75+2.5,y+55),
             text=brk(str(v)),
             h_align='center',
@@ -1211,12 +1232,148 @@ class Man:
         )
         s.K.append(ij)
         s.p3junk.append(ij)
-    def _val1(s,*a):
+    def _val1(s,k,*a):
         deek()
-        s.val1(*a)
+        s.val1(k,*a,s.po.MEM[s.wi][1][0].get(k,None))
     def _val2(s,*a):
         deek()
         s.val2(*a)
+    def _val3(s,*a):
+        deek()
+        s.val3(*a)
+    def val3(s,k,fa=1):
+        po = s.po
+        p4 = getattr(s,'p4',0)
+        if getattr(p4,'exists',lambda:False)():
+            fade(p4,i=1,a=-0.2)
+            p4j = getattr(s,'p4junk',[]).copy()
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val3(k,fa=0)
+            return
+        oy = 280
+        x,y = -3*s.po.width-15,res()[1]-oy
+        # bg
+        ij = s.p4 = iw(
+            parent=po.p,
+            texture=gt('white'),
+            color=s.COL1,
+            position=(x,y),
+            size=(po.width,oy)
+        )
+        fade(ij,a=0.2) if fa else 0
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk = [ij]
+        # colors
+        ok = 19
+        c = s.d.get(k,())
+        s.val3oc = c = c if isinstance(c,tuple) else ()
+        for cx in range(10):
+            for cy in range(10):
+                px, py = (x+5+cx*ok,y+oy-5-ok-cy*ok)
+                c = HTR(cx / 9.0, 1.0, 1.0 - (cy / 9.0))
+                ij = bw(
+                    parent=po.p,
+                    texture=gt('white'),
+                    color=c,
+                    on_activate_call=Call(s.val3p,c,px,py),
+                    label='',
+                    size=(ok,ok),
+                    position=(px,py),
+                    enable_sound=False
+                )
+                s.K.append(ij)
+                s.p3junk.append(ij)
+                s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-8,1),
+            position=(x+4,y+oy-199.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # preview
+        s.val3pr = ij = bw(
+            parent=po.p,
+            size=(po.width-22,30),
+            position=(x+11,y+oy-235),
+            label='',
+            on_activate_call=s.val3br,
+            enable_sound=False,
+            color=s.val3oc or (0,0,0),
+            texture=gt('white')
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-8,1),
+            position=(x+4,y+oy-240.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # set
+        ij = bw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-22,30),
+            label='Set',
+            position=(x+11,y+oy-275),
+            enable_sound=False,
+            textcolor=s.COL1,
+            color=s.COL2,
+            on_activate_call=Call(s.val3s,k)
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+    def val3s(s,k):
+        c = s.val3oc
+        if not c: btw('Select a color first!'); return
+        c = tuple(RND(c))
+        d = {k:c}
+        try: s.f(s.w,**d)
+        except Exception as e: err(str(e)); return
+        s.po.MEM[s.wi][1][0].update(d)
+        tw(s.val1v,text=str(c))
+        nice('Applied!')
+    def val3br(s):
+        c = s.val3oc
+        if not c: btw('Select a color first!'); return
+        broad(SHRT(c),color=c)
+        deek()
+    def val3p(s,c,px,py):
+        deek()
+        s.val3oc = c
+        bw(s.val3pr,color=c)
+        j = getattr(s,'val3j',[])
+        [_.delete() for _ in j]; j.clear()
+        s.val3j = []
+        for _ in range(4):
+            x = [0,18,0,0][_]
+            y = [18,0,0,0][_]
+            sx = [20,2,20,2][_]
+            sy = [2,20,2,20][_]
+            ij = iw(
+                parent=s.po.p,
+                texture=gt('white'),
+                size=(sx,sy),
+                position=(px+x,py+y)
+            )
+            s.K.append(ij)
+            s.p3junk.append(ij)
+            s.p4junk.append(ij)
+            s.val3j.append(ij)
     def val1(s,k,o,fa=1):
         p4 = getattr(s,'p4',0)
         po = s.po
@@ -1232,7 +1389,7 @@ class Man:
         ij = s.p4 = iw(
             parent=po.p,
             texture=gt('white'),
-            color=(0.7,0.4,0),
+            color=s.COL1,
             position=(x,y),
             size=(po.width,200)
         )
@@ -1243,7 +1400,7 @@ class Man:
         # info
         ij = tw(
             parent=po.p,
-            color=(1,0.7,0),
+            color=s.COL2,
             position=(x+10,y+160),
             text='Input something to\neval. Make sure to\nuse quotes for str.',
             maxwidth=po.width-20,
@@ -1267,7 +1424,7 @@ class Man:
         ij = s.val1t = tw(
             parent=po.p,
             editable=True,
-            color=(1,0.7,0),
+            color=s.COL2,
             position=(x+10,y+60),
             size=(po.width-20,30),
             description='Example input: (123,68)\nYou can also use anything defined in polish.py. Enter',
@@ -1295,8 +1452,8 @@ class Man:
             label='Run',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=(0.7,0.4,0),
-            color=(1,0.7,0),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
             on_activate_call=Call(s.val1e,k)
         )
@@ -1329,7 +1486,7 @@ class Man:
         ij = s.p4 = iw(
             parent=po.p,
             texture=gt('white'),
-            color=(0.7,0.4,0),
+            color=s.COL1,
             position=(x,y),
             size=(po.width,200)
         )
@@ -1385,8 +1542,8 @@ class Man:
             label='Select',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=(0.7,0.4,0),
-            color=(1,0.7,0),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
             on_activate_call=Call(s.val2c,k)
         )
@@ -1408,7 +1565,7 @@ class Man:
             s.p4junk.append(ij)
     def val2c(s,k):
         o = getattr(s,'val2o',(0,0))
-        if not o[0]: err('Select a widget!'); return
+        if not o[0]: btw('Select a widget!'); return
         try: w = s.po.kids()[o[1]]; s.f(s.w,**{k:w})
         except Exception as e: err(str(e)); return
         nice('Value set!')
@@ -1418,8 +1575,8 @@ class Man:
     def val2p(s,w,i):
         o = getattr(s,'val2o',(0,0))
         if o[0] == w: return
-        if o[0]: tw(o[0],color=(0.7,0.5,1))
-        s.val2o = (w,i); tw(w,color=(0,0.7,0.7))
+        if o[0]: tw(o[0],color=s.COL3)
+        s.val2o = (w,i); tw(w,color=s.COL4)
 
 class Add:
     def __init__(s):
@@ -1561,7 +1718,7 @@ class Anim:
     def play(s,dry=False):
         t = s.get(2)
         ok = ['in_'+_ for _ in OK()]
-        if not t in ok: err(f'In animation varies from:\n{ok}'); return
+        if not t in ok: btw(f'In animation varies from:\n{ok}'); return
         if dry: return t
         cw(s.tar,transition=t)
         gs('swish').play()
@@ -1570,11 +1727,13 @@ class Anim:
         o = s.get(4)
         if not i: return
         ok = ['out_'+_ for _ in OK()]
-        if o not in ok: err(f'Out animation varies from:\n{ok}'); return
+        if o not in ok: btw(f'Out animation varies from:\n{ok}'); return
         s.po.TAR[1][0].update({'transition':i,'out_anim':o})
         nice('Saved!')
 
 class Root:
+    COL1 = (0,0.4,0.4)
+    COL2 = (0,0.7,0.7)
     def __init__(s):
         po = s.po = Polish.INS
         s.p = po.p
@@ -1589,7 +1748,7 @@ class Root:
             texture=gt('white'),
             position=(x,y),
             size=(s.width,r[1]-1),
-            color=(0,0.4,0.4)
+            color=s.COL1
         )
         fade(s.I,a=0.2)
         K.append(s.I)
@@ -1599,7 +1758,7 @@ class Root:
             parent=s.p,
             position=(x+10,r[1]-35),
             text='Offs',
-            color=(0,0.7,0.7)
+            color=s.COL2
         ))
         K.append(ctw(
             position=(x+65,r[1]-35),
@@ -1607,7 +1766,7 @@ class Root:
             size=(s.width/2-40,30),
             mode=0,
             parent=s.p,
-            color=(0,0.7,0.7),
+            color=s.COL2,
             on_edit=Call(s.set,'stack_offset',0)
         ).widget)
         K.append(ctw(
@@ -1616,7 +1775,7 @@ class Root:
             size=(s.width/2-35,30),
             mode=0,
             parent=s.p,
-            color=(0,0.7,0.7),
+            color=s.COL2,
             on_edit=Call(s.set,'stack_offset',1)
         ).widget)
         # size
@@ -1624,7 +1783,7 @@ class Root:
             parent=s.p,
             position=(x+10,r[1]-65),
             text='Size',
-            color=(0,0.7,0.7)
+            color=s.COL2
         ))
         K.append(ctw(
             position=(x+65,r[1]-65),
@@ -1632,7 +1791,7 @@ class Root:
             size=(s.width/2-40,30),
             mode=0,
             parent=s.p,
-            color=(0,0.7,0.7),
+            color=s.COL2,
             on_edit=Call(s.set,'size',0)
         ).widget)
         K.append(ctw(
@@ -1641,7 +1800,7 @@ class Root:
             size=(s.width/2-35,30),
             mode=0,
             parent=s.p,
-            color=(0,0.7,0.7),
+            color=s.COL2,
             on_edit=Call(s.set,'size',1)
         ).widget)
         # separator
@@ -1663,8 +1822,8 @@ class Root:
                 position=(x+i*(s.width/4.2)+11,r[1]-115),
                 parent=s.p,
                 size=(s.width/5-2,s.width/5-2),
-                color=(0,0.7,0.7),
-                textcolor=(0,0.4,0.4),
+                color=s.COL2,
+                textcolor=s.COL1,
                 on_activate_call=Call(s.mv,i)
             )
             K.append(b)
@@ -1678,8 +1837,8 @@ class Root:
                 position=(x+i*(s.width/4.2)+11,r[1]-160),
                 parent=s.p,
                 size=(s.width/5-2,s.width/5-2),
-                color=(0,0.7,0.7),
-                textcolor=(0,0.4,0.4),
+                color=s.COL2,
+                textcolor=s.COL1,
                 on_activate_call=Call(s.mv,i,10)
             )
             K.append(b)
@@ -1740,7 +1899,7 @@ class Root:
         o = getattr(s,'on',None)
         if o == on: return
         if o: tw(o,color=(0.7,0.5,1))
-        tw(on,color=(0,0.7,0.7))
+        tw(on,color=s.COL2)
         p3 = getattr(s,'p3',0)
         if getattr(p3,'exists',lambda:False)():
             fade(p3,i=1,a=-0.2)
@@ -1750,28 +1909,28 @@ class Root:
             s.prev(k,t,mem,fa=0)
             return
         s.on = on
-        x,y = -2*s.width-10,res()[1]-265
+        x,y = -2*s.width-10,res()[1]-303
         # bg
         ij = s.p3 = iw(
             parent=s.p,
             texture=gt('white'),
-            color=(0,0.4,0.4),
+            color=s.COL1,
             position=(x,y),
-            size=(s.width,265)
+            size=(s.width,303)
         )
         s.K.append(ij)
         fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=s.p,
-            position=(x+15,y+225),
+            position=(x+15,y+263),
             label='Type hints',
             enable_sound=False,
             size=(s.width-30,30),
             texture=gt('white'),
-            textcolor=(0,0.4,0.4),
-            color=(0,0.7,0.7),
-            on_activate_call=lambda: (broad(brk(mem[k],70),color=(0,0.4,0.4)),deek())
+            textcolor=s.COL1,
+            color=s.COL2,
+            on_activate_call=lambda: (broad(brk(mem[k],70),color=s.COL1),deek())
         )
         s.K.append(b)
         s.p3junk = [b]
@@ -1780,7 +1939,7 @@ class Root:
             parent=s.p,
             texture=gt('white'),
             size=(s.width-18,1),
-            position=(x+10,y+215.5),
+            position=(x+10,y+253.5),
             opacity=0.6
         )
         s.K.append(ij)
@@ -1790,12 +1949,12 @@ class Root:
         v = at.get(k,None)
         b = bw(
             parent=s.p,
-            position=(x+15,y+177),
+            position=(x+15,y+215),
             label='Eval',
             size=(s.width-30,30),
             texture=gt('white'),
-            textcolor=(0,0.4,0.4),
-            color=(0,0.7,0.7),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
             on_activate_call=Call(s._val1,k,v)
         )
@@ -1804,14 +1963,28 @@ class Root:
         # pass widget
         b = bw(
             parent=s.p,
-            position=(x+15,y+139),
+            position=(x+15,y+177),
             label='Widget',
             size=(s.width-30,30),
             enable_sound=False,
             texture=gt('white'),
-            textcolor=(0,0.4,0.4),
-            color=(0,0.7,0.7),
+            textcolor=s.COL1,
+            color=s.COL2,
             on_activate_call=Call(s._val2,k)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
+        # color
+        b = bw(
+            parent=s.p,
+            position=(x+15,y+139),
+            label='Color',
+            size=(s.width-30,30),
+            enable_sound=False,
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            on_activate_call=Call(s._val3,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1838,6 +2011,143 @@ class Root:
         )
         s.K.append(ij)
         s.p3junk.append(ij)
+    def _val3(s,*a):
+        deek()
+        s.val3(*a)
+    def val3(s,k,fa=1):
+        po = s.po
+        p4 = getattr(s,'p4',0)
+        if getattr(p4,'exists',lambda:False)():
+            fade(p4,i=1,a=-0.2)
+            p4j = getattr(s,'p4junk',[]).copy()
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val3(k,fa=0)
+            return
+        oy = 280
+        x,y = -3*s.po.width-15,res()[1]-oy
+        # bg
+        ij = s.p4 = iw(
+            parent=po.p,
+            texture=gt('white'),
+            color=s.COL2,
+            position=(x,y),
+            size=(po.width,oy)
+        )
+        fade(ij,a=0.2) if fa else 0
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk = [ij]
+        # colors
+        ok = 19
+        d = po.TAR[1][0]
+        c = d.get(k,())
+        s.val3oc = c = c if isinstance(c,tuple) else ()
+        for cx in range(10):
+            for cy in range(10):
+                px, py = (x+5+cx*ok,y+oy-5-ok-cy*ok)
+                c = HTR(cx / 9.0, 1.0, 1.0 - (cy / 9.0))
+                ij = bw(
+                    parent=po.p,
+                    texture=gt('white'),
+                    color=c,
+                    on_activate_call=Call(s.val3p,c,px,py),
+                    label='',
+                    size=(ok,ok),
+                    position=(px,py),
+                    enable_sound=False
+                )
+                s.K.append(ij)
+                s.p3junk.append(ij)
+                s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-8,1),
+            position=(x+4,y+oy-199.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # preview
+        s.val3pr = ij = bw(
+            parent=po.p,
+            size=(po.width-22,30),
+            position=(x+11,y+oy-235),
+            label='',
+            on_activate_call=s.val3br,
+            enable_sound=False,
+            color=s.val3oc or (0,0,0),
+            texture=gt('white')
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-8,1),
+            position=(x+4,y+oy-240.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # set
+        ij = bw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-22,30),
+            label='Set',
+            position=(x+11,y+oy-275),
+            enable_sound=False,
+            textcolor=s.COL2,
+            color=s.COL1,
+            on_activate_call=Call(s.val3s,k)
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+    def val3s(s,k):
+        c = s.val3oc
+        if not c: btw('Select a color first!'); return
+        c = tuple(RND(c))
+        d = {k:c}
+        try: cw(s.po.tar,**d)
+        except Exception as e: err(str(e)); return
+        s.po.TAR[1][0].update(d)
+        tw(s.val1v,text=str(c))
+        nice('Applied!')
+    def val3br(s):
+        c = s.val3oc
+        if not c: btw('Select a color first!'); return
+        broad(SHRT(c),color=c)
+        deek()
+    def val3p(s,c,px,py):
+        deek()
+        s.val3oc = c
+        bw(s.val3pr,color=c)
+        j = getattr(s,'val3j',[])
+        [_.delete() for _ in j]; j.clear()
+        s.val3j = []
+        for _ in range(4):
+            x = [0,18,0,0][_]
+            y = [18,0,0,0][_]
+            sx = [20,2,20,2][_]
+            sy = [2,20,2,20][_]
+            ij = iw(
+                parent=s.po.p,
+                texture=gt('white'),
+                size=(sx,sy),
+                position=(px+x,py+y)
+            )
+            s.K.append(ij)
+            s.p3junk.append(ij)
+            s.p4junk.append(ij)
+            s.val3j.append(ij)
     def _val1(s,*a):
         deek()
         s.val1(*a)
@@ -1858,7 +2168,7 @@ class Root:
         ij = s.p4 = iw(
             parent=s.p,
             texture=gt('white'),
-            color=(0,0.4,0.4),
+            color=s.COL1,
             position=(x,y),
             size=(s.width,200)
         )
@@ -1920,8 +2230,8 @@ class Root:
             label='Run',
             size=(s.width-30,30),
             texture=gt('white'),
-            textcolor=(0,0.4,0.4),
-            color=(0,0.7,0.7),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
             on_activate_call=Call(s.val1e,k)
         )
@@ -1953,7 +2263,7 @@ class Root:
         ij = s.p4 = iw(
             parent=s.p,
             texture=gt('white'),
-            color=(0,0.4,0.4),
+            color=s.COL1,
             position=(x,y),
             size=(s.width,200)
         )
@@ -2009,8 +2319,8 @@ class Root:
             label='Select',
             size=(s.width-30,30),
             texture=gt('white'),
-            textcolor=(0,0.4,0.4),
-            color=(0,0.7,0.7),
+            textcolor=s.COL1,
+            color=s.COL2,
             enable_sound=False,
             on_activate_call=Call(s.val2c,k)
         )
@@ -2032,7 +2342,7 @@ class Root:
             s.p4junk.append(ij)
     def val2c(s,k):
         o = getattr(s,'val2o',(0,0))
-        if not o[0]: err('Select a widget!'); return
+        if not o[0]: btw('Select a widget!'); return
         try: w = s.po.kids()[o[1]]; cw(s.tar,**{k:w})
         except Exception as e: err(str(e)); return
         nice('Value set!')
@@ -2043,7 +2353,7 @@ class Root:
         o = getattr(s,'val2o',(0,0))
         if o[0] == w: return
         if o[0]: tw(o[0],color=(0.7,0.5,1))
-        s.val2o = (w,i); tw(w,color=(0,0.7,0.7))
+        s.val2o = (w,i); tw(w,color=s.COL2)
     def set(s,a,i,v):
         o = list(s.po.TAR[1][0][a])
         o[i] = float(v)
@@ -2063,17 +2373,6 @@ class Root:
         tw(s.K[2],text=str(round(o[0],1)))
         tw(s.K[3],text=str(round(o[1],1)))
         refresh()
-    def setup(s,first=False):
-        r = res()
-        z = (s.width,r[1])
-        cw(s.p,size=z,stack_offset=(r[0]/2.2,0))
-        iw(s.i,size=z)
-        bw(s.ob,position=(15,z[1]-90))
-        bw(s.cb,position=(15,z[1]-140))
-        iw(s.z,position=(9,z[1]-100))
-        s.logo()
-        if not first: return
-        fade(s.i)
 
 class ctw:
     def __init__(s,mode,fall,on_edit=None,**k):
@@ -2104,7 +2403,7 @@ class ctw:
         s.ot = t
         if False in [i in s.allow for i in t]:
             s.bad = True
-            err('Invalid input')
+            btw('Fix your input!')
             s.col((1,0,0))
             return # bad text
         elif s.bad:
@@ -2122,12 +2421,15 @@ err = lambda t: (broad(t,color=(1,0,0)),gs('error').play())
 GOS = lambda: gsw('overlay_stack')
 OK = lambda: ['scale','left','right']
 GSW = lambda t: strw(t,suppress_warning=True)
+SHRT = lambda c: '\n'.join([['RED','GREEN','BLUE'][_]+'='+str(round(c[_],2)) for _ in [0,1,2]])
+RND = lambda c: [round(_,2) for _ in c]
 def UIS(a=None):
     if a is None: return APP.ui_v1.uiscale
     APP.ui_v1.uiscale = a
 f = SUB.on_screen_size_change; SUB.on_screen_size_change = lambda *a,**k: (Polish.resize(),f(*a,**k))
 deek = lambda: gs('deek').play()
 nice = lambda t: (broad(t,color=(0,1,0)),gs('dingSmallHigh').play())
+btw = lambda t: (broad(t,color=(1,1,0)),gs('block').play())
 def var(s, v=None):
     cfg = APP.config; s = 'po_'+s
     return cfg.get(s,v) if v is None else (cfg.__setitem__(s,v),cfg.commit())
@@ -2185,7 +2487,7 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print('Polish v1.0 - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print('Polish v1.5 - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
