@@ -1,12 +1,12 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
-UpDown v2.0 - Climb up chat
+UpDown v3.0 - The arrows
 
-Adds up and down buttons to chat, which recall
-text sent in chat by all. Good for repeating
-messages and insults lmao.
+Simple up down arrows in party window
+Useful for repeating messages or something
 """
 
 from bauiv1lib import party
@@ -27,6 +27,7 @@ from bascenev1 import (
     screenmessage as push
 )
 
+
 class VeryPW(party.PartyWindow):
     def __init__(s, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -40,7 +41,6 @@ class VeryPW(party.PartyWindow):
                 label=cs(getattr(sc, f"{['UP', 'DOWN'][i]}_ARROW")),
                 button_type='square',
                 enable_sound=False,
-                repeat=True,
                 position=(-15, 70-(i*40)),
                 on_activate_call=[s._p, s._d][i]
             )
@@ -48,13 +48,13 @@ class VeryPW(party.PartyWindow):
     def _c(s, t=""): tw(edit=s._text_field, text=t)
     def _d(s): s._p(1)
 
-    def _p(s,i=0):
+    def _p(s, i=0):
+        s._w1 = gcm()
         if s._f:
             s._o = tw(query=s._text_field)
             s._f = False
-            s._n = -1
-        s._n += (1 if i else -1)
-        s._w1 = gcm()
+            s._n = 0 if i else len(s._w1)
+        s._n = (s._n + (1 if i else -1)) % len(s._w1)
         try:
             s._c((s._w1+[s._o])[s._n].split(": ", 1)[1])
         except IndexError:

@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Polish v1.5 - Your very UI designer
+Polish v2.0 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
 Start by writing Polish() in dev console, or via settings UI.
@@ -44,7 +44,9 @@ from bauiv1 import (
 from contextlib import redirect_stdout as REMAP
 from random import choice as CH, uniform as uf
 from colorsys import hsv_to_rgb as HTR
+from zlib import compress, decompress
 from io import StringIO as SIO
+from json import dumps, loads
 from os.path import join
 from os import makedirs
 from uuid import uuid4
@@ -80,12 +82,15 @@ class Polish:
         s.width = 200
         s.c = [0,0,0]
         s.MEM = []
+        s.MOM = []
         s.size = size
         s.kid = None
         s.sl = (None,None)
         s.grid = [5,5]
         s.gtrash = []
         s.bt = []
+        s.wids = {}
+        s.nid = -1
         s.trash,s.ok,s.sps,s.bws,s.K,s.hell = [[] for _ in range(6)]
         K = s.K
         # parent
@@ -104,8 +109,8 @@ class Polish:
             size=(s.width-30,30),
             label='File',
             enable_sound=False,
-            color=(0.4,0.4,0.4),
-            textcolor=(0.7,0.7,0.7),
+            color=File.COL1,
+            textcolor=File.COL2,
             on_activate_call=Call(s.go,File,[s])
         ))
         # separator
@@ -193,11 +198,36 @@ class Polish:
             background=False
         )
         # finally
+        s.sync()
         s.setup(first=True)
+    def sync(s):
+        s.MOM = []
+        rev = {v:k for k,v in s.wids.items()}
+        ty = type(gt('nub'))
+        ta = list(s.TAR)
+        ta[0] = -1
+        for _ in [ta]+s.MEM:
+            k,f = _[1]
+            nk = {}
+            for i,j in k.items():
+                uid = rev.get(j,None)
+                if uid is not None: j = ('uid',uid)
+                if j == s.tar: j = ('uid',-1)
+                if isinstance(j,ty): j = ('texture',str(j)[len("<bauiv1.Texture '"):-2])
+                nk[i] = j
+            cid = _[0]
+            o = [cid,(nk,f.__name__)]
+            s.MOM.append(o)
+    def nextid(s):
+        s.nid += 1
+        return s.nid
     def cp(s):
         if s.sl[0] is None: btw('Select a widget first!'); return
         data = s.MEM[s.sl[1]][1]
-        s.MEM.insert(s.sl[1]+1,(data[1](**data[0]),(data[0].copy(),data[1])))
+        nid = s.nextid()
+        s.wids[nid] = data[1](**data[0])
+        s.MEM.insert(s.sl[1]+1,(nid,(data[0].copy(),data[1])))
+        s.sync()
         s.bt.insert(s.sl[1]+1,s.bt[s.sl[1]])
         s.bord(False)
         s.fresh()
@@ -205,16 +235,18 @@ class Polish:
         s.hl(s.sl[1])
         s.bord()
         nice('Copied!')
-    def flash(s,b,c=(1.7,1.4,1)):
+    def flash(s,b,c=None):
+        c = c or Man.COL0
         c = (c[0]-0.1,c[1]-0.1,c[2]-0.1)
         bw(b,color=c)
-        if c[2] <= 0.09: return
+        if c[0] <= Man.COL1[0]+0.01: return
         teck(0.05,Call(s.flash,b,c))
     def bye(s):
         if s.sl[0] is None: btw('Select a widget first!'); return
         s.MEM.pop(s.sl[1])
+        s.sync()
         s.bt.pop(s.sl[1])
-        s.sl[0].delete()
+        s.wids[s.sl[0]].delete()
         s.sl = (None,None)
         s.bord(False)
         s.clear()
@@ -376,7 +408,7 @@ class Polish:
                 )
                 s.trash.append(t)
     def kids(s):
-        return [_[0] for _ in s.MEM]
+        return [s.wids[_] for _ in [i[0] for i in s.MEM]]
     def wid(s,i):
         o = getattr(s.kid,'w',69)
         s.clear()
@@ -399,101 +431,6 @@ class Polish:
         p = join(ROOT(),n)
         with open(p,'w') as f: f.write(s.tr())
         nice(f'Exported {n}\nAt {p}')
-    def _tr(s):
-        t, n, e = ' '*4, '\n', ','
-        im, fcs_initial, sigt = set(), [], False
-        fcs_deferred = []
-
-        generated_vars = {}
-        obj_id_to_var_name = {}
-        mem_items = list(s.MEM.items())
-
-        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
-            obj_name_base = f.__name__
-            current_var_name = ""
-
-            if obj_name_base in generated_vars:
-                generated_vars[obj_name_base] += 1
-            else:
-                generated_vars[obj_name_base] = 1
-            current_var_name = f"{obj_name_base}{generated_vars[obj_name_base]}"
-            if i == 0:
-                current_var_name = "root"
-            obj_id_to_var_name[obj_id] = current_var_name
-            im.add(f.__name__)
-
-        root_obj_id = mem_items[0][0] if mem_items else None
-
-        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
-            initial_kwp = []
-            deferred_kwp = []
-            oav = None
-            ck = k_original.copy()
-
-            if i == 0 and "out_anim" in ck:
-                oav = ck.pop("out_anim")
-            for K, V in ck.items():
-                v_s = repr(V)
-                if K == 'parent' and V == root_obj_id:
-                    v_s = obj_id_to_var_name[V]
-                    initial_kwp.append(f"{K}={v_s}")
-                    continue
-                elif V in obj_id_to_var_name:
-                    v_s = obj_id_to_var_name[V]
-                    deferred_kwp.append(f"{K}={v_s}")
-                    continue
-                elif hasattr(V, '__class__') and V.__class__.__name__ == 'Texture':
-                    sv = str(V)
-                    if sv.startswith("<bauiv1.Texture '") and sv.endswith("'>"):
-                        tn = sv[len("<bauiv1.Texture '"):-2]
-                        v_s, sigt = f"gettexture('{tn}')", True
-                    else:
-                        v_s = repr(sv)
-                elif isinstance(V, str):
-                    v_s = f"'{V}'"
-                initial_kwp.append(f"{K}={v_s}")
-
-            var_name = obj_id_to_var_name[obj_id]
-            fcs_initial.append((
-                f.__name__,
-                (e + n + t*2).join(initial_kwp) if initial_kwp else '',
-                i == 0,
-                oav,
-                var_name
-            ))
-
-            if deferred_kwp:
-                fcs_deferred.append((
-                    f.__name__,
-                    var_name,
-                    (e + n + t*2).join(deferred_kwp)
-                ))
-
-        imp_list = sorted(list(im))
-        if sigt: imp_list.append('gettexture')
-
-        o = 'from bauiv1 import (' + n
-        for fn_imp in imp_list: o += t + fn_imp + e + n
-        o = o[:-len(e+n)] + n + ')' + n*2 + 'def make():' + n
-
-        for fn, initial_gk, isf, oav, var_name in fcs_initial:
-            if isf:
-                if initial_gk:
-                    o += t + f"root = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
-                else:
-                    o += t + f"root = {fn}()" + n
-                if oav is not None:
-                    o += t + f"back = lambda: {fn}(root,transition={repr(oav) if not isinstance(oav, str) else f"'{oav}'"})" + n
-            else:
-                if initial_gk:
-                    o += t + f"{var_name} = {fn}(" + n + t*2 + initial_gk + n + t + ")" + n
-                else:
-                    o += t + f"{var_name} = {fn}()" + n
-        if fcs_deferred:
-            o += n
-        for fn, var_name, deferred_gk in fcs_deferred:
-            o += t + f"{fn}({var_name}," + n + t*2 + deferred_gk + n + t + ")" + n
-        return o
     def tr(s):
         t, n, e = ' '*4, '\n', ','
         im, fcs_initial, sigt = set(), [], False
@@ -501,12 +438,19 @@ class Polish:
         generated_vars = {}
         obj_id_to_var_name = {}
 
-        # s.MEM is now a list of (obj, (kwargs, func)) tuples, and s.TAR holds the root
-        # Start with the root object from s.TAR
-        root_obj_id, (root_k_original, root_f) = s.TAR
-        mem_items = [(root_obj_id, (root_k_original, root_f))] + list(s.MEM)
+        # s.TAR = (root_obj_instance, (kwargs, func)) - root_obj_instance is already the object
+        root_obj_instance, (root_k_original, root_f) = s.TAR
 
-        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+        # mem_items will now start with the root_obj_instance directly from s.TAR
+        mem_items = [(root_obj_instance, (root_k_original, root_f))]
+
+        # Iterate through s.MEM (which contains integer IDs) to get the instances
+        # s.MEM: [(integer_id, (kwargs, func)), ...]
+        for obj_id_int, (k_original, f) in s.MEM:
+            obj_instance = s.wids[obj_id_int] # Get the actual instance from s.wids
+            mem_items.append((obj_instance, (k_original, f)))
+
+        for i, (obj_instance, (k_original, f)) in enumerate(mem_items):
             obj_name_base = f.__name__
             current_var_name = ""
 
@@ -518,13 +462,13 @@ class Polish:
             current_var_name = f"{obj_name_base}{generated_vars[obj_name_base]}"
             if i == 0:
                 current_var_name = "root"
-            obj_id_to_var_name[obj_id] = current_var_name
+            # Map the actual object instance to its generated variable name
+            obj_id_to_var_name[obj_instance] = current_var_name
             im.add(f.__name__)
 
-        # root_obj_id is now directly from s.TAR
-        root_obj_id = s.TAR[0]
+        # The root_obj_instance is already identified from s.TAR
 
-        for i, (obj_id, (k_original, f)) in enumerate(mem_items):
+        for i, (obj_instance, (k_original, f)) in enumerate(mem_items):
             initial_kwp = []
             deferred_kwp = []
             oav = None
@@ -534,10 +478,12 @@ class Polish:
                 oav = ck.pop("out_anim")
             for K, V in ck.items():
                 v_s = repr(V)
-                if K == 'parent' and V == root_obj_id:
+                # V in kwargs can be an object instance (like for 'parent')
+                if K == 'parent' and V == root_obj_instance:
                     v_s = obj_id_to_var_name[V]
                     initial_kwp.append(f"{K}={v_s}")
                     continue
+                # Check if V (which is an object instance) is one of our mapped instances
                 elif V in obj_id_to_var_name:
                     v_s = obj_id_to_var_name[V]
                     deferred_kwp.append(f"{K}={v_s}")
@@ -553,7 +499,7 @@ class Polish:
                     v_s = f"'{V}'"
                 initial_kwp.append(f"{K}={v_s}")
 
-            var_name = obj_id_to_var_name[obj_id]
+            var_name = obj_id_to_var_name[obj_instance]
             fcs_initial.append((
                 f.__name__,
                 (e + n + t*2).join(initial_kwp) if initial_kwp else '',
@@ -594,23 +540,110 @@ class Polish:
         for fn, var_name, deferred_gk in fcs_deferred:
             o += t + f"{fn}({var_name}," + n + t*2 + deferred_gk + n + t + ")" + n
         return o
+    def procp(s):
+        o = ENCODE(s.MOM)
+        COPY(o)
+        nice('Copied!')
+    def proload(s,o):
+        try: m = DECODE(o)
+        except Exception as e: err(e); return
+        # cleanup
+        s.tar.delete()
+        s.nid = -1
+        [_.clear() for _ in [s.MEM,s.MOM,s.wids,s.bt]]
+        # parent
+        t = m.pop(0)
+        at = {i:(tuple(j) if isinstance(j,list) else j) for i,j in t[1][0].items()}
+        s.tar = cw(**at)
+        s.TAR = (s.tar,(at,cw))
+        # kids
+        bui = __import__('bauiv1')
+        gay = []
+        for _ in m:
+            uid,g = _
+            at,n = g
+            at = {i:(tuple(j) if isinstance(j,list) else j) for i,j in at.items()}
+            f = getattr(bui,n)
+            nat = {}
+            for i,j in at.items():
+                if isinstance(j,tuple) and len(j)==2:
+                    if j[0]=='texture': j = gt(j[1])
+                    elif j[0]=='uid':
+                        if j[1]<0: j = s.tar
+                        else: gay.append((uid,f,i,j[1])); continue
+                nat[i] = j
+            s.wids[uid] = f(**nat)
+            s.MEM.append((uid,(nat,f)))
+            tt = f'#{uid+1} {f.__name__[:-6]}'
+            s.bt.append(tt)
+            s.nid = uid
+        for uid,f,i,j in gay:
+            f(s.wids[uid],**{i:s.wids[j]})
+        # finally
+        s.sync()
+        s.fresh()
+        nice('Loaded project!')
+
+# [-1, [{'size': [500, 450], 'stack_offset': [0, 0]}, 'containerwidget']]
+# [0, [{'parent': ['tar', 0], 'position': [253.9, 136.0], 'size': [100, 30], 'label': '#0 button'}, 'buttonwidget']]
+
+def ENCODE(a):
+    c=compress(dumps(a,separators=(',',':')).encode())
+    return str(int.from_bytes(c,'big'))
+def DECODE(s):
+    b=int(s); n=(b.bit_length()+7)//8
+    return loads(decompress(b.to_bytes(n,'big')).decode())
 
 class File:
+    COL1 = (0.4,0.4,0.4)
+    COL2 = (0.7,0.7,0.7)
     def __init__(s,po):
         s.po = po
         r = res()
         K = s.K = []
-        s.c = [(0.4,0.4,0.4),(0.7,0.7,0.7)]
-        x,y = (-po.width-5,r[1]-135)
+        ys = s.ys = 220
+        x,y = (-po.width-5,r[1]-ys)
         s.I = iw(
             parent=po.p,
             texture=gt('white'),
             position=(x,y),
-            size=(po.width,135),
+            size=(po.width,ys),
             color=(0.25,0.25,0.25)
         )
         fade(s.I,a=0.2)
         K.append(s.I)
+        # copy project
+        K.append(bw(
+            parent=po.p,
+            position=(x+15,y+180.5),
+            label='Copy project',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL2,
+            color=s.COL1,
+            enable_sound=False,
+            on_activate_call=po.procp
+        ))
+        # load project
+        K.append(bw(
+            parent=po.p,
+            position=(x+15,y+143),
+            label='Load project',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL2,
+            color=s.COL1,
+            enable_sound=False,
+            on_activate_call=s.load
+        ))
+        # separator
+        K.append(iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-17,1),
+            opacity=0.6,
+            position=(x+8,y+133)
+        ))
         # export code
         K.append(bw(
             parent=po.p,
@@ -618,8 +651,8 @@ class File:
             label='Export code',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=s.c[1],
-            color=s.c[0],
+            textcolor=s.COL2,
+            color=s.COL1,
             enable_sound=False,
             on_activate_call=po.excode
         ))
@@ -630,8 +663,8 @@ class File:
             label='Copy code',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=s.c[1],
-            color=s.c[0],
+            textcolor=s.COL2,
+            color=s.COL1,
             enable_sound=False,
             on_activate_call=po.cpcode
         ))
@@ -650,13 +683,91 @@ class File:
             label='Exit',
             size=(po.width-30,30),
             texture=gt('white'),
-            textcolor=s.c[1],
-            color=s.c[0],
+            textcolor=s.COL2,
+            color=s.COL1,
             enable_sound=False,
             on_activate_call=po.exit
         ))
+    def load(s):
+        deek()
+        i = getattr(s,'loadi',0)
+        j = getattr(s,'loadj',[])
+        if i:
+            fade(i,i=1,a=-0.2)
+            teck(1,i.delete)
+            [_.delete() for _ in j]
+            s.loadj = []
+            s.loadi = 0
+            return
+        x,y = -s.po.width*2-10,res()[1]-s.ys
+        s.loadi = ij = iw(
+            parent=s.po.p,
+            texture=gt('white'),
+            position=(x,y),
+            size=(s.po.width,s.ys),
+            color=(0.25,0.25,0.25)
+        )
+        s.K.append(ij)
+        fade(ij,a=0.2)
+        lj = s.loadj = getattr(s,'loadj',[])
+        # note
+        ij = tw(
+            color=s.COL2,
+            text='Paste your project\nseed below. Generate\nIt by pressing the\nCopy project button.',
+            position=(x+10,y+s.ys-40),
+            maxwidth=s.po.width-20,
+            parent=s.po.p,
+            shadow=1.2
+        )
+        s.K.append(ij)
+        lj.append(ij)
+        # separator
+        ij = iw(
+            parent=s.po.p,
+            texture=gt('white'),
+            size=(s.po.width-18,1),
+            position=(x+9,y+s.ys-120),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        lj.append(ij)
+        # input
+        ij = inp = tw(
+            editable=True,
+            size=(s.po.width-20,30),
+            parent=s.po.p,
+            color=s.COL2,
+            position=(x+10,y+s.ys-160)
+        )
+        s.K.append(ij)
+        lj.append(ij)
+        # separator
+        ij = iw(
+            parent=s.po.p,
+            texture=gt('white'),
+            size=(s.po.width-18,1),
+            position=(x+9,y+s.ys-170),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        lj.append(ij)
+        # load
+        ij = bw(
+            parent=s.po.p,
+            texture=gt('white'),
+            enable_sound=False,
+            size=(s.po.width-30,30),
+            textcolor=s.COL2,
+            color=s.COL1,
+            position=(x+15,y+s.ys-210),
+            label='Load'
+        )
+        bw(ij,on_activate_call=lambda: s.po.proload(tw(query=inp)))
+        s.K.append(ij)
+        lj.append(ij)
 
 class Grid:
+    GRID_MAX = 100**2
     def __init__(s,po,trash=[],dry=False):
         s.po = po
         size = po.grid
@@ -734,6 +845,7 @@ class Grid:
             enable_sound=False
         ))
     def nuke(s):
+        deek()
         [_.delete() for _ in s.trash]; s.trash.clear()
     def set(s):
         x,y = [tw(query=s.K[i]) for i in [2,3]]
@@ -744,6 +856,8 @@ class Grid:
         if (False in [_ in ok for _ in y]): b = False
         if not b: btw('Fix your input!'); return
         x,y = [int(float(_)) for _ in [x,y]]
+        if x*y > s.GRID_MAX: btw('Grid too big!'); return
+        deek()
         s.make(x,y)
         s.po.grid = [x,y]
     def make(s, w, h):
@@ -774,10 +888,10 @@ class Preset:
     def __init__(s,po):
         s.K = K = []
         s.po = po
-        sy = 304
+        src = s.src()
+        sy = 8+len(src)*37
         r = res()
         x,y = -po.width-5,r[1]-sy*1.34
-        s.c = [(1,1,0),(0.65,0.65,0)]
         s.I = iw(
             parent=po.p,
             texture=gt('white'),
@@ -788,23 +902,32 @@ class Preset:
         fade(s.I,a=0.2)
         K.append(s.I)
         # presets
+        c1,c2 = (1,1,0),(0.65,0.65,0)
         [K.append(bw(
-            label=['Back small','Back big','Slim button','Agent','Text box','Title','H Separator','V Separator'][i],
+            label=g[0],
             size=(po.width-26,30),
             position=(x+13,y+7+37*i),
-            color=s.c[1],
+            color=c2,
             enable_sound=False,
-            textcolor=s.c[0],
+            textcolor=c1,
             parent=po.p,
             texture=gt('white'),
             on_activate_call=Call(s.load,i)
-        )) for i in range(8)]
+        )) for i,g in enumerate(src)]
     def load(s,i):
         deek()
+        nid = s.po.nextid()
+        f,k = s.src()[i][1:]
+        s.po.wids[nid] = f(**k)
+        s.po.MEM.append((nid,(k,f)))
+        s.po.sync()
+        s.po.bt.append(f'#{nid+1} {f.__name__[:-6]}')
+        s.po.fresh()
+    def src(s):
         ps = s.po.TAR[1][0]['size']
-        h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
-        l = [
-            (bw,{
+        h = s.po.nid + 1
+        return [
+            ('Small Back',bw,{
                 'size':(40,40),
                 'button_type':'backSmall',
                 'textcolor':(1,1,1),
@@ -813,7 +936,7 @@ class Preset:
                 'label':cs(sc.BACK),
                 'parent':s.po.tar
             }),
-            (bw,{
+            ('Big Back',bw,{
                 'size':(100,40),
                 'textcolor':(1,1,1),
                 'button_type':'back',
@@ -822,7 +945,7 @@ class Preset:
                 'label':f'#{h} Back',
                 'parent':s.po.tar
             }),
-            (bw,{
+            ('Slim Button',bw,{
                 'size':(120,40),
                 'textcolor':(1,1,1),
                 'button_type':'square',
@@ -831,7 +954,7 @@ class Preset:
                 'label':f'#{h} Slim',
                 'parent':s.po.tar
             }),
-            (bw,{
+            ('Player Button',bw,{
                 'size':(100,100),
                 'button_type':'back',
                 'color':(1,1,1),
@@ -841,14 +964,14 @@ class Preset:
                 'mask_texture':gt('characterIconMask'),
                 'parent':s.po.tar
             }),
-            (tw,{
+            ('Editable Text',tw,{
                 'parent':s.po.tar,
                 'editable':True,
                 'position':ran(ps),
                 'size':(130,30),
                 'text':f'#{h} Editable'
             }),
-            (tw,{
+            ('Big Title',tw,{
                 'parent':s.po.tar,
                 'text':f'#{h} Title',
                 'size':(130,40),
@@ -857,27 +980,34 @@ class Preset:
                 'h_align':'right',
                 'position':(ps[0]/2,ps[1]/2)
             }),
-            (iw,{
+            ('H Separator',iw,{
                 'texture':gt('white'),
                 'opacity':0.6,
                 'position':ran(ps),
                 'size':(200,1),
                 'parent':s.po.tar
             }),
-            (iw,{
+            ('V Separator',iw,{
                 'texture':gt('white'),
                 'opacity':0.6,
                 'position':ran(ps),
                 'size':(1,200),
                 'parent':s.po.tar
+            }),
+            ('Polish Button',bw,{
+                'label':f'#{h} Polish',
+                'parent':s.po.tar,
+                'size':(s.po.width-30,30),
+                'textcolor':Man.COL2,
+                'button_type':'square',
+                'color':Man.COL1,
+                'position':ran(ps),
+                'texture':gt('white')
             })
-        ][i]
-        w = l[0](**l[1])
-        s.po.MEM.append((w,(l[1],l[0])))
-        s.po.bt.append(f'#{h} {l[0].__name__[:-6]}')
-        s.po.fresh()
+        ]
 
 class Man:
+    COL0 = (1.0,0.5,1.0)
     COL1 = (0.5,0.0,0.5)
     COL2 = (0.8,0.6,0.8)
     COL3 = (0.6,0.5,0.7)
@@ -1345,6 +1475,7 @@ class Man:
         try: s.f(s.w,**d)
         except Exception as e: err(str(e)); return
         s.po.MEM[s.wi][1][0].update(d)
+        s.po.sync()
         tw(s.val1v,text=str(c))
         nice('Applied!')
     def val3br(s):
@@ -1470,6 +1601,7 @@ class Man:
         nice('Saved!')
         tw(s.val1v,text=brk(str(v)))
         s.po.MEM[s.wi][1][0].update({k:v})
+        s.po.sync()
         s.po.bord()
     def val2(s,k,fa=1):
         po = s.po
@@ -1570,6 +1702,7 @@ class Man:
         except Exception as e: err(str(e)); return
         nice('Value set!')
         s.po.MEM[s.wi][1][0].update({k:w})
+        s.po.sync()
         tw(s.val1v,text=brk(str(w)))
         refresh()
     def val2p(s,w,i):
@@ -1617,8 +1750,8 @@ class Add:
         deek()
         f = getattr(s.ui,s.a[i])
         p = s.at['size']; p = ran(p)
-        h = (1+int(s.po.bt[-1][1])) if len(s.po.bt) else 0
-        tt = f'#{h} {f.__name__[:-6]}'
+        nid = s.po.nextid()
+        tt = f'#{nid+1} {f.__name__[:-6]}'
         d = {
             'parent':s.tar,
             'position':p,
@@ -1626,8 +1759,9 @@ class Add:
             **([{},{'text':tt}][f.__name__[:-6] in ['text','checkbox']]),
             **([{'label':tt},{}][f!=bw])
         }
-        w = f(**d)
-        s.po.MEM.append((w,(d,f)))
+        s.po.wids[nid] = f(**d)
+        s.po.MEM.append((nid,(d,f)))
+        s.po.sync()
         s.po.bt.append(tt)
         s.po.fresh()
 
@@ -1729,6 +1863,7 @@ class Anim:
         ok = ['out_'+_ for _ in OK()]
         if o not in ok: btw(f'Out animation varies from:\n{ok}'); return
         s.po.TAR[1][0].update({'transition':i,'out_anim':o})
+        s.po.sync()
         nice('Saved!')
 
 class Root:
@@ -2119,6 +2254,7 @@ class Root:
         try: cw(s.po.tar,**d)
         except Exception as e: err(str(e)); return
         s.po.TAR[1][0].update(d)
+        s.po.sync()
         tw(s.val1v,text=str(c))
         nice('Applied!')
     def val3br(s):
@@ -2242,12 +2378,13 @@ class Root:
         t = tw(query=s.val1t)
         try:
             v = eval(t)
-            if k == 'transition' and v.startswith('out'): raise Exception('What are you doing?')
+            if (k == 'transition' and v.startswith('out')) or (isinstance(v,(tuple,list)) and len(v) == 2 and v[0] == 'uid' and isinstance(v[1],int)): raise Exception('What are you doing?')
             cw(s.tar,**{k:v})
         except Exception as e: err(str(e)); return
         nice('Saved!')
         tw(s.val1v,text=brk(str(v)))
         s.po.TAR[1][0].update({k:v})
+        s.sync()
         refresh()
     def val2(s,k,fa=1):
         p4 = getattr(s,'p4',0)
@@ -2347,6 +2484,7 @@ class Root:
         except Exception as e: err(str(e)); return
         nice('Value set!')
         s.po.TAR[1][0].update({k:w})
+        s.po.sync()
         tw(s.val1v,text=brk(str(w)))
         refresh()
     def val2p(s,w,i):
@@ -2360,6 +2498,7 @@ class Root:
         d = {a:tuple(o)}
         cw(s.tar,**d)
         s.po.TAR[1][0].update(d)
+        s.po.sync()
         s.po.fresh()
         refresh()
     def mv(s,i,j=1):
@@ -2369,6 +2508,7 @@ class Root:
         if i == 2: o = (o[0],o[1]+j)
         if i == 3: o = (o[0]+j,o[1])
         s.po.TAR[1][0]['stack_offset'] = o
+        s.po.sync()
         cw(s.tar,stack_offset=o)
         tw(s.K[2],text=str(round(o[0],1)))
         tw(s.K[3],text=str(round(o[1],1)))
@@ -2487,7 +2627,7 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print('Polish v1.5 - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print('Polish v2.0 - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
