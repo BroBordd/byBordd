@@ -1,16 +1,17 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
-PlugTools v1.0 - Live Plugin Action
+PlugTools v1.5 - Live Plugin Action
 
 Beta. Feedback is appreciated.
 Adds a dev console tab for plugin management.
 
 Features vary between:
+- Dynamic Control: Enables immediate loading and reloading of plugins.
 - Real-time Monitoring: Reports status of plugin files (new, modified, deleted).
 - Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).
-- Dynamic Control: Enables immediate loading and reloading of plugins.
 - Plugin Data: Provides file path, size, timestamps, and code structure analysis.
 - Navigation: Offers controls to browse the plugin list.
 """
@@ -50,6 +51,7 @@ from bauiv1 import (
     screenmessage as push,
     getsound as gs
 )
+from traceback import format_exc as ERR
 from babase._general import getclass
 from datetime import datetime
 from importlib import reload
@@ -131,7 +133,9 @@ class PlugTools(TAB):
             l = len(nu)
             push(f"Found {l} new plugin{['s',''][l==1]}:\n{', '.join(nu)}\nSee what to do with {['it','them'][l!=1]}",color=(1,1,0))
             gs('dingSmallHigh').play()
-        if b: s.request_refresh()
+        if b:
+            try: s.request_refresh()
+            except RuntimeError: pass
         teck(0.1,s.spy)
     @override
     def refresh(s):
@@ -166,7 +170,7 @@ class PlugTools(TAB):
             ['Load','Reload'][e],
             pos=(z,5),
             size=(mx,43),
-            call=s.load,
+            call=s._load,
             disabled=d
         )
         # Separator
@@ -254,6 +258,20 @@ class PlugTools(TAB):
         c[s.KEY] = i
         c.commit()
         s.request_refresh()
+    def _load(s):
+        h = ['load','reload'][s.e]
+        try: r = s.load()
+        except Exception as ex:
+            k = f': {ex}' if str(ex).strip() else ''
+            j = f'Error {h}ing {s.by}'
+            push(f'{j}{k}\nFull traceback in logs',color=(1,0,0))
+            gs('error').play()
+            print('[PlugTools] '+j+':\n'+ERR())
+            return
+        if r is False: return
+        push(h.title()+'ed '+s.by,color=(0,1,0))
+        gs('gunCocking').play()
+        s.request_refresh()
     def load(s):
         _ = s.by
         if _ in s.bad:
@@ -266,7 +284,11 @@ class PlugTools(TAB):
                 p.active_plugins.remove(o)
             del s.sp.plugin
             collect()
-            reload(modules[NAM(_,0)])
+            try: reload(modules[NAM(_,0)])
+            except KeyError:
+                gs('block').play()
+                push(f"{s.by} is malformed!\nAre you sure it's a babase.Plugin?",color=(1,1,0))
+                return False
         cls = getclass(_,Plugin)
         ins = cls()
         ins.on_app_running()
@@ -275,9 +297,6 @@ class PlugTools(TAB):
         s.sp.plugin = ins
         p.plugin_specs[_] = s.sp
         p.active_plugins.append(ins)
-        push(['Loaded','Reloaded'][s.e]+' '+_,color=(0,1,0))
-        gs('gunCocking').play()
-        s.request_refresh()
     def metadata(s):
         f = PAT(s.sp.class_path)
         info = []
