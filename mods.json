@@ -88,6 +88,14 @@
         "mod_filename_base": "chatools"
     },
     {
+        "mod_name": "Claim",
+        "mod_fancy_name": "Auto gift claimer",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Silently claims any pending gifs on startup.\nRead code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "claim"
+    },
+    {
         "mod_name": "CopyThat",
         "mod_fancy_name": "To clipboard it goes",
         "mod_version": "1.0",
