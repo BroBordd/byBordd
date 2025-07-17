@@ -1,8 +1,9 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Power v2.5 - With one click
+Power v2.6 - With one click
 
 Experimental. Feedback is appreciated.
 Adds a dev console tab with some features I find useful.
@@ -345,7 +346,7 @@ class Power(TAB):
                 'Power',
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 454*zf),
-                call=Call(push,"Power v2.5 FullUI\nCollapse dev console to switch to MinUI")
+                call=Call(push,'Power v2.5 FullUI\nCollapse dev console to switch to MinUI')
             )
             B(
                 '',
@@ -724,7 +725,7 @@ class Power(TAB):
             )
             B(
                 'Power',
-                call=Call(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI'),
+                call=Call(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI. thanks.'),
                 pos=(x + 1469 * sf, s.height-90),
                 size=(130 * sf, 27)
             )
@@ -779,7 +780,9 @@ NOW = lambda: DT.now().strftime("%H:%M:%S")
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
+        C = Power
+        N = C.__name__
+        E = ENT(N,C)
         I = app.devconsole
-        E = ENT('Power',Power)
-        I.tabs.append(E)
-        I._tab_instances['Power'] = E.factory()
+        I.tabs = [_ for _ in I.tabs if _.name != N]+[E]
+        I._tab_instances[N] = E.factory()

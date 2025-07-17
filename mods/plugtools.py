@@ -14,6 +14,7 @@ Features vary between:
 - Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).
 - Plugin Data: Provides file path, size, timestamps, and code structure analysis.
 - Navigation: Offers controls to browse the plugin list.
+- Logging: Has a built-in log display with proper indentation.
 """
 
 from os.path import (
@@ -52,7 +53,6 @@ from bauiv1 import (
     getsound as gs
 )
 from traceback import format_exc as ERR
-from babase._general import getclass
 from datetime import datetime
 from importlib import reload
 from typing import override
@@ -74,6 +74,7 @@ class PlugTools(TAB):
     def __init__(s):
         s.bys = META()
         s.bad = []
+        s.logs = 'No errors'
         s.mem = {_:MT(_) for _ in s.bys}
         s.eye = look()
         s.e = False
@@ -252,7 +253,43 @@ class PlugTools(TAB):
             call=s.prev,
             disabled=s.i==0
         )
+        if s.height <= 100: return
+        # Expanded logs
+        t = s.logs
+        h = 25
+        pos = (x+10,s.height)
+        z = len(t)
+        p = list(pos)
+        m = max(t.replace('\\n','') or [''],key=GSW)
+        l = GSW(str(m))/1.2
+        ln = t.split('\\n')
+        mm = max(ln,key=GSW)
+        sk = 0.8
+        ml = (s.height-100) * 0.04
+        ww = (l*sk)*len(mm)
+        sk = sk if ww<s.width else (s.width*0.98/ww)*sk
+        zz = len(ln)
+        sk = sk if zz<=ml else (ml/zz)*sk
+        xf = 0
+        for i in range(z):
+            p[0] += [l*sk,0][i==0]
+            if xf: xf = 0; continue
+            j = t[i]
+            k = t[i+1] if (i+1) < z else j
+            if j == '\\' and k == 'n':
+                p[0] = pos[0]-(l*1.5)*sk
+                p[1] -= h*(sk*1.28)
+                xf = 1
+                continue
+            s.text(
+                j,
+                pos=tuple(p),
+                h_align='center',
+                v_align='top',
+                scale=sk
+            )
     def hl(s,i=None):
+        i and deek()
         c = app.config
         if i is None: return c.get(s.KEY,None)
         c[s.KEY] = i
@@ -260,15 +297,19 @@ class PlugTools(TAB):
         s.request_refresh()
     def _load(s):
         h = ['load','reload'][s.e]
-        try: r = s.load()
-        except Exception as ex:
+        ex,er = s.load()
+        if ex:
             k = f': {ex}' if str(ex).strip() else ''
             j = f'Error {h}ing {s.by}'
-            push(f'{j}{k}\nFull traceback in logs',color=(1,0,0))
+            push(f'{j}{k}\nExpand dev console to see more.\nTraceback dumped to terminal too.',color=(1,0,0))
             gs('error').play()
-            print('[PlugTools] '+j+':\n'+ERR())
+            m = j+':\n'+er
+            print('[PlugTools] '+m)
+            s.logs = m.replace('\n','\\n')
+            s.request_refresh()
             return
-        if r is False: return
+        s.logs = 'No errors'
+        if ex is False: return
         push(h.title()+'ed '+s.by,color=(0,1,0))
         gs('gunCocking').play()
         s.request_refresh()
@@ -278,25 +319,32 @@ class PlugTools(TAB):
             s.bad.remove(_)
             s.mem[_] = MT(_)
         p = app.plugins
-        if s.e and hasattr(s.sp,'plugin'):
-            o = s.sp.plugin
-            if o in p.active_plugins:
-                p.active_plugins.remove(o)
-            del s.sp.plugin
+        if s.e:
+            if hasattr(s.sp,'plugin'):
+                o = s.sp.plugin
+                if o in p.active_plugins:
+                    p.active_plugins.remove(o)
+                del s.sp.plugin
             collect()
-            try: reload(modules[NAM(_,0)])
+            try: m = reload(modules[NAM(_,0)])
             except KeyError:
                 gs('block').play()
-                push(f"{s.by} is malformed!\nAre you sure it's a babase.Plugin?",color=(1,1,0))
-                return False
-        cls = getclass(_,Plugin)
-        ins = cls()
-        ins.on_app_running()
+                push(f"{s.by} is malformed!\nAre you sure there's no errors?",color=(1,1,0))
+                return (False,0)
+            except Exception as ex: return (ex,ERR())
+        else: m = __import__(NAM(_,0))
+        try: cls = getattr(m,_.split('.',1)[1])
+        except Exception as ex: return (ex,ERR())
+        try: ins = cls()
+        except Exception as ex: return (ex,ERR())
+        try: ins.on_app_running()
+        except Exception as ex: return (ex,ERR())
         s.sp = PluginSpec(class_path=_,loadable=True)
         s.sp.enabled = True
         s.sp.plugin = ins
         p.plugin_specs[_] = s.sp
         p.active_plugins.append(ins)
+        return (0,0)
     def metadata(s):
         f = PAT(s.sp.class_path)
         info = []
@@ -360,10 +408,13 @@ class PlugTools(TAB):
             info.append(f'File Path: {f}')
             info.append("File Exists: No")
         push('\n'.join(info))
+        gs('powerup01').play()
     def next(s):
+        deek()
         s.i += 1
         s.request_refresh()
     def prev(s):
+        deek()
         s.i -= 1
         s.request_refresh()
 
@@ -409,6 +460,7 @@ def kang(file_path):
                        (isinstance(base, Attribute) and base.attr == 'Plugin' and isinstance(base.value, Name) and base.value.id == 'babase'):
                         return f"{filename_without_ext}.{node.name}"
     return None
+deek = lambda: gs('deek').play()
 
 # brobord collide grass
 # ba_meta require api 9
@@ -416,7 +468,8 @@ def kang(file_path):
 class byBordd(Plugin):
     def __init__(s):
         C = PlugTools
+        N = C.__name__
+        E = ENT(N,C)
         I = app.devconsole
-        E = ENT(C.__name__,C)
-        I.tabs.append(E)
-        I._tab_instances[C.__name__] = E.factory()
+        I.tabs = [_ for _ in I.tabs if _.name != N]+[E]
+        I._tab_instances[N] = E.factory()

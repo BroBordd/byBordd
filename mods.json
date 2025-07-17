@@ -122,7 +122,7 @@
     {
         "mod_name": "DumTab",
         "mod_fancy_name": "Dummy dev console tab example",
-        "mod_version": "1.0",
+        "mod_version": "1.1",
         "mod_description": "Simple demo to show how a custom dev console tab is added.\nSee code to know more.",
         "api_version": 9,
         "mod_filename_base": "dumtab"
@@ -187,7 +187,7 @@
         "mod_name": "PlugTools",
         "mod_fancy_name": "Live Plugin Action",
         "mod_version": "1.5",
-        "mod_description": "Beta. Feedback is appreciated.\nAdds a dev console tab for plugin management.\n\nFeatures vary between:\n- Dynamic Control: Enables immediate loading and reloading of plugins.\n- Real-time Monitoring: Reports status of plugin files (new, modified, deleted).\n- Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).\n- Plugin Data: Provides file path, size, timestamps, and code structure analysis.\n- Navigation: Offers controls to browse the plugin list.",
+        "mod_description": "Beta. Feedback is appreciated.\nAdds a dev console tab for plugin management.\n\nFeatures vary between:\n- Dynamic Control: Enables immediate loading and reloading of plugins.\n- Real-time Monitoring: Reports status of plugin files (new, modified, deleted).\n- Plugin Overview: Displays operational state (enabled/disabled) and integrity (original/modified).\n- Plugin Data: Provides file path, size, timestamps, and code structure analysis.\n- Navigation: Offers controls to browse the plugin list.\n- Logging: Has a built-in log display with proper indentation.",
         "api_version": 9,
         "mod_filename_base": "plugtools"
     },
@@ -210,7 +210,7 @@
     {
         "mod_name": "Power",
         "mod_fancy_name": "With one click",
-        "mod_version": "2.5",
+        "mod_version": "2.6",
         "mod_description": "Experimental. Feedback is appreciated.\nAdds a dev console tab with some features I find useful.\nPower is mainly focused on the multiplayer side.\nCan be considered a good tool to have around.",
         "api_version": 9,
         "mod_filename_base": "power"

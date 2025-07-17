@@ -1,8 +1,9 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Feel free to kang - Solely by BrotherBoard
+# Intended for personal use only
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-DumTab v1.0 - Dummy dev console tab example
+DumTab v1.1 - Dummy dev console tab example
 
 Simple demo to show how a custom dev console tab is added.
 See code to know more.
@@ -34,7 +35,9 @@ class DumTab(TAB):
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
+        C = DumTab
+        N = C.__name__
+        E = ENT(N,C)
         I = app.devconsole
-        E = ENT('DumTab',DumTab)
-        I.tabs.append(E)
-        I._tab_instances['DumTab'] = E.factory()
+        I.tabs = [_ for _ in I.tabs if _.name != N]+[E]
+        I._tab_instances[N] = E.factory()
