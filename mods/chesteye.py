@@ -3,9 +3,9 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Claim v1.0 - Auto gift claimer
+ChestEye v1.0 - Auto claim/open chests
 
-Experimental. Silently claims any pending gifs on startup.
+Experimental. Checks for any chests to claim/open on startup.
 Read code to know more.
 """
 
@@ -16,8 +16,9 @@ from bauiv1 import (
     app
 )
 from bacommon.bs import (
-    ClientUIActionMessage as CM,
+    ClientUIActionMessage as UM,
     InboxRequestMessage as RM,
+    ChestActionMessage as CM,
     ClientUIAction as CU
 )
 from efro.error import CommunicationError as CE
@@ -26,7 +27,8 @@ from bauiv1lib.inbox import _EntryDisplay as ED
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
-    def __init__(s,i=5):
+    R = lambda *a,**k:0
+    def __init__(s,i=10):
         if not i: return
         p = app.plus
         with p.accounts.primary:
@@ -39,9 +41,18 @@ class byBordd(Plugin):
         else: s.claim(r)
     def claim(s,r):
         p = app.plus
+        f = p.cloud.send_message_cb
         with p.accounts.primary:
             for i,w in enumerate(r.wrappers):
-                p.cloud.send_message_cb(
-                    CM(w.id,CU.BUTTON_PRESS_POSITIVE),
-                    on_response=lambda *a,**k:0
+                f(
+                    UM(w.id,CU.BUTTON_PRESS_POSITIVE),
+                    on_response=s.R
                 )
+            [f(
+                CM(
+                    chest_id=str(_),
+                    action=CM.Action.UNLOCK,
+                    token_payment=0,
+                ),
+                on_response=s.R
+            ) for _ in range(4)]

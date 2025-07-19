@@ -88,12 +88,12 @@
         "mod_filename_base": "chatools"
     },
     {
-        "mod_name": "Claim",
-        "mod_fancy_name": "Auto gift claimer",
+        "mod_name": "ChestEye",
+        "mod_fancy_name": "Auto claim/open chests",
         "mod_version": "1.0",
-        "mod_description": "Experimental. Silently claims any pending gifs on startup.\nRead code to know more.",
+        "mod_description": "Experimental. Checks for any chests to claim/open on startup.\nRead code to know more.",
         "api_version": 9,
-        "mod_filename_base": "claim"
+        "mod_filename_base": "chesteye"
     },
     {
         "mod_name": "CopyThat",
