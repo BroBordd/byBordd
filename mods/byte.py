@@ -2,14 +2,19 @@
 # Bug? Feedback? Telegram >> GalaxyA14user
 
 """
-Byte v1.0 - At your service.
+Byte v1.1 - At your service.
 
 Simple bombsquad AI that takes orders.
-Read code to know more.
 
-To get your free gemini API key:
+How to use?
 - Go to https://ai.google.dev/gemini-api/docs
-- Press Get API Key and copy it
+- Log in with your Googoe account
+- Create an API key and copy it
+- Open dev console terminal
+- Run `__import__('byte').Byte("YOUR_KEY")
+
+Try help(Byte) for more info.
+And always read code to know more.
 """
 
 from bascenev1lib.actor.spaz import Spaz
@@ -21,32 +26,50 @@ from babase import (
 from bascenev1 import (
     get_foreground_host_activity as ga,
     get_chat_messages as GCM,
+    broadcastmessage as push,
+    OutOfBoundsMessage,
+    getnodes as GN,
+    getsound as gs,
     timer as tick,
     Timer as tock,
+    StandMessage,
+    DieMessage,
     newnode,
-    animate,
-    getnodes as GN,
-    OutOfBoundsMessage,
-    DieMessage
+    animate
 )
 from bauiv1 import (
+    SpecialChar as sc,
     apptimer as teck,
-    charstr as cs,
-    SpecialChar as sc
+    charstr as cs
 )
+from http.client import HTTPSConnection
+from json import dumps, loads
 from threading import Thread
 from math import dist
 
 class Byte:
     MEM = {}
-    def __init__(s,master='BroBordd'):
-        s.MEM[master] = s
-        s.master = master
+    def __init__(
+        s,
+        key: str,
+        position: tuple = (0,0,0),
+        color: tuple = (0,0,0),
+        highlight: tuple = (0,0,0),
+        character: str = 'Pixel'
+    ):
+        s.master = s.getmast()
+        if not s.master:
+            gs('block').play()
+            push('Join the game first!',color=(1,1,0))
+            return
+        s.key = key
+        s.MEM[s.master.name] = s
         s.bot = Spaz(
-            color=(0,0,0),
-            highlight=(0,0,0),
+            color=color,
+            highlight=highlight,
             character='Pixel'
         )
+        s.bot.handlemessage(StandMessage(position,0))
         s.bot.handlemessage = s.hm
         s.node = s.bot.node
         s.node.name = s.__class__.__name__
@@ -58,7 +81,7 @@ class Byte:
         if True in [isinstance(m,_) for _ in [DieMessage,OutOfBoundsMessage]]:
             s.node.delete()
     def hear(s,j):
-        s.text = GET(j,s)
+        s.text = GET(j,API_KEY=s.key)
     def spy(s):
         if s.text != s.ot:
             s.ot = s.text
@@ -66,7 +89,7 @@ class Byte:
             s.act(s.text)
         tick(0.05,s.spy)
     def act(s,r):
-        c,t = r.split(':')
+        c,t = r.split(':',1)
         for _ in c.split('|'):
             s.parse(_.strip()[1:])
         else: s.bub.push(t)
@@ -74,17 +97,17 @@ class Byte:
         f = _.startswith
         a = _.split(' ')
         if f('move'): print('lets move',a[1:])
-        if f('jump'): s.key(0)
-        if f('bomb'): s.key(1)
-        if f('grab'): s.key(2)
-        if f('punch'): s.key(3)
+        if f('jump'): s.on(0)
+        if f('bomb'): s.on(1)
+        if f('grab'): s.on(2)
+        if f('punch'): s.on(3)
         if f('idle'): s.idle()
         if f('follow'): s.follow()
         if f('stop'): s.stop()
         if f('wave'): s.wave()
     def wave(s):
         s.node.handlemessage('celebrate_r',1000)
-    def key(s,i):
+    def on(s,i):
         for _ in [1,0]:
             getattr(s.bot,'on_'+['jump','bomb','pickup','punch'][i]+'_'+['release','press'][_])()
     def idle(s):
@@ -114,7 +137,7 @@ class Byte:
         s.bot.on_move_left_right(x)
         s.bot.on_move_up_down(z)
     def getmast(s):
-        return ([_ for _ in GN() if getattr(_,'name',0) == s.master] or [None])[0]
+        return ([p.actor.node for p in ga().players if p.sessionplayer.inputdevice.client_id == -1] or [None])[0]
     def stop(s):
         s.fol = False
 
@@ -153,23 +176,6 @@ class Bubble:
     def anim(s,p1,p2):
         [animate(_,'opacity',{0:p1,0.2:p2}) for _ in s.kids]
 
-GSW = lambda s: gsw(s,suppress_warning=True)
-GSH = lambda s: gsh(s,suppress_warning=True)
-TEX = lambda o,**k: newnode(
-    'text',
-    owner=o,
-    attrs={
-        'in_world':True,
-        'scale':0.01,
-        'flatness':1,
-        'h_align':'center',
-        **k
-    }
-)
-
-from http.client import HTTPSConnection
-from json import dumps, loads
-
 SYS = """
 Byte: sweet, simple female bot. Output: '$cmd1 args|$cmd2 args|...:dialogue'. Cmds '|' separated. Dialogue after final ':'.
 Cmds: $jump, $punch, $grab, $stop, $follow, $idle.
@@ -180,9 +186,7 @@ Ex1: 'Jump!'->'$jump:Yay! Hoppie!'
 Ex2: 'Jump and wave!'->'$jump|$wave:Wheeeeee! So much fun!'
 Ex3: 'Hello!'->'$wave:Heyo! What are we doing?'
 """
-def GET(user_input: str,a=0) -> str:
-    API_KEY = "YOUR_API_KEY"
-
+def GET(user_input: str,API_KEY) -> str:
     MODEL_ID = "gemini-2.5-flash-lite-preview-06-17"
     HOST = "generativelanguage.googleapis.com"
     PATH = f"/v1beta/models/{MODEL_ID}:generateContent?key={API_KEY}"
@@ -233,6 +237,20 @@ def GET(user_input: str,a=0) -> str:
     finally:
         if CONN:
             CONN.close()
+
+GSW = lambda s: gsw(s,suppress_warning=True)
+GSH = lambda s: gsh(s,suppress_warning=True)
+TEX = lambda o,**k: newnode(
+    'text',
+    owner=o,
+    attrs={
+        'in_world':True,
+        'scale':0.01,
+        'flatness':1,
+        'h_align':'center',
+        **k
+    }
+)
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
