@@ -51,7 +51,7 @@
         "mod_name": "Byte",
         "mod_fancy_name": "At your service.",
         "mod_version": "1.1",
-        "mod_description": "Simple bombsquad AI that takes orders.\n\nHow to use?\n- Go to https://ai.google.dev/gemini-api/docs\n- Log in with your Googoe account\n- Create an API key and copy it\n- Open dev console terminal\n- Run `__import__('byte').Byte(\"YOUR_KEY\")\n\nTry help(Byte) for more info.\nAnd always read code to know more.",
+        "mod_description": "Simple bombsquad AI that takes orders.\n\nHow to use?\n- Go to https://ai.google.dev/gemini-api/docs\n- Log in with your Googoe account\n- Create an API key and copy it\n- Open dev console terminal\n- Run `__import__('byte').Byte(\"YOUR_KEY\")`\n\nTry help(Byte) for more info.\nAnd always read code to know more.",
         "api_version": 9,
         "mod_filename_base": "byte"
     },

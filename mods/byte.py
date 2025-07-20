@@ -11,7 +11,7 @@ How to use?
 - Log in with your Googoe account
 - Create an API key and copy it
 - Open dev console terminal
-- Run `__import__('byte').Byte("YOUR_KEY")
+- Run `__import__('byte').Byte("YOUR_KEY")`
 
 Try help(Byte) for more info.
 And always read code to know more.
