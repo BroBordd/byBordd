@@ -240,6 +240,14 @@
         "mod_filename_base": "rejoin"
     },
     {
+        "mod_name": "Replay",
+        "mod_fancy_name": "Look again",
+        "mod_version": "1.0",
+        "mod_description": "Simple replay manager.\nAdds a button to pause menu.\nRead code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "replay"
+    },
+    {
         "mod_name": "Salad",
         "mod_fancy_name": "Delicious!",
         "mod_version": "1.0",
