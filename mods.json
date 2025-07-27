@@ -241,9 +241,9 @@
     },
     {
         "mod_name": "Replay",
-        "mod_fancy_name": "Look again",
-        "mod_version": "1.0",
-        "mod_description": "Simple replay manager.\nAdds a button to pause menu.\nRead code to know more.",
+        "mod_fancy_name": "Simple replay player",
+        "mod_version": "2.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nAdds a button to pause menu and watch menu.\n\nFeatures:\n- Common features (pause/play/seek/speed/replay)\n- Press on progress bar to seek anywhere\n- Uses pybrp to display how long a replay is\n- Good UI with detailed toast pop ups\n- Ability to show/hide UI\n- Uses threading everywhere",
         "api_version": 9,
         "mod_filename_base": "replay"
     },
