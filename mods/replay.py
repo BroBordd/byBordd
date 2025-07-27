@@ -11,6 +11,8 @@ Adds a button to pause menu and watch menu.
 Features:
 - Common features (pause/play/seek/speed/replay)
 - Press on progress bar to seek anywhere
+- Advanced free camera target control
+- Ability to zoom in/out to target
 - Uses pybrp to display how long a replay is
 - Good UI with detailed toast pop ups
 - Ability to show/hide UI
