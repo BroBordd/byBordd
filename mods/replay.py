@@ -79,6 +79,7 @@ class Replay:
         c.BUSY = b
     def __init__(s,source=None):
         s.sl = s.rn = s.buf = None
+        s.ohno = False
         s.p = s.cw(
             src=source.get_screen_space_center(),
             p=GOS(),
@@ -209,12 +210,15 @@ class Replay:
         s.spy(s.calc2)
     def fpar(s):
         a,b = s.par
-        teck(0.1,s.fpar) if a != b else 0
+        teck(0.1,s.fpar) if (a!=b) and (not s.ohno) else 0
         if not a: return
         p = a/b*100
         t = '\u2588'*int(p)+'\u2591'*int(100-p)
-        otw(s.tpar,text=t)
-        otw(s.tpar2,text=f'{a} of {b} bytes read')
+        if not s.ohno:
+            try:
+                otw(s.tpar,text=t)
+                otw(s.tpar2,text=f'{a} of {b} bytes read')
+            except: return
     def calc(s):
         try: s.buf = GRD(s.get(),_H(),s.par)
         except: s.buf = 0
@@ -222,7 +226,9 @@ class Replay:
         otw(s.st,text='Starting...' if t else 'Wait what?')
         otw(s.tpar2,text=f'result was {t} milleseconds') if t else t
         if not t:
+            s.ohno = True
             otw(s.tpar,text='pybrp returned zero duration, error?\nclosing this window in 5 seconds')
+            otw(s.tpar2,text='')
         teck(1 if t else 5,Call(s._play,t))
     def spy(s,f,i=60):
         if not i:
@@ -950,6 +956,9 @@ class Player:
         gs('deek').play()
         BYE()
         s.stop()
+        s.fockill()
+        s.tbye = None
+        SCM(False)
     def pro(s):
         t = s.rn-s.st
         if s.rn-s.st >= s.ds: s.loop()
