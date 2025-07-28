@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Replay v2.0 - Simple replay player
+Replay v2.5 - Simple replay player
 
 Experimental. Feedback is appreciated.
 Adds a button to pause menu and watch menu.
@@ -67,7 +67,7 @@ from os import listdir as ls
 from struct import unpack
 
 class Replay:
-    VER = '2.0'
+    VER = '2.5'
     COL1 = (0.18,0.18,0.18)
     COL2 = (1,1,1)
     COL3 = (0,1,0)
@@ -300,11 +300,11 @@ class Player:
         s.path = path
         s.du = duration
         s.ds = s.du / 1000
-        s.ps = s.nah = s.camon = False
+        s.ps = s.nah = s.camon = s.snma = False
         s.caml = None
         s.rn = s.st = s.pr = 0
         s.camz = 1
-        [setattr(s,_,[]) for _ in ['kids','camkids','hdkids','snkids']]
+        [setattr(s,_,[]) for _ in ['kids','camkids','hdkids','snkids','snuikids']]
         PLAY(path)
         x,y = res()
         s.sy = 80
@@ -662,7 +662,7 @@ class Player:
         )) for _ in [0,1]]
         s.ztw = otw(
             parent=s.p,
-            text=f'x{round(2**(s.camz-1),2)}' if s.camz != 1 else 'auto',
+            text=f'x{round(0.5**(s.camz-1),2)}' if s.camz != 1 else 'auto',
             v_align='center',
             h_align='center',
             position=(x+92,y+200),
@@ -691,18 +691,20 @@ class Player:
         otw(s.ztw,text=f'x{round(0.5**(n-1),2)}' if n != 1 else 'auto')
         s.zom()
     def look(s):
-        0 if s.ps else s.toggle(shut=True)
         s.killui()
         s.killhd()
         s.fkek(0.4,-0.1)
         s.camlo = s.caml
-        s.mksn()
+        s.mksns()
+        s.mksnui()
+        s.mksnb()
+        s.mksni()
         s.zom()
     def _look(s,x,y):
         o = s.caml or GCT()
-        sk = 0.6**s.camz
+        sk = 0.7*s.camz
         s.caml = n = (o[0]+x*sk,o[1]+y*sk,o[2])
-        otw(s.snt,text=str(RND(n)))
+        0 if s.snma else otw(s.snt,text=str(RND(n)))
     def foc(s):
         s.tfoc = tock(0.01,s.focus,repeat=True)
     def focus(s):
@@ -729,15 +731,14 @@ class Player:
         s.mkhd()
         s.fkek(0,0.1)
         s.pro()
-    def mksn(s):
-        f = s.snkids.append
+    def mksns(s):
         x,y = res()
         sz = 50
         a = int(x/sz)
         b = int(y/sz)
         ha = a/2
         hb = b/2
-        [f(obw(
+        [s.snkids.append(obw(
             parent=s.p,
             size=(sz,sz),
             position=(i*sz,j*sz),
@@ -749,17 +750,29 @@ class Player:
         ))
         for i in range(a)
         for j in range(b)]
+    def mksnui(s):
+        f = s.snuikids.append
         f(iw(
             parent=s.p,
             position=(0,3),
             color=s.COL14,
             opacity=0.4,
             texture=gt('white'),
-            size=(232,110)
+            size=(232,190)
+        ))
+        # buttons
+        f(s.bw(
+            p=s.p,
+            pos=(14,50),
+            size=(204,30),
+            label='Target Players',
+            color=s.COL14,
+            textcolor=s.COL15,
+            oac=s.sntar
         ))
         f(s.bw(
             p=s.p,
-            pos=(10,10),
+            pos=(10,90),
             color=s.COL14,
             label='Cancel',
             size=(99,30),
@@ -768,16 +781,17 @@ class Player:
         ))
         f(s.bw(
             p=s.p,
-            pos=(123,10),
+            pos=(123,90),
             color=s.COL14,
             label='Save',
             size=(99,30),
             textcolor=s.COL15,
             oac=s.snsave
         ))
+        # info
         f(otw(
             parent=s.p,
-            position=(90,80),
+            position=(90,160),
             color=s.COL15,
             text='Currently looking at:',
             h_align='center',
@@ -785,15 +799,16 @@ class Player:
         ))
         s.snt = otw(
             parent=s.p,
-            position=(90,50),
+            position=(90,130),
             color=s.COL14,
             h_align='center',
             text=str(RND(s.caml) if s.caml else 'players')
         )
         f(s.snt)
+        # tip
         f(iw(
             parent=s.p,
-            position=(0,120),
+            position=(0,200),
             color=s.COL14,
             opacity=0.4,
             texture=gt('white'),
@@ -801,14 +816,116 @@ class Player:
         ))
         f(otw(
             parent=s.p,
-            position=(90,160),
-            text='Longpress anywhere\nto look around.\nTap on something\nto look at it',
+            position=(90,240),
+            text='Longpress anywhere\nto look around. Tap on \nsomething to look at it.\nPause for calmer control!',
             h_align='center',
             v_align='center',
             maxwidth=225,
             max_height=105
         ))
+        # crosshair
+        x,y = res()
+        h = 20
+        [f(iw(
+            parent=s.p,
+            position=(x/2,y/2-h/2+h*0.1) if _ else (x/2-h/2,y/2+h*0.1),
+            size=(3,h*1.15) if _ else (h*1.15,3),
+            color=s.COL1,
+            texture=gt('white')
+        )) for _ in [0,1]]
+        # top
+        k = 60
+        for j in range(2):
+            f(iw(
+                parent=s.p,
+                texture=gt('white'),
+                color=s.COL1,
+                position=(x/2+[-k,k-h][j],y/2+k),
+                size=(h*1.1,3)
+            ))
+        # right
+        for j in range(2):
+            f(iw(
+                parent=s.p,
+                texture=gt('white'),
+                color=s.COL1,
+                position=(x/2+k,y/2+[k-h,-k+h*0.3][j]),
+                size=(3,h*+1.1)
+            ))
+        # bottom
+        for j in range(2):
+            f(iw(
+                parent=s.p,
+                texture=gt('white'),
+                color=s.COL1,
+                position=(x/2+[-k,k-h][j],y/2-h/2-k+h*0.8),
+                size=(h*1.1,3)
+            ))
+        # left
+        for j in range(2):
+            f(iw(
+                parent=s.p,
+                texture=gt('white'),
+                color=s.COL1,
+                position=(x/2-k,y/2+[k-h,-k+h*0.3][j]),
+                size=(3,h*1.1)
+            ))
+    def sntar(s):
+        s.caml = None
+        otw(s.snt,text='players')
+    def killsnui(s):
+        [_.delete() for _ in s.snuikids]
+    def snhide(s):
+        if getattr(s,'snbusy',0): return
+        s.snma = not s.snma
+        s.snbusy = True
+        if s.snma:
+            s.snanim(204,14,-1)
+            obw(s.snbtn,label=cs(sc.UP_ARROW))
+            s.killsnui()
+        else:
+            obw(s.snbtn,texture=gt('white'))
+            s.snanim(36,7,1)
+            iw(s.sni,opacity=0)
+    def mksni(s):
+        s.sni = iw(
+            parent=s.p,
+            position=(7,8),
+            color=s.COL14,
+            opacity=0,
+            size=(36,33),
+            texture=gt('white')
+        )
+        s.snkids.append(s.sni)
+    def mksnb(s):
+        s.snbtn = s.bw(
+            p=s.p,
+            pos=(14,10),
+            color=s.COL14,
+            label='Cinema Mode',
+            size=(204,30),
+            textcolor=s.COL15,
+            oac=s.snhide
+        )
+        s.snkids.append(s.snbtn)
+    def snanim(s,a,b,i):
+        a += (163/35)*i
+        b += 0.2*i
+        obw(s.snbtn,size=(a,30),position=(b,10))
+        if not (14>=b>=7):
+            s.snbusy = False
+            if s.snma:
+                obw(s.snbtn,texture=gt('empty'))
+                iw(s.sni,opacity=0.4)
+            else:
+                s.mksnui()
+                s.snbtn.delete()
+                s.mksnb()
+                obw(s.snbtn,label='Cinema Mode')
+            return
+        teck(0.004,Call(s.snanim,a,b,i))
     def killsn(s):
+        s.killsnui()
         [_.delete() for _ in s.snkids]
     def all(s):
         return s.trash()+s.hdkids+s.snkids
