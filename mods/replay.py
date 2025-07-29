@@ -300,7 +300,7 @@ class Player:
         s.path = path
         s.du = duration
         s.ds = s.du / 1000
-        s.ps = s.nah = s.camon = s.snma = False
+        s.ps = s.nah = s.camon = s.snma = s.gay = False
         s.caml = None
         s.rn = s.st = s.pr = 0
         s.camz = 1
@@ -662,7 +662,7 @@ class Player:
         )) for _ in [0,1]]
         s.ztw = otw(
             parent=s.p,
-            text=f'x{round(0.5**(s.camz-1),2)}' if s.camz != 1 else 'auto',
+            text=f'x{round(0.5**(s.camz-1),2)}' if s.camz != 1 else 'x1.0' if s.gay else 'auto',
             v_align='center',
             h_align='center',
             position=(x+92,y+200),
@@ -683,34 +683,38 @@ class Player:
         ))
     def zoom(s,i):
         n = round(s.camz+i*0.05,2)
-        if s.camz == 1:
+        if s.camz == 1 and not s.gay:
             SCM(True)
             s.camp = GCP()
-        if n == 1: SCM(False)
+        if n == 1 and not s.gay: SCM(False)
         s.camz = n
-        otw(s.ztw,text=f'x{round(0.5**(n-1),2)}' if n != 1 else 'auto')
+        otw(s.ztw,text=f'x{round(0.5**(n-1),2)}' if n != 1 else 'x1.0' if s.gay else 'auto')
         s.zom()
     def look(s):
         s.killui()
         s.killhd()
         s.fkek(0.4,-0.1)
         s.camlo = s.caml
+        s.campo = GCP()
+        s.gayo = s.gay
         s.mksns()
         s.mksnui()
         s.mksnb()
         s.mksni()
-        s.zom()
     def _look(s,x,y):
         o = s.caml or GCT()
         sk = 0.7*s.camz
         s.caml = n = (o[0]+x*sk,o[1]+y*sk,o[2])
         0 if s.snma else otw(s.snt,text=str(RND(n)))
+        s.camp = GCP()
+        if s.camz != 1: s.gay = True
+        s.camz = 1
     def foc(s):
         s.tfoc = tock(0.01,s.focus,repeat=True)
     def focus(s):
         SCT(*s.caml) if s.caml else 0
     def zom(s):
-        if s.camz == 1: return
+        if s.camz == 1 and not s.gay: return
         z = s.camz
         tx,ty,tz = GCT()
         px,py,pz = s.camp
@@ -721,9 +725,6 @@ class Player:
     def fockill(s):
         s.tfoc = None
     def snsave(s):
-        s.snbye()
-    def sncancel(s):
-        s.caml = s.camlo
         s.snbye()
     def snbye(s):
         s.killsn()
@@ -870,9 +871,6 @@ class Player:
                 position=(x/2-k,y/2+[k-h,-k+h*0.3][j]),
                 size=(3,h*1.1)
             ))
-    def sntar(s):
-        s.caml = None
-        otw(s.snt,text='players')
     def killsnui(s):
         [_.delete() for _ in s.snuikids]
     def snhide(s):
@@ -929,12 +927,21 @@ class Player:
         [_.delete() for _ in s.snkids]
     def all(s):
         return s.trash()+s.hdkids+s.snkids
-    def camr(s):
-        SCM(False)
+    def sntar(s):
         s.caml = None
-        s.camz = 1
-        otw(s.ltw,text='players')
-        otw(s.ztw,text='auto')
+        otw(s.snt,text='players')
+        if s.camz != 1 or s.gay:
+            s.camz = 1
+            s.gay = False
+            SCM(False)
+    def sncancel(s):
+        s.caml = s.camlo
+        s.camp = s.campo
+        s.gay = s.gayo
+        if s.camz != 1 or s.gay:
+            SCM(True)
+            SCP(*s.camp)
+        s.snbye()
     def cam(s):
         if s.camon:
             s.camon = False
@@ -944,6 +951,13 @@ class Player:
         else:
             s.camon = True
             s.mkcamui()
+    def camr(s):
+        SCM(False)
+        s.caml = None
+        s.gay = False
+        s.camz = 1
+        otw(s.ltw,text='players')
+        otw(s.ztw,text='auto')
     def fcam(s,i=0,a=0.1):
         if i > 0.4 or i < 0:
             if a < 0: s.cambg.delete()
