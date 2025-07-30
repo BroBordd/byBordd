@@ -447,7 +447,7 @@ class byBordd(Plugin):
         p = party.PartyWindow
         a = '__init__'
         o = getattr(p,a)
-        setattr(p,a,lambda z,*a,**k:(o(z,*a,**k),s.make(z)))
+        setattr(p,a,lambda z,*a,**k:(o(z,*a,**k),s.make(z))[0])
     def make(s,z):
         sz = (80,30)
         p = z._root_widget
