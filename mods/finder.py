@@ -51,7 +51,7 @@ class Finder:
     COL4 = (0,1,1)
     COL5 = (1,1,0)
     MAX = 0.3
-    TOP = 10
+    TOP = 15
     VER = '1.0'
     MEM = []
     BST = []
@@ -276,13 +276,14 @@ class Finder:
         COPY(t)
     def plys(s):
         z = []
-        me = '\ue063'+app.plus.get_v1_account_name()
+        me = app.plus.get_v1_account_name()
+        me = [me,'\ue063'+me]
         for _ in s.__class__.BST:
             a = _['a']
             if (r:=_.get('roster',{})):
                 for p in r:
                     ds = p['display_string']
-                    z.append((ds,a)) if ds != me else 0
+                    0 if ds in me else z.append((ds,a))
         return sorted(z,key=lambda _: _[0].startswith('\ue030Server'))
     def snd(s,t):
         l = gs(t)
