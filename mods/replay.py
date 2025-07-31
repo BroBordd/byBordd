@@ -68,6 +68,7 @@ from struct import unpack
 
 class Replay:
     VER = '2.5'
+    TMP = '.replay_tmp.json'
     COL1 = (0.18,0.18,0.18)
     COL2 = (1,1,1)
     COL3 = (0,1,0)
@@ -80,6 +81,7 @@ class Replay:
     def __init__(s,source=None):
         s.sl = s.rn = s.buf = None
         s.ohno = False
+        s._h = _H()
         s.p = s.cw(
             src=source.get_screen_space_center(),
             p=GOS(),
@@ -220,7 +222,7 @@ class Replay:
                 otw(s.tpar2,text=f'{a} of {b} bytes read')
             except: return
     def calc(s):
-        try: s.buf = GRD(s.get(),_H(),s.par)
+        try: s.buf = GMS(s._h,s.get(),s.par)
         except: s.buf = 0
     def calc2(s,t):
         otw(s.st,text='Starting...' if t else 'Wait what?')
@@ -296,6 +298,8 @@ class Player:
     COL13 = (1,0.5,1)
     COL14 = (0.5,0.5,0.5)
     COL15 = (1,1,1)
+    COL16 = (0.1, 0.2, 0.4)
+    COL17 = (1, 1.7, 2)
     def __init__(s,path,duration):
         s.path = path
         s.du = duration
@@ -686,7 +690,12 @@ class Player:
         if s.camz == 1 and not s.gay:
             SCM(True)
             s.camp = GCP()
-        if n == 1 and not s.gay: SCM(False)
+            s.caml = GCT()
+            otw(s.ltw,text=str(RND(s.caml)))
+        if n == 1 and not s.gay:
+            SCM(False)
+            s.caml = None
+            otw(s.ltw,text='players')
         s.camz = n
         otw(s.ztw,text=f'x{round(0.5**(n-1),2)}' if n != 1 else 'x1.0' if s.gay else 'auto')
         s.zom()
@@ -974,6 +983,7 @@ class Player:
         s.up = s.camon = False
         [_.delete() for _ in s.trash()]
         s.kids.clear()
+        s.camkids.clear()
     def trash(s):
         return s.kids+s.camkids
     def kek(s):
@@ -1122,14 +1132,14 @@ FOR = lambda t: strftime('%H:%M:%S',gmtime(t))
 SCL = lambda a,b,c=None: ((s:=app.ui_v1.uiscale), a if s is UIS.SMALL else b if s is UIS.MEDIUM else (c or b))[1]
 RND = lambda t: type(t)([round(_,1) for _ in t])
 
-# pybrp_stream
+# pybrp
 Z = lambda _:[0]*_
 G_FREQS = [
     101342,9667,3497,1072,0,3793,*Z(2),2815,5235,*Z(3),3570,*Z(3),
     1383,*Z(3),2970,*Z(2),2857,*Z(8),1199,*Z(30),
     1494,1974,*Z(12),1351,*Z(122),1475,*Z(65)
 ]
-
+CMD_NAMES={0:'BaseTimeStep',1:'StepSceneGraph',2:'AddSceneGraph',3:'RemoveSceneGraph',4:'AddNode',5:'NodeOnCreate',6:'SetForegroundScene',7:'RemoveNode',8:'AddMaterial',9:'RemoveMaterial',10:'AddMaterialComponent',11:'AddTexture',12:'RemoveTexture',13:'AddMesh',14:'RemoveMesh',15:'AddSound',16:'RemoveSound',17:'AddCollisionMesh',18:'RemoveCollisionMesh',19:'ConnectNodeAttribute',20:'NodeMessage',21:'SetNodeAttrFloat',22:'SetNodeAttrInt32',23:'SetNodeAttrBool',24:'SetNodeAttrFloats',25:'SetNodeAttrInt32s',26:'SetNodeAttrString',27:'SetNodeAttrNode',28:'SetNodeAttrNodeNull',29:'SetNodeAttrNodes',30:'SetNodeAttrPlayer',31:'SetNodeAttrPlayerNull',32:'SetNodeAttrMaterials',33:'SetNodeAttrTexture',34:'SetNodeAttrTextureNull',35:'SetNodeAttrTextures',36:'SetNodeAttrSound',37:'SetNodeAttrSoundNull',38:'SetNodeAttrSounds',39:'SetNodeAttrMesh',40:'SetNodeAttrMeshNull',41:'SetNodeAttrMeshes',42:'SetNodeAttrCollisionMesh',43:'SetNodeAttrCollisionMeshNull',44:'SetNodeAttrCollisionMeshes',45:'PlaySoundAtPosition',46:'PlaySound',47:'EmitBGDynamics',48:'EndOfFile',49:'DynamicsCorrection',50:'ScreenMessageBottom',51:'ScreenMessageTop',52:'AddData',53:'RemoveData',54:'CameraShake'}
 class _H:
     class _N:
         def __init__(self):
@@ -1166,7 +1176,7 @@ class _H:
             if m_bit:
                 n=510
                 while n>=256:
-                    if bit>=bl:raise ValueError("A")
+                    if bit>=bl:raise ValueError("Incomplete Huffman code")
                     p_bit=(ptr[bit>>3]>>(bit&7))&1;bit+=1
                     n=self.nodes[n].l if p_bit==0 else self.nodes[n].r
                 out.append(n)
@@ -1176,31 +1186,45 @@ class _H:
                 val=ptr[bi]if b_in_b==0 else(ptr[bi]>>b_in_b)|(ptr[bi+1]<<(8-b_in_b))
                 out.append(val&255);bit+=8
         return bytes(out)
-def GRD(brp_path,ins,pro):
-    total_ms=0
-    pro[1]=getsize(brp_path)
-    with open(brp_path,'rb') as f:
+def GMS(_h, brp_path, par):
+    total_ms = 0
+    with open(brp_path, 'rb') as f:
+        f.seek(0,2)
+        par[1] = f.tell()
         f.seek(6)
         while True:
-            pro[0]=f.tell()
-            b_data=f.read(1)
-            if not b_data:break
-            b1,comp_len=b_data[0],0
-            if b1<254:comp_len=b1
-            elif b1==254:comp_len=unpack('<H',f.read(2))[0]
-            else:comp_len=unpack('<I',f.read(4))[0]
-            if comp_len==0:continue
-            raw_msg=ins.decompress(f.read(comp_len))
-            if not raw_msg or raw_msg[0]!=1:continue
-            sub_off=1
-            while sub_off<len(raw_msg):
-                try:sub_size=unpack('<H',raw_msg[sub_off:sub_off+2])[0]
-                except:break
-                sub_data=raw_msg[sub_off+2:sub_off+2+sub_size]
-                if sub_data and sub_data[0]==0:total_ms+=sub_data[1]
-                sub_off+=2+sub_size
+            if par: par[0] = f.tell()
+            b_data = f.read(1)
+            if not b_data:
+                break
+            b1, comp_len = b_data[0], 0
+            if b1 < 254:
+                comp_len = b1
+            elif b1 == 254:
+                comp_len = int.from_bytes(f.read(2), 'little')
+            else: # 255
+                comp_len = int.from_bytes(f.read(4), 'little')
+            if comp_len == 0:
+                continue
+            raw_msg = _h.decompress(f.read(comp_len))
+            if not raw_msg or raw_msg[0] != 1:
+                continue
+            sub_off = 1
+            while sub_off < len(raw_msg):
+                try:
+                    sub_size = int.from_bytes(raw_msg[sub_off:sub_off+2], 'little')
+                except IndexError:
+                    break
+                except ValueError:
+                    break
+                sub_data = raw_msg[sub_off+2:sub_off+2+sub_size]
+                if sub_data and sub_data[0] == 0:
+                    total_ms += sub_data[1]
+                sub_off += 2 + sub_size
+    if par: par[0] = par[1]
     return total_ms
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
