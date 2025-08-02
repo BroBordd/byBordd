@@ -144,6 +144,14 @@
         "mod_filename_base": "finder"
     },
     {
+        "mod_name": "FPP",
+        "mod_fancy_name": "First person perspective",
+        "mod_version": "1.0",
+        "mod_description": "My failed attempt to implement first person perspective.\nThough, it works so, yeah.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "fpp"
+    },
+    {
         "mod_name": "HTW",
         "mod_fancy_name": "Your highlight textwidget",
         "mod_version": "1.0",
