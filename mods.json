@@ -226,7 +226,7 @@
     {
         "mod_name": "Power",
         "mod_fancy_name": "With one click",
-        "mod_version": "2.6",
+        "mod_version": "2.7",
         "mod_description": "Experimental. Feedback is appreciated.\nAdds a dev console tab with some features I find useful.\nPower is mainly focused on the multiplayer side.\nCan be considered a good tool to have around.",
         "api_version": 9,
         "mod_filename_base": "power"
