@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Power v2.6 - With one click
+Power v2.7 - With one click
 
 Experimental. Feedback is appreciated.
 Adds a dev console tab with some features I find useful.
@@ -60,7 +60,20 @@ class Power(TAB):
             s.r = r
             _ = 1
         h = HOST()
-        if h != s.h: s.ri = 0; s.h = h; _ = 1
+        if h != s.h:
+            s.ri = 0
+            s.h = h
+            _ = 1
+            t = getattr(s.h, 'name', 'Not in a server')
+            a = getattr(s.h, 'address', '127.0.0.1')
+            p = getattr(s.h, 'port', '43210')
+            if s.h:
+                tt = t if t.strip() else '...'
+                if t.strip() or not any(key[1] == a for key in s.hi):
+                    s.hi[(tt, a)] = (tt, p)
+                if tt != '...':
+                    if ('...', a) in s.hi:
+                        del s.hi[('...', a)]
         ng = GCM()
         if s.og != ng:
             s.og = ng
@@ -179,10 +192,6 @@ class Power(TAB):
             t = getattr(s.h,'name','Not in a server')
             a = getattr(s.h,'address','127.0.0.1')
             p = getattr(s.h,'port','43210')
-            if s.h:
-                tt = t if t.strip() else '...'
-                s.hi.update({(tt,a):(tt,p)}) if (t.strip()) or (a not in s.hi) else None
-                0 if tt == '...' else [s.hi.pop((v,_)) for v,_ in s.hi.copy() if v == '...']
             w = GSW(t)
             B(
                 t if t.strip() else 'Loading...',
@@ -595,10 +604,6 @@ class Power(TAB):
             t = getattr(s.h,'name','Not in a server')
             a = getattr(s.h,'address','127.0.0.1')
             p = getattr(s.h,'port','43210')
-            if s.h:
-                tt = t if t.strip() else '...'
-                s.hi.update({(tt,a):(tt,p)}) if (t.strip()) or (a not in s.hi) else None
-                0 if tt == '...' else [s.hi.pop((v,_)) for v,_ in s.hi.copy() if v == '...']
             w = GSW(t)
             B(
                 t if t.strip() else 'Loading...',
