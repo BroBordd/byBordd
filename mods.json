@@ -136,6 +136,14 @@
         "mod_filename_base": "easycmd"
     },
     {
+        "mod_name": "FileMan",
+        "mod_fancy_name": "Advanced file manager",
+        "mod_version": "1.0",
+        "mod_description": "Adds a button to settings menu.\nExperimental. Read code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "fileman"
+    },
+    {
         "mod_name": "Finder",
         "mod_fancy_name": "Find anyone",
         "mod_version": "1.0",
