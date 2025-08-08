@@ -23,6 +23,7 @@ from bauiv1 import (
     get_replays_dir as rdir,
     containerwidget as cw,
     hscrollwidget as hsw,
+    screenmessage as SM,
     buttonwidget as obw,
     scrollwidget as sw,
     SpecialChar as sc,
@@ -491,7 +492,7 @@ class FileMan(MainWindow):
                                 s.btw(str(e) or 'Invalid filename!')
                                 return
                             else:
-                                if basename(fp) == q:
+                                if (basename(fp) == q) and not gay:
                                     s.btw("Write a new name blud")
                                     return
                                 chk = join(var('cwd'),q)
@@ -588,9 +589,9 @@ class FileMan(MainWindow):
                             parent=p,
                             h_align='center',
                             v_align='center',
-                            position=(xs/2-45,ys-60),
+                            position=(xs/2-60,ys-60),
                             text=basename(h),
-                            maxwidth=ix-20
+                            maxwidth=ix-100
                         )
                         iw(
                             parent=p,
@@ -626,6 +627,10 @@ class FileMan(MainWindow):
                             if isinstance(ex,PermissionError): kek = 'Permission denied!'
                             elif isinstance(ex,UnicodeDecodeError): kek = 'No preview avaiable'
                             else: kek = str(ex)
+                        else:
+                            if not da:
+                                s.oops = 1
+                                kek = 'No data'
                         if not s.oops:
                             fxs = xs-40
                             fys = ys-110
@@ -763,22 +768,29 @@ class FileMan(MainWindow):
                         xs = ys = min(ox / 2, oy / 2)
                         xs *= 1.3
                         s.wop()
-                        s.push('FileMan uses 12 main colors. Tap on a color to edit it.')
+                        s.push('FileMan uses 12 main colors. Tap on a color to edit it. Press outside to cancel.',du=6)
                         o = w.get_screen_space_center()
                         def nuke():
                             cw(p,transition='out_scale')
                             s.laz()
-                        p = cw(parent=zw('overlay_stack'), scale_origin_stack_offset=o, size=(xs, ys), background=False, transition='in_scale',on_outside_click_call=nuke)
+                            s.push('Cancelled! Nothing was saved')
+                        p = cw(parent=zw('overlay_stack'), scale_origin_stack_offset=o, size=(xs, ys), stack_offset=(-100,0), background=False, transition='in_scale',on_outside_click_call=nuke)
+                        bw(parent=p,size=(xs+200,ys),bg='empty')
                         s.killme.append(p)
                         iw(parent=p, size=(xs * 1.2, ys * 1.2), texture=gt('softRect'), opacity=[0.3,0.7][s.amoled], position=(-xs * 0.1, -ys * 0.1), color=s.COL5)
                         iw(parent=p, texture=gt('white'), color=s.COL5, opacity=0.7, size=(xs + 200, ys))
                         temp_colors, scl, sl = [getattr(s, f'COL{i}') for i in range(12)], [0, 0, 0, 0], 0
                         kids, nubs, grad = [], [], []
                         def save():
+                            if var('col') == temp_colors:
+                                s.btw('At least change a color blud')
+                                return
                             var('col',temp_colors)
                             GUN()
                             cw(p,transition='out_scale')
                             s.__class__.loadc()
+                            s.bye()
+                            SM('Reopen FileMan to see changes!')
                         def update_previews():
                             f3()
                             f4()
@@ -833,10 +845,15 @@ class FileMan(MainWindow):
                                 kids.append(bw(parent=p, position=(20 + (bs + 10) * x, 20 + (bs + 10) * y), size=(bs, bs), color=c, textcolor=INV(c), oac=Call(f, z)))
                         bw(parent=p, position=(xs + 5, 24 + qs), size=(172, qs - 2), label='Save', oac=save)
                         def reset():
-                            var('col',COL())
+                            mem = COL()
+                            if mem == temp_colors:
+                                s.btw("Reset what? It's already at default")
+                                return
+                            for i,m in enumerate(mem):
+                                temp_colors[i] = m
+                            update_previews()
                             GUN()
-                            cw(p,transition='out_scale')
-                            s.__class__.loadc()
+                            s.push('Restored default colors! now press save')
                         bw(parent=p, position=(xs + 5, 18.5), size=(172, qs - 3), label='Reset', oac=reset)
                         f(0, sh=1)
             case 2:
@@ -847,9 +864,7 @@ class FileMan(MainWindow):
                             return
                         c = var('cwd')
                         n = join(c,'new_file')
-                        if exists(n):
-                            s.btw(f"There is a {['file','folder'][isdir(n)]} named 'new_file' already lmao")
-                            return
+                        while exists(n): n+='_again'
                         try: Path(n).touch()
                         except PermissionError:
                             s.btw('Permission denied!')
@@ -859,16 +874,14 @@ class FileMan(MainWindow):
                             return
                         s.fresh(sl=n)
                         # rename
-                        s.act(0,4)
+                        s.act(0,4,gay=True)
                     case 1:
                         if s.clpm:
                             s.btw("You're already in the middle of something")
                             return
                         c = var('cwd')
                         n = join(c,'new_folder')
-                        if exists(n):
-                            s.btw(f"There is a {['file','folder'][isdir(n)]} named 'new_folder' already lmao")
-                            return
+                        while exists(n): n+='_again'
                         try: mkdir(n)
                         except PermissionError:
                             s.btw('Permission denied!')
