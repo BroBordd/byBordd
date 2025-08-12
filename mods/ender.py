@@ -143,7 +143,7 @@ class Ender(Bot):
         s,
         position: tuple = None, # Position is now None by default
         color: tuple = (0, 0, 0), # Color is now black
-        highlight: tuple = (0, 0.5, 0.5),
+        highlight: tuple = (0, 0, 0),
         character: str = 'Agent Johnson'
     ):
         # Determine spawn position based on the presence of other players
