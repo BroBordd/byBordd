@@ -136,6 +136,14 @@
         "mod_filename_base": "easycmd"
     },
     {
+        "mod_name": "Ender",
+        "mod_fancy_name": "You're done.",
+        "mod_version": "1.0",
+        "mod_description": "A deadly bot that actively hunts any spaz nodes.\nI wrote some cool pvp abilities into its core.\nIt spawns at a random player's location or at the center if no players are present.\nOccasionally uses bubble_min to talk based on situations.\n\nTo spawn, just call Ender from dev console:\n>>> __import__('ender').Ender()\n\nTested in football stadium. Read code to know more.",
+        "api_version": 9,
+        "mod_filename_base": "ender"
+    },
+    {
         "mod_name": "FileMan",
         "mod_fancy_name": "Advanced file manager",
         "mod_version": "1.0",
