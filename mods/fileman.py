@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-FileMan v1.0 - Advanced file manager
+FileMan v1.1 - Advanced file manager
 
 Adds a button to settings menu.
 Experimental. Read code to know more.
@@ -944,9 +944,10 @@ class FileMan(MainWindow):
             else:
                 da = da[s.statp:s.stat + s.statp]
         az = sum(s.statl)
-        lines = [_.replace('\\n','\\'+"~"+"n") for _ in da.splitlines()]
+        lines = [_ for _ in da.splitlines(True)]
         zc = len(str(az + len(lines)))
-        da = '\\n'.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
+        ah = '\\n'
+        da = ah.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
         z = len(da)
         p0 = s.statp0
         fxs, fys = s.statsz
@@ -960,7 +961,7 @@ class FileMan(MainWindow):
         das = da.split('\\n')
         mm = len(max(das, key=len) or '')
         ldas = len(das)
-        s.statl.append(ldas)
+        s.statl.append(ldas-1)
         rxs = max(l * mm + 30, fxs)
         rys = max(hh * ldas, fys - 15)
         pos = (0, rys - 40)
@@ -1012,7 +1013,10 @@ class FileMan(MainWindow):
                     continue
 
             # -- Priority 3: Newlines --
-            if i + 1 < z and da[i:i+2] == '\\n':
+            if i + 1 < z and (
+                (da[i:i+2]==ah)
+            ):
+                print('yes')
                 po[0] = pos[0]-l*1.5; po[1] -= hh; nc = 0
                 try:
                     mud = int(da[i + 2 + off] == '#' and not in_triple_comment)
@@ -1063,7 +1067,7 @@ class FileMan(MainWindow):
         cw(q1,visible_child=tw(parent=q1, text='', position=(0,rys)))
     def stata(s,i):
         if not s.oops:
-            n = s.statp + s.stat*i
+            n = s.statp+s.stat*i
             ok = len(s.statda)
             if ok <= n:
                 s.btw('Reached EOF!',du=1)
@@ -1291,7 +1295,8 @@ class FileMan(MainWindow):
                     click_activate=True,
                     on_activate_call=Call(s._sl,i,_,fl),
                     glow_type='uniform',
-                    allow_clear_button=False
+                    allow_clear_button=False,
+                    color=s.COL2
                 )
                 if s.flon and u and not k:
                     ci = 0
