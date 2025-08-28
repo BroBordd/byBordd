@@ -333,7 +333,7 @@ class FileMan(MainWindow):
     def btw(s,t,du=3):
         s.snd('block')
         s.push(t,color=s.COL3,du=du)
-    def act(s,i,j,gay=False):
+    def act(s,i,j,gay=False,zap=False):
         if s.gn: return
         w = s.btns[i][j]
         match i:
@@ -394,7 +394,7 @@ class FileMan(MainWindow):
                             GUN()
                             s.fresh(skip=True)
                     case 2:
-                        if s.clpm:
+                        if s.clpm is not None:
                             s.btw("Finish what you're doing first!")
                             return
                         if s.meh(): return
@@ -517,7 +517,7 @@ class FileMan(MainWindow):
                                         GUN()
                                         s.fresh(sl=nfp)
                         else:
-                            if s.clpm:
+                            if s.clpm is not None:
                                 s.btw("You didn't paste yet blud")
                                 return
                             tw(t,editable=True,color=s.COL7)
@@ -530,7 +530,7 @@ class FileMan(MainWindow):
                             s.fresh(skip=True)
                     case 5:
                         if s.meh(): return
-                        if s.clpm:
+                        if s.clpm is not None:
                             s.btw("Press again when you're free!")
                             return
                         h = s.sl[1]
@@ -550,7 +550,7 @@ class FileMan(MainWindow):
                             scale_origin_stack_offset=o,
                             size=(xs,ys),
                             background=False,
-                            transition='in_scale'
+                            transition=['in_scale',None][zap]
                         )
                         s.killme.append(p)
                         iw(
@@ -618,6 +618,7 @@ class FileMan(MainWindow):
                             repeat=True
                         )
                         s.oops = 0
+                        msh = bn in MESH()
                         try:
                             with open(h,'r') as f:
                                 da = f.read()
@@ -664,39 +665,86 @@ class FileMan(MainWindow):
                                     position=(xs/2-75,ys/2-135),
                                     size=(150,40)
                                 )
-                            elif ty == 'Texture' and bn in TEX():
-                                wd = min(xs-80,ys-150)
-                                tex = gt(splitext(bn)[0])
-                                iw(
-                                    parent=p,
-                                    texture=tex,
-                                    size=(wd,wd),
-                                    position=(xs/2-wd/2,40)
-                                )
-                            elif ty == 'Audio' and bn in AUDIO():
+                            elif ty == 'Texture':
+                                if bn in TEX():
+                                    wd = min(xs-80,ys-150)
+                                    tex = gt(splitext(bn)[0])
+                                    iw(
+                                        parent=p,
+                                        texture=tex,
+                                        size=(wd,wd),
+                                        position=(xs/2-wd/2,40)
+                                    )
+                                else:
+                                    tw(
+                                        parent=p,
+                                        position=(xs/2-20,ys-150),
+                                        text='KTX Texture\nPress to load to game\nFile will be copied to textures folder',
+                                        h_align='center'
+                                    )
+                                    bw(
+                                        parent=p,
+                                        label='Load',
+                                        position=(xs/2-50,ys/2-135),
+                                        size=(100,40),
+                                        oac=Call(s.loadt,h,gay=gay)
+                                    )
+                            elif ty == 'Audio':
+                                if bn in AUDIO():
+                                    tw(
+                                        parent=p,
+                                        position=(xs/2-20,ys-150),
+                                        text=f'Sound is recognized by filename, not data.\nPress the buttons below to play/pause',
+                                        h_align='center',
+                                        maxwidth=xs-60
+                                    )
+                                    bw(
+                                        parent=p,
+                                        label=cs(sc.PLAY_BUTTON),
+                                        oac=lambda:(getattr(s.cursnd,'stop',lambda:0)(),setattr(s,'cursnd',gs(splitext(bn)[0])),s.cursnd.play()),
+                                        position=(xs/2-60,ys/2-135),
+                                        size=(40,40)
+                                    )
+                                    bw(
+                                        parent=p,
+                                        label=cs(sc.PAUSE_BUTTON),
+                                        oac=lambda:getattr(s.cursnd,'stop',lambda:0)(),
+                                        position=(xs/2,ys/2-135),
+                                        size=(40,40)
+                                    )
+                                else:
+                                    tw(
+                                        parent=p,
+                                        position=(xs/2-20,ys-150),
+                                        h_align='center',
+                                        text='OGG Audio\nPress to load to game\nFile will be copied to audio folder',
+                                        maxwidth=xs-60
+                                    )
+                                    bw(
+                                        parent=p,
+                                        label='Load',
+                                        position=(xs/2-50,ys/2-135),
+                                        size=(100,40),
+                                        oac=Call(s.loada,h,gay=gay)
+                                    )
+                            elif ty == 'Mesh' and not msh:
                                 tw(
                                     parent=p,
                                     position=(xs/2-20,ys-150),
-                                    text=f'Sound is recognized by filename, not data.\nPress the buttons below to play/pause',
                                     h_align='center',
-                                    color=s.COL4,
+                                    text='BOB Mesh\nPress to load to game\nFile will be copied to meshes folder',
                                     maxwidth=xs-60
                                 )
                                 bw(
                                     parent=p,
-                                    label=cs(sc.PLAY_BUTTON),
-                                    oac=lambda:(getattr(s.cursnd,'stop',lambda:0)(),setattr(s,'cursnd',gs(splitext(bn)[0])),s.cursnd.play()),
-                                    position=(xs/2-30,ys/2-135),
-                                    size=(40,40)
-                                )
-                                bw(
-                                    parent=p,
-                                    label=cs(sc.PAUSE_BUTTON),
-                                    oac=lambda:getattr(s.cursnd,'stop',lambda:0)(),
-                                    position=(xs/2+30,ys/2-135),
-                                    size=(40,40)
+                                    label='Load',
+                                    position=(xs/2-50,ys/2-135),
+                                    size=(100,40),
+                                    oac=Call(s.loadm,h,gay=gay)
                                 )
                             else:
+                                if msh:
+                                    kek = 'BOB Mesh\nRecognized by filename, not data.\nLoaded in meshes folder!'
                                 tw(
                                     parent=p,
                                     text=kek,
@@ -859,7 +907,7 @@ class FileMan(MainWindow):
             case 2:
                 match j:
                     case 0:
-                        if s.clpm:
+                        if s.clpm is not None:
                             s.btw("You're already in the middle of something")
                             return
                         c = var('cwd')
@@ -876,7 +924,7 @@ class FileMan(MainWindow):
                         # rename
                         s.act(0,4,gay=True)
                     case 1:
-                        if s.clpm:
+                        if s.clpm is not None:
                             s.btw("You're already in the middle of something")
                             return
                         c = var('cwd')
@@ -892,6 +940,36 @@ class FileMan(MainWindow):
                         s.fresh(sl=n)
                         # rename
                         s.act(0,4)
+    def loadt(s,h,gay):
+        mem = join(BASE(),'textures')
+        nam = basename(h)
+        if nam in TEX():
+            s.btw("A texture with that name already exists! Try renaming.")
+            return
+        copy(h,join(mem,nam))
+        [_.delete() for _ in s.killme]
+        s.killme.clear()
+        s.act(0,5,zap=True,gay=gay)
+    def loada(s,h,gay):
+        mem = join(BASE(),'audio')
+        nam = basename(h)
+        if nam in AUDIO():
+            s.btw("An audio with that name already exists! Try renaming.")
+            return
+        copy(h,join(mem,nam))
+        [_.delete() for _ in s.killme]
+        s.killme.clear()
+        s.act(0,5,zap=True,gay=gay)
+    def loadm(s,h,gay):
+        mem = join(BASE(),'meshes')
+        nam = basename(h)
+        if nam in MESH():
+            s.btw("A mesh with that name already exists! Try renaming.")
+            return
+        copy(h,join(mem,nam))
+        [_.delete() for _ in s.killme]
+        s.killme.clear()
+        s.act(0,5,zap=True,gay=gay)
     def surt(s,_,p):
         if _ == s.sorti:
             s.btw('Already sorted by '+SRT()[_]+'!')
@@ -1698,6 +1776,7 @@ GUN = lambda: gs('gunCocking').play()
 BASE = lambda: join(dirname(app.env.cache_directory),'ballistica_files','ba_data')
 AUDIO = lambda: ls(join(BASE(),'audio'))
 TEX = lambda: ls(join(BASE(),'textures'))
+MESH = lambda: ls(join(BASE(),'meshes'))
 SRT = lambda: ['Name','Type','Date Modifed','Size']
 INV = lambda c: ((1-c[0])*2,(1-c[1])*2,(1-c[2])*2)
 COL = lambda: [
