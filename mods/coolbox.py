@@ -85,12 +85,12 @@ from bascenev1lib.actor.spaz import Spaz
 from traceback import format_exc as ERR
 from zlib import compress, decompress
 from inspect import signature as SIG
+from os.path import join, dirname
 from math import dist, sqrt, ceil
 from weakref import ref as REF
 from time import time_ns as NS
 from json import dumps, loads
 from os import listdir as ls
-from os.path import join
 from uuid import uuid4
 
 class Coolbox:
@@ -129,10 +129,9 @@ class Coolbox:
                 b = bw(
                     p=w,
                     label=l,
-                    enable_sound=not fake,
                     pos=(47+171.5*j,300-64*k),
                     size=(173,64),
-                    icon=gt(i)
+                    icon=gt(i),
                 )
                 bcls = mem[l]
                 args = (w,b,i,in_source,s.__class__,extra)
@@ -552,14 +551,16 @@ class Bubble:
 class icw:
     """Instant container maker"""
     INS = []
-    """On resume state emulation"""
     @classmethod
     def on_resume(cls):
         teck(0.01,lambda: [i.update() for i in cls.INS])
-    """Clean up"""
     def __del__(s):
         s.__class__.INS.delete(s)
-    """Place widgets"""
+    def snd(s,t):
+        l = gs(t)
+        l.play()
+        teck(uf(0.14,0.18),l.stop)
+        return l
     def __init__(
         s, title, shadow=False, icon=None, show_tog=False,
         back_anim='out_right', nuke_anim='out_scale',
@@ -570,6 +571,7 @@ class icw:
         note_pos=(50,15), extra=None, auto_offset=True,
         *a, **k
     ) -> None:
+        s.snd('powerup01') if in_source else 0
         s.__class__.INS.append(s)
         r = GDR()
         k.update({
@@ -603,7 +605,7 @@ class icw:
                 button_type='backSmall',
                 pos=([30,55][s.size[0]>400],y-70),
                 oac=s.back,
-                label=cs(sc.BACK)
+                label=cs(sc.BACK),
             )
             cw(w,cancel_button=b)
             s.back_button = b
@@ -612,24 +614,17 @@ class icw:
                 p=w,
                 pos=(510,y-70),
                 oac=s.nuke,
-                size=(43,43)
+                size=(43,43),
+                label=cs(sc.CLOSE),
             )
             if not show_back: cw(w,cancel_button=b)
             s.nuke_button = b
-            iw(
-                parent=w,
-                position=(519,y-63),
-                texture=gt('crossOut'),
-                size=(28,28),
-                color=(10,10,10),
-            )
         if show_tog:
             b = bw(
                 p=w,
                 size=(43,43),
                 pos=(455,y-70),
                 oac=s.toggle,
-                enable_sound=False
             )
             s.tog_button = b
             s.toggle(True)
@@ -686,6 +681,7 @@ class icw:
         )
     """Class specific"""
     def prekill(s):
+        s.snd('laser')
         s.cls.back() if s.cls and hasattr(s.cls,'back') else None
     """On back"""
     def back(s, by_button=False):
@@ -765,7 +761,8 @@ class ctw:
         s,*a,allow=[],tint=True,hint='',
         bad_image=None,conf=None,type=None,
         on_conf=(lambda *a: None),flash=False,
-        on_edit=(lambda *a: None),**k
+        on_edit=(lambda *a: None),blank=False,
+        **k
     ):
         k.update({
             'editable':True,
@@ -773,7 +770,8 @@ class ctw:
             'h_align':'center',
             'allow_clear_button':False,
             'color':k.get('color',(1,1,1)),
-            'description':k.get('description',hint) or 'Enter'
+            'description':k.get('description',hint) or 'Enter',
+            'glow_type':'uniform'
         })
         s.color = k['color']
         s.widget = t = tw(*a,**k)
@@ -787,6 +785,7 @@ class ctw:
         s.conf = conf if isinstance(conf,tuple) else (conf,conf)
         s.forgive = s.silent = s.bad = False
         s.on_edit = on_edit
+        s.blank = blank
         s.on_conf = on_conf
         s.hint = hint
         s.tint = tint
@@ -842,7 +841,7 @@ class ctw:
             if s.forgive: s.forgive = False
             else: s.on_edit(s.hint, v)
             if s.conf[0]:
-                var(s.conf[0],v if v else var(s.conf[1]))
+                var(s.conf[0],v if (v or s.blank) else var(s.conf[1]))
                 s.on_conf()
                 if s.type == 'encoding' and not s.silent:
                     gun()
@@ -887,7 +886,6 @@ class SoundManager:
         sbw(
             p=w,
             icon=gt('backIcon'),
-            enable_sound=False,
             pos=(275,330),
             color=darken(var('bg')),
             oac=s.reset
@@ -1001,7 +999,6 @@ class SoundPicker:
             )
             bw(
                 pos=p,
-                enable_sound=False,
                 oac=Call(s.preview,i,extra),
                 texture=gt('empty'),
                 **j
@@ -1029,7 +1026,6 @@ class SoundPicker:
                 icon=gt(j),
                 pos=(300+50*i,300),
                 repeat=i>1,
-                enable_sound=False,
                 oac=k
             )
         c = chk(
@@ -1130,7 +1126,6 @@ class MeshManager:
         sbw(
             p=w,
             icon=gt('backIcon'),
-            enable_sound=False,
             pos=(320,461),
             color=darken(var('bg')),
             oac=s.reset
@@ -1245,7 +1240,6 @@ class MeshPicker:
             label='Pick',
             size=(100,50),
             pos=(270,0),
-            enable_sound=False,
             oac=Call(s.pick,extra)
         )
         s.fresh()
@@ -1264,7 +1258,6 @@ class MeshPicker:
         try:
             with ga().context: getmesh(s.m)
         except: btw("Can't use this mesh!"); return
-        swish()
         gun()
         s.pipe(n,e)
         s.z.back()
@@ -1527,7 +1520,6 @@ class SpazPicker:
                     size=(120,120),
                     pos=(155*j+30,yl-185*i),
                     oac=Call(s.pick,n),
-                    enable_sound=False,
                     **ui[0]
                 )
                 tw(
@@ -1541,7 +1533,6 @@ class SpazPicker:
     """Clean up"""
     def pick(s,n):
         if n in s.deny[0]: btw(s.deny[1]); return
-        swish()
         s.z.back()
         s.pipe(n)
 
@@ -1633,7 +1624,6 @@ class ColorPicker:
             icon=gt('replayIcon'),
             button_type='regular',
             repeat=True,
-            enable_sound=False,
             iconscale=1.2
         )
         # Color choices
@@ -1642,7 +1632,6 @@ class ColorPicker:
                 r = bw(
                     p=s.w,
                     size=(68,68),
-                    enable_sound=False,
                     pos=(56+j*73,237-i*69)
                 )
                 s.rans.append(r)
@@ -1651,7 +1640,6 @@ class ColorPicker:
             r = bw(
                 p=s.w,
                 size=(68,68),
-                enable_sound=False,
                 pos=(56+j*73,30)
             )
             s.shad.append(r)
@@ -1769,7 +1757,6 @@ class NodeManager:
                 icon=gt(m),
                 size=(130,35),
                 oac=o,
-                enable_sound=False,
                 pos=(30+130*i,20)
             )
             s.btns.append(b)
@@ -1802,7 +1789,6 @@ class NodeManager:
         a = s.t.insp()
         if a == 1: return
         if not callable(a): btw('Not callable!'); return
-        swish()
         Caller(obj=a,source=s.btns[0])
     """Modify"""
     def modify(s):
@@ -1810,7 +1796,6 @@ class NodeManager:
         if a == 1: return
         if s.t.dead: btw('Object is dead!'); return
         if callable(a): btw("You can't modify a callable!"); return
-        swish()
         Modder(
             obj=s.node,
             source=s.btns[2],
@@ -1908,7 +1893,6 @@ class Caller:
             pos=(325,20),
             icon=gt('startButton'),
             label='Call',
-            enable_sound=False,
             size=(100,40),
             oac=s.call
         )
@@ -1957,7 +1941,6 @@ class Modder:
            pos=(330,20),
            icon=gt('settingsIcon'),
            label=label,
-           enable_sound=False,
            size=(100,40),
            oac=s.mod
         )
@@ -1996,7 +1979,6 @@ class atw:
             p=p,
             pos=(400,pos[1]),
             size=(35,35),
-            enable_sound=False,
             label=cs(sc.UP_ARROW),
             oac=lambda:gs('tap').play()
         )
@@ -2235,7 +2217,6 @@ class NodePicker:
                 p=w,
                 pos=(l,[430,480][i<3]),
                 label=j,
-                enable_sound=False,
                 size=(170,45),
                 icon=gt(k),
                 oac=o
@@ -2247,7 +2228,6 @@ class NodePicker:
     def advanced(s):
         n = s.now()
         if not n: return
-        swish()
         n = s.nuds[s.sl]
         NodeManager(source=s.btns[3],node=n)
     """Toggle pause"""
@@ -2269,7 +2249,6 @@ class NodePicker:
     def delete(s):
         n = s.now()
         if not n: return
-        swish()
         def f():
             s.sl = None
             n.delete()
@@ -2287,7 +2266,6 @@ class NodePicker:
     def clone(s):
         n = s.now()
         if not n: return
-        swish()
         def f():
             d = dir(n)
             all = {}
@@ -2498,7 +2476,6 @@ class ActionManager:
                    size=(100,50),
                    pos=(470,l),
                    label=k,
-                   enable_sound=False,
                    icon=gt(m),
                    oac=j)
             s.kids.append(b)
@@ -2510,7 +2487,6 @@ class ActionManager:
                pos=(470,k),
                label=j,
                icon=gt(f'{j.lower()}Button'),
-               enable_sound=False,
                repeat=True,
                oac=Call(s.nav,-i))
         s.texts = []
@@ -2544,7 +2520,6 @@ class ActionManager:
     """Edit action"""
     def edit(s):
         if s.sl is None: btw('Select an action to edit!'); return
-        swish()
         o = var('act')
         v = o[s.sl]
         i = v[0]
@@ -2558,7 +2533,6 @@ class ActionManager:
     """Replace action"""
     def replace(s):
         if s.sl is None: btw('Select an action to replace!'); return
-        swish()
         o = var('act')
         def f(i):
             a = s.collect(i)
@@ -2957,24 +2931,44 @@ class ConPipe:
 
 class Collector:
     """Value collector"""
-    def __init__(s,source,pipe,allow=True):
+    def __init__(
+        s,
+        source,
+        pipe,
+        allow=True,
+        title='Input',
+        first='text',
+        double='',
+        two=False,
+        dallow=True,
+        raw=False
+    ):
         s.pipe = pipe
+        s.two = two
+        s.raw = raw
         s.z = icw(
             in_source=source,
             show_nuke=False,
             back_anim='out_scale',
             auto_offset=False,
-            size=(300,150),
-            title='Input'
+            size=(300,150+[0,30][two]),
+            title=title
         )
         w = s.z.widget
         s.t = ctw(
             p=w,
             allow=allow,
-            hint='text',
+            hint=first,
             size=(200,30),
             pos=(30,30)
         )
+        s.t2 = ctw(
+            p=w,
+            allow=dallow,
+            hint=double,
+            size=(200,30),
+            pos=(30,65)
+        ) if two else None
         bw(
             label='Done',
             p=w,
@@ -2982,12 +2976,22 @@ class Collector:
             size=(50,30),
             oac=Call(s.pick)
         )
-    """Redirect"""
     def pick(s):
         t = s.t.get_text()
-        if s.t.bad or not t: err(f'Invalid {s.t.hint}!\nFix your input!'); return
+        if s.t.bad or (not t and not s.raw): err(f'Invalid {"Input" if s.raw else s.t.hint}!\nFix your input!'); return
+        if s.two:
+            t2 = s.t2.get_text()
+            if s.raw and t == "": v = ''
+            elif s.raw:
+                try: v = eval(t)
+                except Exception as e:
+                    err(str(e))
+                    return
+            else: v = t
+            r = (t2,v)
+        else: r = t
         s.z.back()
-        s.pipe(t)
+        s.pipe(r)
 
 class Overlay:
     """Controls overlay"""
@@ -3353,7 +3357,6 @@ class Spawn:
                 icon=gt(i),
                 icon_tint=-8,
                 cons=[None,CONS()[0]][j==2],
-                enable_sound=False,
                 oac=c
             )
         # Position buttons
@@ -3364,7 +3367,6 @@ class Spawn:
                 icon=gt(['touchArrows','cursor'][i]),
                 size=(160,55),
                 label=['Teleport','Map'][i],
-                enable_sound=False,
                 cons={
                     **CONS()[0],
                     **[{},CONS()[1]][i]
@@ -3446,7 +3448,6 @@ class Spawn:
                 p=a[0],
                 pos=(410+50*i,150),
                 icon=gt(j),
-                enable_sound=False,
                 oac=k
             )
         s.sbtn = []
@@ -3463,7 +3464,6 @@ class Spawn:
                 icon=gt(k),
                 size=(160,55),
                 label=j,
-                enable_sound=i,
                 oac=l
             )
             s.sbtn.append(b)
@@ -3660,7 +3660,6 @@ class Modify:
                 label=[cs(sc.UP_ARROW),'?','&'][i],
                 text_scale=[1.2,1.4][i>0],
                 size=(40,40),
-                enable_sound=i<2,
                 **([{},{'cons':CONS()[0]}][i>1])
             )
             o = [
@@ -3692,8 +3691,7 @@ class Modify:
             label='Map',
             size=(150,40),
             oac=s.map,
-            cons=CONS()[1],
-            enable_sound=False
+            cons=CONS()[1]
         )
         # Position editables
         s.pos = []
@@ -3781,7 +3779,6 @@ class Modify:
             label='Modify',
             icon=gt('settingsIcon'),
             pos=(410,25),
-            enable_sound=False,
             size=(150,40)
         )
         # What button
@@ -3798,7 +3795,6 @@ class Modify:
             icon=gt('file'),
             pos=(152,380),
             size=(40,40),
-            enable_sound=False
         )
         bw(b,oac=Call(s.attr,b))
         # Shadows
@@ -3839,7 +3835,6 @@ class Modify:
         if len(a) > 1: btw('This only works on one target!'); return
         t = a[0]
         NodeManager(source=b,node=t,pipe=s.fresh)
-        swish()
     """Optional modify"""
     def what(s,source=None):
         z = icw(
@@ -3944,7 +3939,6 @@ class Modify:
             label='Add as target',
             pipe=Call(s.add,n)
         )
-        swish()
     """Confirm reset"""
     def creset(s,source=None):
         Confirm(
@@ -4042,7 +4036,6 @@ class Modify:
                 pos=(10,i*155+29),
                 size=(110,110),
                 oac=Call(s.remove,n),
-                enable_sound=False,
                 **ui[0]
             )
             k2 = tw(
@@ -4091,7 +4084,6 @@ class Control:
             color=(1,1,1),
             pos=(63.5,225),
             size=(136,136),
-            enable_sound=False,
             texture=gt('achievementEmpty')
         )
         bw(s.b,oac=s.pick)
@@ -4115,7 +4107,6 @@ class Control:
             label='Apply',
             icon=gt('settingsIcon'),
             pos=(410,15),
-            enable_sound=False,
             size=(150,40)
         )
         b = bw(
@@ -4123,7 +4114,6 @@ class Control:
             label='Hold',
             icon=gt('achievementOutline'),
             pos=(235,15),
-            enable_sound=False,
             size=(150,40)
         )
         bw(b,oac=Call(s.hold,b))
@@ -4134,7 +4124,6 @@ class Control:
             pos=(235,155),
             size=(150,40),
             oac=Call(s.yay,'_r'),
-            enable_sound=False,
             repeat=True
         )
         bw(
@@ -4144,7 +4133,6 @@ class Control:
             pos=(235,108),
             size=(150,40),
             oac=Call(s.yay,'_l'),
-            enable_sound=False,
             repeat=True
         )
         bw(
@@ -4154,7 +4142,6 @@ class Control:
             pos=(235,60),
             size=(150,40),
             oac=s.yay,
-            enable_sound=False,
             repeat=True
         )
         cls = s.__class__
@@ -4164,7 +4151,6 @@ class Control:
             p=w,
             oac=s.start,
             pos=(58.5,15),
-            enable_sound=False,
             size=(150,40),
             cons=CONS()[0]
         )
@@ -4204,7 +4190,6 @@ class Control:
                 textcolor=l,
                 size=(20,20),
                 text_scale=0.7,
-                enable_sound=False,
                 position=(x+115,y+5),
                 label=['',cs(sc.DPAD_CENTER_BUTTON)][b],
             )
@@ -4241,7 +4226,6 @@ class Control:
                 color=c[i],
                 size=(50,50),
                 oac=Call(s.key,i),
-                enable_sound=False,
                 texture=gt('button'+l)
             )
         s.mbs = []
@@ -4261,7 +4245,6 @@ class Control:
                     label=cs(getattr(sc,k)) if k else k,
                     repeat=True,
                     size=(40,40),
-                    enable_sound=False,
                     position=(240+50*j,225+50*i)
                 )
                 bw(b,oac=Call(s.move,i,j,b))
@@ -4297,7 +4280,6 @@ class Control:
         if s.nah(): return
         if s.n.hold_node: btw("Target's already holding something!"); return
         NodePicker(pipe=lambda n: (broad(CH(HOLDSELF())) if s.n == n else None,teck(0.2,lambda:(broad('Now resume the game to see changes') if pause() else None) if s.holds(n) else None)),source=b,allow='3D')
-        swish()
     """Safe hold"""
     def holds(s,w):
         if w.getnodetype() in HOLDABLE():
@@ -4349,7 +4331,6 @@ class Control:
     """Conditional CharPicker"""
     def pick(s):
         SpazPicker(source=s.b,pipe=s.fresh,deny=[s.n],deny_msg="Already picked!")
-        swish()
     """Verify"""
     def nah(s):
         if s.n is None: btw('No target selected!'); return 1
@@ -4508,7 +4489,6 @@ class Effect:
             color=(1,1,1),
             pos=(60,225),
             size=(136,136),
-            enable_sound=False,
             texture=gt('achievementEmpty')
         )
         bw(s.b,oac=s.pick)
@@ -4574,7 +4554,6 @@ class Effect:
                     parent=w,
                     icon=gt(i),
                     oac=Call(s.nah,f),
-                    enable_sound=_==0,
                     iconscale=1.2
                 ))
         for _,g in enumerate(res):
@@ -4593,8 +4572,7 @@ class Effect:
                 position=(22,18+20+_*155),
                 texture=gt(x),
                 color=(1,1,1),
-                oac=Call(s.nah,Call(s.add,_)),
-                enable_sound=False
+                oac=Call(s.nah,Call(s.add,_))
             )
     def pup(s,j):
         s.n.handlemessage(PowerupMessage(j))
@@ -4688,7 +4666,6 @@ class Effect:
         [setattr(n,a,v) for a,v in k.items()]
     def pick(s):
         SpazPicker(source=s.b,pipe=s.fresh,deny=[s.n],deny_msg="Already picked!")
-        swish()
     def fresh(s,n):
         gun()
         s.n = n
@@ -4705,21 +4682,293 @@ class Effect:
 class Deploy:
     """Obtain any object or powerup in game"""
     def __init__(s,w,*a):
-        s1 = sw(
+        s.w = w
+        s.data = {'attrs':{}}
+        s.atkids = []
+        s.edbs = []
+        s.pos = []
+        ex = a[4]
+        prp1 = sw(
             parent=w,
-            size=(200,400),
-            position=(50,150)
+            position=(58.8, 59.5),
+            size=(150.0, 310.0)
         )
-        bw(s.b,oac=s.pick)
-        s.t = tw(
-            p=w,
-            text='What?',
-            maxwidth=170,
-            pos=(101.5,193),
+        tw(
+            parent=w,
+            position=(82.0, 26.7),
+            size=(100, 30),
+            text='Preset',
             h_align='center'
         )
+        v = 'dplprop'
+        e = var(v)
+        s.propt = ctw(
+            parent=w,
+            position=(299.4, 335.2),
+            size=(260.0, 30),
+            text=e,
+            conf=v,
+            v_align='center',
+            allow=True,
+            hint='prop',
+            blank=True
+        )
+        v = 'dplname'
+        e = var(v)
+        s.namet = ctw(
+            parent=w,
+            position=(309.4, 260.2),
+            size=(250.0, 30),
+            allow=True,
+            hint='None',
+            text=e,
+            conf=v,
+            blank=True
+        )
+        tw(
+            parent=w,
+            position=(220.4, 298.9),
+            size=(100, 30),
+            text='owner ='
+        )
+        s.ownert = tw(
+            parent=w,
+            position=(316.4, 298.9),
+            size=(150.0, 30),
+            text='None',
+            color=(0.5,0.5,0.5),
+            maxwidth=150
+        )
+        tw(
+            parent=w,
+            position=(220.4, 261.9),
+            size=(90.0, 30),
+            text='name ='
+        )
+        tw(
+            parent=w,
+            position=(220.4, 224.9),
+            size=(70.0, 30),
+            text='pos ='
+        )
+        tw(
+            parent=w,
+            position=(220.4, 335.9),
+            size=(70.0, 30),
+            text='type ='
+        )
+        s.pickb = bw(
+            size=(82.0, 20.0),
+            position=(477.3, 302.1),
+            label='Pick',
+            parent=w,
+            oac=s.pick
+        )
+        for _ in range(3):
+            h = ['X','Y','Z'][_]
+            s.pos.append(ctw(
+                parent=w,
+                position=(293.3, 222.9-37*_),
+                size=(270.0, 30),
+                hint=h,
+                conf=f'dpl{_}',
+                allow='-0.123456789',
+                text=var(f'dpl{_}')
+            ))
+        bw(
+            size=(60.0, 60.0),
+            position=(217.1, 153.8),
+            parent=w,
+            icon=gt('cursor'),
+            iconscale=1.2,
+            oac=s.map
+        )
+        atp1 = sw(
+            parent=w,
+            position=(218.9, 60.2),
+            size=(260.0, 80.0)
+        )
+        s.atp = cw(
+            parent=atp1,
+            background=False
+        )
+        bw(
+            size=(70.0, 82.0),
+            position=(492.4, 59.6),
+            parent=w,
+            iconscale=1.55,
+            icon=gt('downButton'),
+            oac=s.make
+        )
+        tw(
+            parent=w,
+            position=(298.3, 29.4),
+            size=(100, 30),
+            text='Attrs',
+            h_align='center'
+        )
+        tw(
+            parent=w,
+            position=(477, 29.4),
+            size=(100, 30),
+            text='Make',
+            h_align='center'
+        )
+        # finally
+        s.fattr()
+        s.chk(ex)
+    def chk(s,ex):
+        if not ex: return
+        p,da = ex
+        if p and p != s.getpos():
+            teck(0.2, lambda:s.setpos(p))
+        s.data = da
+        s.fattr()
+        s.fresh()
+    def make(s):
+        p = s.getpos()
+        d = s.data
+        a = d['attrs'].copy()
+        if not a:
+            btw('No attrs!')
+            return
+        a.update({'position':p})
+        with ga().context:
+            try:
+                newnode(
+                    type=var('dplprop') or 'prop',
+                    owner=d.get('owner',None),
+                    name=var('dplname'),
+                    attrs=a
+                )
+            except Exception as e:
+                err(str(e))
+        SND('spawn',p)
+    def _fattr(s,t):
+        a,v = t
+        if not a:
+            broad('Cancelled!')
+            return
+        if a in s.data['attrs']:
+            broad('Updated existing attribute!')
+        s.data['attrs'][a] = v
+        s.fattr()
+    def fattr(s):
+        i = len(s.data['attrs'])
+        cw(s.atp,size=(260,i*70+35))
+        [_.delete() for _ in s.atkids]
+        s.atkids.clear()
+        s.edbs.clear()
+        # attrs
+        for _,g in enumerate(s.data['attrs'].items()):
+            a,v = g
+            y = 35+_*70
+            s.atkids.append(tw(
+                parent=s.atp,
+                text=a,
+                v_align='center',
+                maxwidth=210,
+                position=(5,y+35)
+            ))
+            dv = f"'{v}'" if isinstance(v,str) else str(v)
+            edb = bw(
+                position=(200,y+35),
+                label='!',
+                parent=s.atp,
+                oac=Call(s.eattr,a,dv,old=(a,v),_=_),
+                size=(30,30)
+            )
+            s.atkids.append(edb)
+            s.edbs.append(edb)
+            s.atkids.append(tw(
+                parent=s.atp,
+                text=dv,
+                v_align='center',
+                maxwidth=210,
+                position=(5,y+4),
+                color=(0.7,0.7,0.7)
+            ))
+            s.atkids.append(bw(
+                position=(200,y+4),
+                size=(30,26),
+                label='-',
+                parent=s.atp,
+                oac=Call(s.dattr,a)
+            ))
+        s.atkids.append(tw(
+            text='Add an attribute',
+            position=(5,0),
+            parent=s.atp,
+            v_align='center',
+            maxwidth=210
+        ))
+        s.aattrb = bw(
+            label='+',
+            position=(200,0),
+            size=(30,30),
+            parent=s.atp,
+            oac=s.aattr
+        )
+        s.atkids.append(s.aattrb)
+    def dattr(s,a):
+        s.data['attrs'].pop(a)
+        gs('pop01').play()
+        s.fattr()
+    def eattr(s,a,dv,old,_):
+        Collector(
+            source=s.edbs[_],
+            first=dv,
+            double=a,
+            two=True,
+            title='Edit',
+            pipe=Call(s._eattr,old=old),
+            raw=True
+        )
+    def _eattr(s,t,old):
+        a,v = t
+        s.data['attrs'].pop(old[0])
+        s.data['attrs'][a or old[0]] = v if v != "" else old[1]
+        s.fattr()
+    def aattr(s):
+        Collector(
+            source=s.aattrb,
+            first='Value',
+            double='Attribute',
+            two=True,
+            title='Add',
+            pipe=s._fattr,
+            raw=True
+        )
     def pick(s):
-        pass
+        NodePicker(
+            source=s.pickb,
+            pipe=s.fresh,
+            allow='3D'
+        )
+    def fresh(s,n=None):
+        if n: s.data['owner'] = n
+        else: n = s.data.get('owner',None)
+        if not n: return
+        t = str(n)[1:][:-1]
+        t = t[t.find('Node ')+5:t.find("'")]+n.getnodetype()
+        tw(s.ownert,text=t,color=(1,1,1))
+    def map(s):
+        s.mapper = Mapper(pipe=s.mup,pos=s.getpos())
+        None if s.mapper.tired else cw(s.w,transition='out_right')
+    def mup(s,p=None):
+        Coolbox(fb=s.__class__.__name__, fake=True, extra=(p or s.getpos(),s.data))
+    def getpos(s):
+        return tuple([float(var(f'dpl{i}')) for i in range(3)])
+    def setpos(s,p):
+        p = rnd(p)
+        h = []
+        for i in range(3):
+            t = s.pos[i]
+            o = t.get_text()
+            n = str(p[i])
+            h.append(t) if o != n else None
+            t.set_text(n)
+        teck(0.2,lambda:([t.blink() for t in h],gun())) if h else None
 
 @NEW
 class Listen:
@@ -4775,12 +5024,13 @@ class About:
 # Stored as callabes and only called when needed
 # Very beneficial for performance and memory
 def D(): d = APP.classic.spaz_appearances; [d.pop(i) for i in d.copy() if i != 'Pascal' and d[i].default_color == (0.3,0.5,0.8)]; return d
+BASE = lambda: join(dirname(APP.env.cache_directory),'ballistica_files','ba_data')
 NAME = lambda: list(D())
 SPAZ = lambda: list(D().values())
 KIDS = lambda: [i for i in GN() if i.getnodetype() == 'spaz']
-ALL = lambda: sorted([i[:-4] for i in ls(join("ba_data','textures"))])
-AUDIO = lambda: sorted([i[:-4] for i in ls(join("ba_data','audio"))])
-MESH = lambda: sorted([i[:-4] for i in ls(join("ba_data','meshes"))])
+ALL = lambda: sorted([i[:-4] for i in ls(join(BASE(),'textures'))])
+AUDIO = lambda: sorted([i[:-4] for i in ls(join(BASE(),'audio'))])
+MESH = lambda: sorted([i[:-4] for i in ls(join(BASE(),'meshes'))])
 ICONS = lambda: [i.icon_texture for i in SPAZ()]
 CTEX = lambda: [i.color_texture for i in SPAZ()]
 def DIR(t): a = dir(SPAZ()[0]); b = []; [b.append(i) if i.endswith('_'+t) else None for i in a]; return b
@@ -4893,7 +5143,8 @@ def bw(*a,cons={},oac=None,pos=None,p=None,**k):
         'label':k.get('label',''),
         'button_type':k.get('button_type','square'),
         'color':k.get('color',var('bg')),
-        'textcolor':k.get('textcolor',var('t'))
+        'textcolor':k.get('textcolor',var('t')),
+        'enable_sound':k.get('nable_sound',False)
     })
     if pos: k['position'] = pos
     if p: k['parent'] = p
@@ -4932,7 +5183,6 @@ gc = lambda w: w.get_screen_space_center()
 smol = lambda c: [i/255 for i in c]
 huge = lambda c: [int(i*255) for i in c]
 gun = lambda: gs('gunCocking').play()
-swish = lambda: gs('swish').play()
 ding = lambda: gs('dingSmallHigh').play()
 UUID = lambda: str(uuid4())[:5]
 def ENCODE(a):
@@ -5131,12 +5381,15 @@ d = {
     'uis':None,
     'npp':1,
     'say':'hi please kill me',
-    'tsay':'3'
+    'tsay':'3',
+    'dplprop':'prop',
+    'dplname':''
 }; [con(i,d[i]) for i in d]
 for i in range(3):
     con(f'pos{i}','0')
     con(f'mpos{i}','0')
     con(f'move{i}','0')
+    con(f'dpl{i}','0')
     con(f'cconf{i}',[1,1,0,1][i])
 [con(f'cont{i}',True) for i in range(5)]
 [con(f'what{i}',True) for i in range(len(WHAT()))]
