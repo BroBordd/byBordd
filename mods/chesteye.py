@@ -28,14 +28,17 @@ from bauiv1lib.inbox import _EntryDisplay as ED
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     R = lambda *a,**k:0
-    def __init__(s,i=10):
+    def __init__(s,i=20):
         if not i: return
         p = app.plus
-        with p.accounts.primary:
-            p.cloud.send_message_cb(
-                RM(),
-                on_response=Call(s.eye,i)
-            )
+        try:
+            with p.accounts.primary:
+                p.cloud.send_message_cb(
+                    RM(),
+                    on_response=Call(s.eye,i)
+                )
+        except:
+            return
     def eye(s,i,r):
         if isinstance(r,CE): teck(1,Call(s.__init__,i-1))
         else: s.claim(r)
