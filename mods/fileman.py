@@ -113,7 +113,7 @@ class FileMan(MainWindow):
         # root
         s.p = cw(
             background=False,
-            toolbar_visibility='menu_minimal'
+            toolbar_visibility='no_menu_minimal'
         )
         s.rect = iw(
             texture=gt('softRect'),
