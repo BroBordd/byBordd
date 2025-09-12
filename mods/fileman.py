@@ -102,10 +102,11 @@ class FileMan(MainWindow):
         s.__class__.INS.append(s)
         s.wop()
         s.url = s.urlo = var('cwd')
-        s.urlbln = s.dro = s.gn = s.rlyd = s.flon = False
+        s.urlbln = s.dro = s.gn = s.rlyd = s.flon = s.msh = False
         s.amoled = sum(s.COL5)==0
-        s.pusho = s.sorti = 0
+        s.pusho = s.sorti = s.rnd_x = s.rnd_y = 0
         s.pushi = -0.1
+        s.rnd_r = 64
         s.sl = (None,None)
         [setattr(s,_,None) for _ in ['pushe','eno','leno','clp','gab','clpm','rlydt','buf','uploadc','cursnd','rfl','rflo']]
         [setattr(s,_,[]) for _ in ['trash','btns','secs','docs','drkids','drol','okes','fkids','ftrash','statkids','fcons','flkids','killme']]
@@ -335,6 +336,7 @@ class FileMan(MainWindow):
         s.push(t,color=s.COL3,du=du)
     def act(s,i,j,gay=False,zap=False):
         if s.gn: return
+        s.last_gay = gay
         w = s.btns[i][j]
         match i:
             case 0:
@@ -540,6 +542,7 @@ class FileMan(MainWindow):
                             s.snd('deek')
                             return
                         s.stat = 1000
+                        s.msh = False
                         s.wop()
                         k = s.fkids[s.sl[0]] if gay else w
                         gcen = lambda: ((o:=k.get_screen_space_center()),(o[0]-s.size[0]/5,o[1]) if gay else o)[1]
@@ -744,15 +747,45 @@ class FileMan(MainWindow):
                                 )
                             else:
                                 if msh:
+                                    s.msh = True
+                                    render(h,p,xs-40,ys-110,s.rnd_r,s.rnd_x,s.rnd_y)
                                     kek = 'BOB Mesh\nRecognized by filename, not data.\nLoaded in meshes folder!'
-                                tw(
-                                    parent=p,
-                                    text=kek,
-                                    position=(xs/2-25,ys/2-35),
-                                    h_align='center',
-                                    v_align='center',
-                                    maxwidth=xs-100
-                                )
+                                    tw(
+                                        parent=p,
+                                        text=kek,
+                                        position=(35,ys-130),
+                                        color=(0.5,0.5,0.5),
+                                        maxwidth=xs/4,
+                                        v_align='top'
+                                    )
+                                    s.rnd_t = tw(
+                                        editable=True,
+                                        parent=p,
+                                        size=(xs/10,30),
+                                        color=(0.5,0.5,0.5),
+                                        maxwidth=xs/5,
+                                        text=str(s.rnd_r),
+                                        position=(35,30),
+                                        allow_clear_button=False,
+                                        glow_type='uniform',
+                                        description='Render resolution, default is 64\nEnter'
+                                    )
+                                    tw(
+                                        parent=p,
+                                        text='Basic illustraion rendered\nSeek to control 3D axis',
+                                        maxwidth=xs/5,
+                                        position=(35,75),
+                                        color=(0.5,0.5,0.5)
+                                    )
+                                else:
+                                    tw(
+                                        parent=p,
+                                        text=kek,
+                                        position=(xs/2-25,ys/2-35),
+                                        h_align='center',
+                                        v_align='center',
+                                        maxwidth=xs-100
+                                    )
             case 1:
                 match j:
                     case 0:
@@ -1157,6 +1190,26 @@ class FileMan(MainWindow):
             s.statp = n
             if i<0: [s.statl.pop(-1) for _ in [0,0]]
             s.itw()
+        elif s.msh:
+            t = tw(query=s.rnd_t)
+            if t.isdigit():
+                t = int(t)
+                if t>0:
+                    if t > 1000: s.btw('Resolution too big!')
+                    else: s.rnd_r = t
+            if i>0:
+                s.rnd_x += i*10
+                if s.rnd_x<0: s.rnd_x = 360
+                elif s.rnd_x>360: s.rnd_x = 0
+                s.push(f'Rendering X angle at {s.rnd_x} degrees')
+            else:
+                s.rnd_y += i*10
+                if s.rnd_y<0: s.rnd_y = 360
+                elif s.rnd_y>360: s.rnd_y = 0
+                s.push(f'Rendering Y angle at {s.rnd_y} degrees')
+            [_.delete() for _ in s.killme]
+            s.killme.clear()
+            s.act(0,5,zap=True,gay=s.last_gay)
         else:
             s.btw('No more open file buffers!')
     def cpsharel(s):
@@ -1760,6 +1813,177 @@ class FileMan(MainWindow):
         teck(UF(0.13,0.15),s.sn.stop)
     def bga(s):
         s.urlbln = False
+
+def render(h,p,xs,ys,resolution=64,x_angle=0,y_angle=0):
+    # Read and parse the .bob file
+    with open(h, 'rb') as f:
+        data = f.read()
+
+    import math
+
+    # Extract vertices from .bob file
+    vertices = []
+    offset = 16  # Skip header
+
+    # Try different stride patterns to find vertex data
+    best_vertices = []
+    for stride in [12, 24, 32]:
+        test_vertices = []
+        test_offset = offset
+        
+        while test_offset + 12 <= len(data):
+            try:
+                import struct
+                x, y, z = struct.unpack('<fff', data[test_offset:test_offset+12])
+                
+                # Basic validation - tighter bounds
+                if (all(abs(coord) < 1000 for coord in [x, y, z]) and 
+                    all(not (coord != coord) for coord in [x, y, z])):  # Check for NaN
+                    test_vertices.append((x, y, z))
+                
+                test_offset += stride
+            except struct.error:
+                break
+        
+        if len(test_vertices) > len(best_vertices):
+            best_vertices = test_vertices
+
+    vertices = best_vertices
+
+    # Apply 3D rotations
+    if vertices and len(vertices) > 10:
+        # Convert angles to radians
+        x_rad = math.radians(x_angle)
+        y_rad = math.radians(y_angle)
+        
+        # Apply rotations
+        rotated_vertices = []
+        cos_x, sin_x = math.cos(x_rad), math.sin(x_rad)
+        cos_y, sin_y = math.cos(y_rad), math.sin(y_rad)
+        
+        for x, y, z in vertices:
+            # Rotate around X-axis first
+            y1 = y * cos_x - z * sin_x
+            z1 = y * sin_x + z * cos_x
+            
+            # Then rotate around Y-axis
+            x2 = x * cos_y + z1 * sin_y
+            z2 = -x * sin_y + z1 * cos_y
+            
+            rotated_vertices.append((x2, y1, z2))
+        
+        # Extract coordinates from rotated vertices
+        vertex_xs = [v[0] for v in rotated_vertices]
+        vertex_ys = [v[1] for v in rotated_vertices]
+        vertex_zs = [v[2] for v in rotated_vertices]
+        
+        # Find bounds
+        min_x, max_x = min(vertex_xs), max(vertex_xs)
+        min_y, max_y = min(vertex_ys), max(vertex_ys)
+        min_z, max_z = min(vertex_zs), max(vertex_zs)
+        
+        range_x = max_x - min_x
+        range_y = max_y - min_y
+        range_z = max_z - min_z
+        
+        if range_x > 0 and range_y > 0:
+            # Create high-resolution occupancy grid
+            grid_size = resolution
+            occupancy_grid = {}
+            depth_grid = {}
+            
+            # Mark occupied cells and track depth
+            for vx, vy, vz in rotated_vertices:
+                grid_x = int((vx - min_x) / range_x * (grid_size - 1))
+                grid_y = int((vy - min_y) / range_y * (grid_size - 1))
+                
+                key = (grid_x, grid_y)
+                occupancy_grid[key] = True
+                
+                # Store depth info for coloring (closer = brighter)
+                if range_z > 0:
+                    normalized_depth = (vz - min_z) / range_z
+                else:
+                    normalized_depth = 0.5
+                depth_grid[key] = normalized_depth
+            
+            # FLOOD FILL ALGORITHM - Fill enclosed areas
+            filled_grid = dict(occupancy_grid)  # Start with occupied cells
+            
+            # Find bounding box of occupied cells
+            if occupancy_grid:
+                occupied_xs = [k[0] for k in occupancy_grid.keys()]
+                occupied_ys = [k[1] for k in occupancy_grid.keys()]
+                
+                bound_min_x, bound_max_x = min(occupied_xs), max(occupied_xs)
+                bound_min_y, bound_max_y = min(occupied_ys), max(occupied_ys)
+                
+                # Fill interior using scanline flood fill
+                for scan_y in range(bound_min_y, bound_max_y + 1):
+                    # Find leftmost and rightmost occupied cells in this scanline
+                    line_cells = [(x, scan_y) for x in range(bound_min_x, bound_max_x + 1) 
+                                 if (x, scan_y) in occupancy_grid]
+                    
+                    if len(line_cells) >= 2:
+                        # Sort by x coordinate
+                        line_cells.sort(key=lambda cell: cell[0])
+                        
+                        # Fill between first and last occupied cell
+                        left_x = line_cells[0][0]
+                        right_x = line_cells[-1][0]
+                        
+                        for fill_x in range(left_x, right_x + 1):
+                            fill_key = (fill_x, scan_y)
+                            if fill_key not in filled_grid:
+                                # Interpolate depth for interior cells
+                                depth_ratio = (fill_x - left_x) / max(1, right_x - left_x)
+                                left_depth = depth_grid.get((left_x, scan_y), 0.5)
+                                right_depth = depth_grid.get((right_x, scan_y), 0.5)
+                                interpolated_depth = left_depth + (right_depth - left_depth) * depth_ratio
+                                
+                                filled_grid[fill_key] = True
+                                depth_grid[fill_key] = interpolated_depth
+            
+            # Scale and render filled shape
+            if filled_grid:
+                center_x = xs // 2
+                center_y = ys // 2
+                
+                # Calculate scale to fit in parent
+                max_range = max(range_x, range_y)
+                scale = min(xs, ys) * 0.8 / max_range
+                pixel_size = max(1, int(scale / grid_size * 2))  # Size of each grid cell in pixels
+                
+                for (gx, gy), _ in filled_grid.items():
+                    # Convert grid position back to world coordinates
+                    world_x = min_x + (gx / (grid_size - 1)) * range_x
+                    world_y = min_y + (gy / (grid_size - 1)) * range_y
+                    
+                    # Scale to screen coordinates
+                    scaled_x = (world_x - (min_x + max_x) / 2) * scale
+                    scaled_y = (world_y - (min_y + max_y) / 2) * scale
+                    
+                    x = int(center_x + scaled_x - pixel_size // 2)
+                    y = int(center_y + scaled_y - pixel_size // 2)  # FIXED: No more Y flip
+                    
+                    # Get depth for coloring (depth-based shading)
+                    depth = depth_grid.get((gx, gy), 0.5)
+                    
+                    # Create depth-based color (closer = brighter)
+                    brightness = 0.3 + depth * 0.7  # Range from 0.3 to 1.0
+                    r = brightness
+                    g = brightness  
+                    b = brightness
+                    
+                    # Ensure within bounds
+                    if 0 <= x < xs - pixel_size and 0 <= y < ys - pixel_size:
+                        iw(
+                            parent=p,
+                            position=(x+20, y+20),
+                            size=(pixel_size, pixel_size),
+                            texture=gt('white'),
+                            color=(r, g, b)
+                        )
 
 # Tools and Resources
 # Lambda means it won't be stored in memory unless called
