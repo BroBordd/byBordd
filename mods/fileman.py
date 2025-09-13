@@ -269,7 +269,8 @@ class FileMan(MainWindow):
         s.yesp1 = sw(
             parent=s.p,
             border_opacity=0,
-            position=(17,20)
+            position=(17,20),
+            color=tuple([_*10 for _ in s.COL2])
         )
         s.yesp2 = cw(
             parent=s.yesp1,
@@ -296,7 +297,8 @@ class FileMan(MainWindow):
         )
         s.drp1 = sw(
             border_opacity=0,
-            parent=s.p
+            parent=s.p,
+            color=s.COL5
         )
         s.drp2 = cw(
             background=False,
@@ -645,7 +647,8 @@ class FileMan(MainWindow):
                                 position=(20,20),
                                 size=(fxs,fys),
                                 border_opacity=0,
-                                capture_arrows=True
+                                capture_arrows=True,
+                                color=s.COL5
                             )
                             s.statda = da
                             s.statp = 0
@@ -1582,7 +1585,8 @@ class FileMan(MainWindow):
         )
         p2 = sw(
             parent=p,
-            size=(xs,ys)
+            size=(xs,ys),
+            color=s.COL5
         )
         rys = 30*len(r)
         p3 = cw(
