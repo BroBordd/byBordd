@@ -2384,7 +2384,7 @@ class Root:
         nice('Saved!')
         tw(s.val1v,text=brk(str(v)))
         s.po.TAR[1][0].update({k:v})
-        s.sync()
+        s.po.sync()
         refresh()
     def val2(s,k,fa=1):
         p4 = getattr(s,'p4',0)
