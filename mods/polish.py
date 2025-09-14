@@ -1259,21 +1259,21 @@ class Man:
             s.prev(k,t,mem,fa=0)
             return
         s.on = on
-        x,y = -2*s.po.width-10,res()[1]-303
+        x,y = -2*s.po.width-10,res()[1]-341
         # bg
         ij = s.p3 = iw(
             parent=po.p,
             texture=gt('white'),
             color=s.COL1,
             position=(x,y),
-            size=(po.width,303)
+            size=(po.width,341)
         )
         s.K.append(ij)
         fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=po.p,
-            position=(x+15,y+263),
+            position=(x+15,y+301),
             label='Type hints',
             enable_sound=False,
             size=(po.width-30,30),
@@ -1289,7 +1289,7 @@ class Man:
             parent=po.p,
             texture=gt('white'),
             size=(po.width-18,1),
-            position=(x+10,y+253.5),
+            position=(x+10,y+291.5),
             opacity=0.6
         )
         s.K.append(ij)
@@ -1362,6 +1362,20 @@ class Man:
         )
         s.K.append(ij)
         s.p3junk.append(ij)
+        # text
+        b = bw(
+            parent=po.p,
+            position=(x+15,y+253),
+            label='Text',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            enable_sound=False,
+            on_activate_call=Call(s._val0,k,v)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
     def _val1(s,k,*a):
         deek()
         s.val1(k,*a,s.po.MEM[s.wi][1][0].get(k,None))
@@ -1371,6 +1385,104 @@ class Man:
     def _val3(s,*a):
         deek()
         s.val3(*a)
+    def _val0(s,*a):
+        deek()
+        s.val0(*a)
+    def val0(s,k,o,fa=1):
+        p4 = getattr(s,'p4',0)
+        po = s.po
+        if getattr(p4,'exists',lambda:False)():
+            fade(p4,i=1,a=-0.2)
+            p4j = getattr(s,'p4junk',[]).copy()
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val0(k,o,fa=0)
+            return
+        x,y = -3*po.width-15,res()[1]-200
+        # bg
+        ij = s.p4 = iw(
+            parent=po.p,
+            texture=gt('white'),
+            color=s.COL1,
+            position=(x,y),
+            size=(po.width,200)
+        )
+        fade(ij,a=0.2) if fa else 0
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk = [ij]
+        # info
+        ij = tw(
+            parent=po.p,
+            color=s.COL2,
+            position=(x+10,y+160),
+            text='Input literal text here,\nNo need to use quotes.\nUse Eval for raw input.',
+            maxwidth=po.width-20,
+            shadow=1.2
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-18,1),
+            position=(x+10,y+98),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # input
+        ij = s.val0t = tw(
+            parent=po.p,
+            editable=True,
+            color=s.COL2,
+            position=(x+10,y+60),
+            size=(po.width-20,30),
+            description='Example input: Hello, World!\nEnter',
+            text=str(o or ''),
+            allow_clear_button=False
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-18,1),
+            position=(x+10,y+52.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # continue
+        b = bw(
+            parent=po.p,
+            position=(x+15,y+10),
+            label='Apply',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            enable_sound=False,
+            on_activate_call=Call(s.val0a,k)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
+        s.p4junk.append(b)
+    def val0a(s,k):
+        v = tw(query=s.val0t)
+        try: s.f(s.w,**{k:v})
+        except Exception as e: err(str(e)); return
+        nice('Applied!')
+        tw(s.val1v,text=brk(v))
+        s.po.MEM[s.wi][1][0].update({k:v})
+        s.po.sync()
+        s.po.bord()
     def val3(s,k,fa=1):
         po = s.po
         p4 = getattr(s,'p4',0)
@@ -2044,21 +2156,21 @@ class Root:
             s.prev(k,t,mem,fa=0)
             return
         s.on = on
-        x,y = -2*s.width-10,res()[1]-303
+        x,y = -2*s.width-10,res()[1]-341
         # bg
         ij = s.p3 = iw(
             parent=s.p,
             texture=gt('white'),
             color=s.COL1,
             position=(x,y),
-            size=(s.width,303)
+            size=(s.width,341)
         )
         s.K.append(ij)
         fade(ij,a=0.2) if fa else 0
         # type hints
         b = bw(
             parent=s.p,
-            position=(x+15,y+263),
+            position=(x+15,y+301),
             label='Type hints',
             enable_sound=False,
             size=(s.width-30,30),
@@ -2074,7 +2186,7 @@ class Root:
             parent=s.p,
             texture=gt('white'),
             size=(s.width-18,1),
-            position=(x+10,y+253.5),
+            position=(x+10,y+291.5),
             opacity=0.6
         )
         s.K.append(ij)
@@ -2146,6 +2258,116 @@ class Root:
         )
         s.K.append(ij)
         s.p3junk.append(ij)
+        # text
+        b = bw(
+            parent=s.p,
+            position=(x+15,y+253),
+            label='Text',
+            size=(s.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            enable_sound=False,
+            on_activate_call=Call(s._val0,k,v)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
+    def _val0(s,*a):
+        deek()
+        s.val0(*a)
+    def val0(s,k,o,fa=1):
+        p4 = getattr(s,'p4',0)
+        if getattr(p4,'exists',lambda:False)():
+            fade(p4,i=1,a=-0.2)
+            p4j = getattr(s,'p4junk',[]).copy()
+            [_.delete() for _ in p4j]
+            p4.delete()
+            s.val0(k,o,fa=0)
+            return
+        x,y = -3*s.width-15,res()[1]-200
+        # bg
+        ij = s.p4 = iw(
+            parent=s.p,
+            texture=gt('white'),
+            color=s.COL1,
+            position=(x,y),
+            size=(s.width,200)
+        )
+        fade(ij,a=0.2) if fa else 0
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk = [ij]
+        # info
+        ij = tw(
+            parent=s.p,
+            color=(0,1,1),
+            position=(x+10,y+160),
+            text='Input literal text here,\nNo need to use quotes.\nUse Eval for raw input.',
+            maxwidth=s.width-20
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=s.p,
+            texture=gt('white'),
+            size=(s.width-18,1),
+            position=(x+10,y+98),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # input
+        ij = s.val0t = tw(
+            parent=s.p,
+            editable=True,
+            color=(0,1,1),
+            position=(x+10,y+60),
+            size=(s.width-20,30),
+            description='Example input: Hello, World!\nEnter',
+            text=str(o or ''),
+            allow_clear_button=False
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # separator
+        ij = iw(
+            parent=s.p,
+            texture=gt('white'),
+            size=(s.width-18,1),
+            position=(x+10,y+52.5),
+            opacity=0.6
+        )
+        s.K.append(ij)
+        s.p3junk.append(ij)
+        s.p4junk.append(ij)
+        # continue
+        b = bw(
+            parent=s.p,
+            position=(x+15,y+10),
+            label='Apply',
+            size=(s.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL1,
+            color=s.COL2,
+            enable_sound=False,
+            on_activate_call=Call(s.val0a,k)
+        )
+        s.K.append(b)
+        s.p3junk.append(b)
+        s.p4junk.append(b)
+    def val0a(s,k):
+        v = tw(query=s.val0t)
+        try: cw(s.tar,**{k:v})
+        except Exception as e: err(str(e)); return
+        nice('Applied!')
+        tw(s.val1v,text=brk(v))
+        s.po.TAR[1][0].update({k:v})
+        s.po.sync()
+        refresh()
     def _val3(s,*a):
         deek()
         s.val3(*a)
