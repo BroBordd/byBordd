@@ -60,7 +60,7 @@ from _babase import (
     get_camera_target as GCT
 )
 from os.path import join, dirname, getsize, basename
-from time import time, strftime, gmtime
+from time import strftime, gmtime, time
 from random import uniform as uf
 from threading import Thread
 from os import listdir as ls
@@ -1234,7 +1234,13 @@ class byBordd(Plugin):
         from bauiv1lib.watch import WatchWindow as n
         b = '__init__'; p = getattr(n,b)
         setattr(n,b,lambda v,*a,**k:(p(v,*a,**k),s.mk(v,1))[0])
+    def fix(s,p):
+        m = __import__('logging')
+        i = 'exception'
+        o = getattr(m,i)
+        setattr(m,i,lambda *a,**k:0 if s.b == p.get_selected_child() else o(*a,**k))
     def mk(s,v,i=0):
+        s.fix(v._root_widget)
         if i:
             x = v._width/2+SCL(v._scroll_width*-0.5+93,0)+100
             y = v.yoffs-SCL(63,10)-25
