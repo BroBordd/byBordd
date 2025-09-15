@@ -1062,7 +1062,8 @@ class FileMan(MainWindow):
         lines = [_ for _ in da.splitlines(True)]
         zc = len(str(az + len(lines)))
         ah = '\\n'
-        da = ah.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
+#        da = ah.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
+        da = ah.join([f"{str(i+1+az).zfill(zc)} | {_.rstrip()}" for i, _ in enumerate(lines)])
         z = len(da)
         p0 = s.statp0
         fxs, fys = s.statsz
@@ -1094,7 +1095,18 @@ class FileMan(MainWindow):
         is_first_char_offset_applied = False # Flag for the critical offset
         off = zc + 3
         try:
-            mud = int(da[off] == '#')
+#            mud = int(da[off] == '#')
+            mud = 0
+            try:
+                # Look for # anywhere in the first line after the line number prefix
+                line_end = da.find('\\n', off)
+                if line_end == -1:
+                    line_end = len(da)
+                first_line = da[off:line_end]
+                if '#' in first_line:
+                    mud = 1
+            except IndexError:
+                mud = 0
         except IndexError:
             mud = 0
 
@@ -1126,15 +1138,53 @@ class FileMan(MainWindow):
                         s.statkids.append(tw(text=da[i], position=(po[0], po[1] - (3 if big else 0)), h_align='center', v_align='top', parent=q1, big=big, color=s.COL3 if big else s.COL0))
                         nc += 1; i += 1
                     continue
-
+            # -- Handle line continuation (backslash followed by newline) --
+            if i + 3 <= z and da[i] == '\\' and da[i+1:i+3] == ah:
+                # Render the backslash
+                if not is_first_char_offset_applied:
+                    po[0] -= l * 1.5; is_first_char_offset_applied = True
+                big = nc < zc
+                po[0] += l
+                s.statkids.append(tw(text='\\', position=(po[0], po[1] - (3 if big else 0)), h_align='center', v_align='top', parent=q1, big=big, color=s.COL_OPERATOR))
+                nc += 1
+                # Now handle the newline - move to next line
+                po[0] = pos[0] - l * 1.5; po[1] -= hh; nc = 0
+                # Skip past the backslash and newline
+                i += 3
+                # Update comment detection for new line
+                try:
+                    mud = 0
+                    if not in_triple_comment:
+                        line_end = da.find('\\n', i)
+                        if line_end == -1:
+                            line_end = len(da)
+                        current_line = da[i:line_end]
+                        if '#' in current_line:
+                            mud = 1
+                except IndexError:
+                    mud = 0
+                continue
             # -- Priority 3: Newlines --
-            if i + 1 < z and (
-                (da[i:i+2]==ah)
-            ):
-                print('yes')
+#            if i + 1 < z and (
+#                (da[i:i+2]==ah)
+#            ):
+            if i + 1 < z and da[i:i+2] == ah:
                 po[0] = pos[0]-l*1.5; po[1] -= hh; nc = 0
                 try:
-                    mud = int(da[i + 2 + off] == '#' and not in_triple_comment)
+#                    mud = int(da[i + 2 + off] == '#' and not in_triple_comment)
+                    mud = 0
+                    if not in_triple_comment:
+                        try:
+                            # Look for # anywhere in the current line after the line number prefix
+                            line_start = i + 2
+                            line_end = da.find('\\n', line_start)
+                            if line_end == -1:
+                                line_end = len(da)
+                            current_line = da[line_start:line_end]
+                            if '#' in current_line:
+                                mud = 1
+                        except IndexError:
+                            mud = 0
                 except IndexError:
                     mud = 0
                 i += 2
