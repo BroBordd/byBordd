@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Polish v2.0 - Your very UI designer
+Polish v2.5 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
 Start by writing Polish() in dev console, or via settings UI.
@@ -43,6 +43,7 @@ from bauiv1 import (
 )
 from contextlib import redirect_stdout as REMAP
 from random import choice as CH, uniform as uf
+from traceback import print_exc as ERR
 from colorsys import hsv_to_rgb as HTR
 from zlib import compress, decompress
 from io import StringIO as SIO
@@ -200,6 +201,25 @@ class Polish:
         # finally
         s.sync()
         s.setup(first=True)
+        # resume
+        chk = var('TMP')
+        if chk: s.proload(chk,shut=1)
+    def debug(s):
+        s.exit(tr='out_scale')
+        c = s.tr()+'base=make()'
+        global BASE,CONT
+        CONT = {}
+        try: exec(c,CONT)
+        except:
+            btw('Debugger found an error!\nSee logs now')
+            print('Polish: Debugger just took the L:')
+            ERR()
+            return
+        BASE = CONT.get('base',None)
+        print(f'Polish: Now debugging {BASE}')
+        print('- Container reference >>> from polish import BASE')
+        print('- Context reference >>> from polish import CONT')
+        print('- Back to designer >>> polish()')
     def sync(s):
         s.MOM = []
         rev = {v:k for k,v in s.wids.items()}
@@ -419,10 +439,11 @@ class Polish:
             return
         s.kid = Man(w,s,i)
         s.hl(i)
-    def exit(s):
+    def exit(s,tr=None):
+        var('TMP',ENCODE(s.MOM))
         s.clear()
         fade(s.i,i=1,a=-0.1)
-        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=s.TAR[1][0].get('out_anim','out_left'))))
+        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=tr or s.TAR[1][0].get('out_anim','out_left'))))
     def cpcode(s):
         COPY(s.tr())
         nice('Copied python code!')
@@ -539,18 +560,21 @@ class Polish:
             o += n
         for fn, var_name, deferred_gk in fcs_deferred:
             o += t + f"{fn}({var_name}," + n + t*2 + deferred_gk + n + t + ")" + n
+        o += t + 'return root' + n
         return o
     def procp(s):
         o = ENCODE(s.MOM)
         COPY(o)
         nice('Copied!')
-    def proload(s,o):
+    def proload(s,o,shut=0):
         try: m = DECODE(o)
         except Exception as e: err(e); return
         # cleanup
-        s.tar.delete()
-        s.nid = -1
-        [_.clear() for _ in [s.MEM,s.MOM,s.wids,s.bt]]
+        if hasattr(s,'tar'):
+            s.tar.delete()
+            s.nid = -1
+            [_.clear() for _ in [s.MEM,s.MOM,s.wids,s.bt]]
+        if BASE: cw(BASE,transition='out_scale')
         # parent
         t = m.pop(0)
         at = {i:(tuple(j) if isinstance(j,list) else j) for i,j in t[1][0].items()}
@@ -582,17 +606,58 @@ class Polish:
         # finally
         s.sync()
         s.fresh()
-        nice('Loaded project!')
+        shut or nice('Loaded project!')
 
 # [-1, [{'size': [500, 450], 'stack_offset': [0, 0]}, 'containerwidget']]
 # [0, [{'parent': ['tar', 0], 'position': [253.9, 136.0], 'size': [100, 30], 'label': '#0 button'}, 'buttonwidget']]
 
+#def ENCODE(a):
+#    c=compress(dumps(a,separators=(',',':')).encode())
+#    return str(int.from_bytes(c,'big'))
+#def DECODE(s):
+#    b=int(s); n=(b.bit_length()+7)//8
+#    return loads(decompress(b.to_bytes(n,'big')).decode())
+
+def CLEAN(obj, path=""):
+    # Check if it's any type of callable (function, lambda, method, etc.)
+    if callable(obj):
+        print(f"Ignored callable object ({type(obj).__name__}) at {path}")
+        return None
+    elif hasattr(obj, '__dict__') and not isinstance(obj, (str, int, float, bool, type(None))):
+        # Handle custom objects by converting to dict, then clean
+        try:
+            obj_dict = {}
+            for k, v in obj.__dict__.items():
+                cleaned_v = CLEAN(v, f"{path}.{k}" if path else k)
+                obj_dict[k] = cleaned_v
+            return obj_dict
+        except:
+            print(f"Ignored complex object ({type(obj).__name__}) at {path}")
+            return None
+    elif isinstance(obj, dict):
+        cleaned = {}
+        for k, v in obj.items():
+            cleaned_v = CLEAN(v, f"{path}.{k}" if path else str(k))
+            cleaned[k] = cleaned_v
+        return cleaned
+    elif isinstance(obj, (list, tuple)):
+        cleaned = []
+        for i, item in enumerate(obj):
+            cleaned_item = CLEAN(item, f"{path}[{i}]")
+            cleaned.append(cleaned_item)
+        return cleaned
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        # Catch any other non-JSON-serializable types
+        print(f"Ignored non-serializable object ({type(obj).__name__}) at {path}")
+        return None
 def ENCODE(a):
-    c=compress(dumps(a,separators=(',',':')).encode())
-    return str(int.from_bytes(c,'big'))
+    c = compress(dumps(CLEAN(a), separators=(',', ':')).encode())
+    return str(int.from_bytes(c, 'big'))
 def DECODE(s):
-    b=int(s); n=(b.bit_length()+7)//8
-    return loads(decompress(b.to_bytes(n,'big')).decode())
+    b = int(s); n = (b.bit_length() + 7) // 8
+    return loads(decompress(b.to_bytes(n, 'big')).decode())
 
 class File:
     COL1 = (0.4,0.4,0.4)
@@ -601,7 +666,7 @@ class File:
         s.po = po
         r = res()
         K = s.K = []
-        ys = s.ys = 220
+        ys = s.ys = 270
         x,y = (-po.width-5,r[1]-ys)
         s.I = iw(
             parent=po.p,
@@ -612,11 +677,31 @@ class File:
         )
         fade(s.I,a=0.2)
         K.append(s.I)
-        # copy project
+        # debug
+        K.append(bw(
+            parent=po.p,
+            position=(x+15,y+230),
+            label='Debug',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL2,
+            color=s.COL1,
+            enable_sound=False,
+            on_activate_call=po.debug
+        ))
+        # separator
+        K.append(iw(
+            parent=po.p,
+            texture=gt('white'),
+            size=(po.width-17,1),
+            opacity=0.6,
+            position=(x+8,y+220)
+        ))
+        # save seed
         K.append(bw(
             parent=po.p,
             position=(x+15,y+180.5),
-            label='Copy project',
+            label='Save seed',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -624,11 +709,11 @@ class File:
             enable_sound=False,
             on_activate_call=po.procp
         ))
-        # load project
+        # load seed
         K.append(bw(
             parent=po.p,
             position=(x+15,y+143),
-            label='Load project',
+            label='Load seed',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -1243,6 +1328,7 @@ class Man:
         tw(s.K[2],text=str(round(o[0],1)))
         tw(s.K[3],text=str(round(o[1],1)))
         s.po.bord()
+        s.po.sync()
     def prev(s,k,t,mem,fa=1):
         on = t
         po = s.po
@@ -2773,7 +2859,8 @@ class ctw:
             s.col()
         s.on_edit(t) if callable(s.on_edit) and t else None
 
-# Global patches
+# Global
+BASE = CONT = None
 ROOT = lambda: join(env()['python_directory_user'],'Polish')
 makedirs(ROOT(), exist_ok=True)
 ran = lambda s: (round(uf(0,s[0]),1),round(uf(0,s[1]),1))
@@ -2849,7 +2936,7 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print('Polish v2.0 - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print('Polish v2.5 - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
