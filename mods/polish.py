@@ -67,6 +67,7 @@ class Polish:
         *,
         size=(500,450),
         parent=None,
+        tr=None,
         **k
     ):
         s.dead = 0
@@ -79,6 +80,8 @@ class Polish:
             **k
         }
         s.tar = cw(**at)
+        if tr and 'transition' not in at:
+            teck(0.1,lambda:cw(s.tar,transition=tr))
         s.TAR = (s.tar,(at,cw))
         s.width = 200
         s.c = [0,0,0]
@@ -204,6 +207,10 @@ class Polish:
         # resume
         chk = var('TMP')
         if chk: s.proload(chk,shut=1)
+    def clearall(s):
+        var('TMP',0)
+        s.exit(tr='out_left')
+        s.__class__(tr='in_right')
     def debug(s):
         s.exit(tr='out_scale')
         c = s.tr()+'base=make()'
@@ -443,7 +450,7 @@ class Polish:
         var('TMP',ENCODE(s.MOM))
         s.clear()
         fade(s.i,i=1,a=-0.1)
-        teck(0.2,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=tr or s.TAR[1][0].get('out_anim','out_left'))))
+        teck(0.15,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=tr or s.TAR[1][0].get('out_anim','out_left'))))
     def cpcode(s):
         COPY(s.tr())
         nice('Copied python code!')
@@ -568,7 +575,7 @@ class Polish:
         nice('Copied!')
     def proload(s,o,shut=0):
         try: m = DECODE(o)
-        except Exception as e: err(e); return
+        except Exception as e: err(str(e)); return
         # cleanup
         if hasattr(s,'tar'):
             s.tar.delete()
@@ -666,7 +673,7 @@ class File:
         s.po = po
         r = res()
         K = s.K = []
-        ys = s.ys = 270
+        ys = s.ys = 307
         x,y = (-po.width-5,r[1]-ys)
         s.I = iw(
             parent=po.p,
@@ -680,8 +687,8 @@ class File:
         # debug
         K.append(bw(
             parent=po.p,
-            position=(x+15,y+230),
-            label='Debug',
+            position=(x+15,y+267),
+            label='Debug Now',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -695,13 +702,13 @@ class File:
             texture=gt('white'),
             size=(po.width-17,1),
             opacity=0.6,
-            position=(x+8,y+220)
+            position=(x+8,y+257)
         ))
         # save seed
         K.append(bw(
             parent=po.p,
-            position=(x+15,y+180.5),
-            label='Save seed',
+            position=(x+15,y+217.5),
+            label='Save Seed',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -712,8 +719,8 @@ class File:
         # load seed
         K.append(bw(
             parent=po.p,
-            position=(x+15,y+143),
-            label='Load seed',
+            position=(x+15,y+180),
+            label='Load Seed',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -727,13 +734,13 @@ class File:
             texture=gt('white'),
             size=(po.width-17,1),
             opacity=0.6,
-            position=(x+8,y+133)
+            position=(x+8,y+170)
         ))
         # export code
         K.append(bw(
             parent=po.p,
-            position=(x+15,y+95.5),
-            label='Export code',
+            position=(x+15,y+132.5),
+            label='Export Code',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -744,8 +751,8 @@ class File:
         # copy code
         K.append(bw(
             parent=po.p,
-            position=(x+15,y+58),
-            label='Copy code',
+            position=(x+15,y+95),
+            label='Copy Code',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -759,13 +766,25 @@ class File:
             texture=gt('white'),
             size=(po.width-17,1),
             opacity=0.6,
-            position=(x+8,y+48)
+            position=(x+8,y+85)
+        ))
+        # clear all
+        K.append(bw(
+            parent=po.p,
+            position=(x+15,y+47),
+            label='Clear All',
+            size=(po.width-30,30),
+            texture=gt('white'),
+            textcolor=s.COL2,
+            color=s.COL1,
+            enable_sound=False,
+            on_activate_call=po.clearall
         ))
         # exit
         K.append(bw(
             parent=po.p,
             position=(x+15,y+10),
-            label='Exit',
+            label='Save & Exit',
             size=(po.width-30,30),
             texture=gt('white'),
             textcolor=s.COL2,
@@ -784,12 +803,13 @@ class File:
             s.loadj = []
             s.loadi = 0
             return
-        x,y = -s.po.width*2-10,res()[1]-s.ys
+        ys = 220
+        x,y = -s.po.width*2-10,res()[1]-ys
         s.loadi = ij = iw(
             parent=s.po.p,
             texture=gt('white'),
             position=(x,y),
-            size=(s.po.width,s.ys),
+            size=(s.po.width,ys),
             color=(0.25,0.25,0.25)
         )
         s.K.append(ij)
@@ -799,7 +819,7 @@ class File:
         ij = tw(
             color=s.COL2,
             text='Paste your project\nseed below. Generate\nIt by pressing the\nCopy project button.',
-            position=(x+10,y+s.ys-40),
+            position=(x+10,y+ys-40),
             maxwidth=s.po.width-20,
             parent=s.po.p,
             shadow=1.2
@@ -811,7 +831,7 @@ class File:
             parent=s.po.p,
             texture=gt('white'),
             size=(s.po.width-18,1),
-            position=(x+9,y+s.ys-120),
+            position=(x+9,y+ys-120),
             opacity=0.6
         )
         s.K.append(ij)
@@ -822,7 +842,7 @@ class File:
             size=(s.po.width-20,30),
             parent=s.po.p,
             color=s.COL2,
-            position=(x+10,y+s.ys-160)
+            position=(x+10,y+ys-160)
         )
         s.K.append(ij)
         lj.append(ij)
@@ -831,7 +851,7 @@ class File:
             parent=s.po.p,
             texture=gt('white'),
             size=(s.po.width-18,1),
-            position=(x+9,y+s.ys-170),
+            position=(x+9,y+ys-170),
             opacity=0.6
         )
         s.K.append(ij)
@@ -844,7 +864,7 @@ class File:
             size=(s.po.width-30,30),
             textcolor=s.COL2,
             color=s.COL1,
-            position=(x+15,y+s.ys-210),
+            position=(x+15,y+ys-210),
             label='Load'
         )
         bw(ij,on_activate_call=lambda: s.po.proload(tw(query=inp)))
@@ -2923,7 +2943,6 @@ def fade(w,i=0,j=0.025,a=0.1):
 class byBordd(Plugin):
     has_settings_ui = lambda s: True
     show_settings_ui = lambda s,b: s.make()
-    make = lambda s: setattr(s,'ins',Polish())
     def __init__(s):
         s.last = ''
         s.ins = None
@@ -2940,7 +2959,7 @@ class byBordd(Plugin):
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
-            if getattr(s.ins,'dead',1): s.make()
+            if getattr(s.ins,'dead',1): Polish()
             else: broad('Already running!')
             dset('')
         teck(0.1,s.eye)
