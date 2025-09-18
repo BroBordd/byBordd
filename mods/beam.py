@@ -1,4 +1,4 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Copyright 2025 - Solely by BrotherBoard
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
@@ -18,19 +18,7 @@ from bauiv1 import (
     charstr as cs,
     SpecialChar as sc
 )
-from bascenev1 import (
-    newnode,
-    Call,
-    animate,
-    timer as tick,
-    Timer as tock,
-    getmesh,
-    gettexture,
-    getcollision as COL,
-    HitMessage,
-    getnodes,
-    getsound
-)
+import bascenev1 as bs
 from math import dist
 from uuid import uuid4
 from random import uniform as UF
@@ -76,15 +64,15 @@ class Beam:
         id = None
     ):
         so = SO.get()
-        s.node = newnode(
+        s.node = bs.newnode(
             'prop',
             delegate=s,
             attrs={
                 'position':position,
                 'body':'box',
-                'mesh':getmesh('tnt'),
+                'mesh':bs.getmesh('powerup'),
                 'materials':[so.object_material,so.pickup_material],
-                'color_texture':gettexture('rgbStripes'),
+                'color_texture':bs.gettexture('tv'),
                 'shadow_size':0.5,
                 'mesh_scale':0.7,
                 'body_scale':0.6
@@ -93,10 +81,11 @@ class Beam:
         s.node.getdelegate(object).handlemessage = s.spy
         s.container = c = Container(size=(315,100),opacity=0)
         s.next = container
+        s.next.owner_beam = s
         s.next.iopacity = 0
         id = s.id = id or str(uuid4())[:4]
         title = title or cs(sc.OUYA_BUTTON_O)+f' Beam #{id}'
-        message = message or cs(sc.LEFT_BUTTON)+' Punch this to engage.'
+        message = message or cs(sc.LEFT_BUTTON)+' Punch this to engage'
         Text(
             parent=c,
             text=title,
@@ -138,14 +127,14 @@ class Beam:
         """
         Handles incoming messages to the Beam's physical node.
 
-        Specifically, it responds to HitMessage by activating the UI
+        Specifically, it responds to bs.HitMessage by activating the UI
         and capturing player input.
 
         Args:
             m (babase.Message): The message received by the node.
         """
-        if isinstance(m,HitMessage):
-            n = COL().sourcenode
+        if isinstance(m,bs.HitMessage):
+            n = bs.getcollision().sourcenode
             if n.getnodetype() != 'spaz': return
             if not s.active:
                 s.container.opacity = 0
@@ -153,27 +142,33 @@ class Beam:
                 s.up = False
                 s.next.opacity = 1
             s.tip.opacity = 1
-            s.bye = tock(1.5,Call(setattr,s.tip,'opacity',0))
+            s.bye = bs.Timer(1.5,bs.Call(setattr,s.tip,'opacity',0))
             s.next.capture(n)
 
     def eye(s):
         """
-        Continuously monitors for nearby players to display the introductory UI.
-
-        This method runs on a timer and checks the distance to all 'spaz' nodes
-        (players). If a player comes within a certain range, the introductory
-        UI for the Beam becomes visible.
+        Monitors for nearby players to display the introductory UI.
+        This version checks all players before making a single decision to avoid flickering.
         """
-        tick(0.1,s.eye)
+        bs.timer(0.1, s.eye)
         if s.active: return
-        for n in [_ for _ in getnodes() if _.getnodetype() == 'spaz']:
-            d = dist(n.position,s.node.position)
-            if d>2 and s.up:
-                s.up = False
-                s.container.opacity = 0
-            elif d<2 and not s.up:
-                s.up = True
-                s.container.opacity = 1
+
+        # First, determine if ANY player is close enough.
+        a_player_is_close = False
+        for n in [_ for _ in bs.getnodes() if _.getnodetype() == 'spaz']:
+            if dist(n.position, s.node.position) < 2:
+                a_player_is_close = True
+                break # Found one, no need to check the rest
+
+        # Now, make a single decision based on the collective state.
+        if a_player_is_close and not s.up:
+            # A player is in range, and the UI is down, so bring it up.
+            s.up = True
+            s.container.opacity = 1
+        elif not a_player_is_close and s.up:
+            # No players are in range, and the UI is up, so bring it down.
+            s.up = False
+            s.container.opacity = 0
 
     def back(s):
         """
@@ -230,18 +225,78 @@ class Container:
         cursor_color = (0,1,1),
         cursor_res = cs(sc.DPAD_CENTER_BUTTON),
         res = '\u2588',
+        resw = 19.0,
         scale = 1,
         opacity = 1
     ):
         s.position = p = position
+        s.owner_beam = None
         s.node = TEX(None,text='')
-        s.sc,s.me,s.cursor,s.kids,s.rest = scale*0.01,None,None,[],[]
-        s.size,s.res,s.lines,s.color,s.opacity = size,res,[],color,opacity
+        s.sc,s.cursor,s.kids,s.rest,s.captives = scale*0.01,None,[],[],[]
+        s.resw,s.size,s.res,s.lines,s.color,s.opacity = resw,size,res,[],color,opacity
         s.cursor_color,s.cursor_res = cursor_color,cursor_res
+        s.cursor_math = None
         s.on,s.ho = [0],[0,0]
         # start threads
         [_() for _ in [s.make,s.point,s.hover,s.watch]]
         s.spy = 1
+
+    def point(s):
+        """
+        (Re)creates the interactive cursor within the container.
+        """
+        getattr(s.cursor,'delete',lambda:0)()
+        getattr(s.cursor_math, 'delete', lambda:0)() # Also delete the old math node
+        s.cursor = TEX(
+            s.node,
+            color=s.cursor_color,
+            text=s.cursor_res,
+            opacity=[0,1][bool(s.captives)],
+            v_align='bottom',
+            h_align='center'
+        )
+        s.cursor_math = MAT(s.cursor,*s.cursor_off) # Store the new math node
+        s.node.connectattr('position',s.cursor_math,'input2')
+        s.cursor_math.connectattr('output',s.cursor,'position')
+
+    def hover(s):
+        """
+        Continuously updates the cursor's position based on player input.
+        """
+        bs.timer(0.01, s.hover)
+        if not s.captives: return # Simplified guard clause
+        
+        # No need to check for [0,0] if the player isn't active
+        x, y = s.ho
+        sc6 = s.sc * 6
+        px, py, pz = s.node.position
+        zx, zy = s.size
+        h32sc = 32 * s.sc
+        gsw_res_sc = s.resw * s.sc
+        
+        xp = y * sc6
+        yp = x * sc6
+        
+        # Get the current logical cursor position to check boundaries
+        nx_c, ny_c, nz = s.cpos()
+        
+        nx = nx_c + xp
+        ny = ny_c + yp
+        
+        # Boundary checks (this logic is correct)
+        if not (px < nx < (px + (zx * s.sc) - gsw_res_sc)):
+            xp = 0
+        if not (py + h32sc/2 < ny < (py + (zy * s.sc))):
+            yp = 0
+
+        # If there's any valid movement, update the offset
+        if xp != 0 or yp != 0:
+            # Update the logical offset value
+            s.cursor_off = (s.cursor_off[0] + xp, s.cursor_off[1] + yp)
+
+            # THE FIX: Update the math node's input, not the cursor's position directly.
+            if s.cursor_math:
+                s.cursor_math.input1 = (s.cursor_off[0], s.cursor_off[1], 0)
 
     def make(s):
         """
@@ -251,7 +306,7 @@ class Container:
         the container's defined size, then creates 'text' nodes for each line.
         It also re-calculates the cursor's offset.
         """
-        t,h = FIT(s.res,s.size)
+        t,h = FIT(s.res,s.resw,s.size)
         [_.delete() for _ in s.lines if hasattr(_,'delete')]
         s.lines = [
             TEX(
@@ -270,26 +325,6 @@ class Container:
         zx,zy = s.size
         s.cursor_off = (UF((zx/6)*s.sc,(zx/2)*s.sc),UF((zy/6)*s.sc,(zy/2)*s.sc))
         s.node.position = s.position
-
-    def point(s):
-        """
-        (Re)creates the interactive cursor within the container.
-
-        This method deletes any existing cursor and creates a new 'text' node
-        for the cursor, positioning it relative to the container.
-        """
-        getattr(s.cursor,'delete',lambda:0)()
-        s.cursor = TEX(
-            s.node,
-            color=s.cursor_color,
-            text=s.cursor_res,
-            opacity=[0,1][bool(s.me)],
-            v_align='bottom',
-            h_align='center'
-        )
-        m = MAT(s.cursor,*s.cursor_off)
-        s.node.connectattr('position',m,'input2')
-        m.connectattr('output',s.cursor,'position')
 
     def cpos(s):
         """
@@ -316,26 +351,28 @@ class Container:
             s.make()
         else: f(a,v)
 
-    def capture(s,n):
+    # In the Container class, replace the entire `capture` method with this:
+    def capture(s, n):
         """
-        Captures input from a specific player and assigns it to the container.
-
-        This prevents the player from controlling their character and instead
-        routes their input to the container for UI navigation.
-
-        Args:
-            n (babase.Node): The 'spaz' node of the player to capture.
+        Captures input from a specific player and adds them to the list.
         """
-        s.me = n.source_player
-        s.me.actor.node.move_up_down = 0
-        s.me.actor.node.move_left_right = 0
-        s.me.resetinput()
-        for i,_ in enumerate(['UP_DOWN','LEFT_RIGHT']):
-            s.me.assigninput(getattr(IT,_),Call(s.manage,i))
-        s.me.assigninput(IT.BOMB_PRESS,s.dump)
-        s.me.assigninput(IT.PUNCH_PRESS,s.push)
-        animate(s.cursor,'opacity',{0:0,0.3:1})
+        player = n.source_player
+        if player in s.captives: return # Don't capture the same player twice
 
+        s.captives.append(player)
+        player.actor.node.move_up_down = 0
+        player.actor.node.move_left_right = 0
+        player.resetinput()
+        for i, _ in enumerate(['UP_DOWN', 'LEFT_RIGHT']):
+            player.assigninput(getattr(IT, _), bs.Call(s.manage, i))
+
+        # The bomb press should call dump(), which now releases everyone
+        player.assigninput(IT.BOMB_PRESS, bs.Call(s.release_one, player))
+        player.assigninput(IT.PUNCH_PRESS, s.push)
+
+        # Only animate the cursor if this is the first player
+        if len(s.captives) == 1:
+            bs.animate(s.cursor, 'opacity', {0: 0, 0.3: 1})
     def manage(s,i,v):
         """
         Manages directional input from the captured player.
@@ -348,35 +385,6 @@ class Container:
         """
         s.ho[i] = v
 
-    def hover(s):
-        """
-        Continuously updates the cursor's position based on player input.
-
-        This method runs on a timer and moves the cursor within the container's
-        bounds according to the player's directional input.
-        """
-        tick(0.01, s.hover)
-        if s.ho == [0,0] and s.position == s.node.position: return
-        x, y = s.ho
-        sc6 = s.sc * 6
-        px, py, pz = s.node.position
-        zx, zy = s.size
-        h32sc = 32 * s.sc
-        gsw_res_sc = GSW(s.res) * s.sc
-        xp = y * sc6
-        yp = x * sc6
-        nx_c, ny_c, nz = s.cpos()
-        nx = nx_c + xp
-        ny = ny_c + yp
-        if not (px < nx < (px + (zx * s.sc) - gsw_res_sc)):
-            nx = nx_c
-            xp = 0
-        if not (py + h32sc/2 < ny < (py + (zy * s.sc))):
-            ny = ny_c
-            yp = 0
-        if (nx, ny, nz) != s.cursor.position:
-            s.cursor_off = (s.cursor_off[0] + xp, s.cursor_off[1] + yp)
-            s.cursor.position = (nx, ny, nz)
 
     def watch(s):
         """
@@ -386,8 +394,8 @@ class Container:
         over any `Button` objects within the container, highlighting them
         accordingly.
         """
-        tick(0.01,s.watch)
-        if not s.me: return
+        bs.timer(0.01,s.watch)
+        if not s.captives: return
         x,y,z = s.cpos()
         o = None
         for _ in s.kids:
@@ -400,18 +408,35 @@ class Container:
             if b: o = _; break
         s.on[0] = o
 
+    # In the Container class, replace the entire `dump` method with this:
     def dump(s):
         """
-        Releases control of the player and deactivates the container.
-
-        This restores normal player controls and fades out the cursor.
+        Releases control for ALL captured players and deactivates the container.
         """
-        s.me.resetinput()
-        s.me.actor.connect_controls_to_player()
-        animate(s.cursor,'opacity',{0:1,0.3:0})
-        getattr(s.on[0],'hl',lambda b:0)(False)
-        s.on[0] = s.me = None
-        s.ho = [0,0]
+
+        for player in s.captives:
+            if player and player.actor:
+                player.resetinput()
+                player.actor.connect_controls_to_player()
+
+        s.captives.clear() # Empty the list
+        bs.animate(s.cursor, 'opacity', {0: 1, 0.3: 0})
+        getattr(s.on[0], 'hl', lambda b: 0)(False)
+        s.on[0] = None
+        s.ho = [0, 0]
+    # In the Container class
+    def release_one(s, player):
+        """
+        Releases control for a single player who pressed the bomb button.
+        If this was the last captured player, it triggers the full UI shutdown.
+        """
+        if player in s.captives:
+            if player and player.actor:
+                player.resetinput()
+                player.actor.connect_controls_to_player()
+            s.captives.remove(player)
+
+        if not s.captives: s.dump()
 
     def add(s,w):
         """
@@ -434,7 +459,7 @@ class Container:
         f = getattr(s.on[0],'call',0)
         if not callable(f): return
         z = getattr(s.on[0],'sound',0)
-        f(); getsound(z).play(position=s.cpos()) if z else 0
+        f(); bs.getsound(z).play(position=s.cpos()) if z else 0
 
     def delete(s):
         """
@@ -443,7 +468,7 @@ class Container:
         Fades out the container and schedules its actual deletion after a delay.
         """
         s.anim(1,0)
-        tick(1,s._delete)
+        bs.timer(1,s._delete)
 
     def _delete(s):
         """
@@ -460,7 +485,7 @@ class Container:
             p2 (float): The ending opacity.
             t (float): The duration of the animation in seconds.
         """
-        [animate(_,'opacity',{0:p1,t:p2}) for _ in s.lines]
+        [bs.animate(_,'opacity',{0:p1,t:p2}) for _ in s.lines]
         for _ in s.kids+s.rest:
             _.anim(p1,p2,t=t)
 
@@ -505,6 +530,7 @@ class Button:
         color = (0.3,0.3,0.3),
         textcolor = (0.6,0.6,0.6),
         res = '\u2588',
+        resw = 19.0,
         scale = 1,
         call = lambda:None,
         sound = 'dingSmallHigh',
@@ -513,7 +539,7 @@ class Button:
     ):
         s.parent,s.sc,s.res,s.size,s.call = parent,scale*0.01,res,size,call
         s.lines,s.text,s.label,s.position,s.sound = [],None,label,position,sound
-        s.color,s.textcolor,s.corners,s.up = color,textcolor,(0,0),False
+        s.resw,s.color,s.textcolor,s.corners,s.up = resw,color,textcolor,(0,0),False
         s.hl_sound = hl_sound
         s.make()
         s.spy = 1
@@ -527,7 +553,7 @@ class Button:
         adjusts the label's scale to fit within the button, then creates
         'text' nodes for each.
         """
-        t,h = FIT(s.res,s.size)
+        t,h = FIT(s.res,s.resw,s.size)
         [_.delete() for _ in s.lines if hasattr(_,'delete')]
         pn = s.parent.node
         s.lines = [
@@ -573,7 +599,7 @@ class Button:
             p (tuple[float, float]): The new 2D offset (x, y) for the button.
         """
         p = tuple([_*s.sc for _ in p])
-        w = GSW(s.res)
+        w = s.resw
         zx,zy = s.size
         w = ((round(zx/w)*w)*s.sc)/2
         e = ((round(zy/32)*32)*s.sc)/2
@@ -596,7 +622,7 @@ class Button:
             b (bool): If True, highlight the button; if False, unhighlight it.
         """
         s.up = b
-        getsound(s.hl_sound).play(position=s.text.position) if b else 0
+        bs.getsound(s.hl_sound).play(position=s.text.position) if b else 0
         i = 0.4
         for _ in ['color','textcolor']:
             c = getattr(s,_)
@@ -613,7 +639,7 @@ class Button:
             p2 (float): The ending opacity.
             t (float): The duration of the animation in seconds.
         """
-        [animate(_,'opacity',{0:p1,t:p2}) for _ in [*s.lines,s.text]]
+        [bs.animate(_,'opacity',{0:p1,t:p2}) for _ in [*s.lines,s.text]]
 
 
 class Text:
@@ -700,12 +726,12 @@ class Text:
             p2 (float): The ending opacity.
             t (float): The duration of the animation in seconds.
         """
-        animate(s.line,'opacity',{0:p1,t:p2})
+        bs.animate(s.line,'opacity',{0:p1,t:p2})
 
 GSW = lambda s: gsw(s,suppress_warning=True)
-FIT = lambda r,s: (r*(round(s[0]/GSW(r)))+'\n',round(s[1]/32))
+FIT = lambda o,r,s: (o*(round(s[0]/r))+'\n',round(s[1]/32))
 MAT = lambda o,x,y: (
-    newnode(
+    bs.newnode(
         'math',
         owner=o,
         attrs={
@@ -715,7 +741,7 @@ MAT = lambda o,x,y: (
     )
 )
 TEX = lambda o,**k: (
-    newnode(
+    bs.newnode(
         'text',
         attrs={
             'in_world':True,
@@ -727,7 +753,7 @@ TEX = lambda o,**k: (
     )
 )
 
-def demo():
+def demo(position=(-4,0.4,0)):
     """
     Demonstrates the usage of the Beam, Container, Button, and Text classes.
 
@@ -781,7 +807,7 @@ def demo():
     )
     beam = Beam(
         container=c,
-        position=(-4,0.4,0)
+        position=position
     )
 
 # brobord collide grass
