@@ -87,16 +87,16 @@ class Bubble:
     It consists of a background text block and a foreground text block
     to create a solid look.
     """
-    def __init__(s,head,res='\u2588'):
+    def __init__(s,head,res='\u2588',resw=19.0):
         s.head = head
         s.res = res
+        s.resw = resw
         s.text = ''
         s.kids = []
         s.bye = None
         s.node = newnode(
             'math',
             delegate=s,
-            owner=head,
             attrs={
                 'input1':(0,0,0),
                 'operation':'add'
@@ -113,7 +113,7 @@ class Bubble:
         ls = len(text.splitlines())
         s.node.input1 = (0,1.3+0.32*ls,0)
         bg,t = s.kids
-        bg.text = (round(GSW(text)/GSW(s.res)+1)*s.res+'\n')*ls
+        bg.text = (round(GSW(text)/s.resw+1)*s.res+'\n')*ls
         t.text = text
         if not s.text: s.anim(0,1)
         s.text = text
@@ -184,34 +184,130 @@ class Ender(Bot):
 
         # Funny messages
         s.pursuit_messages = [
-            'Come here',
-            'You can\'t get too far',
-            'I\'m coming for ya',
-            'Got my eyes on you',
-            'Hello there, friendo'
+            'Target locked and pursuing',
+            'You can run, but you can\'t hide',
+            'Contract initiated',
+            'Time to collect',
+            'No escape from the shadows',
+            'Professional courtesy: you\'re dead',
+            'The hunt is on',
+            'Moving to intercept',
+            'Your time has come',
+            'Consider this a house call',
+            'Tracking device activated',
+            'Distance closing rapidly',
+            'You\'ve been marked',
+            'The reaper approaches',
+            'Nowhere to run now',
+            'My scope has found you',
+            'Target in sight, engaging',
+            'Death wears sunglasses',
+            'The shadows have eyes',
+            'Running only delays the inevitable'
         ]
+
         s.acquire_messages = [
-            'Gotcha, now become cake',
-            'Heheheh... got you',
-            'My turn',
-            'I\'ve got a present for you',
-            'Don\'t worry, this will only hurt a lot'
+            'Contract fulfilled',
+            'Nothing personal, just business',
+            'Target acquired and terminated',
+            'Clean execution',
+            'Job well done',
+            'Payment collected',
+            'Another satisfied client',
+            'Precision strike complete',
+            'Mission accomplished',
+            'Professional service delivered',
+            'Direct hit confirmed',
+            'Lights out, game over',
+            'Textbook elimination',
+            'The agency trained me well',
+            'One shot, one kill',
+            'Consider yourself retired',
+            'Welcome to the afterlife',
+            'Efficiency at its finest',
+            'Target down, objective complete',
+            'Another name crossed off the list'
         ]
+
         s.release_messages = [
-            'He\'s DEAD',
-            'WHO\'S NEXT',
-            'Oops, I dropped it',
-            'Target neutralized',
-            'That was fun'
+            'Target eliminated',
+            'Contract completed successfully',
+            'Clean kill, no witnesses',
+            'Another day at the office',
+            'Professional standards maintained',
+            'Mission status: success',
+            'Package delivered',
+            'Work is done here',
+            'Next contract, please',
+            'The agency will be pleased',
+            'File closed permanently',
+            'Invoice sent to client',
+            'Quality work, as always',
+            'Time to find the next mark',
+            'Job satisfaction: maximum',
+            'The shadows claim another',
+            'Case closed with extreme prejudice',
+            'Retirement plan activated',
+            'Service with a smile... and a scope',
+            'Professional courtesy extended'
         ]
+
         s.idle_messages = [
-            'Is anyone out there',
-            'Boring...',
-            'Time to find a new friend',
-            'Where did everyone go',
-            'Hmm, I sense a disturbance in the force'
+            'Server feels empty...',
+            'Where did everyone go?',
+            'Waiting for targets to arrive',
+            'Ghost town out here',
+            'Even assassins get lonely',
+            'No contracts available',
+            'Silence... too much silence',
+            'The hunt begins when they return',
+            'Empty servers, empty clips',
+            'Sharpening skills in the shadows',
+            'This place needs more action',
+            'Even pros need someone to eliminate',
+            'Scanning... no life signs detected',
+            'The agency didn\'t mention this downtime',
+            'Population: zero. Boring.',
+            'Come out, come out, wherever you are',
+            'A killer without prey is just... waiting',
+            'Time to attract some fresh meat',
+            'Server population critically low',
+            'The darkness grows restless',
+            'Maintenance mode: activated',
+            'Solo missions are overrated',
+            'The void stares back',
+            'Recruiting new victims...',
+            'Echo... echo... echo...',
+            'My trigger finger is getting itchy',
+            'Quality over quantity, but still...',
+            'The calm before someone joins',
+            'Broadcasting on all frequencies',
+            'Time to update the kill count... oh wait'
         ]
-    
+
+        s.held_messages = [
+            "You're holding the wrong guy",
+            "Grabbing me was a bad idea",
+            "You think holding me will help?",
+            "Wrong target to grab, pal",
+            "Hands off the professional",
+            "That grip won't save you",
+            "You're holding a loaded weapon",
+            "Bad move grabbing an agent",
+            "Your hold won't last long",
+            "Holding me just delays your death",
+            "Nice grip, shame you have to die",
+            "You're clutching at straws now",
+            "That grasp is about to slip",
+            "Holding me? How unprofessional",
+            "Your grip is weaker than your chances",
+            "You grabbed death itself",
+            "Restraining me won't restrain fate",
+            "That hold is temporary, your death isn't",
+            "Grabbing me just made this personal",
+            "You've got nerves touching the reaper"
+        ]
+
     def _say(s, message: str):
         """Handles speaking with a cooldown to prevent spam."""
         now = time()
@@ -223,7 +319,7 @@ class Ender(Bot):
         """Urgent message with its own cooldown, overriding normal speech."""
         now = time()
         if now - s.last_held_message_time > s.held_message_cooldown:
-            s.bub.push(choice(["You've got some nerve to hold me","Get your hands off me","Let go of me","Did you just hold me"]))
+            s.bub.push(choice(s.held_messages))
             s.last_held_message_time = now
 
     def _protective_think(s):
@@ -235,25 +331,30 @@ class Ender(Bot):
             return
 
         target = s._get_target()
-        now = time()
-        
-        # Check if we are being held. If so, try to break free and say the urgent message.
-        if target and target.hold_node == s.node and now - s.last_skill_time > 0.4:
-            s._say_held()
-            s.skill2()
-            s.last_skill_time = now
-            return
+        if isinstance(target,tuple):
+            # powerup
+            ty,target = target
+        else:
+            # player
+            now = time()
 
-        # Only activate if a target exists and we are running (chasing)
-        if target and s.node.run and now - s.last_skill_time > 0.4:
-            my_pos = s.node.position
-            target_pos = target.position
-            distance = dist(my_pos, target_pos)
-
-            # If the target is within a close range, use skill2 (punch + grab)
-            if distance < 1.6:
+            # Check if we are being held. If so, try to break free and say the urgent message.
+            if target and target.hold_node == s.node and now - s.last_skill_time > 0.4:
+                s._say_held()
                 s.skill2()
                 s.last_skill_time = now
+                return
+
+            # Only activate if a target exists and we are running (chasing)
+            if target and s.node.run and now - s.last_skill_time > 0.4:
+                my_pos = s.node.position
+                target_pos = target.position
+                distance = dist(my_pos, target_pos)
+
+                # If the target is within a close range, use skill2 (punch + grab)
+                if distance < 1.6:
+                    s.skill2()
+                    s.last_skill_time = now
         
     def _start_combos(s):
         """Starts the skill1 and shake combos on a regular timer."""
@@ -283,20 +384,39 @@ class Ender(Bot):
         if not s.node.exists(): return None
         my_pos = s.node.position
 
-        player_nodes = [
-            n for n in GN() if n.exists() and n.getnodetype() == 'spaz' and n.hurt < 1.0
-        ]
-        potential_targets = [p for p in player_nodes if p is not s.node]
+        pup_nodes = []
+        player_nodes = []
+        for n in GN():
+            try:
+                if n.exists() and n.getnodetype() == 'spaz' and n.hurt < 1.0 and n is not s.node:
+                    player_nodes.append(n)
+                    continue
+                ty = getattr(n.getdelegate(object),'poweruptype',0)
+                match ty:
+                    case 'health':
+                        if s.node.hurt < 0.3: continue
+                        pup_nodes.append((ty,n))
+                    case 'punch':
+                        if s.node.getdelegate(object)._has_boxing_gloves: continue
+                        pup_nodes.append((ty,n))
+                    case 'shield':
+                        if (s.node.getdelegate(object).shield_hitpoints or 0) > 200: continue
+                        pup_nodes.append((ty,n))
+            except:
+                from traceback import print_exc
+                print_exc()
 
-        if not potential_targets:
-            return None
+        if pup_nodes:
+            return min(
+                pup_nodes,
+                key=lambda _: dist(my_pos, _[1].position)
+            )
+        if player_nodes:
+            return min(
+                player_nodes,
+                key=lambda n: dist(my_pos, n.position)
+            )
 
-        # Find the closest valid target
-        return min(
-            potential_targets,
-            key=lambda n: dist(my_pos, n.position)
-        )
-    
     def _shake(s):
         """Handles the rapid left/right shaking movement."""
         s.is_shaking = not s.is_shaking
@@ -315,35 +435,39 @@ class Ender(Bot):
             s._stop_combos()
             return
 
-        target = s._get_target()
         now = time()
-        
-        # Check for holding an incorrect or dead target
-        if s.node.hold_node and (s.node.hold_node != target or (target and target.hurt == 1.0)):
-            s._stop_combos()
-            
-            # Say a funny line and throw the held item
-            if s.node.hold_node and s.node.hold_node != target and target:
-                s._say(f"Wait... this isn't {str(target.name)}")
-            elif target and target.hurt == 1.0:
-                s._say(choice(s.release_messages))
-            
-            s.on(2) # Release pickup
-            s.move(0, 0) # Stop moving for a moment
-            s._has_announced_target = False # Reset the flag
-            return
+        target = s._get_target()
+        print(target)
+        if isinstance(target,tuple):
+            ty,target = target
+        else:
+            # Player
 
-        # Shaking logic for when the *correct* player is held and they are still alive
-        if s.node.hold_node == target:
-            s.on_run(0) # Stop moving forward
-            
-            # Start combos if not already running
-            if not s._skill1_timer:
-                s._start_combos()
-            return
-        
-        # If we get here, we are not holding the target, so stop any combos
-        s._stop_combos()
+            # Check for holding an incorrect or dead target
+            if s.node.hold_node and (s.node.hold_node != target or (target and target.hurt == 1.0)):
+                s._stop_combos()
+
+                if s.node.hold_node and s.node.hold_node != target and target:
+                    s._say(f"Wait... this isn't {str(target.name)}")
+                elif target and target.hurt == 1.0:
+                    s._say(choice(s.release_messages))
+
+                s.on(2) # Release pickup
+                s.move(0, 0) # Stop moving for a moment
+                s._has_announced_target = False # Reset the flag
+                return
+
+            # Shaking logic for when the *correct* player is held and they are still alive
+            if s.node.hold_node == target:
+                s.on_run(0) # Stop moving forward
+
+                # Start combos if not already running
+                if not s._skill1_timer:
+                    s._start_combos()
+                return
+
+            # If we get here, we are not holding the target, so stop any combos
+            s._stop_combos()
 
         if target and target.exists():
             # If we just found a new target, announce it.
