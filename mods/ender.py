@@ -187,13 +187,13 @@ class Ender(Bot):
             'Target locked and pursuing',
             'You can run, but you can\'t hide',
             'Contract initiated',
-            'Time to collect',
+            'Time to kill',
             'No escape from the shadows',
             'Professional courtesy: you\'re dead',
             'The hunt is on',
             'Moving to intercept',
             'Your time has come',
-            'Consider this a house call',
+            'Surrender to your death',
             'Tracking device activated',
             'Distance closing rapidly',
             'You\'ve been marked',
@@ -209,7 +209,7 @@ class Ender(Bot):
         s.acquire_messages = [
             'Contract fulfilled',
             'Nothing personal, just business',
-            'Target acquired and terminated',
+            'Target terminated',
             'Clean execution',
             'Job well done',
             'Payment collected',
@@ -219,14 +219,15 @@ class Ender(Bot):
             'Professional service delivered',
             'Direct hit confirmed',
             'Lights out, game over',
-            'Textbook elimination',
+            'Another one bites the dust',
             'The agency trained me well',
             'One shot, one kill',
             'Consider yourself retired',
             'Welcome to the afterlife',
             'Efficiency at its finest',
             'Target down, objective complete',
-            'Another name crossed off the list'
+            'Another name crossed off the list',
+            'Next target please'
         ]
 
         s.release_messages = [
@@ -392,6 +393,7 @@ class Ender(Bot):
                     player_nodes.append(n)
                     continue
                 ty = getattr(n.getdelegate(object),'poweruptype',0)
+                if ty and dist(n.position,my_pos) > 5.5 or s.node.hold_node: continue
                 match ty:
                     case 'health':
                         if s.node.hurt < 0.3: continue
@@ -402,11 +404,10 @@ class Ender(Bot):
                     case 'shield':
                         if (s.node.getdelegate(object).shield_hitpoints or 0) > 200: continue
                         pup_nodes.append((ty,n))
-            except:
-                from traceback import print_exc
-                print_exc()
-
+            except: pass
+        s.greed = False
         if pup_nodes:
+            s.greed = True
             return min(
                 pup_nodes,
                 key=lambda _: dist(my_pos, _[1].position)
@@ -437,7 +438,6 @@ class Ender(Bot):
 
         now = time()
         target = s._get_target()
-        print(target)
         if isinstance(target,tuple):
             ty,target = target
         else:
@@ -448,7 +448,7 @@ class Ender(Bot):
                 s._stop_combos()
 
                 if s.node.hold_node and s.node.hold_node != target and target:
-                    s._say(f"Wait... this isn't {str(target.name)}")
+                    s._say(f"Why am I holding this")
                 elif target and target.hurt == 1.0:
                     s._say(choice(s.release_messages))
 
@@ -472,9 +472,13 @@ class Ender(Bot):
         if target and target.exists():
             # If we just found a new target, announce it.
             if not s._has_announced_target:
-                # Instantly clear the 'lonely' message
-                s.bub.push('')
-                s._say(choice(s.pursuit_messages))
+                if s.greed:
+                    s.bub.push('')
+                    s._say(choice(s.greed_messages))
+                else:
+                    # Instantly clear the 'lonely' message
+                    s.bub.push('')
+                    s._say(choice(s.pursuit_messages))
                 s._has_announced_target = True
 
             my_pos = s.node.position
@@ -499,7 +503,7 @@ class Ender(Bot):
             
             # Occasionally say a pursuit message
             if random() < 0.05 and now - s.last_speech_time > s.speech_cooldown:
-                s._say(choice(s.pursuit_messages))
+                s._say(choice(s.greed_messages if s.greed else s.pursuit_messages))
 
             # Move towards the target. The protective thread handles the close-range grab.
             s.move(move_x, -move_z)
@@ -507,11 +511,10 @@ class Ender(Bot):
         else:
             # No targets? Stop and chill.
             if s._has_announced_target:
-                s._say(choice(s.idle_messages))
                 s._has_announced_target = False
-                s.last_idle_chat_time = now # Reset timer
-            # Cooldown is 7.5 seconds
-            elif now - s.last_idle_chat_time > 7.5: 
+                s.last_idle_chat_time = now + 2 # offset to talk faster
+            # Cooldown is 5 seconds
+            elif now - s.last_idle_chat_time > 5: 
                 s._say(choice(s.idle_messages))
                 s.last_idle_chat_time = now
             s.on_run(0) # Stop running
