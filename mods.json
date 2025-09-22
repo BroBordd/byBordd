@@ -184,6 +184,14 @@
         "mod_filename_base": "htw"
     },
     {
+        "mod_name": "Kang",
+        "mod_fancy_name": "Simple roster grabber",
+        "mod_version": "1.0",
+        "mod_description": "I made this to understand how stuff work.\nWill be used by Finder to collect users, soon.",
+        "api_version": 9,
+        "mod_filename_base": "kang"
+    },
+    {
         "mod_name": "Kill",
         "mod_fancy_name": "End bs life",
         "mod_version": "1.0",
