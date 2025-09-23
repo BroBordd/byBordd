@@ -1,26 +1,28 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Bug? Feedback? Telegram >> GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
-Finder v1.0 - Find anyone
+Finder v2.0 - Find anyone
 
 Experimental. Feedback is appreciated.
 Useful if you are looking for someone, or just messing around.
 
 Features:
-- Fetch servers: Pings all servers, then sorts them by lowest
-- Ability to cycle through x servers to collect users
-- Ability to connect to servers by player name there
+- One click to do everything
+- Targets all reachable public servers just like gather window
+- Sniffs around roster from servers without joining them
 
 Combine with Power plugin for better control.
 """
 
-from socket import socket, SOCK_DGRAM
-from random import uniform as uf
-from babase import Plugin, app
+from json import dumps, loads
 from threading import Thread
 from time import time, sleep
+from bascenev1 import (
+    connect_to_party as CON,
+    protocol_version as PT
+)
 from bauiv1 import (
     get_ip_address_type as IPT,
     clipboard_set_text as COPY,
@@ -30,60 +32,78 @@ from bauiv1 import (
     buttonwidget as obw,
     scrollwidget as sw,
     imagewidget as iw,
+    SpecialChar as sc,
     textwidget as tw,
     gettexture as gt,
     apptimer as teck,
+    AppTimer as tuck,
     getsound as gs,
     getmesh as gm,
+    charstr as cs,
     Call
 )
-from bascenev1 import (
-    disconnect_from_host as BYE,
-    connect_to_party as CON,
-    protocol_version as PT,
-    get_game_roster as GGR
+from babase import (
+    app_instance_uuid as U,
+    Plugin,
+    app
+)
+from random import (
+    uniform as uf,
+    choice as CH,
+    randint
+)
+from socket import (
+    SOCK_DGRAM,
+    socket
 )
 
 class Finder:
+    VER = '2.0'
     COL1 = (0,0.3,0.3)
     COL2 = (0,0.55,0.55)
     COL3 = (0,0.7,0.7)
     COL4 = (0,1,1)
     COL5 = (1,1,0)
     MAX = 0.3
-    TOP = 15
-    VER = '1.0'
+    TOP = 1
     MEM = []
-    BST = []
+    ART = []
+    BUSY = False
+    KIDS = []
+    P2 = None
+    ARTT = None
     SL = None
+    TIP = None
+    FLT = ''
     def __init__(s,src):
         s.thr = []
         s.ikids = []
-        s.busy = False
+        s.pro = []
+        s.sust = None
         s.s1 = s.snd('powerup01')
         c = s.__class__
         # parent
         z = (460,400)
-        s.p = cw(
+        c.P = cw(
             scale_origin_stack_offset=src.get_screen_space_center(),
             size=z,
             oac=s.bye
         )[0]
         # footing
         sw(
-            parent=s.p,
+            parent=c.P,
             size=z,
             border_opacity=0
         )
         # fetch
         tw(
-            parent=s.p,
-            text='Fetch Servers',
+            parent=c.P,
+            text='Fetch all servers',
             color=s.COL4,
             position=(19,359)
         )
         bw(
-            parent=s.p,
+            parent=c.P,
             position=(360,343),
             size=(80,39),
             label='Fetch',
@@ -92,8 +112,8 @@ class Finder:
             oac=s.fresh
         )
         tw(
-            parent=s.p,
-            text='Fetches, pings, and sorts public servers.',
+            parent=c.P,
+            text='Sniff out players without joining',
             color=s.COL3,
             scale=0.8,
             position=(15,330),
@@ -101,168 +121,158 @@ class Finder:
         )
         # separator
         iw(
-            parent=s.p,
+            parent=c.P,
             size=(429,1),
             position=(17,330),
             texture=gt('white'),
             color=s.COL2
         )
-        # cycle
-        tw(
-            parent=s.p,
-            text='Cycle Servers',
-            color=s.COL4,
-            position=(19,294)
-        )
-        bw(
-            parent=s.p,
-            position=(360,278),
-            size=(80,39),
-            label='Cycle',
-            color=s.COL2,
-            textcolor=s.COL4,
-            oac=s.find
-        )
-        tw(
-            parent=s.p,
-            text='Cycles through best servers and saves their players.',
-            color=s.COL3,
-            scale=0.8,
-            position=(15,265),
-            maxwidth=320,
-            v_align='center'
-        )
-        # separator
-        iw(
-            parent=s.p,
-            size=(429,1),
-            position=(17,265),
-            texture=gt('white'),
-            color=s.COL2
-        )
-        # top
-        tw(
-            parent=s.p,
-            text='Server Cycle Limit',
-            color=s.COL4,
-            position=(19,230)
-        )
-        s.top = tw(
-            parent=s.p,
-            position=(398,228),
-            size=(80,50),
-            text=str(c.TOP),
-            color=s.COL4,
-            editable=True,
+        # cube art
+        c.ARTT = tw(
+            parent=c.P,
+            text='' if c.ART else f'Finder v{c.VER}\n{CH(lmao())}',
+            maxwidth=430,
+            max_height=125,
             h_align='center',
-            v_align='center',
-            corner_scale=0.1,
-            scale=10,
-            allow_clear_button=False,
-            shadow=0,
-            flatness=1,
-        )
-        tw(
-            parent=s.p,
-            text='Maximum number of servers to cycle.',
-            color=s.COL3,
-            scale=0.8,
-            position=(15,201),
-            maxwidth=320
+            v_align='top',
+            color=s.COL4,
+            position=(205,295),
         )
         # separator
         iw(
-            parent=s.p,
+            parent=c.P,
             size=(429,1),
             position=(17,200),
             texture=gt('white'),
             color=s.COL2
         )
-        # players
-        pl = s.plys()
-        sy = max(len(pl)*30,140)
-        p1 = sw(
-            parent=s.p,
-            position=(20,18),
-            size=(205,172),
-            border_opacity=0.4
+        # filter
+        c.FT = tw(
+            parent=c.P,
+            position=(23,150),
+            size=(201,35),
+            text=c.FLT,
+            editable=True,
+            glow_type='uniform',
+            allow_clear_button=False,
+            v_align='center',
+            color=s.COL4,
+            description='Raw search - Matches wildcard to all strings in server\'s JSON, including player names, and server name. Enter'
         )
-        p2 = ocw(
+        s.ft2 = tw(
+            parent=c.P,
+            position=(26,153),
+            text='Search',
+            color=s.COL3
+        )
+        # players
+        p1 = sw(
+            parent=c.P,
+            position=(20,18),
+            size=(205,122),
+            border_opacity=0.4,
+            color=s.COL4
+        )
+        c.P2 = ocw(
             parent=p1,
-            size=(205,sy),
+            size=(205,1),
             background=False
         )
-        0 if pl else tw(
-            parent=s.p,
+        s.pltip = tw(
+            parent=c.P,
             position=(90,100),
-            text='Cycle some servers\nto collect players',
+            text='Sniff some servers\nto collect players\nResults vary by\ntime and connection',
             color=s.COL4,
             maxwidth=175,
             h_align='center'
         )
-        s.kids = []
-        for _,g in enumerate(pl):
-            p,a = g
-            s.kids.append(tw(
-                parent=p2,
-                size=(200,30),
-                selectable=True,
-                click_activate=True,
-                color=s.COL3,
-                text=p,
-                position=(0,sy-30-30*_),
-                maxwidth=175,
-                on_activate_call=Call(s.hl,_,p),
-                v_align='center'
-            ))
         # info
         iw(
-            parent=s.p,
+            parent=c.P,
             position=(235,18),
             size=(205,172),
             texture=gt('scrollWidget'),
             mesh_transparent=gm('softEdgeOutside'),
             opacity=0.4
         )
-        s.tip = tw(
-            parent=s.p,
+        s.tip = 'Select something to\nview server info'
+        c.TIP = tw(
+            parent=c.P,
             position=(310,98),
-            text='Select something to\nview server info',
+            text=s.tip,
             color=s.COL4,
             maxwidth=170,
             h_align='center'
-        ) if c.SL is None else 0
+        )
+        # finally
+        s.draw() if c.ART else 0
+        s.up()
+        c.SL and s.info(c.SL)
+        c.FL = tuck(0.1,s.flup,repeat=True)
+    def flup(s):
+        c = s.__class__
+        if not s.ft2.exists():
+            c.FL = None
+            return
+        ct = tw(query=c.FT)
+        tw(s.ft2,text=['Search',''][bool(ct)])
+        if ct != s.FLT:
+            c.FLT = ct
+            s.up()
     def hl(s,_,p):
-        [tw(t,color=s.COL3) for t in s.kids]
-        tw(s.kids[_],color=s.COL4)
+        c = s.__class__
+        c.SL = p
+        [tw(t,color=s.COL3) for t in c.KIDS]
+        tw(c.KIDS[_],color=s.COL4)
         s.info(p)
     def info(s,p):
         [_.delete() for _ in s.ikids]
         s.ikids.clear()
-        s.tip and s.tip.delete()
-        bst = s.__class__.BST
-        for _ in bst:
-            for r in _['roster']:
-                if r['display_string'] == p:
+        c = s.__class__
+        tw(c.TIP,text='')
+        i = None
+        for _ in c.MEM:
+            for r in _.get('roster',[]):
+                spec = loads(r['spec'])
+                if spec['n'] == p:
                     i = _
+                    pz = r['p']
                     break
+        if i is None:
+            c.SL = None
+            tw(c.TIP,text=s.tip)
+            return
         for _ in range(3):
             t = str(i['nap'[_]])
+            px = [250,245,375][_]
+            py = [155,115][bool(_)]
+            sx = [175,115,55][_]
             s.ikids.append(tw(
-                parent=s.p,
-                position=(250,155-40*_),
+                parent=c.P,
+                position=(px,py),
                 h_align='center',
                 v_align='center',
-                maxwidth=175,
+                maxwidth=sx,
                 text=t,
                 color=s.COL4,
-                size=(175,30),
+                size=(sx,30),
                 selectable=True,
                 click_activate=True,
+                glow_type='uniform',
                 on_activate_call=Call(s.copy,t)
             ))
+
         s.ikids.append(bw(
-            parent=s.p,
+            parent=c.P,
+            position=(253,65),
+            size=(166,30),
+            label=p,
+            color=s.COL2,
+            textcolor=s.COL4,
+            oac=Call(s.oke,'\n'.join([' | '.join([str(j) for j in _.values()]) for _ in pz]) or 'Nothing')
+        ))
+        s.ikids.append(bw(
+            parent=c.P,
             position=(253,30),
             size=(166,30),
             label='Connect',
@@ -270,21 +280,34 @@ class Finder:
             textcolor=s.COL4,
             oac=Call(CON,i['a'],i['p'],False)
         ))
+    def oke(s,t):
+        TIP(t)
+        s.ding(1,1)
     def copy(s,t):
         s.ding(1,1)
         TIP('Copied to clipboard!')
         COPY(t)
     def plys(s):
         z = []
-        me = app.plus.get_v1_account_name()
-        me = [me,'\ue063'+me]
-        for _ in s.__class__.BST:
+        c = s.__class__
+        for _ in c.MEM:
             a = _['a']
             if (r:=_.get('roster',{})):
                 for p in r:
-                    ds = p['display_string']
-                    0 if ds in me else z.append((ds,a))
-        return sorted(z,key=lambda _: _[0].startswith('\ue030Server'))
+                    ds = loads(p['spec'])['n']
+                    0 if (
+                        ds == 'Finder' or
+                        (c.FLT and not s.chk(r))
+                    ) else z.append((ds,a))
+        return sorted(z,key=lambda _: _[0].startswith('Server'))
+    def chk(s,r):
+        t = s.__class__.FLT.lower()
+        for _ in r:
+            n = loads(_['spec'])['n']
+            if n != 'Finder' and t in n.lower(): return True
+            for p in _['p']:
+                if t in p['nf'].lower(): return True
+        return False
     def snd(s,t):
         l = gs(t)
         l.play()
@@ -292,20 +315,26 @@ class Finder:
         return l
     def bye(s):
         s.s1.stop()
-        ocw(s.p,transition='out_scale')
+        c = s.__class__
+        ocw(c.P,transition='out_scale')
         l = s.snd('laser')
-        f = lambda: teck(0.01,f) if s.p else l.stop()
+        f = lambda: teck(0.01,f) if c.P else l.stop()
         f()
-    def ding(s,i,j):
+    def ding(s,*z):
         a = ['Small','']
-        x,y = a[i],a[j]
-        s.snd('ding'+x)
-        teck(0.1,gs('ding'+y).play)
+        for i,_ in enumerate(z):
+            h = 'ding'+a[_]
+            teck(i/10,Call(s.snd,h) if i<(len(z)-1) else gs(h).play)
     def fresh(s):
-        if s.busy: BTW("Still busy!"); return
-        TIP('Fetching servers...')
+        c = s.__class__
+        if c.BUSY:
+            TIP("Still busy!")
+            s.ding(0,0)
+            return
+        TIP('Scanning servers!\nThis should take a few seconds!\nYou can close this window.')
+        c.ST = time()
         s.ding(1,0)
-        s.busy = True
+        c.BUSY = True
         p = app.plus
         p.add_v1_account_transaction(
             {
@@ -319,89 +348,182 @@ class Finder:
     def kang(s,r):
         c = s.__class__
         c.MEM = r['l']
+        c.ART = [cs(sc.OUYA_BUTTON_U)]*len(c.MEM)
         s.thr = []
-        for _ in s.__class__.MEM:
-            t = Thread(target=Call(s.ping,_))
+        for i,_ in enumerate(c.MEM):
+            t = Thread(target=Call(s.ping,_,i))
             s.thr.append(t)
             t.start()
-        teck(s.MAX*4,s.join)
-    def join(s):
+        s.sust = tuck(0.01,s.sus,repeat=True)
+    def ping(s,_,i):
+        _['ping'],_['roster'] = ping_and_kang(_['a'],_['p'],pro=s.pro,dex=i)
+    def sus(s):
+        if not s.pro: return
+        i,p = s.pro.pop()
         c = s.__class__
-        [t.join() for t in s.thr]
-        far = s.MAX*3000
-        c.MEM = [_ for _ in c.MEM if _['ping']]
-        c.MEM.sort(key=lambda _: _['ping'])
+        c.ART[i] = (
+            cs(sc.OUYA_BUTTON_A) if p==999 else
+            cs(sc.OUYA_BUTTON_O) if p<100 else
+            cs(sc.OUYA_BUTTON_Y)
+        )
+        s.draw() if c.ARTT.exists() else None
+        if cs(sc.OUYA_BUTTON_U) not in c.ART:
+            s.syst = None
+            s.done()
+    def draw(s):
+        c = s.__class__
+        tw(c.ARTT,text=('\n'.join(''.join(c.ART[i:i+40]) for i in range(0,len(s.ART),40))))
+        s.up()
+    def up(s):
+        c = s.__class__
+        [_.delete() for _ in c.KIDS]
+        c.KIDS.clear()
+        pl = s.plys()
+        s.pltip.delete() if pl else 0
+        sy = max(len(pl)*30,90)
+        ocw(c.P2,size=(205,sy))
+        dun = 0
+        for _,g in enumerate(pl):
+            p,a = g
+            tt = tw(
+                parent=c.P2,
+                size=(200,30),
+                selectable=True,
+                click_activate=True,
+                glow_type='uniform',
+                color=[s.COL3,s.COL4][p==c.SL and not dun],
+                text=p,
+                position=(0,sy-30-30*_),
+                maxwidth=175,
+                on_activate_call=Call(s.hl,_,p),
+                v_align='center'
+            )
+            if not dun and p == c.SL: ocw(c.P2,visible_child=tt); dun = 1
+            c.KIDS.append(tt)
+    def done(s):
+        s.ding(0,1)
+        [_.join() for _ in s.thr]
         s.thr.clear()
-        TIP(f'Loaded {len(c.MEM)} servers!')
-        s.ding(0,1)
-        s.busy = False
-    def find(s):
-        if s.busy: BTW("Still busy!"); return
         c = s.__class__
-        if not c.MEM:
-            BTW('Fetch some servers first!')
-            return
-        t = tw(query=s.top)
-        if not t.isdigit():
-            BTW('Invalid cycle limit!')
-            return
-        top = int(t)
-        if not (0 < top < len(c.MEM)):
-            BTW('Cycle count is too '+['big','small'][top<=0]+'!')
-            return
-        c.TOP = top
-        s.ding(1,0)
-        TIP('Starting cycle...')
-        s.busy = True
-        s.ci = s.lr = 0
-        c.BST = c.MEM[:top]
-        s.cycle()
-    def cycle(s):
-        _ = s.__class__.BST[s.ci]
-        s.ca = _['a']
-        CON(s.ca,_['p'],False)
-        s.wait()
-    def wait(s,i=5):
-        r = GGR()
-        if (r != s.lr) and r: s.__class__.BST[s.ci]['roster'] = s.lr = r; return s.next()
-        if not i: s.__class__.BST[s.ci]['roster'] = []; return s.next()
-        teck(0.1,Call(s.wait,i-1))
-    def next(s):
-        s.ci += 1
-        if s.ci >= len(s.__class__.BST):
-            BYE()
-            teck(0.5,s.yay)
-            return
-        s.cycle()
-    def yay(s):
-        TIP('Cycle finished!')
-        s.ding(0,1)
-        s.busy = False
-        zw('squad_button').activate()
-        teck(0.3,byBordd.up)
-    def ping(s,_):
-        sock = ping = None
-        a,p = _['a'],_['p']
-        sock = socket(IPT(a),SOCK_DGRAM)
-        try: sock.connect((a,p))
-        except: ping = None
-        else:
-            st = time()
-            sock.settimeout(s.MAX)
-            yes = False
-            for _i in range(3):
-                try:
-                    sock.send(b'\x0b')
-                    r = sock.recv(10)
-                except: r = None
-                if r == b'\x0c':
-                    yes = True
+        tt = time() - c.ST
+        ln = len(s.MEM)
+        ab = int(ln/tt)
+        TIP(f'Finished!\nScanned {ln} servers in {round(tt,2)} seconds!\nAbout {ab} server{["s",""][ab<2]}/sec')
+        s.__class__.BUSY = False
+
+# Kang
+SPEC = {"s":"{\"n\":\"Finder\",\"a\":\"\",\"sn\":\"\"}","d":"69"*20}
+AUTH = {'b': app.env.engine_build_number, 'tk': '', 'ph': ''}
+
+def ping_and_kang(
+    address: str,
+    port: int,
+    ping_wait: float = 0.3,
+    timeout: float = 3.5,
+    pro = [],
+    dex = None,
+):
+    """
+    Pings a server and then grabs its roster using a single connection.
+
+    Args:
+        address (str): The server's IP address.
+        port (int): The server's port.
+        ping_wait (float): Time to wait between ping retries.
+        timeout (float): Overall timeout for the entire operation.
+
+    Returns:
+        tuple[float | None, dict | None]: A tuple containing the ping in milliseconds
+                                           and the parsed roster dictionary.
+    """
+    ping_result = None
+    roster_result = None
+    sock = socket(IPT(address),SOCK_DGRAM)
+    sock.settimeout(timeout)
+
+    try:
+        ping_start_time = time()
+        ping_success = False
+        for _ in range(3):
+            try:
+                sock.sendto(b'\x0b', (address, port))
+                data, addr = sock.recvfrom(10)
+                # Ensure the response is correct and from the right server
+                if data == b'\x0c' and addr[0] == address:
+                    ping_success = True
                     break
-                sleep(s.MAX)
-            ping = (time()-st)*1000 if yes else None
-        finally:
-            _['ping'] = ping
-            sock.close()
+            except: break
+            sleep(ping_wait)
+        if ping_success:
+            ping_result = (time() - ping_start_time) * 1000
+        else:
+            pro.append((dex,999))
+            return (999,[])
+
+        j = lambda h: dumps(h).encode('utf-8')
+        q = bytes.fromhex
+        p = lambda h, e=b'': sock.sendto(q(h.replace(' ','')) + e, (address, port))
+        g = lambda b: sock.recvfrom(b)[0]
+        # --- Start Handshake ---
+        my_handshake = f'{(71 + randint(0, 150)):02x}'
+        p(f'18 21 00 {my_handshake}', U().encode())
+        # The server's response contains its handshake byte at index 1
+        server_handshake = f'{g(3)[1]:02x}'
+        g(1024)  # Ack/Server-Info packet
+
+        p(f'24 {server_handshake} 10 21 00', j(SPEC))
+        p(f'24 {server_handshake} 11 f0 ff f0 ff 00 12', j(AUTH))
+        p(f'24 {server_handshake} 11 f1 ff f0 ff 00 15', j({}))
+        p(f'24 {server_handshake} 11 f2 ff f0 ff 00 03')
+
+        g(1024)  # Ack
+        g(9)     # Ack
+        # --- End Handshake ---
+
+        # --- Roster Grabbing Loop ---
+        # Message type IDs
+        SERVER_RELIABLE_MESSAGE = 0x25
+        BA_SCENEPACKET_MESSAGE = 0x11
+        BA_MESSAGE_MULTIPART = 0x0d
+        BA_MESSAGE_MULTIPART_END = 0x0e
+        BA_MESSAGE_PARTY_ROSTER = 0x09
+        roster_parts = bytearray()
+        collecting_roster = False
+        roster_listen_start_time = time()
+        while time() - roster_listen_start_time < (timeout / 2): # Use part of the total timeout
+            packet = g(2048) # Increased buffer size for safety
+
+            if not packet or len(packet) < 9: continue
+
+            if packet[0] == SERVER_RELIABLE_MESSAGE and packet[2] == BA_SCENEPACKET_MESSAGE:
+                payload_type = packet[8]
+                payload_data = packet[9:]
+
+                if payload_type == BA_MESSAGE_PARTY_ROSTER:
+                    json_string = payload_data.rstrip(b'\x00').decode('utf-8')
+                    roster_result = loads(json_string)
+                    break
+
+                elif payload_type == BA_MESSAGE_MULTIPART:
+                    if payload_data and payload_data[0] == BA_MESSAGE_PARTY_ROSTER:
+                        collecting_roster = True
+                        roster_parts.clear()
+                        roster_parts.extend(payload_data[1:])
+                    elif collecting_roster:
+                        roster_parts.extend(payload_data)
+
+                elif payload_type == BA_MESSAGE_MULTIPART_END and collecting_roster:
+                    roster_parts.extend(payload_data)
+                    json_string = roster_parts.rstrip(b'\x00').decode('utf-8')
+                    roster_result = loads(json_string)
+                    break
+        # --- Send Disconnect ---
+        p(f'20 {server_handshake}')
+
+    except: pass
+    finally: sock.close()
+    pro.append((dex,ping_result))
+    return (ping_result, roster_result or [])
 
 # Patches
 bw = lambda *,oac=None,**k: obw(
@@ -432,8 +554,24 @@ cw = lambda *,size=None,oac=None,**k: (p:=ocw(
 ))
 
 # Global
-BTW = lambda t: (push(t,color=(1,1,0)),gs('block').play())
 TIP = lambda t: push(t,Finder.COL3)
+lmao = lambda: [
+    'Who are we looking for this time?',
+    'Press on Fetch, and I\'ll do the rest.',
+    'Let\'s legally stalk all servers!',
+    'Let\'s list them all!',
+    'Relax. We can find them.',
+    'Lost your friend? Let\'s find them!',
+    'Looking for players? I can help!',
+    'Cool art appears here. Fetch already!',
+    'Let\'s hear some "How did u find me!?"',
+    'Ready as ever. Press on Fetch!',
+    'Let\'s sniff out some packets!',
+    'Who\'s there? I\'ll see myself!',
+    'They can\'t hide!! Muahahaha-',
+    'Why did I put a random tip here?',
+    'We\'re having rosters for dinner!'
+]
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
