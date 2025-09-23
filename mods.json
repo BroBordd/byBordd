@@ -162,8 +162,8 @@
     {
         "mod_name": "Finder",
         "mod_fancy_name": "Find anyone",
-        "mod_version": "1.0",
-        "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- Fetch servers: Pings all servers, then sorts them by lowest\n- Ability to cycle through x servers to collect users\n- Ability to connect to servers by player name there\n\nCombine with Power plugin for better control.",
+        "mod_version": "2.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- One click to do everything\n- Targets all reachable public servers just like gather window\n- Sniffs around roster from servers without joining them\n\nCombine with Power plugin for better control.",
         "api_version": 9,
         "mod_filename_base": "finder"
     },
