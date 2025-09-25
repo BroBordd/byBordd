@@ -1,5 +1,6 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Car v1.0 - vroom vroom
@@ -26,7 +27,8 @@ class Car:
                     'position':(p[0]+_[0],p[1],p[2]+_[1]),
                     'body':'sphere',
                     'mesh':getmesh('impactBomb'),
-                    'color_texture':gettexture('impactBombColor')
+                    'color_texture':gettexture('impactBombColor'),
+                    'shadow_size':0.3
                 }
             )
             for _ in [(0,0),(0,1),(2,0),(2,1)]
