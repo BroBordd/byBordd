@@ -322,6 +322,7 @@ class PlugTools(TAB):
         if s.e:
             if hasattr(s.sp,'plugin'):
                 o = s.sp.plugin
+                getattr(o,'post_reload',lambda:0)()
                 if o in p.active_plugins:
                     p.active_plugins.remove(o)
                 del s.sp.plugin
@@ -337,7 +338,7 @@ class PlugTools(TAB):
         except Exception as ex: return (ex,ERR())
         try: ins = cls()
         except Exception as ex: return (ex,ERR())
-        try: ins.on_app_running()
+        try: (getattr(ins,'on_reload',0) or ins.on_app_running)()
         except Exception as ex: return (ex,ERR())
         s.sp = PluginSpec(class_path=_,loadable=True)
         s.sp.enabled = True
