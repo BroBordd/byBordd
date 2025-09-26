@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-FileMan v1.1 - Advanced file manager
+FileMan v1.2 - Advanced file manager
 
 Adds a button to settings menu.
 Experimental. Read code to know more.
@@ -53,6 +53,7 @@ from os.path import (
 )
 from os import (
     listdir as ls,
+    scandir,
     getcwd,
     rename,
     remove,
@@ -77,7 +78,7 @@ from threading import Thread
 from pathlib import Path
 
 class FileMan(MainWindow):
-    VER = '1.1'
+    VER = '1.2'
     INS = []
     @classmethod
     def resize(c):
@@ -92,12 +93,14 @@ class FileMan(MainWindow):
     def __del__(s):
         s.__class__.clean()
     def on_resize(s):
+        s.sweep()
+        s.fresh()
+    def sweep(s):
         [_.delete() for _ in s.killme]
         s.killme.clear()
         c = s.uploadc
         s.spyt = s.sharel = s.buf = s.uploadc = None
         if c: c.close()
-        s.fresh()
     def __init__(s,src):
         s.__class__.clean()
         s.__class__.INS.append(s)
@@ -105,8 +108,9 @@ class FileMan(MainWindow):
         s.url = s.urlo = var('cwd')
         s.urlbln = s.dro = s.gn = s.rlyd = s.flon = s.msh = False
         s.amoled = sum(s.COL5)==0
-        s.pusho = s.sorti = s.rnd_x = s.rnd_y = 0
+        s.pusho = s.sorti = s.rnd_x = s.rnd_y = s.covero = 0
         s.pushi = -0.1
+        s.coveri = -0.1
         s.rnd_r = 64
         s.sl = (None,None)
         [setattr(s,_,None) for _ in ['pushe','eno','leno','clp','gab','clpm','rlydt','buf','uploadc','cursnd','rfl','rflo']]
@@ -211,8 +215,9 @@ class FileMan(MainWindow):
         # back
         s.bb = bw(
             parent=s.p,
-            label=' '+cs(sc.BACK),
-            oac=s.bye
+            label=cs(sc.BACK),
+            oac=s.bye,
+            text_scale=0.8
         )
         cw(s.p,cancel_button=s.bb)
         # up
@@ -286,7 +291,8 @@ class FileMan(MainWindow):
             text=_,
             h_align='left',
             color=s.COL4,
-            scale=0.7
+            scale=0.7,
+            position=(18,20)
         ) for _ in SRT()]
         # drop
         s.drbg = iw(
@@ -324,14 +330,29 @@ class FileMan(MainWindow):
             v_align='center'
         )
         s.trash.append(tuck(0.01,s.fpush,repeat=True))
+        #  cover
+        s.coverbg = iw(
+            texture=gt('black'),
+            opacity=0.6,
+            parent=s.p,
+            position=(18,20)
+        )
+        s.trash.append(tuck(0.01,s.fcover,repeat=True))
         # finally
         s.fresh()
-        teck(0.5,lambda:s.push(f'FileMan v{s.VER} Ready!',du=1.5) if s.eno is None else 0)
-    def meh(s):
+    def fcover(s):
+        if s.gn: return
+        n = s.covero + s.coveri
+        if not (1 >= n >= 0): return
+        s.covero = n
+        iw(s.coverbg,opacity=n)
+    def ready(s):
+        s.push(f'FileMan v{s.VER} Ready!',du=1.5) if s.eno is None else 0
+    def meh(s,blud=True):
         if s.sl[0] is None:
             s.btw('Select something!')
             return 1
-        if s.sl[1] == '..':
+        if s.sl[1] == '..' and blud:
             s.btw('What are you doing blud')
             return 1
     def btw(s,t,du=3):
@@ -366,6 +387,7 @@ class FileMan(MainWindow):
                                 s.clp =  None
                                 s.fresh()
                         else:
+                            # copy
                             if s.meh(): return
                             s.clp = s.sl[1]
                             s.clpm = j
@@ -392,6 +414,7 @@ class FileMan(MainWindow):
                                 s.clp = None
                                 s.fresh()
                         else:
+                            # move
                             if s.meh(): return
                             s.clp = s.sl[1]
                             s.clpm = j
@@ -399,6 +422,7 @@ class FileMan(MainWindow):
                             GUN()
                             s.fresh(skip=True)
                     case 2:
+                        # delete
                         if s.clpm is not None:
                             s.btw("Finish what you're doing first!")
                             return
@@ -424,6 +448,7 @@ class FileMan(MainWindow):
                             s.sl = (None,None)
                             s.fresh()
                     case 3:
+                        # share
                         if s.meh(): return
                         f = s.sl[1]
                         if isdir(f):
@@ -485,6 +510,7 @@ class FileMan(MainWindow):
                             size=(xs-60,30)
                         )
                     case 4:
+                        # rename
                         if s.meh(): return
                         t = s.fkids[s.sl[0]]
                         fp = s.sl[1]
@@ -534,7 +560,8 @@ class FileMan(MainWindow):
                             GUN()
                             s.fresh(skip=True)
                     case 5:
-                        if s.meh(): return
+                        # open
+                        if s.meh(blud=False): return
                         if s.clpm is not None:
                             s.btw("Press again when you're free!")
                             return
@@ -577,8 +604,9 @@ class FileMan(MainWindow):
                         b = bw(
                             parent=p,
                             position=(20,ys-70),
-                            label=' '+cs(sc.BACK),
+                            label=cs(sc.BACK),
                             size=(50,50),
+                            text_scale=0.8,
                             oac=Call(s.statbye,p,gcen)
                         )
                         cw(p,cancel_button=b)
@@ -957,9 +985,8 @@ class FileMan(MainWindow):
                         except Exception as ex:
                             s.btw(str(ex))
                             return
-                        s.fresh(sl=n)
                         # rename
-                        s.act(0,4,gay=True)
+                        s.fresh(sl=n,pren=(True,True))
                     case 1:
                         if s.clpm is not None:
                             s.btw("You're already in the middle of something")
@@ -974,9 +1001,8 @@ class FileMan(MainWindow):
                         except Exception as ex:
                             s.btw(str(ex))
                             return
-                        s.fresh(sl=n)
                         # rename
-                        s.act(0,4)
+                        s.fresh(sl=n,pren=(True,False))
     def loadt(s,h,gay):
         mem = join(BASE(),'textures')
         nam = basename(h)
@@ -1342,7 +1368,7 @@ class FileMan(MainWindow):
         s.push('Cancelled!')
         s.snd('deek')
         s.fresh(skip=c!=4)
-    def fresh(s,skip=False,sl=None):
+    def fresh(s,skip=False,sl=None,pren=(False,False)):
         if s.gn: return
         rx,ry = res()
         z = s.size = (rx*0.8,ry*0.8)
@@ -1352,6 +1378,8 @@ class FileMan(MainWindow):
         iw(s.bg,size=z)
         obw(s.bg2,size=z)
         iw(s.rect,size=(x*1.2,y*1.2),position=(-x*0.1,-y*0.1))
+        # cover
+        iw(s.coverbg,size=(x-40,y-270))
         # docks, secs, btns
         h = (x-80)
         f = y-191
@@ -1419,6 +1447,16 @@ class FileMan(MainWindow):
         obw(s.preb,position=(323+e,f),size=(50,50))
         # skip the rest
         if skip: return
+        # continue heavy stuff
+        s.coveri = 0.1
+        s.spyt = tuck(0.05,lambda:s.spy(Call(s._fresh,x,y,sl,pren)),repeat=True)
+        aa = Thread(target=s.gfl)
+        aa.daemon = True
+        aa.start()
+    def gfl(s):
+        s.buf = s.gfull()
+    def _fresh(s,x,y,sl,pren,fl,greet=False):
+        s.coveri = -0.1
         # drop
         s.droc()
         # oke
@@ -1435,15 +1473,11 @@ class FileMan(MainWindow):
         s.rpush()
         # files
         p = s.yesp2
-        [_.delete() for _ in s.fkids]
-        s.fkids.clear()
-        [_.delete() for _ in s.ftrash]
-        s.ftrash.clear()
-        [_.delete() for _ in s.fcons]
-        s.fcons.clear()
+        for aa in [s.fkids,s.ftrash,s.fcons]:
+            for ab in aa: ab.delete()
+            aa.clear()
         [[i.delete() for i in j] for j in s.flkids]
         s.flkids.clear()
-        fl = s.gfull()
         u = s.rfl
         if s.flon and s.rfl:
             fl = [_ for _ in fl if (_ == '..') or (u in basename(_))]
@@ -1512,6 +1546,9 @@ class FileMan(MainWindow):
             if _ == sl:
                 cw(s.yesp2,visible_child=t)
         s.slco(fl)
+        if greet: s.ready()
+        if pren[0]:
+            s.act(0,4,gay=pren[1])
     def onfl(s):
         s.rfl = tw(query=s.fltxt)
         if s.rfl != s.rflo:
@@ -1582,26 +1619,35 @@ class FileMan(MainWindow):
         else: return h.title()
     def gfull(s):
         c = var('cwd')
-        h = []
-        if dirname(c) != c: h = ['..']
+        h = ['..'] if dirname(c) != c else []
         if not access(c, R_OK): return h
-        items = [join(c,_) for _ in ls(c)]
-        da = {}
-        for item in items:
-            name, item_type, date_modified_str, _ = s.gdata(item)
-            try:
-                date_sortable = DT.strptime(date_modified_str, '%m/%d/%Y %I:%M %p') if date_modified_str else DT.min
-            except: date_sortable = DT.min
-            try: mt = getmtime(item)
-            except: mt = 0
-            da[item] = (basename(item).lower(), item_type.lower(), date_sortable, mt, isdir(item))
-        return h + sorted(items, key=lambda i: (
-            not da[i][4],
-            da[i][0] if s.sorti == 0 else
-            da[i][1] if s.sorti == 1 else
-            da[i][2] if s.sorti == 2 else
-            da[i][3]
-        ))
+        sort_key_map = {0: 1, 1: 2, 2: 3}
+        sort_index = sort_key_map.get(s.sorti, 4)
+        items_with_metadata = []
+        try:
+            with scandir(c) as it:
+                for entry in it:
+                    try:
+                        _, item_type, date_modified_str, _ = s.gdata(entry.path)
+                        try:
+                            date_sortable = DT.strptime(date_modified_str, '%m/%d/%Y %I:%M %p') if date_modified_str else DT.min
+                        except ValueError:
+                            date_sortable = DT.min
+                        items_with_metadata.append(
+                            (
+                                entry.path,
+                                entry.name.lower(),
+                                item_type.lower(),
+                                date_sortable,
+                                entry.stat().st_mtime,
+                                not entry.is_dir()
+                            )
+                        )
+                    except OSError: continue
+        except OSError: return h
+        sorted_list = sorted(items_with_metadata, key=lambda item: (item[5], item[sort_index]))
+        final_paths = [item[0] for item in sorted_list]
+        return h + final_paths
     def pre(s):
         s.wop()
         r = s._pre()
@@ -2037,9 +2083,13 @@ bw = lambda *a,color=None,textcolor=None,oac=None,bg='white',label='',**k: obw(
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
-    def on_app_running(s):
-        FileMan.loadc()
-        teck(0.1,s.kang)
+    __init__ = lambda s: FileMan.loadc()
+    on_app_running = lambda s: teck(0.1,s.kang)
+    on_reload = lambda s: None
+    def post_reload(s):
+        for _ in FileMan.INS:
+            _.sweep()
+            _.bye()
     def kang(s):
         from bauiv1lib.settings.allsettings import AllSettingsWindow as m
         i = '__init__'
