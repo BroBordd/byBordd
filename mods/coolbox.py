@@ -80,6 +80,8 @@ from random import (
 )
 from bascenev1lib.actor.powerupbox import PowerupBoxFactory
 from bascenev1lib.actor.playerspaz import PlayerSpaz
+from bascenev1lib.gameutils import SharedObjects
+from bascenev1lib.actor.bomb import BombFactory
 from bascenev1lib.actor.spazbot import SpazBot
 from bascenev1lib.actor.spaz import Spaz
 from traceback import format_exc as ERR
@@ -778,7 +780,8 @@ class ctw:
         k.update({
             'editable': False,
             'text': hint,
-            'color': (0.5,0.5,0.5)
+            'color': (0.5,0.5,0.5),
+            'maxwidth':k.get('size')[0]
         })
         s.widget2 = u = tw(*a,**k)
         s.type = type
@@ -1746,6 +1749,13 @@ class NodeManager:
             on_back=pipe
         )
         w = z.widget
+        s.t = atw(
+            p=w,
+            obj=node,
+            pos=(70,65),
+            scale=1.3,
+            size=(280,30)
+        )
         s.btns = []
         for i in range(3):
             j = ['Call','Random','Modify'][i]
@@ -1756,21 +1766,12 @@ class NodeManager:
                 label=j,
                 icon=gt(m),
                 size=(130,35),
-                oac=o,
+                oac=Call(s.t.insp,f=o),
                 pos=(30+130*i,20)
             )
             s.btns.append(b)
-        s.t = atw(
-            p=w,
-            obj=node,
-            pos=(70,65),
-            scale=1.3,
-            size=(280,30)
-        )
     """Random"""
-    def random(s):
-        a = s.t.insp()
-        if a == 1: return
+    def random(s,a):
         t = s.t.typ.__name__
         o = None
         if t == 'tuple': o = tuple([round(uf(0,1),1) for _ in [0,0,0]])
@@ -1785,15 +1786,11 @@ class NodeManager:
             label='Apply'
         )
     """Call"""
-    def call(s):
-        a = s.t.insp()
-        if a == 1: return
+    def call(s,a):
         if not callable(a): btw('Not callable!'); return
         Caller(obj=a,source=s.btns[0])
     """Modify"""
-    def modify(s):
-        a = s.t.insp()
-        if a == 1: return
+    def modify(s,a):
         if s.t.dead: btw('Object is dead!'); return
         if callable(a): btw("You can't modify a callable!"); return
         Modder(
@@ -2008,10 +2005,9 @@ class atw:
         s.spy()
         s.tip(True)
     """Inspect"""
-    def insp(s):
-        if s.valid(): return s.get(s.text)
+    def insp(s,f):
+        if s.valid(): return f(s.get(s.text))
         btw('Attribute does not exist!')
-        return 1
     """Get"""
     def get(s,t):
         return getattr(s.obj,t,None) if not (s.type == 'spaz' and t in BAD()) else (0,0,0)
@@ -4681,6 +4677,69 @@ class Effect:
 @NEW
 class Deploy:
     """Obtain any object or powerup in game"""
+    @classmethod
+    def get(c):
+        with ga().context:
+            f = BombFactory.get()
+            o = SharedObjects.get()
+        return {
+            ('Safe Bomb','spinner0'):[
+                'bomb',
+                {
+                    'mesh':f.bomb_mesh,
+                    'color_texture':f.regular_tex,
+                    'shadow_size':0.5,
+                    'materials':[
+                        o.object_material,
+                        o.footing_material,
+                        f.bomb_material
+                    ]
+                }
+            ],
+            ('Safe TNT','tnt'):[
+                'prop',
+                {
+                    'mesh':f.tnt_mesh,
+                    'body':'crate',
+                    'color_texture':f.tnt_tex,
+                    'shadow_size':0.5,
+                    'materials':[
+                        o.object_material,
+                        o.footing_material,
+                        f.bomb_material
+                    ]
+                }
+            ],
+            ('Light Ball','nub'):[
+                'prop',
+                {
+                    'mesh':f.bomb_mesh,
+                    'body':'sphere',
+                    'color_texture':GA(lambda:gbt('white')),
+                    'shadow_size':0.6,
+                    'gravity_scale':0.5,
+                    'materials':[
+                        o.object_material,
+                        o.footing_material,
+                        f.bomb_material
+                    ]
+                }
+            ],
+            ('Gold Coin','coin'):[
+                'prop',
+                {
+                    'mesh':GA(lambda:getmesh('puck')),
+                    'body':'puck',
+                    'color_texture':GA(lambda:gbt('tokens4')),
+                    'reflection':'sharper',
+                    'reflection_scale':[5,5,5],
+                    'materials':[
+                        o.object_material,
+                        o.footing_material
+                    ]
+                }
+            ]
+        }
     def __init__(s,w,*a):
         s.w = w
         s.data = {'attrs':{}}
@@ -4693,6 +4752,34 @@ class Deploy:
             position=(58.8, 59.5),
             size=(150.0, 310.0)
         )
+        mem = s.__class__.get()
+        py = 150*len(mem)
+        s.prp = cw(
+            parent=prp1,
+            background=False,
+            size=(150,py)
+        )
+        s.vc = ex[2] if ex else 0
+        for _,g in enumerate(mem.items()):
+            tx,at = g
+            y = py-150-150*_
+            b = bw(
+                parent=s.prp,
+                size=(100,100),
+                texture=gt(tx[1]),
+                position=(15,y+50),
+                color=(1,1,1),
+                oac=Call(s.load,at,_)
+            )
+            t = tw(
+                parent=s.prp,
+                maxwidth=140,
+                text=tx[0],
+                position=(40,y+15),
+                h_align='center',
+                v_align='center'
+            )
+            if _ == s.vc: cw(s.prp,visible_child=t)
         tw(
             parent=w,
             position=(82.0, 26.7),
@@ -4817,9 +4904,15 @@ class Deploy:
         # finally
         s.fattr()
         s.chk(ex)
+    def load(s,at,vc):
+        s.vc = vc
+        ty,da = at
+        s.propt.set_text(ty)
+        s.data['attrs'] = da
+        s.fattr()
     def chk(s,ex):
         if not ex: return
-        p,da = ex
+        p,da,_ = ex
         if p and p != s.getpos():
             teck(0.2, lambda:s.setpos(p))
         s.data = da
@@ -4884,7 +4977,7 @@ class Deploy:
                 parent=s.atp,
                 text=dv,
                 v_align='center',
-                maxwidth=210,
+                maxwidth=190,
                 position=(5,y+4),
                 color=(0.7,0.7,0.7)
             ))
@@ -4956,7 +5049,7 @@ class Deploy:
         s.mapper = Mapper(pipe=s.mup,pos=s.getpos())
         None if s.mapper.tired else cw(s.w,transition='out_right')
     def mup(s,p=None):
-        Coolbox(fb=s.__class__.__name__, fake=True, extra=(p or s.getpos(),s.data))
+        Coolbox(fb=s.__class__.__name__, fake=True, extra=(p or s.getpos(),s.data,s.vc))
     def getpos(s):
         return tuple([float(var(f'dpl{i}')) for i in range(3)])
     def setpos(s,p):
@@ -5185,6 +5278,8 @@ huge = lambda c: [int(i*255) for i in c]
 gun = lambda: gs('gunCocking').play()
 ding = lambda: gs('dingSmallHigh').play()
 UUID = lambda: str(uuid4())[:5]
+def GA(f):
+    with ga().context: return f()
 def ENCODE(a):
     c=compress(dumps(a,separators=(',',':')).encode())
     return str(int.from_bytes(c,'big'))
