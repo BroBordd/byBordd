@@ -96,6 +96,14 @@
         "mod_filename_base": "chesteye"
     },
     {
+        "mod_name": "Console",
+        "mod_fancy_name": "Better python console",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nHelps hacky mobile modders like me!\n\nImproves python dev console, features vary:\n- Real time suggestions dropdown (eg, pr -> print).\n- Adds up/down arrows to recall executed commands.\n- Saves dev console history in env for later.",
+        "api_version": 9,
+        "mod_filename_base": "console"
+    },
+    {
         "mod_name": "Coolbox",
         "mod_fancy_name": "Own the scene.",
         "mod_version": "1.0",
