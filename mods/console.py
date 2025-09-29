@@ -151,7 +151,7 @@ class byBordd(Plugin):
             l = sorted([_ for _ in c if _.startswith(t) and not _.startswith('__')])
         if not l: return
         
-        # --- FIX START: Calculate max name width first ---
+        # --- Dimension Calculation Setup ---
         max_name_width_unscaled = 0
         for name in l:
             max_name_width_unscaled = max(max_name_width_unscaled, GSW(name))
@@ -162,17 +162,15 @@ class byBordd(Plugin):
         button_start_x = x_name + 20
         MAX_BUTTON_WIDTH = s.z.width - (prefix_width + 20.0)
         
-        # Use the max name width seen across all items to define the name column
         sx_name_scaled = (max_name_width_unscaled + NAME_PADDING_WIDTH) * 0.9 
         
         AVAILABLE_DESC_WIDTH_MAX = MAX_BUTTON_WIDTH - sx_name_scaled - 5.0
         SCALED_LINE_WIDTH_LIMIT = AVAILABLE_DESC_WIDTH_MAX
-        # --- FIX END ---
         
         processed_descriptions = []
         max_required_button_width = 0.0
         
-        # Now, calculate the required button width based on the maximum name width
+        # --- Docstring Processing Loop ---
         for name in l:
             final_doc_string = ''
             raw_doc_lines = []
@@ -181,57 +179,56 @@ class byBordd(Plugin):
             try:
                 full_name = obj_eval_prefix + name
                 obj = eval(full_name, ns)
+                
+                # --- FIX: Removed logic that cut the docstring to a single line ---
                 if obj.__doc__:
                     full_doc = obj.__doc__.strip()
-                    doc_string = ''
-                    if " -> " in full_doc:
-                        arrow_index = full_doc.find(" -> ")
-                        line_end = full_doc.find('\n', arrow_index)
-                        if line_end == -1:
-                            line_end = len(full_doc)
-                        doc_string = full_doc[:line_end].strip()
-                    else:
-                        for line in full_doc.split('\n'):
-                            line = line.strip()
-                            if line:
-                                doc_string = line
-                                break
+                    doc_string = full_doc.replace('\n', ' ')
+                    
+                    # Clean up excessive spaces
+                    while '  ' in doc_string:
+                        doc_string = doc_string.replace('  ', ' ')
+                    doc_string = doc_string.strip()
+                    
                     if doc_string:
-                        doc_string = doc_string.replace('\n', ' ')
-                        while '  ' in doc_string:
-                            doc_string = doc_string.replace('  ', ' ')
-                        doc_string = doc_string.strip()
                         current_line = ""
                         words = doc_string.split(' ')
                         for word in words:
                             test_line = (current_line + ' ' + word).strip()
                             measured_width_unscaled = GSW(test_line)
                             measured_width_scaled = measured_width_unscaled * 0.7
+                            
+                            # Standard word wrapping logic to fit available space
                             if current_line and measured_width_scaled > SCALED_LINE_WIDTH_LIMIT:
                                 line_break_occurred = True
                                 raw_doc_lines.append(current_line)
                                 max_desc_line_width_scaled = max(max_desc_line_width_scaled, GSW(current_line) * 0.7)
                                 current_line = word
                             elif not current_line and measured_width_scaled > SCALED_LINE_WIDTH_LIMIT:
+                                # Handle single word longer than the line limit
                                 line_break_occurred = True
                                 raw_doc_lines.append(word)
                                 max_desc_line_width_scaled = max(max_desc_line_width_scaled, measured_width_scaled)
                                 current_line = ""
                             else:
                                 current_line = test_line
+                        
                         if current_line:
                             raw_doc_lines.append(current_line)
                             max_desc_line_width_scaled = max(max_desc_line_width_scaled, GSW(current_line) * 0.7)
+                        
                         final_doc_string = '\n'.join([line.strip() for line in raw_doc_lines if line.strip()])
+                        
             except Exception:
                 pass
+            
             num_doc_lines = len(final_doc_string.split('\n')) if final_doc_string else 0
             num_extra_lines = max(0, num_doc_lines - 1)
             num_lines = 1 + num_extra_lines
             total_height = num_lines * LINE_HEIGHT
             processed_descriptions.append((final_doc_string, total_height))
             
-            # --- FIX START: Calculate required content width based on MAX name width ---
+            # Calculate required content width based on MAX name width
             if line_break_occurred:
                 # If description wrapped, it needed the max available space
                 required_content_width = MAX_BUTTON_WIDTH 
@@ -240,18 +237,16 @@ class byBordd(Plugin):
                 required_content_width = sx_name_scaled + max_desc_line_width_scaled + 25.0 + 10.0
             
             max_required_button_width = max(max_required_button_width, required_content_width)
-            # --- FIX END ---
             
+        # --- Final Button Width Determination ---
         sx = max_required_button_width
         
-        # Ensure 'sx' is wide enough for the max name plus padding, even if descriptions are short.
-        # This part remains, but now max_required_button_width already incorporates the max name width
-        # in the logic above when line_break_occurred is False.
+        # Ensure 'sx' is wide enough for the max name plus padding
         sx = max(sx, sx_name_scaled + 50.0) 
         
         sx = min(sx, MAX_BUTTON_WIDTH)
         
-        # All other coordinates/widths are now correct because sx_name_scaled is fixed based on the longest name.
+        # --- UI Rendering Loop ---
         x_desc = x_name + sx_name_scaled 
         current_y_pos = LINE_HEIGHT
         
@@ -278,6 +273,7 @@ class byBordd(Plugin):
                     scale=0.7, style='faded'
                 )
             current_y_pos -= total_height
+            
     def pick(s,p,j):
         n = p+j
         suffix = ' '
@@ -295,6 +291,7 @@ class byBordd(Plugin):
         s.last = s.curr = n + suffix
         s.i = 0
         s.z.request_refresh()
+        
     def mv(s,i):
         gs('deek').play()
         s.i += i
