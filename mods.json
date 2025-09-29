@@ -97,9 +97,9 @@
     },
     {
         "mod_name": "Console",
-        "mod_fancy_name": "Better Python Console",
+        "mod_fancy_name": "Enhanced Python Console",
         "mod_version": "1.2",
-        "mod_description": "Experimental. Feedback is appreciated.\nModifies the existing Python development console.\n\nFeatures vary between:\n- Command History: Recall previously executed commands across sessions using dedicated controls.\n- Real-Time Suggestions: Displays smart, context-aware suggestions for globals, attributes, and non-imported modules as you type.\n- Intelligent Completion: Automatically appends appropriate syntax (e.g., dot or opening parenthesis) upon selecting a suggestion.\n- Dynamic UI: Suggestion dropdown dynamically adjusts its size based on content length and line-wrapping needs.\n- Contextual Filtering: Dunder methods are appropriately filtered and sorted for attribute lookups.",
+        "mod_description": "Improves the Python development console with the following features:\n- Command History: Recall previously executed commands across sessions using dedicated controls.\n- Real-Time Suggestions: Displays smart, context-aware suggestions for globals, attributes, and non-imported modules as you type.\n- Intelligent Completion: Automatically appends appropriate syntax (e.g., dot or opening parenthesis) upon selecting a suggestion.\n- Dynamic UI: Suggestion dropdown dynamically adjusts its size based on content length and line-wrapping needs.\n- Contextual Filtering: Dunder methods are appropriately filtered and sorted for attribute lookups.",
         "api_version": 9,
         "mod_filename_base": "console"
     },
