@@ -127,6 +127,7 @@ class Car:
         p = n.source_player
         if p in s.nah:
             s.nah.remove(p)
+            s.__class__.remove(n)
             return
         a = p.actor
         a.node.move_up_down = 0
@@ -135,7 +136,6 @@ class Car:
         p.assigninput(IT.BOMB_PRESS,Call(s.bye,p))
         s.kids.append(p)
         if not s.driver: s.grant(p)
-        return True
     def grant(s,p):
         s.driver = p
         for i,_ in enumerate(['UP_DOWN','LEFT_RIGHT']):
