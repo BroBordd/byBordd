@@ -182,6 +182,30 @@ class Ender(Bot):
         # New state variable to prevent message spam
         s._has_announced_target = False
 
+        # Greed messages
+        s.greed_messages = [
+            'Upgrading my arsenal',
+            'Tools of the trade acquired',
+            'Enhancement detected, claiming it',
+            'Professional always upgrades',
+            'Better equipment, better kills',
+            'Agency-approved enhancement',
+            'Tactical advantage secured',
+            'Power increase: authorized',
+            'Optimizing my lethality',
+            'Every edge counts in this business',
+            'Collecting professional perks',
+            'Weapon upgrade in progress',
+            'Enhancing operational capability',
+            'Time to improve my kill rate',
+            'Death just got an upgrade',
+            'More power, more contracts',
+            'The agency provides the best gear',
+            'Efficiency boost acquired',
+            'Maximizing my potential',
+            'Superior firepower obtained'
+        ]
+
         # Funny messages
         s.pursuit_messages = [
             'Target locked and pursuing',
