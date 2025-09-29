@@ -97,9 +97,9 @@
     },
     {
         "mod_name": "Console",
-        "mod_fancy_name": "Better python console",
-        "mod_version": "1.0",
-        "mod_description": "Experimental. Feedback is appreciated.\nHelps hacky mobile modders like me!\n\nImproves python dev console, features vary:\n- Real time suggestions dropdown (eg, pr -> print).\n- Adds up/down arrows to recall executed commands.\n- Saves dev console history in env for later.",
+        "mod_fancy_name": "Better Python Console",
+        "mod_version": "1.1",
+        "mod_description": "Improves the Python development console with the following features:\n- Command History: Use up/down arrows to recall previously executed commands. History is saved across sessions.\n- Real-Time Suggestions: Displays a dropdown list of suggestions for global names, attributes, and non-imported modules as you type.\n- Smart Completion: Automatically adds a dot (.) for modules/classes or an opening parenthesis (() for callable objects upon selection.\n- Argument Support: Suggestions appear inside function calls (e.g., print(ba).\n- Attribute Filtering: Dunder methods (like __init__) are shown only in attribute completion context and are sorted to the bottom of the list.",
         "api_version": 9,
         "mod_filename_base": "console"
     },
