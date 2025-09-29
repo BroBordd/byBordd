@@ -127,7 +127,7 @@ class Car:
         p = n.source_player
         if p in s.nah:
             s.nah.remove(p)
-            s.__class__.remove(n)
+            s.__class__.MEM.remove(n)
             return
         a = p.actor
         a.node.move_up_down = 0
