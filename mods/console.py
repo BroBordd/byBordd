@@ -73,7 +73,7 @@ class byBordd(Plugin):
         if not s.last: return
         if not get():
             s.yes()
-            s.last = ''
+            s.last = s.curr = ''
     def yes(s):
         if s.last:
             s.i = 0
