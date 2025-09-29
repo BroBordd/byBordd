@@ -3,12 +3,9 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Console v1.2 - Better Python Console
+Console v1.2 - Enhanced Python Console
 
-Experimental. Feedback is appreciated.
-Modifies the existing Python development console.
-
-Features vary between:
+Improves the Python development console with the following features:
 - Command History: Recall previously executed commands across sessions using dedicated controls.
 - Real-Time Suggestions: Displays smart, context-aware suggestions for globals, attributes, and non-imported modules as you type.
 - Intelligent Completion: Automatically appends appropriate syntax (e.g., dot or opening parenthesis) upon selecting a suggestion.
@@ -37,18 +34,15 @@ from builtins import set as _set
 from sys import modules as _mod, path as _path
 from pkgutil import iter_modules
 from types import ModuleType
-
 GSW = lambda t:strw(t,suppress_warning=True)
-NAME_PADDING_WIDTH = 10.0
-LINE_HEIGHT = 25.0
-
 def var(s,v=None):
     c = app.config
     s = 'dh_'+s
     if v is None: return c.get(s,v)
     c[s] = v
     c.commit()
-
+LINE_HEIGHT = 25.0
+NAME_PADDING_WIDTH = 10.0
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
@@ -156,19 +150,29 @@ class byBordd(Plugin):
         else:
             l = sorted([_ for _ in c if _.startswith(t) and not _.startswith('__')])
         if not l: return
-        processed_descriptions = []
-        max_name_width = 0
-        scale_factor = 0.88
+        
+        # --- FIX START: Calculate max name width first ---
+        max_name_width_unscaled = 0
         for name in l:
-            max_name_width = max(max_name_width, GSW(name))
+            max_name_width_unscaled = max(max_name_width_unscaled, GSW(name))
+            
+        scale_factor = 0.88
         prefix_width = GSW(p) * scale_factor
         x_name = (-s.z.width / 2) + prefix_width
         button_start_x = x_name + 20
         MAX_BUTTON_WIDTH = s.z.width - (prefix_width + 20.0)
-        sx_name_scaled = (max_name_width + NAME_PADDING_WIDTH) * 0.9
+        
+        # Use the max name width seen across all items to define the name column
+        sx_name_scaled = (max_name_width_unscaled + NAME_PADDING_WIDTH) * 0.9 
+        
         AVAILABLE_DESC_WIDTH_MAX = MAX_BUTTON_WIDTH - sx_name_scaled - 5.0
         SCALED_LINE_WIDTH_LIMIT = AVAILABLE_DESC_WIDTH_MAX
+        # --- FIX END ---
+        
+        processed_descriptions = []
         max_required_button_width = 0.0
+        
+        # Now, calculate the required button width based on the maximum name width
         for name in l:
             final_doc_string = ''
             raw_doc_lines = []
@@ -226,17 +230,31 @@ class byBordd(Plugin):
             num_lines = 1 + num_extra_lines
             total_height = num_lines * LINE_HEIGHT
             processed_descriptions.append((final_doc_string, total_height))
-            name_width_scaled_0_9 = GSW(name) * 0.9
+            
+            # --- FIX START: Calculate required content width based on MAX name width ---
             if line_break_occurred:
-                required_content_width = MAX_BUTTON_WIDTH
+                # If description wrapped, it needed the max available space
+                required_content_width = MAX_BUTTON_WIDTH 
             else:
-                required_content_width = name_width_scaled_0_9 + max_desc_line_width_scaled + 25.0 + 10.0
+                # If description did not wrap, required width is MAX name width + actual desc width + padding
+                required_content_width = sx_name_scaled + max_desc_line_width_scaled + 25.0 + 10.0
+            
             max_required_button_width = max(max_required_button_width, required_content_width)
+            # --- FIX END ---
+            
         sx = max_required_button_width
-        sx = max(sx, sx_name_scaled + 50.0)
+        
+        # Ensure 'sx' is wide enough for the max name plus padding, even if descriptions are short.
+        # This part remains, but now max_required_button_width already incorporates the max name width
+        # in the logic above when line_break_occurred is False.
+        sx = max(sx, sx_name_scaled + 50.0) 
+        
         sx = min(sx, MAX_BUTTON_WIDTH)
-        x_desc = x_name + sx_name_scaled
+        
+        # All other coordinates/widths are now correct because sx_name_scaled is fixed based on the longest name.
+        x_desc = x_name + sx_name_scaled 
         current_y_pos = LINE_HEIGHT
+        
         for i, (name, (desc, total_height)) in enumerate(zip(l, processed_descriptions)):
             button_y_pos = current_y_pos - total_height
             s.z.button(
