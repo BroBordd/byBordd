@@ -30,6 +30,7 @@ class Car:
     def __init__(s):
         s.driver = None
         s.kids = []
+        s.nah = []
         so = SharedObjects.get()
         p = (-4,0.3,0)
         s.nx = s.ny = 0
@@ -124,6 +125,9 @@ class Car:
                 c.MEM.append(n)
     def kang(s,n):
         p = n.source_player
+        if p in s.nah:
+            s.nah.remove(p)
+            return
         a = p.actor
         a.node.move_up_down = 0
         a.node.move_left_right = 0
@@ -150,6 +154,7 @@ class Car:
         s.__class__.MEM.remove(a.node)
         s.kids.remove(p)
         a.connect_controls_to_player()
+        s.nah.append(p)
         if s.driver == p:
             s.nx = s.ny = 0
             if s.kids: s.grant(s.kids[0])
