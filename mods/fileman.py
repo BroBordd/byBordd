@@ -3,9 +3,10 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-FileMan v1.2 - Advanced file manager
+FileMan v1.3 - Advanced file manager
 
 Adds a button to settings menu.
+Has a lot of features! Try it and see.
 Experimental. Read code to know more.
 """
 
@@ -78,7 +79,7 @@ from threading import Thread
 from pathlib import Path
 
 class FileMan(MainWindow):
-    VER = '1.2'
+    VER = '1.3'
     INS = []
     @classmethod
     def resize(c):
@@ -573,17 +574,17 @@ class FileMan(MainWindow):
                             return
                         s.stat = 1000
                         s.msh = False
-                        s.wop()
+                        s.wop() if zap<1 else 0
                         k = s.fkids[s.sl[0]] if gay else w
                         gcen = lambda: ((o:=k.get_screen_space_center()),(o[0]-s.size[0]/5,o[1]) if gay else o)[1]
                         o = gcen()
                         xs,ys = [_*0.6 for _ in s.size]
-                        p = cw(
+                        p = s.kmep = cw(
                             parent=zw('overlay_stack'),
                             scale_origin_stack_offset=o,
                             size=(xs,ys),
                             background=False,
-                            transition=['in_scale',None][zap]
+                            transition=['in_scale',None,'in_right'][zap]
                         )
                         s.killme.append(p)
                         iw(
@@ -610,7 +611,7 @@ class FileMan(MainWindow):
                             oac=Call(s.statbye,p,gcen)
                         )
                         cw(p,cancel_button=b)
-                        ix = xs-250
+                        ix = xs-320
                         iw(
                             parent=p,
                             texture=gt('white'),
@@ -623,9 +624,9 @@ class FileMan(MainWindow):
                             parent=p,
                             h_align='center',
                             v_align='center',
-                            position=(xs/2-60,ys-60),
+                            position=(xs/2-95,ys-60),
                             text=basename(h),
-                            maxwidth=ix-100
+                            maxwidth=ix-170
                         )
                         iw(
                             parent=p,
@@ -649,6 +650,14 @@ class FileMan(MainWindow):
                             position=(xs-71,ys-70),
                             size=(50,50),
                             oac=Call(s.stata,1),
+                            repeat=True
+                        )
+                        bw(
+                            parent=p,
+                            label=cs(sc.PLAY_STATION_CIRCLE_BUTTON),
+                            position=(xs-211,ys-70),
+                            size=(50,50),
+                            oac=s.edfile,
                             repeat=True
                         )
                         s.oops = 0
@@ -1003,6 +1012,145 @@ class FileMan(MainWindow):
                             return
                         # rename
                         s.fresh(sl=n,pren=(True,False))
+    def edfile_s(s):
+        da = []
+        for _ in s.edfile_k: da.append(tw(query=_)+'\n')
+        n = len(da)
+        h = s.sl[1]
+        try:
+            with open(h,'w') as f: f.writelines(da)
+        except Exception as e: s.btw(str(e))
+        else:
+            GUN()
+            s.push(f'Wrote {n} lines')
+        s.edfile_bye(True)
+    def edfile(s):
+        cw(s.kmep,transition='out_right')
+        s.wop()
+        s.killme.clear()
+        for _ in getattr(s,'edfile_k',[]):_.delete()
+        s.edfile_k = []
+        xs,ys = s.size
+        p = cw(
+            parent=zw('overlay_stack'),
+            size=(xs,ys),
+            background=False,
+            transition='in_left'
+        )
+        s.killme.append(p)
+        iw(
+            parent=p,
+            size=(xs*1.2,ys*1.2),
+            texture=gt('softRect'),
+            opacity=[0.1,0.3][s.amoled],
+            position=(-xs*0.1,-ys*0.1),
+            color=s.COL5
+        )
+        iw(
+           parent=p,
+           texture=gt('white'),
+           color=s.COL5,
+           opacity=0.8,
+           size=(xs,ys)
+        )
+        bw(
+            parent=p,
+            position=(xs-135,ys-70),
+            label='Save',
+            size=(110,50),
+            text_scale=0.8,
+            oac=s.edfile_s
+        )
+        s.edfile_bye = lambda b: (
+            cw(p,transition='out_left'),
+            s.act(0,5,zap=2),
+            s.laz(),
+            b or s.push('Nothing was saved!')
+        )
+        b = bw(
+            parent=p,
+            position=(20,ys-70),
+            label=cs(sc.BACK),
+            size=(50,50),
+            text_scale=0.8,
+            oac=Call(s.edfile_bye,False)
+        )
+        cw(p,cancel_button=b)
+        ix = xs-250
+        h = s.sl[1]
+        iw(
+            parent=p,
+            texture=gt('white'),
+            color=s.COL1,
+            position=(90,ys-72),
+            size=(ix,54),
+            opacity=0.5
+        )
+        tw(
+            parent=p,
+            h_align='center',
+            v_align='center',
+            position=(xs/2-95,ys-60),
+            text=basename(h),
+            maxwidth=ix-100
+        )
+        fxs = xs-40
+        fys = ys-110
+        iw(
+            parent=p,
+            texture=gt('white'),
+            color=s.COL1,
+            opacity=0.5,
+            position=(20,20),
+            size=(fxs,fys)
+        )
+        # List
+        da = []
+        with open(h,'r') as f:
+            for _ in f.readlines():
+                da.append(_.rstrip('\n'))
+        n = len(da)
+        p2 = sw(
+            size=(fxs,fys),
+            parent=p,
+            position=(20,20),
+            border_opacity=0,
+            color=s.COL5
+        )
+        rys = 30*n
+        p3 = cw(
+            background=False,
+            size=(fxs,rys),
+            parent=p2
+        )
+        p4 = hsw(
+            parent=p3,
+            border_opacity=0,
+            size=(fxs,rys)
+        )
+        rxs = max(GSW(max(da,key=GSW)+' '*5),fxs)
+        p5 = cw(
+            background=False,
+            parent=p4,
+            size=(rxs,rys)
+        )
+        for i,l in enumerate(da):
+            s.edfile_k.append(tw(
+                editable=True,
+                parent=p5,
+                position=(20,rys-i*30-35),
+                size=(rxs,30),
+                text=l,
+                glow_type='uniform',
+                allow_clear_button=False,
+                maxwidth=rxs
+            ))
+        tl = tw(
+            text='',
+            position=(0,rys-60),
+            parent=p5
+        )
+        cw(p5,visible_child=tl)
     def loadt(s,h,gay):
         mem = join(BASE(),'textures')
         nam = basename(h)
@@ -1291,7 +1439,7 @@ class FileMan(MainWindow):
             s.killme.clear()
             s.act(0,5,zap=True,gay=s.last_gay)
         else:
-            s.btw('No more open file buffers!')
+            s.btw('No buffers to cycle!')
     def cpsharel(s):
         l = s.vsharel()
         if not l: return

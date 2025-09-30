@@ -162,8 +162,8 @@
     {
         "mod_name": "FileMan",
         "mod_fancy_name": "Advanced file manager",
-        "mod_version": "1.2",
-        "mod_description": "Adds a button to settings menu.\nExperimental. Read code to know more.",
+        "mod_version": "1.3",
+        "mod_description": "Adds a button to settings menu.\nHas a lot of features! Try it and see.\nExperimental. Read code to know more.",
         "api_version": 9,
         "mod_filename_base": "fileman"
     },
