@@ -626,7 +626,7 @@ class FileMan(MainWindow):
                             v_align='center',
                             position=(xs/2-95,ys-60),
                             text=basename(h),
-                            maxwidth=ix-170
+                            maxwidth=ix-60
                         )
                         iw(
                             parent=p,
@@ -1022,9 +1022,11 @@ class FileMan(MainWindow):
         except Exception as e: s.btw(str(e))
         else:
             GUN()
-            s.push(f'Wrote {n} lines')
+            ss = ['','s'][n!=1]
+            s.push(f'Wrote {n} line'+ss)
         s.edfile_bye(True)
     def edfile(s):
+        s.push('',du=0)
         cw(s.kmep,transition='out_right')
         s.wop()
         s.killme.clear()
@@ -1090,9 +1092,9 @@ class FileMan(MainWindow):
             parent=p,
             h_align='center',
             v_align='center',
-            position=(xs/2-95,ys-60),
+            position=(xs/2-65,ys-60),
             text=basename(h),
-            maxwidth=ix-100
+            maxwidth=ix-50
         )
         fxs = xs-40
         fys = ys-110
@@ -1109,6 +1111,7 @@ class FileMan(MainWindow):
         with open(h,'r') as f:
             for _ in f.readlines():
                 da.append(_.rstrip('\n'))
+        if not da: return
         n = len(da)
         p2 = sw(
             size=(fxs,fys),
