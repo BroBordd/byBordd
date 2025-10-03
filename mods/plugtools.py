@@ -93,12 +93,14 @@ class PlugTools(TAB):
                 if not sp: continue
                 p = app.plugins
                 if getattr(sp,'enabled',False):
-                    o = s.sp.plugin
-                    if o in p.active_plugins:
-                        p.active_plugins.remove(o)
-                    if o in p.plugin_specs:
-                        p.plugin_specs.pop(o)
-                    del s.sp.plugin,o
+                    try: o = s.sp.plugin
+                    except AttributeError: pass
+                    else:
+                        if o in p.active_plugins:
+                            p.active_plugins.remove(o)
+                        if o in p.plugin_specs:
+                            p.plugin_specs.pop(o)
+                        del s.sp.plugin,o
                     collect()
                     try: reload(modules[NAM(_,0)])
                     except: pass
