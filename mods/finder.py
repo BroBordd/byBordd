@@ -294,7 +294,8 @@ class Finder:
             a = _['a']
             if (r:=_.get('roster',{})):
                 for p in r:
-                    ds = loads(p['spec'])['n']
+                    try: ds = loads(p['spec'])['n']
+                    except: continue
                     0 if (
                         ds == 'Finder' or
                         (c.FLT and not s.chk(r))
