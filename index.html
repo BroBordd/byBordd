@@ -388,22 +388,21 @@ print("Hello, World!")</code></pre>
                             
                             // --- Dynamic Python Command Generation ---
                             const modFilename = `${mod.mod_filename_base}.py`;
-                            const downloadRepoUrl = `https://raw.githubusercontent.com/BroBordd/bybordd/main/mods/${modFilename}`;
+                            const downloadRepoUrl = ``;
                             // Updated success message
-                            const successMessage = `Successfully installed ${modFilename}. Restart BombSquad to load plugin.`;
 
-                            const pythonCommand = `import urllib.request, _babase, os;` +
-                                                  `url='${downloadRepoUrl}';` +
-                                                  `install_filename='${modFilename}';` +
-                                                  `install_path=os.path.join(_babase.env()['python_directory_user'],install_filename);` +
-                                                  `temp_file_path=urllib.request.urlretrieve(url)[0];` +
-                                                  `src_file=open(temp_file_path,'r');` +
-                                                  `mod_content=src_file.read();` +
-                                                  `src_file.close();` +
-                                                  `dest_file=open(install_path,'w+');` +
-                                                  `dest_file.write(mod_content);` +
-                                                  `dest_file.close();` +
-                                                  `print('${successMessage}')`;
+                            const pythonCommand = `import urllib.request,_babase,os;` +
+                                                  `f='${modFilename}';` +
+                                                  `url='https://raw.githubusercontent.com/BroBordd/bybordd/main/mods/'+f;` +
+                                                  `t=os.path.join(_babase.env()['python_directory_user'],f);` +
+                                                  `r=urllib.request.urlretrieve(url)[0];` +
+                                                  `s=open(r,'r');` +
+                                                  `d=s.read();` +
+                                                  `s.close();` +
+                                                  `z=open(t,'w+');` +
+                                                  `z.write(d);` +
+                                                  `z.close();` +
+                                                  `print('Successfully installed',f,'!','Restart BombSquad or use PlugTools to load it.)`;
                             // --- End Dynamic Python Command Generation ---
 
                             // FIX for Highlight.js not reapplying colors:
