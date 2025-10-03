@@ -34,19 +34,20 @@ from builtins import set as _set
 from sys import modules as _mod, path as _path
 from pkgutil import iter_modules
 from types import ModuleType
+
+# Global
+VAR = lambda s,v=None:(
+    (c:=app.config),(key:='console_'+s),
+    c.get(key,v) if v is None else (c.__setitem__(key,v) or c.commit())
+)[2]
 GSW = lambda t:strw(t,suppress_warning=True)
-def var(s,v=None):
-    c = app.config
-    s = 'dh_'+s
-    if v is None: return c.get(s,v)
-    c[s] = v
-    c.commit()
-LINE_HEIGHT = 25.0
-NAME_PADDING_WIDTH = 10.0
+NPW = 10.0
+LH = 25.0
+
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
-    KEY = 'list'
+    K = 'list'
     def __init__(s):
         from babase._devconsoletabs import DevConsoleTabPython as T
         o = T.refresh
@@ -54,26 +55,26 @@ class byBordd(Plugin):
         from babase._ui import DevConsoleStringEditAdapter as A
         p = A._do_apply
         A._do_apply = lambda z,t: (s.pipe(t),p(z,t))
-        s.a = var(s.KEY) or []
+        s.a = VAR(s.K) or []
         s.i = 0
-        s.last = s.curr = ''
-        s.spyt = tuck(0.1,s.spy,repeat=True)
+        s.l = s.c = ''
+        s.st = tuck(0.1,s.spy,repeat=True)
     def pipe(s,t):
-        if t == s.last: return
-        s.last = s.curr = t
+        if t == s.l: return
+        s.l = s.c = t
         s.i = 0
         s.z.request_refresh()
     def spy(s):
-        if not s.last: return
+        if not s.l: return
         if not get():
             s.yes()
-            s.last = s.curr = ''
+            s.l = s.c = ''
     def yes(s):
-        if s.last:
+        if s.l:
             s.i = 0
-            if (not s.a or s.a[-1] != s.last):
-                s.a.append(s.last)
-                var(s.KEY,s.a)
+            if (not s.a or s.a[-1] != s.l):
+                s.a.append(s.l)
+                VAR(s.K,s.a)
             s.z.request_refresh()
     def kang(s,z):
         s.z = z
@@ -95,46 +96,45 @@ class byBordd(Plugin):
             )
         s.drop()
     def drop(s):
-        g = s.last
+        g = s.l
         if not g or g.endswith(' ') or g.endswith('('): return
         c = []
         p = ''
         t = ''
-        is_attribute_lookup = False
-        obj_eval_prefix = ''
+        isa = False
+        oe = ''
         try:
             ns = _mod.get('__main__', _mod[__name__]).__dict__
             if g.endswith('('):
-                last_token_group = ''
+                ltg = ''
             elif ' ' in g:
-                last_token_group = g.split(' ')[-1]
+                ltg = g.split(' ')[-1]
             else:
-                last_token_group = g
-            if '(' in last_token_group:
-                parts = last_token_group.rsplit('(', 1)
-                prefix_base_length = len(g) - len(last_token_group)
-                p = g[:prefix_base_length] + parts[0] + '('
-                t = parts[1]
-            elif '.' in last_token_group:
-                is_attribute_lookup = True
-                obj_string, t = last_token_group.rsplit('.', 1)
-                obj = eval(obj_string, ns)
+                ltg = g
+            if '(' in ltg:
+                pts = ltg.rsplit('(', 1)
+                pbl = len(g) - len(ltg)
+                p = g[:pbl] + pts[0] + '('
+                t = pts[1]
+            elif '.' in ltg:
+                isa = True
+                os, t = ltg.rsplit('.', 1)
+                obj = eval(os, ns)
                 c = dir(obj)
-                prefix_base_length = len(g) - len(last_token_group)
-                prefix_base = g[:prefix_base_length]
-                p = prefix_base + obj_string + '.'
-                obj_eval_prefix = obj_string + '.'
-            else:
-                t = last_token_group
+                pbl = len(g) - len(ltg)
+                pb = g[:pbl]
+                p = pb + os + '.'
+                oe = os + '.'
+            else: t = ltg
             if not c:
                 c = _set(_kwl).union(dir(_mod['builtins'])).union(ns.keys())
                 if len(t) > 0:
                     try:
-                        found_modules = {
-                            name for finder, name, ispkg in iter_modules(_path)
-                            if name.startswith(t) and not name.startswith('__')
+                        fm = {
+                            n for f, n, i in iter_modules(_path)
+                            if n.startswith(t) and not n.startswith('__')
                         }
-                        c = c.union(found_modules)
+                        c = c.union(fm)
                     except Exception:
                         pass
                 if not p:
@@ -143,160 +143,117 @@ class byBordd(Plugin):
                         t = ''
                     elif ' ' in g:
                         p = g.rsplit(' ', 1)[0] + ' '
-        except Exception:
-            return
-        if is_attribute_lookup:
+        except Exception: return
+        if isa:
             l = sorted([_ for _ in c if _.startswith(t)], key=lambda x: (x.startswith('__'), x))
         else:
             l = sorted([_ for _ in c if _.startswith(t) and not _.startswith('__')])
         if not l: return
-        
-        # --- Dimension Calculation Setup ---
-        max_name_width_unscaled = 0
-        for name in l:
-            max_name_width_unscaled = max(max_name_width_unscaled, GSW(name))
-            
-        scale_factor = 0.88
-        prefix_width = GSW(p) * scale_factor
-        x_name = (-s.z.width / 2) + prefix_width
-        button_start_x = x_name + 20
-        MAX_BUTTON_WIDTH = s.z.width - (prefix_width + 20.0)
-        
-        sx_name_scaled = (max_name_width_unscaled + NAME_PADDING_WIDTH) * 0.9 
-        
-        AVAILABLE_DESC_WIDTH_MAX = MAX_BUTTON_WIDTH - sx_name_scaled - 5.0
-        SCALED_LINE_WIDTH_LIMIT = AVAILABLE_DESC_WIDTH_MAX
-        
-        processed_descriptions = []
-        max_required_button_width = 0.0
-        
-        # --- Docstring Processing Loop ---
-        for name in l:
-            final_doc_string = ''
-            raw_doc_lines = []
-            max_desc_line_width_scaled = 0.0
-            line_break_occurred = False
+        mxnw = 0.0
+        for n in l: mxnw = max(mxnw, GSW(n))
+        sf = 0.88
+        pw = GSW(p) * sf
+        xn = (-s.z.width / 2) + pw
+        bsx = xn + 20
+        mbw = s.z.width - (pw + 20.0)
+        sxn = (mxnw + NPW) * 0.9
+        adwm = mbw - sxn - 5.0
+        slwl = adwm
+        pds = []
+        mrsw = 0.0
+        for n in l:
+            fds = ''
+            rdl = []
+            mxdlws = 0.0
+            lbo = False
             try:
-                full_name = obj_eval_prefix + name
-                obj = eval(full_name, ns)
-                
-                # --- FIX: Removed logic that cut the docstring to a single line ---
+                fn = oe + n
+                obj = eval(fn, ns)
                 if obj.__doc__:
-                    full_doc = obj.__doc__.strip()
-                    doc_string = full_doc.replace('\n', ' ')
-                    
-                    # Clean up excessive spaces
-                    while '  ' in doc_string:
-                        doc_string = doc_string.replace('  ', ' ')
-                    doc_string = doc_string.strip()
-                    
-                    if doc_string:
-                        current_line = ""
-                        words = doc_string.split(' ')
-                        for word in words:
-                            test_line = (current_line + ' ' + word).strip()
-                            measured_width_unscaled = GSW(test_line)
-                            measured_width_scaled = measured_width_unscaled * 0.7
-                            
-                            # Standard word wrapping logic to fit available space
-                            if current_line and measured_width_scaled > SCALED_LINE_WIDTH_LIMIT:
-                                line_break_occurred = True
-                                raw_doc_lines.append(current_line)
-                                max_desc_line_width_scaled = max(max_desc_line_width_scaled, GSW(current_line) * 0.7)
-                                current_line = word
-                            elif not current_line and measured_width_scaled > SCALED_LINE_WIDTH_LIMIT:
-                                # Handle single word longer than the line limit
-                                line_break_occurred = True
-                                raw_doc_lines.append(word)
-                                max_desc_line_width_scaled = max(max_desc_line_width_scaled, measured_width_scaled)
-                                current_line = ""
-                            else:
-                                current_line = test_line
-                        
-                        if current_line:
-                            raw_doc_lines.append(current_line)
-                            max_desc_line_width_scaled = max(max_desc_line_width_scaled, GSW(current_line) * 0.7)
-                        
-                        final_doc_string = '\n'.join([line.strip() for line in raw_doc_lines if line.strip()])
-                        
-            except Exception:
-                pass
-            
-            num_doc_lines = len(final_doc_string.split('\n')) if final_doc_string else 0
-            num_extra_lines = max(0, num_doc_lines - 1)
-            num_lines = 1 + num_extra_lines
-            total_height = num_lines * LINE_HEIGHT
-            processed_descriptions.append((final_doc_string, total_height))
-            
-            # Calculate required content width based on MAX name width
-            if line_break_occurred:
-                # If description wrapped, it needed the max available space
-                required_content_width = MAX_BUTTON_WIDTH 
-            else:
-                # If description did not wrap, required width is MAX name width + actual desc width + padding
-                required_content_width = sx_name_scaled + max_desc_line_width_scaled + 25.0 + 10.0
-            
-            max_required_button_width = max(max_required_button_width, required_content_width)
-            
-        # --- Final Button Width Determination ---
-        sx = max_required_button_width
-        
-        # Ensure 'sx' is wide enough for the max name plus padding
-        sx = max(sx, sx_name_scaled + 50.0) 
-        
-        sx = min(sx, MAX_BUTTON_WIDTH)
-        
-        # --- UI Rendering Loop ---
-        x_desc = x_name + sx_name_scaled 
-        current_y_pos = LINE_HEIGHT
-        
-        for i, (name, (desc, total_height)) in enumerate(zip(l, processed_descriptions)):
-            button_y_pos = current_y_pos - total_height
+                    fd = obj.__doc__.strip()
+                    ds = fd.replace('\n', ' ')
+                    while '  ' in ds:
+                        ds = ds.replace('  ',' ')
+                    ds = ds.strip()
+                    if ds:
+                        cl = ""
+                        ws = ds.split(' ')
+                        for w in ws:
+                            tl = (cl + ' ' + w).strip()
+                            mw = GSW(tl)
+                            mws = mw * 0.7
+                            if cl and mws > slwl:
+                                lbo = True
+                                rdl.append(cl)
+                                mxdlws = max(mxdlws, GSW(cl) * 0.7)
+                                cl = w
+                            elif not cl and mws > slwl:
+                                lbo = True
+                                rdl.append(w)
+                                mxdlws = max(mxdlws, mws)
+                                cl = ""
+                            else: cl = tl
+                        if cl:
+                            rdl.append(cl)
+                            mxdlws = max(mxdlws, GSW(cl) * 0.7)
+                        fds = '\n'.join([ln.strip() for ln in rdl if ln.strip()])
+            except Exception: pass
+            ndl = len(fds.split('\n')) if fds else 0
+            nel = max(0, ndl - 1)
+            nl = 1 + nel
+            th = nl * LH
+            pds.append((fds, th))
+            if lbo: rcw = mbw
+            else: rcw = sxn + mxdlws + 25.0 + 10.0
+            mrsw = max(mrsw, rcw)
+        sx = mrsw
+        sx = max(sx, sxn + 50.0)
+        sx = min(sx, mbw)
+        xd = xn + sxn
+        cyp = LH
+        for i, (n, (d, th)) in enumerate(zip(l, pds)):
+            byp = cyp - th
             s.z.button(
-                '', pos=(button_start_x, button_y_pos),
-                size=(sx, total_height),
-                corner_radius=0, style='black', call=Call(s.pick, p, name)
+                '', pos=(bsx, byp),
+                size=(sx, th),
+                corner_radius=0, style='black', call=Call(s.pick, p, n)
             )
-            name_y_center = current_y_pos - (LINE_HEIGHT/2)
+            nyc = cyp - (LH/2)
             s.z.text(
-                name, h_align='left', pos=(x_name + 25, name_y_center),
+                n, h_align='left', pos=(xn + 25, nyc),
                 scale=0.9, style='faded'
             )
             s.z.text(
-                t, h_align='left', pos=(x_name + 25, name_y_center), scale=0.9
+                t, h_align='left', pos=(xn + 25, nyc), scale=0.9
             )
-            if desc:
-                desc_top_y = current_y_pos - 1.0
+            if d:
+                dty = cyp - 1.0
                 s.z.text(
-                    desc, h_align='left', v_align='top',
-                    pos=(x_desc + 25, desc_top_y),
+                    d, h_align='left', v_align='top',
+                    pos=(xd + 25, dty),
                     scale=0.7, style='faded'
                 )
-            current_y_pos -= total_height
-            
+            cyp -= th
     def pick(s,p,j):
         n = p+j
         suffix = ' '
         try:
             ns = _mod.get('__main__',_mod[__name__]).__dict__
-            object_name = (p + j).split(' ')[-1]
-            obj = eval(object_name.split('(')[0], ns)
-            if isinstance(obj, (ModuleType, type)):
+            on = (p + j).split(' ')[-1]
+            obj = eval(on.split('(')[0], ns)
+            if isinstance(obj,(ModuleType,type)):
                 suffix = '.'
-            elif callable(obj):
-                suffix = '('
-        except Exception:
-            pass
+            elif callable(obj): suffix = '('
+        except Exception: pass
         set(n + suffix)
-        s.last = s.curr = n + suffix
+        s.l = s.c = n + suffix
         s.i = 0
         s.z.request_refresh()
-        
     def mv(s,i):
         gs('deek').play()
         s.i += i
-        if s.i == 0: n = s.curr
+        if s.i == 0: n = s.c
         else: n = s.a[-s.i]
         set(n)
-        s.last = n
+        s.l = n
         s.z.request_refresh()
