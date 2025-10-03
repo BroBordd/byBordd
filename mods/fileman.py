@@ -3,11 +3,19 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-FileMan v1.3 - Advanced file manager
+FileMan v1.3 - Advanced File Manager Plugin
 
-Adds a button to settings menu.
-Has a lot of features! Try it and see.
-Experimental. Read code to know more.
+A comprehensive suite for in-game file management, including:
+- Core Operations: Copy, Move, Delete (with confirmation), Rename.
+- File Creation: Create New Files and Folders.
+- File Sharing: Share files via the bashupload.com service.
+- Navigation & Utilities: Editable Path Bar, Go Up, Refresh, Sort, Filter, and Bookmark (Star) favorite directories.
+- Text & Code Handling: View, Paginate, and Edit text/code files, featuring basic Python syntax highlighting.
+- Asset Loading: Load/Copy custom Meshes (.bob), Textures (.ktx), and Audio (.ogg) directly to the game folders/directories.
+- Media Previews: Display/Preview recognized Textures (.ktx), Preview Replays, and Play/Pause Audio (.ogg) files.
+- 3D Mesh Visualization: Render Basic 3D Mesh Illustrations (.bob) with rotation and zoom controls.
+- Customization: Full UI Color Editor with RGB control and Reset to Default options.
+- Accessibility: Adds an access button to the main Settings Menu.
 """
 
 from babase import (
@@ -77,6 +85,7 @@ from mimetypes import guess_type
 from random import uniform as UF
 from threading import Thread
 from pathlib import Path
+
 
 class FileMan(MainWindow):
     VER = '1.3'
@@ -1026,6 +1035,15 @@ class FileMan(MainWindow):
             s.push(f'Wrote {n} line'+ss)
         s.edfile_bye(True)
     def edfile(s):
+        da = []
+        h = s.sl[1]
+        try:
+            with open(h,'r') as f:
+                for _ in f.readlines():
+                    da.append(_.rstrip('\n'))
+        except Exception as e:
+            s.btw(str(e))
+            return
         s.push('',du=0)
         cw(s.kmep,transition='out_right')
         s.wop()
@@ -1063,6 +1081,7 @@ class FileMan(MainWindow):
             text_scale=0.8,
             oac=s.edfile_s
         )
+        c = s.__class__
         s.edfile_bye = lambda b: (
             cw(p,transition='out_left'),
             s.act(0,5,zap=2),
@@ -1079,7 +1098,6 @@ class FileMan(MainWindow):
         )
         cw(p,cancel_button=b)
         ix = xs-250
-        h = s.sl[1]
         iw(
             parent=p,
             texture=gt('white'),
@@ -1107,10 +1125,6 @@ class FileMan(MainWindow):
             size=(fxs,fys)
         )
         # List
-        da = []
-        with open(h,'r') as f:
-            for _ in f.readlines():
-                da.append(_.rstrip('\n'))
         if not da: return
         n = len(da)
         p2 = sw(
@@ -2242,8 +2256,9 @@ class byBordd(Plugin):
             _.sweep()
             _.bye()
     def kang(s):
-        from bauiv1lib.settings.allsettings import AllSettingsWindow as m
+        # entry
         i = '__init__'
+        from bauiv1lib.settings.allsettings import AllSettingsWindow as m
         o = getattr(m,i)
         setattr(m,i,lambda z,*a,**k:(o(z,*a,**k),s.mk(z))[0])
     def fix(s,p):
