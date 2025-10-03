@@ -3,21 +3,23 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Finder v2.0 - Find anyone
+Finder v3.0 - Find anyone
 
 Experimental. Feedback is appreciated.
 Useful if you are looking for someone, or just messing around.
 
 Features:
-- One click to do everything
-- Targets all reachable public servers just like gather window
-- Sniffs around roster from servers without joining them
+- High-Concurrency Scanning via ThreadPoolExecutor for speed.
+- Targets all reachable public servers just like gather window.
+- Sniffs out players (roster) without joining servers.
+- Progress reports handled asynchronously to prevent UI freezing.
 
 Combine with Power plugin for better control.
 """
 
 from json import dumps, loads
 from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 from time import time, sleep
 from bascenev1 import (
     connect_to_party as CON,
@@ -58,7 +60,7 @@ from socket import (
 )
 
 class Finder:
-    VER = '2.0'
+    VER = '3.0'
     COL1 = (0,0.3,0.3)
     COL2 = (0,0.55,0.55)
     COL3 = (0,0.7,0.7)
@@ -66,36 +68,25 @@ class Finder:
     COL5 = (1,1,0)
     MAX = 0.3
     TOP = 1
-    MEM = []
-    ART = []
+    PRO,THR,MEM,ART,KIDS,IKIDS = [],[],[],[],[],[]
+    P2 = ARTT = SL = TIP = None
     BUSY = False
-    KIDS = []
-    P2 = None
-    ARTT = None
-    SL = None
-    TIP = None
     FLT = ''
     def __init__(s,src):
-        s.thr = []
-        s.ikids = []
-        s.pro = []
         s.sust = None
         s.s1 = s.snd('powerup01')
         c = s.__class__
-        # parent
         z = (460,400)
         c.P = cw(
             scale_origin_stack_offset=src.get_screen_space_center(),
             size=z,
             oac=s.bye
         )[0]
-        # footing
         sw(
             parent=c.P,
             size=z,
             border_opacity=0
         )
-        # fetch
         tw(
             parent=c.P,
             text='Fetch all servers',
@@ -119,7 +110,6 @@ class Finder:
             position=(15,330),
             maxwidth=320
         )
-        # separator
         iw(
             parent=c.P,
             size=(429,1),
@@ -127,7 +117,6 @@ class Finder:
             texture=gt('white'),
             color=s.COL2
         )
-        # cube art
         c.ARTT = tw(
             parent=c.P,
             text='' if c.ART else f'Finder v{c.VER}\n{CH(lmao())}',
@@ -138,7 +127,6 @@ class Finder:
             color=s.COL4,
             position=(205,295),
         )
-        # separator
         iw(
             parent=c.P,
             size=(429,1),
@@ -146,7 +134,6 @@ class Finder:
             texture=gt('white'),
             color=s.COL2
         )
-        # filter
         c.FT = tw(
             parent=c.P,
             position=(23,150),
@@ -165,7 +152,6 @@ class Finder:
             text='Search',
             color=s.COL3
         )
-        # players
         p1 = sw(
             parent=c.P,
             position=(20,18),
@@ -186,7 +172,6 @@ class Finder:
             maxwidth=175,
             h_align='center'
         )
-        # info
         iw(
             parent=c.P,
             position=(235,18),
@@ -204,7 +189,6 @@ class Finder:
             maxwidth=170,
             h_align='center'
         )
-        # finally
         s.draw() if c.ART else 0
         s.up()
         c.SL and s.info(c.SL)
@@ -222,13 +206,15 @@ class Finder:
     def hl(s,_,p):
         c = s.__class__
         c.SL = p
-        [tw(t,color=s.COL3) for t in c.KIDS]
-        tw(c.KIDS[_],color=s.COL4)
+        for w in c.KIDS: tw(w,color=s.COL3)
+        w = c.KIDS[_]
+        tw(w,color=s.COL4)
+        ocw(c.P2,visible_child=w)
         s.info(p)
     def info(s,p):
-        [_.delete() for _ in s.ikids]
-        s.ikids.clear()
         c = s.__class__
+        for _ in c.IKIDS: _.delete()
+        c.IKIDS.clear()
         tw(c.TIP,text='')
         i = None
         for _ in c.MEM:
@@ -247,7 +233,7 @@ class Finder:
             px = [250,245,375][_]
             py = [155,115][bool(_)]
             sx = [175,115,55][_]
-            s.ikids.append(tw(
+            c.IKIDS.append(tw(
                 parent=c.P,
                 position=(px,py),
                 h_align='center',
@@ -262,7 +248,7 @@ class Finder:
                 on_activate_call=Call(s.copy,t)
             ))
 
-        s.ikids.append(bw(
+        c.IKIDS.append(bw(
             parent=c.P,
             position=(253,65),
             size=(166,30),
@@ -271,7 +257,7 @@ class Finder:
             textcolor=s.COL4,
             oac=Call(s.oke,'\n'.join([' | '.join([str(j) for j in _.values()]) for _ in pz]) or 'Nothing')
         ))
-        s.ikids.append(bw(
+        c.IKIDS.append(bw(
             parent=c.P,
             position=(253,30),
             size=(166,30),
@@ -350,27 +336,43 @@ class Finder:
         c = s.__class__
         c.MEM = r['l']
         c.ART = [cs(sc.OUYA_BUTTON_U)]*len(c.MEM)
-        s.thr = []
-        for i,_ in enumerate(c.MEM):
-            t = Thread(target=Call(s.ping,_,i))
-            s.thr.append(t)
-            t.start()
-        s.sust = tuck(0.01,s.sus,repeat=True)
+        c.PRO.clear()
+        
+        # INCREASED CONCURRENCY: Using a high number of workers to match I/O demand.
+        executor = ThreadPoolExecutor(max_workers=256)
+        
+        c.THR = [
+            executor.submit(Call(s.ping,_,i)) for i,_ in enumerate(c.MEM)
+        ]
+        
+        s.sus_starter()
+    
+    def sus_starter(s):
+        if not s.sust:
+            s.sust = tuck(0.01,s.sus,repeat=True)
+            
     def ping(s,_,i):
-        _['ping'],_['roster'] = ping_and_kang(_['a'],_['p'],pro=s.pro,dex=i)
+        _['ping'],_['roster'] = ping_and_kang(_['a'],_['p'],dex=i)
+        
     def sus(s):
-        if not s.pro: return
-        i,p = s.pro.pop()
         c = s.__class__
-        c.ART[i] = (
-            cs(sc.OUYA_BUTTON_A) if p==999 else
-            cs(sc.OUYA_BUTTON_O) if p<100 else
-            cs(sc.OUYA_BUTTON_Y)
-        )
-        s.draw() if c.ARTT.exists() else None
-        if cs(sc.OUYA_BUTTON_U) not in c.ART:
-            s.syst = None
+        
+        while c.PRO:
+            i,p = c.PRO.pop()
+            c.ART[i] = (
+                cs(sc.OUYA_BUTTON_A) if p==999 else
+                cs(sc.OUYA_BUTTON_O) if p<100 else
+                cs(sc.OUYA_BUTTON_Y)
+            )
+            s.draw() if c.ARTT.exists() else None
+
+        all_futures_done = all(f.done() for f in c.THR) if c.THR else True
+
+        if cs(sc.OUYA_BUTTON_U) not in c.ART and all_futures_done:
+            s.sust = None
             s.done()
+            return
+            
     def draw(s):
         c = s.__class__
         tw(c.ARTT,text=('\n'.join(''.join(c.ART[i:i+40]) for i in range(0,len(s.ART),40))))
@@ -402,15 +404,23 @@ class Finder:
             if not dun and p == c.SL: ocw(c.P2,visible_child=tt); dun = 1
             c.KIDS.append(tt)
     def done(s):
-        s.ding(0,1)
-        [_.join() for _ in s.thr]
-        s.thr.clear()
         c = s.__class__
+        s.ding(0,1)
         tt = time() - c.ST
         ln = len(s.MEM)
         ab = int(ln/tt)
         TIP(f'Finished!\nScanned {ln} servers in {round(tt,2)} seconds!\nAbout {ab} server{["s",""][ab<2]}/sec')
         s.__class__.BUSY = False
+
+# Global Constants for Ping/Kang (Efficiency Improvement)
+_Q = bytes.fromhex
+_J = lambda h: dumps(h).encode('utf-8')
+_SPEC_DATA = _J({"s":"{\"n\":\"Finder\",\"a\":\"\",\"sn\":\"\"}","d":"69"*20})
+_AUTH_DATA = _J({'b': app.env.engine_build_number, 'tk': '', 'ph': ''})
+_EMPTY_DATA = _J({})
+_PING_PACKET = b'\x0b'
+_PING_RESPONSE = b'\x0c'
+_DISCONNECT_PACKET_HEADER = _Q('20')
 
 # Kang
 SPEC = {"s":"{\"n\":\"Finder\",\"a\":\"\",\"sn\":\"\"}","d":"69"*20}
@@ -421,7 +431,6 @@ def ping_and_kang(
     port: int,
     ping_wait: float = 0.3,
     timeout: float = 3.5,
-    pro = [],
     dex = None,
 ):
     """
@@ -443,14 +452,17 @@ def ping_and_kang(
     sock.settimeout(timeout)
 
     try:
+        g = lambda b: sock.recvfrom(b)[0]
+        p = lambda h, e=b'': sock.sendto(_Q(h.replace(' ','')) + e, (address, port))
+        
+        # --- Ping ---
         ping_start_time = time()
         ping_success = False
         for _ in range(3):
             try:
-                sock.sendto(b'\x0b', (address, port))
+                sock.sendto(_PING_PACKET, (address, port))
                 data, addr = sock.recvfrom(10)
-                # Ensure the response is correct and from the right server
-                if data == b'\x0c' and addr[0] == address:
+                if data == _PING_RESPONSE and addr[0] == address:
                     ping_success = True
                     break
             except: break
@@ -458,23 +470,18 @@ def ping_and_kang(
         if ping_success:
             ping_result = (time() - ping_start_time) * 1000
         else:
-            pro.append((dex,999))
+            Finder.PRO.append((dex,999))
             return (999,[])
 
-        j = lambda h: dumps(h).encode('utf-8')
-        q = bytes.fromhex
-        p = lambda h, e=b'': sock.sendto(q(h.replace(' ','')) + e, (address, port))
-        g = lambda b: sock.recvfrom(b)[0]
-        # --- Start Handshake ---
+        # --- Start Handshake (Using Pre-calculated Data) ---
         my_handshake = f'{(71 + randint(0, 150)):02x}'
         p(f'18 21 00 {my_handshake}', U().encode())
-        # The server's response contains its handshake byte at index 1
         server_handshake = f'{g(3)[1]:02x}'
         g(1024)  # Ack/Server-Info packet
 
-        p(f'24 {server_handshake} 10 21 00', j(SPEC))
-        p(f'24 {server_handshake} 11 f0 ff f0 ff 00 12', j(AUTH))
-        p(f'24 {server_handshake} 11 f1 ff f0 ff 00 15', j({}))
+        p(f'24 {server_handshake} 10 21 00', _SPEC_DATA)
+        p(f'24 {server_handshake} 11 f0 ff f0 ff 00 12', _AUTH_DATA)
+        p(f'24 {server_handshake} 11 f1 ff f0 ff 00 15', _EMPTY_DATA)
         p(f'24 {server_handshake} 11 f2 ff f0 ff 00 03')
 
         g(1024)  # Ack
@@ -482,7 +489,6 @@ def ping_and_kang(
         # --- End Handshake ---
 
         # --- Roster Grabbing Loop ---
-        # Message type IDs
         SERVER_RELIABLE_MESSAGE = 0x25
         BA_SCENEPACKET_MESSAGE = 0x11
         BA_MESSAGE_MULTIPART = 0x0d
@@ -491,8 +497,8 @@ def ping_and_kang(
         roster_parts = bytearray()
         collecting_roster = False
         roster_listen_start_time = time()
-        while time() - roster_listen_start_time < (timeout / 2): # Use part of the total timeout
-            packet = g(2048) # Increased buffer size for safety
+        while time() - roster_listen_start_time < (timeout / 2):
+            packet = g(2048)
 
             if not packet or len(packet) < 9: continue
 
@@ -519,11 +525,11 @@ def ping_and_kang(
                     roster_result = loads(json_string)
                     break
         # --- Send Disconnect ---
-        p(f'20 {server_handshake}')
+        sock.sendto(_DISCONNECT_PACKET_HEADER + _Q(server_handshake), (address, port))
 
     except: pass
     finally: sock.close()
-    pro.append((dex,ping_result))
+    Finder.PRO.append((dex,ping_result))
     return (ping_result, roster_result or [])
 
 # Patches

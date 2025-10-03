@@ -170,8 +170,8 @@
     {
         "mod_name": "Finder",
         "mod_fancy_name": "Find anyone",
-        "mod_version": "2.0",
-        "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- One click to do everything\n- Targets all reachable public servers just like gather window\n- Sniffs around roster from servers without joining them\n\nCombine with Power plugin for better control.",
+        "mod_version": "3.0",
+        "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- High-Concurrency Scanning via ThreadPoolExecutor for speed.\n- Targets all reachable public servers just like gather window.\n- Sniffs out players (roster) without joining servers.\n- Progress reports handled asynchronously to prevent UI freezing.\n\nCombine with Power plugin for better control.",
         "api_version": 9,
         "mod_filename_base": "finder"
     },
