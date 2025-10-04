@@ -584,6 +584,8 @@ lmao = lambda: [
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     BTN = None
+    has_settings_ui = lambda s: True
+    show_settings_ui = lambda s,w: Finder(w)
     @classmethod
     def up(c):
         c.BTN.activate() if c.BTN.exists() else None
