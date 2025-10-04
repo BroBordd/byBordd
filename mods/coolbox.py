@@ -96,12 +96,12 @@ from os import listdir as ls
 from uuid import uuid4
 
 class Coolbox:
-    """Coolbox - A very advanced menu"""
     @classmethod
     def state(s,t=0):
         teck(0 if t else 0.13, Call(bw, s.in_source, icon=gt(f"chest{'Open' if t else ''}Icon")))
-    """Main Window"""
     def __init__(s, fresh=True, in_source=None, fb=None, fake=False, extra=None):
+        # safe
+        if not ga(): btw(CH(NAH())); return
         if STATE(): btw('Coolbox is already running!'); return
         if in_source:
             s.__class__.in_source = in_source
@@ -195,14 +195,11 @@ class Bot(SpazBot):
         s.last_player_attacked_by = None
         s.last_player_held_by = None
         ignore if ignore else tick(0.1,s.load)
-    """Move"""
     def move(s,x=32767,y=32767):
         s.on_move_left_right(x)
         s.on_move_up_down(y)
-    """Stop moving"""
     def stop(s):
         s.move(0,0)
-    """Move towards position"""
     def move_to(s,t,min=0.7,time=10,chain=None):
         nah = 0
         def f(b=False):
@@ -229,7 +226,6 @@ class Bot(SpazBot):
             nah = 1
         f(True)
         tick(time,g)
-    """Follow node"""
     def follow(s,n,min=0.7,time=10,chain=None):
         nah = 0
         def f():
@@ -258,14 +254,11 @@ class Bot(SpazBot):
             nah = 1
         f() if n is not None else n
         if time is not None: tick(time,g)
-    """Wait"""
     def wait(s,i,chain=None):
         if chain is not None: tick(i,lambda: s.load(chain+1))
-    """Keys"""
     def key(s,i,chain=None):
         [getattr(s,f"on_{['jump','bomb','pickup','punch'][i]}_{['press','release'][j]}")() for j in [0,1]]
         if chain is not None: s.wait(0.2,chain)
-    """Say"""
     def say(s,t,u,chain=None):
         if not s.node.exists(): return
         tick(
@@ -278,7 +271,6 @@ class Bot(SpazBot):
             )
         )
         if chain is not None: s.wait(0.2,chain)
-    """Load actions"""
     def load(s,i=None):
         if i is None: s.act = var('act').copy(); i = 0
         try: a = s.act[i]
@@ -5209,6 +5201,37 @@ CONSTR = lambda: [
     'You move, I move.',
     'Controls linked!'
 ]
+NAH = lambda: [
+    "You're not the host!",
+    "Nice try, but you're not in charge here.",
+    "Host privileges required.",
+    "This doesn't open for just anyone.",
+    "Sorry, locked for non-hosts.",
+    "Access denied. Not yours to open.",
+    "Only the host gets to play with the cool toys.",
+    "You're not cool enough (not the host).",
+    "Error 403: Hosts only.",
+    "Host status required.",
+    "Back away, citizen.",
+    "You don't have the key.",
+    "Host-exclusive. Sorry!",
+    "You need host powers for this.",
+    "Refuses to cooperate with non-hosts.",
+    "Nice try. Host only though!",
+    "Secrets are for the host's eyes only.",
+    "Host authentication failed.",
+    "You're missing the magic word: Host permissions.",
+    "*clicks shut* Not for you!",
+    "Only responds to the host.",
+    "Permission denied. Host privileges not detected.",
+    "This isn't for everyone... just the host.",
+    "You wish you could open this, huh?",
+    "Nope! Host access only.",
+    "Admin powers not found.",
+    "Unauthorized. Move along.",
+    "The host would disapprove.",
+    "Not happening without host status."
+]
 
 # Config
 # Our database is babase.app.config
@@ -5503,7 +5526,7 @@ class byBordd(Plugin):
             r = og(s,*a,**k)
             w = bw(
                p=s._root_widget,
-               pos=(-80, s._height),
+               pos=(-80, s._height-50),
                label="Coolbox",
                icon=gt('chestIcon'),
                iconscale=0.8,
