@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Polish v2.5 - Your very UI designer
+Polish v2.6 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
 Start by writing Polish() in dev console, or via settings UI.
@@ -55,6 +55,7 @@ from re import match
 
 class Polish:
     INS = None
+    KEY = 'CACHE'
     width = 200
     @classmethod
     def resize(c):
@@ -70,8 +71,11 @@ class Polish:
         tr=None,
         **k
     ):
-        s.dead = 0
-        s.__class__.INS = s
+        c = s.__class__
+        if c.INS:
+            btw('Already running!')
+            return
+        c.INS = s
         r = res()
         s.stack_offset = k.get('stack_offset',(0,0))
         at = s.at = {
@@ -205,10 +209,10 @@ class Polish:
         s.sync()
         s.setup(first=True)
         # resume
-        chk = var('TMP')
+        chk = var(c.KEY)
         if chk: s.proload(chk,shut=1)
     def clearall(s):
-        var('TMP',0)
+        var(s.__class__.KEY,0)
         s.exit(tr='out_left')
         s.__class__(tr='in_right')
     def debug(s):
@@ -447,10 +451,17 @@ class Polish:
         s.kid = Man(w,s,i)
         s.hl(i)
     def exit(s,tr=None):
-        var('TMP',ENCODE(s.MOM))
+        c = s.__class__
+        var(c.KEY,ENCODE(s.MOM))
         s.clear()
         fade(s.i,i=1,a=-0.1)
-        teck(0.15,lambda:(setattr(s,'dead',1),s.p.delete(),cw(s.tar,transition=tr or s.TAR[1][0].get('out_anim','out_left'))))
+        teck(0.15,lambda:(
+            s.p.delete(),
+            cw(s.tar,transition=(
+                tr or s.TAR[1][0].get('out_anim','out_left')
+            ))
+        ))
+        c.INS = None
     def cpcode(s):
         COPY(s.tr())
         nice('Copied python code!')
@@ -1115,8 +1126,8 @@ class Man:
     COL0 = (1.0,0.5,1.0)
     COL1 = (0.5,0.0,0.5)
     COL2 = (0.8,0.6,0.8)
-    COL3 = (0.6,0.5,0.7)
-    COL4 = (1.0,1.0,1.0)
+    COL3 = (1.0,0.5,1.0) #(0.6,0.5,0.7)
+    COL4 = (2.0,1,2.0) #(1.0,1.0,1.0)
     def __init__(s,w,po,wi):
         s.po = po
         x = -po.width-5
@@ -1253,7 +1264,8 @@ class Man:
             parent=po.p,
             position=(x,78),
             border_opacity=0,
-            size=(po.width,r[1]-244)
+            size=(po.width,r[1]-244),
+            color=s.COL1
         )
         K.append(p0)
         xs = GSW(max(d,key=GSW)+" ") if len(d) else GSW(' ')
@@ -1282,6 +1294,7 @@ class Man:
                 parent=c1,
                 click_activate=True,
                 selectable=True,
+                glow_type='uniform',
                 v_align='center',
                 size=(xs,30),
                 color=s.COL3,
@@ -1871,6 +1884,7 @@ class Man:
                 color=(0.7,0.5,1),
                 maxwidth=po.width-20,
                 selectable=True,
+                glow_type='uniform',
                 click_activate=True
             )
             tw(t,on_activate_call=Call(s.val2p,t,n))
@@ -2087,6 +2101,7 @@ class Anim:
 class Root:
     COL1 = (0,0.4,0.4)
     COL2 = (0,0.7,0.7)
+    COL3 = (0,1,1)
     def __init__(s):
         po = s.po = Polish.INS
         s.p = po.p
@@ -2210,7 +2225,8 @@ class Root:
             parent=s.p,
             position=(x,1),
             border_opacity=0,
-            size=(s.width,r[1]-170)
+            size=(s.width,r[1]-170),
+            color=s.COL2
         )
         K.append(p0)
         xs = GSW(max(d,key=GSW)+" ")
@@ -2238,9 +2254,10 @@ class Root:
                 parent=c1,
                 click_activate=True,
                 selectable=True,
+                glow_type='uniform',
                 v_align='center',
                 size=(xs,30),
-                color=(0.7,0.5,1),
+                color=s.COL2,
             )
             tw(t,on_activate_call=Call(s.prev,k,t,mem=d))
         # dot
@@ -2251,8 +2268,8 @@ class Root:
         on = t
         o = getattr(s,'on',None)
         if o == on: return
-        if o: tw(o,color=(0.7,0.5,1))
-        tw(on,color=s.COL2)
+        if o: tw(o,color=s.COL2)
+        tw(on,color=s.COL3)
         p3 = getattr(s,'p3',0)
         if getattr(p3,'exists',lambda:False)():
             fade(p3,i=1,a=-0.2)
@@ -2354,7 +2371,7 @@ class Root:
         # value
         ij = s.val1v = tw(
             parent=s.p,
-            color=(0,1,1),
+            color=s.COL3,
             position=(x+s.width/2.75+2.5,y+55),
             text=brk(str(v)),
             h_align='center',
@@ -2406,7 +2423,7 @@ class Root:
         # info
         ij = tw(
             parent=s.p,
-            color=(0,1,1),
+            color=s.COL3,
             position=(x+10,y+160),
             text='Input literal text here,\nNo need to use quotes.\nUse Eval for raw input.',
             maxwidth=s.width-20
@@ -2429,7 +2446,7 @@ class Root:
         ij = s.val0t = tw(
             parent=s.p,
             editable=True,
-            color=(0,1,1),
+            color=s.COL3,
             position=(x+10,y+60),
             size=(s.width-20,30),
             description='Example input: Hello, World!\nEnter',
@@ -2643,7 +2660,7 @@ class Root:
         # info
         ij = tw(
             parent=s.p,
-            color=(0,1,1),
+            color=s.COL3,
             position=(x+10,y+160),
             text='Input something to\neval. Make sure to\nuse quotes for str.',
             maxwidth=s.width-20
@@ -2666,7 +2683,7 @@ class Root:
         ij = s.val1t = tw(
             parent=s.p,
             editable=True,
-            color=(0,1,1),
+            color=s.COL3,
             position=(x+10,y+60),
             size=(s.width-20,30),
             description='Example input: (123,68)\nYou can also use anything defined in polish.py. Enter',
@@ -2763,6 +2780,7 @@ class Root:
                 color=(0.7,0.5,1),
                 maxwidth=s.width-20,
                 selectable=True,
+                glow_type='uniform',
                 click_activate=True
             )
             tw(t,on_activate_call=Call(s.val2p,t,n))
@@ -2798,7 +2816,7 @@ class Root:
                 parent=s.p,
                 position=(x+75,y+110),
                 text='No children!',
-                color=(0,1,1),
+                color=s.COL3,
                 h_align='center',
                 v_align='center'
             )
@@ -2945,7 +2963,6 @@ class byBordd(Plugin):
     show_settings_ui = lambda s,b: s.make()
     def __init__(s):
         s.last = ''
-        s.ins = None
         # dumb workaround
         B = __import__('_babase')
         a = 'dev_console_add_python_terminal'
@@ -2955,11 +2972,10 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print('Polish v2.5 - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print('Polish v2.6 - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
-            if getattr(s.ins,'dead',1): Polish()
-            else: broad('Already running!')
+            Polish()
             dset('')
         teck(0.1,s.eye)
