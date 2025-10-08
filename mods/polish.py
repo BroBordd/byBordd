@@ -347,9 +347,9 @@ class Polish:
         if e is None: return
         j = e.I
         fade(j,i=1.0,a=-0.2)
-        teck(0.3,j.delete)
+        teck(0.5,j.delete)
         ij = e.K.copy(); e.K.clear()
-        teck(0.09,lambda:([k.delete() for k in ij]))
+        teck(0.005,lambda:([k.delete() for k in ij if k != j]))
         s.kid = None
     def nuke(s):
         if not s.kid: return
@@ -693,7 +693,7 @@ class File:
             size=(po.width,ys),
             color=(0.25,0.25,0.25)
         )
-        fade(s.I,a=0.2)
+        fade(s.I,j=0.0125,a=0.1)
         K.append(s.I)
         # debug
         K.append(bw(
@@ -2118,7 +2118,7 @@ class Root:
             size=(s.width,r[1]-1),
             color=s.COL1
         )
-        fade(s.I,a=0.2)
+        fade(s.I,j=0.0125,a=0.1)
         K.append(s.I)
         # offset
         off = s.po.TAR[1][0]['stack_offset']
