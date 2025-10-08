@@ -208,6 +208,14 @@
         "mod_filename_base": "kill"
     },
     {
+        "mod_name": "LightsOut",
+        "mod_fancy_name": "Oh my eyes",
+        "mod_version": "1.0",
+        "mod_description": "Disables bright stuff from the game.",
+        "api_version": 9,
+        "mod_filename_base": "lights_out"
+    },
+    {
         "mod_name": "Modcast",
         "mod_fancy_name": "Test it there",
         "mod_version": "1.0",
