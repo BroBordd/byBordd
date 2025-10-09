@@ -227,8 +227,10 @@ class Container:
         res = '\u2588',
         resw = 19.0,
         scale = 1,
-        opacity = 1
+        opacity = 1,
+        pipe = None
     ):
+        s.pipe = pipe
         s.position = p = position
         s.owner_beam = None
         s.node = TEX(None,text='')
@@ -238,8 +240,15 @@ class Container:
         s.cursor_math = None
         s.on,s.ho = [0],[0,0]
         # start threads
-        [_() for _ in [s.make,s.point,s.hover,s.watch]]
+        [_() for _ in [s.make,s.point,s.hover,s.watch,s.monitor]]
         s.spy = 1
+
+    def monitor(s):
+        bs.timer(0.01, s.monitor)
+        if not s.captives: return
+        for p in s.captives:
+            if not p.actor.node.exists() or p.actor._dead:
+                s.release_one(p)
 
     def point(s):
         """
@@ -408,7 +417,6 @@ class Container:
             if b: o = _; break
         s.on[0] = o
 
-    # In the Container class, replace the entire `dump` method with this:
     def dump(s):
         """
         Releases control for ALL captured players and deactivates the container.
@@ -424,7 +432,7 @@ class Container:
         getattr(s.on[0], 'hl', lambda b: 0)(False)
         s.on[0] = None
         s.ho = [0, 0]
-    # In the Container class
+
     def release_one(s, player):
         """
         Releases control for a single player who pressed the bomb button.
@@ -452,14 +460,33 @@ class Container:
 
     def push(s):
         """
-        Executes the action associated with the currently highlighted button.
-
-        This method is typically called when the player presses the 'punch' button.
+        Executes the action associated with the currently highlighted button,
+        passing the cursor's 2D position (relative to the container's origin
+        and scaled back to abstract units) to the container's pipe callable.
         """
+        # Get the cursor's offset from the container's node position
+        # This gives the position in the 3D scene, but relative to the container's 3D position
+        ox, oy = s.cursor_off
+
+        # Scale the offset back to the container's abstract 2D units.
+        # s.sc is scale * 0.01, so dividing by s.sc is equivalent to multiplying by 100/scale.
+        # The z-component is ignored as you only want 2D (x, y).
+        cursor_x_abstract = ox / s.sc
+        cursor_y_abstract = oy / s.sc
+
+        # Pass the abstract 2D position (x, y) to the pipe.
+        if callable(s.pipe):
+            s.pipe(cursor_x_abstract, cursor_y_abstract)
+
+        # Execute the button's call function if a button is highlighted
         f = getattr(s.on[0],'call',0)
         if not callable(f): return
         z = getattr(s.on[0],'sound',0)
-        f(); bs.getsound(z).play(position=s.cpos()) if z else 0
+
+        # Play the sound at the cursor's absolute 3D position for spatial effect
+        p = s.cpos()
+        f()
+        bs.getsound(z).play(position=p) if z else 0
 
     def delete(s):
         """
@@ -475,6 +502,10 @@ class Container:
         Performs the actual deletion of the container's node.
         """
         s.node.delete()
+        for _ in s.kids+s.rest:
+            if _: _.delete()
+        s.kids.clear()
+        s.rest.clear()
 
     def anim(s,p1,p2,t=0.2):
         """
@@ -532,12 +563,12 @@ class Button:
         res = '\u2588',
         resw = 19.0,
         scale = 1,
-        call = lambda:None,
+        call = None,
         sound = 'dingSmallHigh',
         hl_sound = 'deek',
         **k
     ):
-        s.parent,s.sc,s.res,s.size,s.call = parent,scale*0.01,res,size,call
+        s.parent,s.sc,s.res,s.size,s.call,s.mat = parent,scale*0.01,res,size,call,None
         s.lines,s.text,s.label,s.position,s.sound = [],None,label,position,sound
         s.resw,s.color,s.textcolor,s.corners,s.up = resw,color,textcolor,(0,0),False
         s.hl_sound = hl_sound
@@ -561,7 +592,8 @@ class Button:
                 pn,
                 color=s.color,
                 text=t,
-                scale=s.sc
+                scale=s.sc,
+                opacity=s.parent.opacity
             )
             for _ in range(h)
         ]
@@ -573,8 +605,11 @@ class Button:
             text=s.label,
             h_align='center',
             v_align='center',
-            scale=s.sc if (w<(x*0.85)) else ((x*0.85)/w)*s.sc
+            scale=s.sc if (w<(x*0.85)) else ((x*0.85)/w)*s.sc,
+            opacity=0
         )
+        s.mat = None
+        s.mats = []
         s.parent.point()
         s.repos(s.position)
 
@@ -604,11 +639,16 @@ class Button:
         w = ((round(zx/w)*w)*s.sc)/2
         e = ((round(zy/32)*32)*s.sc)/2
         h = 32*s.sc
+        for _ in s.mats:
+            if _: _.delete()
+        s.mats.clear()
         for _,l in enumerate(s.lines):
             m = MAT(l,p[0],p[1]+h+(31*_)*s.sc)
             s.parent.node.connectattr('position',m,'input2')
             m.connectattr('output',l,'position')
-        m = MAT(s.text,p[0]+w,p[1]+e+h)
+            s.mats.append(m)
+        if s.mat: s.mat.delete()
+        m = s.mat = MAT(s.text,p[0]+w,p[1]+e+h)
         s.parent.node.connectattr('position',m,'input2')
         m.connectattr('output',s.text,'position')
 
@@ -639,8 +679,18 @@ class Button:
             p2 (float): The ending opacity.
             t (float): The duration of the animation in seconds.
         """
-        [bs.animate(_,'opacity',{0:p1,t:p2}) for _ in [*s.lines,s.text]]
+        for _ in s.lines+[s.text]:
+            bs.animate(_,'opacity',{0:p1,t:p2})
 
+    def delete(s):
+        """
+        Removes the button nodes and unregisters from the parent container.
+        """
+        for _ in [s.lines]+[s.text,s.mat]+s.mats:
+            if _: _.delete()
+        s.lines.clear()
+        s.mats.clear()
+        s.parent = None
 
 class Text:
     """
@@ -671,7 +721,7 @@ class Text:
         scale = 1,
         **k
     ):
-        s.parent,s.sc,s.line = parent,scale*0.01,None
+        s.mat,s.parent,s.sc,s.line = None,parent,scale*0.01,None
         s.text,s.position,s.color = text,position,color
         s.make(k)
         s.parent.add(s)
@@ -690,6 +740,7 @@ class Text:
             color=s.color,
             text=s.text,
             scale=s.sc,
+            opacity=s.parent.opacity,
             **k
         )
         s.parent.point()
@@ -713,7 +764,8 @@ class Text:
             p (tuple[float, float]): The new 2D offset (x, y) for the text.
         """
         p = tuple([_*s.sc for _ in p])
-        m = MAT(s.parent.node,*p)
+        if s.mat: s.mat.delete()
+        m = s.mat = MAT(s.parent.node,*p)
         s.parent.node.connectattr('position',m,'input2')
         m.connectattr('output',s.line,'position')
 
@@ -727,6 +779,15 @@ class Text:
             t (float): The duration of the animation in seconds.
         """
         bs.animate(s.line,'opacity',{0:p1,t:p2})
+
+    def delete(s):
+        """
+        Removes the text node and unregisters from the parent container.
+        """
+        if s.line: s.line.delete()
+        if s.mat: s.mat.delete()
+        if s in s.parent.rest: s.parent.rest.remove(s)
+        s.parent = None
 
 GSW = lambda s: gsw(s,suppress_warning=True)
 FIT = lambda o,r,s: (o*(round(s[0]/r))+'\n',round(s[1]/32))
@@ -752,63 +813,6 @@ TEX = lambda o,**k: (
         }
     )
 )
-
-def demo(position=(-4,0.4,0)):
-    """
-    Demonstrates the usage of the Beam, Container, Button, and Text classes.
-
-    This function creates a sample UI with a Beam, a main container,
-    and several buttons that, when pressed, spawn power-up boxes
-    in the scene. It also includes a "Back" button to close the UI.
-    """
-    from bascenev1lib.actor.powerupbox import PowerupBox
-    def power(t):
-        x,y,z = beam.node.position
-        PowerupBox(position=(x-1,y+1,z),poweruptype=t).autoretain()
-    c = Container(
-        size=(450,350)
-    )
-    Text(
-        parent=c,
-        text='Select a powerup',
-        position=(155,200),
-        h_align='center',
-        scale=1.5
-    )
-    Button(
-        parent=c,
-        position=(20,20),
-        size=(120,60),
-        label='Health',
-        call=lambda:power('health')
-    )
-    Button(
-        parent=c,
-        position=(165,20),
-        size=(120,60),
-        label='Gloves',
-        call=lambda:power('punch')
-    )
-    Button(
-        parent=c,
-        position=(310,20),
-        size=(120,60),
-        label='Ice',
-        call=lambda:power('ice_bombs')
-    )
-    Button(
-        parent=c,
-        position=(25,275),
-        size=(50,35),
-        label=cs(sc.BACK),
-        color=(0.6,0.2,0.1),
-        textcolor=(0.9,0.3,0.2),
-        call=lambda:beam.back()
-    )
-    beam = Beam(
-        container=c,
-        position=position
-    )
 
 # brobord collide grass
 # ba_meta require api 9
