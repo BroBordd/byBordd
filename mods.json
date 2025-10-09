@@ -232,6 +232,14 @@
         "mod_filename_base": "newline"
     },
     {
+        "mod_name": "Nuke",
+        "mod_fancy_name": "Stupid game",
+        "mod_version": "1.0",
+        "mod_description": "Use the nuke console to bomb anyone.\nMy first game, don't mind me lol.",
+        "api_version": 9,
+        "mod_filename_base": "nuke"
+    },
+    {
         "mod_name": "OnPause",
         "mod_fancy_name": "Call an action on pause",
         "mod_version": "1.0",
