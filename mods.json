@@ -136,6 +136,14 @@
         "mod_filename_base": "devhistory"
     },
     {
+        "mod_name": "Dum",
+        "mod_fancy_name": "Dum",
+        "mod_version": "1.0",
+        "mod_description": "Dum",
+        "api_version": 9,
+        "mod_filename_base": "dum"
+    },
+    {
         "mod_name": "DumTab",
         "mod_fancy_name": "Dummy dev console tab example",
         "mod_version": "1.1",
@@ -174,6 +182,14 @@
         "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- High-Concurrency Scanning via ThreadPoolExecutor for speed.\n- Targets all reachable public servers just like gather window.\n- Sniffs out players (roster) without joining servers.\n- Progress reports handled asynchronously to prevent UI freezing.\n\nCombine with Power plugin for better control.",
         "api_version": 9,
         "mod_filename_base": "finder"
+    },
+    {
+        "mod_name": "FontMan",
+        "mod_fancy_name": "Font Manager",
+        "mod_version": "1.0",
+        "mod_description": "Experimental.",
+        "api_version": 9,
+        "mod_filename_base": "fontman"
     },
     {
         "mod_name": "FPP",
