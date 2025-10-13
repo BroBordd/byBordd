@@ -88,6 +88,7 @@ from pathlib import Path
 
 
 class FileMan(MainWindow):
+    main_window_should_preserve_selection = lambda s: False
     VER = '1.3'
     INS = []
     @classmethod
@@ -2261,13 +2262,7 @@ class byBordd(Plugin):
         from bauiv1lib.settings.allsettings import AllSettingsWindow as m
         o = getattr(m,i)
         setattr(m,i,lambda z,*a,**k:(o(z,*a,**k),s.mk(z))[0])
-    def fix(s,p):
-        m = __import__('logging')
-        i = 'exception'
-        o = getattr(m,i)
-        setattr(m,i,lambda *a,**k:0 if s.b == p.get_selected_child() else o(*a,**k))
     def mk(s,z):
-        s.fix(z._root_widget)
         x,y = SCL((1000,800),(900,450))
         s.b = obw(
             position=(x*0.7,y*SCL(0.5,0.9)),
@@ -2279,7 +2274,8 @@ class byBordd(Plugin):
             enable_sound=False,
             color=FileMan.COL1,
             textcolor=FileMan.COL2,
-            on_activate_call=lambda:s.run(z)
+            on_activate_call=lambda:s.run(z),
+            id='FileMan'+str(id(z))
         )
     def run(s,z):
-        z.main_window_replace(new_window=FileMan(s.b))
+        z.main_window_replace(lambda:FileMan(s.b))
