@@ -1,0 +1,1 @@
+To convert TTF fonts to ready-to-use FileMan projects, use my font2bs: https://github.com/BroBordd/font2bs
