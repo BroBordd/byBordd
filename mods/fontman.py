@@ -312,19 +312,12 @@ class byBordd(Plugin):
     on_app_running = lambda s: bui.apptimer(0.1,s.inject)
     post_reload = lambda s: None
     on_reload = lambda s: None
-    def inject(s):
-        # entry
-        i = '__init__'
-        from bauiv1lib.settings.allsettings import AllSettingsWindow as m
-        o = getattr(m,i)
-        setattr(m,i,lambda z,*a,**k:(o(z,*a,**k),s.make(z))[0])
-        FontMan.main_window_should_preserve_selection = lambda c: False
-        # init
+    def __init__(s):
         root = core()
         ba = base()
         os.makedirs(root,exist_ok=True)
         orig = op.join(root,FontMan.DEFAULT)
-        fo = op.join(ba,'textures')
+        to = op.join(ba,'textures')
         if not op.exists(orig):
             os.makedirs(orig)
             # fdata
@@ -337,17 +330,24 @@ class byBordd(Plugin):
             # ktx
             fi = op.join(orig,'textures')
             os.makedirs(fi)
-            for _ in os.listdir(fo):
+            for _ in os.listdir(to):
                 if not (_.startswith('font') and _.endswith('.ktx')): continue
-                copy(op.join(fo,_),op.join(fi,_))
+                copy(op.join(to,_),op.join(fi,_))
             # desc
             with open(op.join(orig,FontMan.INFO),'w') as desc:
                 desc.write('The one that came with the game.')
         # clean ktx
         for _ in os.listdir(op.join(ba,'textures')):
             if _.startswith('.FontMan_'):
-                os.remove(op.join(fo,_))
+                os.remove(op.join(to,_))
                 continue
+    def inject(s):
+        # entry
+        i = '__init__'
+        from bauiv1lib.settings.allsettings import AllSettingsWindow as m
+        o = getattr(m,i)
+        setattr(m,i,lambda z,*a,**k:(o(z,*a,**k),s.make(z))[0])
+        FontMan.main_window_should_preserve_selection = lambda c: False
     def make(s,z):
         tex = [bui.gettexture(f'chTitleChar{_}') for _ in range(1,6)]
         SCL = lambda a,b,c=None: [a,b,c][bui.app.ui_v1.uiscale.value] or b
