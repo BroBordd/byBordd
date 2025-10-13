@@ -86,7 +86,6 @@ from random import uniform as UF
 from threading import Thread
 from pathlib import Path
 
-
 class FileMan(MainWindow):
     main_window_should_preserve_selection = lambda s: False
     VER = '1.3'
