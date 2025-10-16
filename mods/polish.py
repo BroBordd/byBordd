@@ -212,10 +212,12 @@ class Polish:
         s.setup(first=True)
         # resume
         chk = var(c.KEY)
-        if chk: s.proload(chk,shut=1)
+        if chk:
+            print('loading:',chk)
+            s.proload(chk,shut=1)
     def clearall(s):
         var(s.__class__.KEY,0)
-        s.exit(tr='out_left')
+        s.exit(tr='out_left',die=True)
         s.__class__(tr='in_right')
     def debug(s):
         s.exit(tr='out_scale')
@@ -453,9 +455,9 @@ class Polish:
             return
         s.kid = Man(w,s,i)
         s.hl(i)
-    def exit(s,tr=None):
+    def exit(s,tr=None,die=False):
         c = s.__class__
-        var(c.KEY,ENCODE(s.MOM))
+        if not die: var(c.KEY,ENCODE(s.MOM))
         s.clear()
         fade(s.i,i=1,a=-0.1)
         teck(0.15,lambda:(
@@ -1987,6 +1989,7 @@ class Add:
         p = s.at['size']; p = ran(p)
         nid = s.po.nextid()
         tt = f'#{nid+1} {f.__name__[:-6]}'
+        print(s.ui,s.a[i],f)
         d = {
             'parent':s.tar,
             'position':p,
