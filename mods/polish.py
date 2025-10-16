@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Polish v2.6 - Your very UI designer
+Polish v2.7 - Your very UI designer
 
 Beta - Aims to help modders like me draw UI.
 Start by writing Polish() in dev console, or via settings UI.
@@ -41,12 +41,10 @@ from bauiv1 import (
     app as APP,
     Call
 )
-from contextlib import redirect_stdout as REMAP
 from random import choice as CH, uniform as uf
 from traceback import print_exc as ERR
 from colorsys import hsv_to_rgb as HTR
 from zlib import compress, decompress
-from io import StringIO as SIO
 from json import dumps, loads
 from os.path import join
 from os import makedirs
@@ -212,9 +210,7 @@ class Polish:
         s.setup(first=True)
         # resume
         chk = var(c.KEY)
-        if chk:
-            print('loading:',chk)
-            s.proload(chk,shut=1)
+        if chk: s.proload(chk,shut=1)
     def clearall(s):
         var(s.__class__.KEY,0)
         s.exit(tr='out_left',die=True)
@@ -2927,27 +2923,35 @@ def var(s, v=None):
     cfg = APP.config; s = Polish.PRF+s
     return cfg.get(s,v) if v is None else (cfg.__setitem__(s,v),cfg.commit())
 df = lambda i,j: var(i,j) if var(i) is None else None
-def kang(f,bad=[]):
-    s = SIO()
-    with REMAP(s): help(f)
-    s = s.getvalue()
-    res,cp = {},[]
-    ls = s.splitlines()
+def kang(f, bad=[]):
+    doc = f.__doc__
+    if not doc:
+        return {}
+    res = {}
+    lines = doc.splitlines()
     ml = cn = None
-    for l in ls:
+    cp = []
+    for l in lines:
         sl = l.strip()
         if ml:
             cp.append(sl)
             if sl.endswith('] | None = None,') or sl.endswith('],'):
                 fs = " ".join(cp).rstrip(',')
-                if cn: res[cn] = fs
-                ml = cn = None; cp = []
+                if cn:
+                    res[cn] = fs
+                ml = cn = None
+                cp = []
             continue
         m = match(r'^\s*(\w+):\s*(.*)', l)
         if m and not any(k in l for k in ['(*,', ') -> ', 'Create or edit', 'Pass a valid existing']):
-            an = m.group(1); ts = m.group(2).strip()
-            if ts.startswith('Literal['): ml = True; cn = an; cp.append(ts)
-            elif an not in bad: res[an] = ts.rstrip(',')
+            an = m.group(1)
+            ts = m.group(2).strip()
+            if ts.startswith('Literal['):
+                ml = True
+                cn = an
+                cp.append(ts)
+            elif an not in bad:
+                res[an] = ts.rstrip(',')
     return res
 def brk(t,l=15):
     o = ''
@@ -2978,7 +2982,7 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print(f'Polish v2.6 ({Polish.INC}) - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print(f'Polish v2.7 ({Polish.INC}) - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:

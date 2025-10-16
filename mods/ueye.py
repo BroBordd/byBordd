@@ -12,10 +12,9 @@ Experimental.
 
 import bauiv1 as bui
 from re import match
-from io import StringIO
 from babase import Plugin
+from functools import wraps
 from random import random, choice
-from contextlib import redirect_stdout
 from babase._devconsole import (
     DevConsoleTabEntry as ENT,
     DevConsoleTab as TAB
@@ -698,27 +697,35 @@ class Shower:
         s.root.delete()
 
 # attribute fetcher
-def inspect(f,bad=[]):
-    s = StringIO()
-    with redirect_stdout(s): help(f)
-    s = s.getvalue()
-    res,cp = {},[]
-    ls = s.splitlines()
+def inspect(f, bad=[]):
+    doc = f.__doc__
+    if not doc:
+        return {}
+    res = {}
+    lines = doc.splitlines()
     ml = cn = None
-    for l in ls:
+    cp = []
+    for l in lines:
         sl = l.strip()
         if ml:
             cp.append(sl)
             if sl.endswith('] | None = None,') or sl.endswith('],'):
                 fs = " ".join(cp).rstrip(',')
-                if cn: res[cn] = fs
-                ml = cn = None; cp = []
+                if cn:
+                    res[cn] = fs
+                ml = cn = None
+                cp = []
             continue
         m = match(r'^\s*(\w+):\s*(.*)', l)
         if m and not any(k in l for k in ['(*,', ') -> ', 'Create or edit', 'Pass a valid existing']):
-            an = m.group(1); ts = m.group(2).strip()
-            if ts.startswith('Literal['): ml = True; cn = an; cp.append(ts)
-            elif an not in bad: res[an] = ts.rstrip(',')
+            an = m.group(1)
+            ts = m.group(2).strip()
+            if ts.startswith('Literal['):
+                ml = True
+                cn = an
+                cp.append(ts)
+            elif an not in bad:
+                res[an] = ts.rstrip(',')
     return res
 
 # try and see
@@ -777,11 +784,13 @@ class byBordd(Plugin):
         global EYE
         EYE = bui.AppTimer(0.05,s.eye,repeat=True)
     def __getattr__(s,_):
-        return lambda *a,**k:(
-            (r:=ORG[_](*a,**k)),
-            (z:=(_,r)),
+        @wraps(ORG[_])
+        def wrapper(*a,**k):
+            r = ORG[_](*a,**k)
+            z = (_,r)
             MEM.update({z:(a,k)})
-        )[0]
+            return r
+        return wrapper
     def eye(s):
         pure = 1
         for _ in MEM.copy():
