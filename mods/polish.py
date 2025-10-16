@@ -56,6 +56,7 @@ from re import match
 class Polish:
     INS = None
     KEY = 'CACHE'
+    PRF = 'POLISH'
     width = 200
     @classmethod
     def resize(c):
@@ -289,6 +290,7 @@ class Polish:
     def logo(s):
         [h.delete() for h in s.hell]; s.hell.clear()
         x = res()[1]
+        # vector
         for size,pos,col in [
             ((10,40),(10,x-50),(255,255,0)),
             ((25,25),(10,x-35),(0,255,255)),
@@ -2918,7 +2920,7 @@ deek = lambda: gs('deek').play()
 nice = lambda t: (broad(t,color=(0,1,0)),gs('dingSmallHigh').play())
 btw = lambda t: (broad(t,color=(1,1,0)),gs('block').play())
 def var(s, v=None):
-    cfg = APP.config; s = 'po_'+s
+    cfg = APP.config; s = Polish.PRF+s
     return cfg.get(s,v) if v is None else (cfg.__setitem__(s,v),cfg.commit())
 df = lambda i,j: var(i,j) if var(i) is None else None
 def kang(f,bad=[]):
