@@ -384,6 +384,14 @@
         "mod_filename_base": "topmsg"
     },
     {
+        "mod_name": "UEye",
+        "mod_fancy_name": "Real-Time UI Debugger",
+        "mod_version": "1.0",
+        "mod_description": "Your eye for UI. Adds a dev console tab.\nAbility to modify any visible UI without having its references.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "ueye"
+    },
+    {
         "mod_name": "UpDown",
         "mod_fancy_name": "The arrows",
         "mod_version": "3.0",
