@@ -57,6 +57,7 @@ class Polish:
     INS = None
     KEY = 'CACHE'
     PRF = 'POLISH'
+    INC = 1
     width = 200
     @classmethod
     def resize(c):
@@ -2974,7 +2975,7 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print('Polish v2.6 - Start by writing Polish() here or via settings ui')))
+        teck(1,lambda: (s.eye(),print(f'Polish v2.6 ({Polish.INC}) - Start by writing Polish() here or via settings ui')))
     def eye(s):
         n = dget()
         if n in ['Polish()','polish()']:
