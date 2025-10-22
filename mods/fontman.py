@@ -18,6 +18,7 @@ from random import choice
 
 class FontMan(bui.MainWindow):
     DEFAULT = '__default__'
+    EMPTY = 'spinner0'
     INFO = '__desc__'
     COL0 = (0,0,0)
     COL1 = (0.05,0.05,0.05)
@@ -112,10 +113,19 @@ class FontMan(bui.MainWindow):
         )
         # preview
         s.ktx_tv = bui.imagewidget(
-            texture=bui.gettexture('spinner0'),
+            texture=bui.gettexture(s.EMPTY),
             parent=s.p,
             size=(100,100),
             position=(px+dx-110,py-130)
+        )
+        # preview sensor
+        prv_sensor = bui.buttonwidget(
+            parent=s.p,
+            label='',
+            size=(100,100),
+            position=(px+dx-110,py-130),
+            texture=bui.gettexture('empty'),
+            on_activate_call=lambda:s.preview_big(prv_sensor)
         )
         # info
         bui.buttonwidget(
@@ -211,6 +221,34 @@ class FontMan(bui.MainWindow):
             bui.textwidget(t,on_activate_call=bui.Call(s.select,t,_))
         # finally
         s.sound('powerup01')
+    def preview_big(s,src):
+        x = min(*s.size)*0.8
+        p = bui.containerwidget(
+            parent=bui.get_special_widget('overlay_stack'),
+            on_outside_click_call=lambda:bui.containerwidget(p,transition='out_scale'),
+            transition='in_scale',
+            scale_origin_stack_offset=src.get_screen_space_center(),
+            size=(x,x),
+            background=False
+        )
+        bui.imagewidget(
+            parent=p,
+            size=(x*1.2,x*1.2),
+            position=(-x*0.1,-x*0.1),
+            texture=bui.gettexture('softRect'),
+            color=s.COL0
+        )
+        bui.imagewidget(
+            parent=p,
+            size=(x,x),
+            texture=bui.gettexture('black'),
+            color=s.COL0
+        )
+        s.big_img = bui.imagewidget(
+            parent=p,
+            size=(x,x),
+            texture=getattr(s,'ntex',0) or bui.gettexture(s.EMPTY)
+        )
     def apply(s,what=None,shut=False):
         what = what or s.sl
         if what != s.DEFAULT: s.apply(s.DEFAULT,shut=True)
@@ -279,13 +317,15 @@ class FontMan(bui.MainWindow):
         else: s.next_ktx()
     def next_ktx(s):
         m = s.ktx_mem
-        if len(m) == 1: tex = m[0]
+        if len(m) == 1: tex = s.ntex = m[0]
         else:
-            tex = m[s.ktx_anim]
+            tex = s.ntex = m[s.ktx_anim]
             s.ktx_anim += 1
             if s.ktx_anim >= len(m): s.ktx_anim = 0
         try: bui.imagewidget(s.ktx_tv,texture=tex)
         except: s.ktx_timer = None
+        try: bui.imagewidget(s.big_img,texture=tex)
+        except: pass
     def sound(s,t):
         l = bui.getsound(t)
         l.play()
