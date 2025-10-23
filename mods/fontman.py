@@ -28,6 +28,7 @@ class FontMan(bui.MainWindow):
         s.ktx_array = []
         s.ktx_anim = 0
         s.ktx_mem = []
+        s.ktx_now = None
         s.sl = None
         rx,ry = bui.get_virtual_screen_size()
         s.size = (rx*0.8,ry*0.8)
@@ -112,20 +113,15 @@ class FontMan(bui.MainWindow):
             position=(px,py-140-2)
         )
         # preview
-        s.ktx_tv = bui.imagewidget(
-            texture=bui.gettexture(s.EMPTY),
-            parent=s.p,
-            size=(100,100),
-            position=(px+dx-110,py-130)
-        )
+        s.mk_tv(main=1)
         # preview sensor
-        prv_sensor = bui.buttonwidget(
+        s.prv_sensor = bui.buttonwidget(
             parent=s.p,
             label='',
             size=(100,100),
             position=(px+dx-110,py-130),
             texture=bui.gettexture('empty'),
-            on_activate_call=lambda:s.preview_big(prv_sensor)
+            on_activate_call=s.preview_big
         )
         # info
         bui.buttonwidget(
@@ -221,13 +217,39 @@ class FontMan(bui.MainWindow):
             bui.textwidget(t,on_activate_call=bui.Call(s.select,t,_))
         # finally
         s.sound('powerup01')
-    def preview_big(s,src):
+    def mk_tv(s,main,tr='out_scale'):
+        x,y = s.size
+        dx = x-110
+        px,py = (90,y-70)
+        pos = (px+dx-110,py-130)
+        size = (100,100)
+        if (f:=getattr(s,'ktx_tv',0)): f.delete()
+        p = s.p if main else bui.containerwidget(
+            stack_offset=s.prv_sensor.get_screen_space_center(),
+            scale_origin_stack_offset=s.prv_sensor.get_screen_space_center(),
+            size=size,
+            background=False
+        )
+        main or bui.containerwidget(p,transition=tr)
+        s.ktx_tv = bui.imagewidget(
+            texture=s.ktx_now or bui.gettexture(s.EMPTY),
+            parent=p,
+            size=size,
+            position=pos if main else (0,0)
+        )
+        return p
+    def preview_big(s):
+        s.mk_tv(main=0)
         x = min(*s.size)*0.8
         p = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
-            on_outside_click_call=lambda:bui.containerwidget(p,transition='out_scale'),
+            on_outside_click_call=lambda:(
+                bui.apptimer(0.2,s.mk_tv(main=0,tr='in_scale').delete) or
+                bui.apptimer(0.2,lambda:s.mk_tv(main=1)) or
+                bui.containerwidget(p,transition='out_scale')
+            ),
             transition='in_scale',
-            scale_origin_stack_offset=src.get_screen_space_center(),
+            scale_origin_stack_offset=s.prv_sensor.get_screen_space_center(),
             size=(x,x),
             background=False
         )
@@ -247,7 +269,7 @@ class FontMan(bui.MainWindow):
         s.big_img = bui.imagewidget(
             parent=p,
             size=(x,x),
-            texture=getattr(s,'ntex',0) or bui.gettexture(s.EMPTY)
+            texture=s.ktx_now or bui.gettexture(s.EMPTY)
         )
     def apply(s,what=None,shut=False):
         what = what or s.sl
@@ -317,15 +339,15 @@ class FontMan(bui.MainWindow):
         else: s.next_ktx()
     def next_ktx(s):
         m = s.ktx_mem
-        if len(m) == 1: tex = s.ntex = m[0]
+        if len(m) == 1: tex = s.ktx_now = m[0]
         else:
-            tex = s.ntex = m[s.ktx_anim]
+            tex = s.ktx_now = m[s.ktx_anim]
             s.ktx_anim += 1
             if s.ktx_anim >= len(m): s.ktx_anim = 0
         try: bui.imagewidget(s.ktx_tv,texture=tex)
-        except: s.ktx_timer = None
-        try: bui.imagewidget(s.big_img,texture=tex)
-        except: pass
+        except:
+            try: bui.imagewidget(s.big_img,texture=tex)
+            except: s.ktx_timer = None
     def sound(s,t):
         l = bui.getsound(t)
         l.play()
