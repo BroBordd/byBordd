@@ -2017,9 +2017,13 @@ class FileMan(MainWindow):
             return
         s.urlbln = not s.urlbln
         if not s.dro: s.drop(1)
+    def ragequit(s):
+        try: s.bye()
+        except: pass
     def urlspy(s):
         if s.gn: return
-        s.url = tw(query=s.urla)
+        try: s.url = tw(query=s.urla)
+        except: s.ragequit(); return
         b1 = exists(s.url)
         b2 = isdir(s.url)
         g1 = access(var('cwd'),R_OK)
