@@ -54,7 +54,7 @@ class Polish:
     INS = None
     KEY = 'CACHE'
     PRF = 'POLISH'
-    INC = 1
+    INC = 2
     width = 200
     @classmethod
     def resize(c):
