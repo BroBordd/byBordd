@@ -121,7 +121,8 @@ class FontMan(bui.MainWindow):
             size=(100,100),
             position=(px+dx-110,py-130),
             texture=bui.gettexture('empty'),
-            on_activate_call=s.preview_big
+            on_activate_call=s.preview_big,
+            enable_sound=False
         )
         # info
         bui.buttonwidget(
@@ -239,6 +240,7 @@ class FontMan(bui.MainWindow):
         )
         return p
     def preview_big(s):
+        sin = s.sound('powerup01')
         s.mk_tv(main=0)
         x = min(*s.size)*0.8
         p = bui.containerwidget(
@@ -246,6 +248,7 @@ class FontMan(bui.MainWindow):
             on_outside_click_call=lambda:(
                 bui.apptimer(0.2,s.mk_tv(main=0,tr='in_scale').delete) or
                 bui.apptimer(0.2,lambda:s.mk_tv(main=1)) or
+                (s.sound('laser') and sin.stop()) or
                 bui.containerwidget(p,transition='out_scale')
             ),
             transition='in_scale',
@@ -272,6 +275,9 @@ class FontMan(bui.MainWindow):
             texture=s.ktx_now or bui.gettexture(s.EMPTY)
         )
     def apply(s,what=None,shut=False):
+        if not s.sl:
+            s.sound('block')
+            return
         what = what or s.sl
         if what != s.DEFAULT: s.apply(s.DEFAULT,shut=True)
         ba = base()
@@ -291,6 +297,7 @@ class FontMan(bui.MainWindow):
         bui.screenmessage(s.sl,color=s.COL2)
         bui.getsound('deek').play()
     def select(s,t,_):
+        s.ktx_now = None
         f = bui.textwidget
         co = core()
         root = s.sl = op.join(co,_)
