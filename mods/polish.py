@@ -1985,7 +1985,6 @@ class Add:
         p = s.at['size']; p = ran(p)
         nid = s.po.nextid()
         tt = f'#{nid+1} {f.__name__[:-6]}'
-        print(s.ui,s.a[i],f)
         d = {
             'parent':s.tar,
             'position':p,
