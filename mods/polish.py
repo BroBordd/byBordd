@@ -2984,7 +2984,7 @@ class byBordd(Plugin):
         # catch input
         from babase._ui import DevConsoleStringEditAdapter as A
         p = A._do_apply
-        A._do_apply = lambda z,t: (s.pipe(t),p(z,t))
+        A._do_apply = lambda z,t: (p(z,t),s.pipe(t))
         print(f'Polish v2.7 ({Polish.INC}) - Start by writing Polish() here or via settings ui')
     def pipe(s,t):
-        if t.lower() == 'polish()': dset(''); Polish()
+        if t.lower() == 'polish()': dset('') or Polish()
