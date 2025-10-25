@@ -85,7 +85,8 @@ class Polish:
         }
         s.tar = cw(**at)
         if tr and 'transition' not in at:
-            teck(0.1,lambda:cw(s.tar,transition=tr))
+            cw(s.tar,background=False)
+            teck(0.1,lambda:(cw(s.tar,transition=tr,background=True))
         s.TAR = (s.tar,(at,cw))
         s.width = 200
         s.c = [0,0,0]
