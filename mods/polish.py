@@ -18,7 +18,6 @@ from babase import (
     env
 )
 from _babase import (
-    get_dev_console_input_text as dget,
     set_dev_console_input_text as dset
 )
 from bascenev1 import broadcastmessage as broad
@@ -86,7 +85,7 @@ class Polish:
         s.tar = cw(**at)
         if tr and 'transition' not in at:
             cw(s.tar,background=False)
-            teck(0.1,lambda:(cw(s.tar,transition=tr,background=True))
+            teck(0.1,lambda:cw(s.tar,transition=tr,background=True))
         s.TAR = (s.tar,(at,cw))
         s.width = 200
         s.c = [0,0,0]
@@ -2982,10 +2981,10 @@ class byBordd(Plugin):
             except RuntimeError: pass
             else: return r
         setattr(B,a,f)
-        teck(1,lambda: (s.eye(),print(f'Polish v2.7 ({Polish.INC}) - Start by writing Polish() here or via settings ui')))
-    def eye(s):
-        n = dget()
-        if n in ['Polish()','polish()']:
-            Polish()
-            dset('')
-        teck(0.1,s.eye)
+        # catch input
+        from babase._ui import DevConsoleStringEditAdapter as A
+        p = A._do_apply
+        A._do_apply = lambda z,t: (s.pipe(t),p(z,t))
+        print(f'Polish v2.7 ({Polish.INC}) - Start by writing Polish() here or via settings ui')
+    def pipe(s,t):
+        if t.lower() == 'polish()': dset(''); Polish()
