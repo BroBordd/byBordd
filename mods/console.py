@@ -56,7 +56,7 @@ class byBordd(Plugin):
         p = A._do_apply
         A._do_apply = lambda z,t: (s.pipe(t),p(z,t))
         s.a = VAR(s.K) or []
-        s.i = 0
+        s.i = s.yoff = s.kb_on = s.kb_caps = 0
         s.l = s.c = ''
         s.st = tuck(0.1,s.spy,repeat=True)
     def pipe(s,t):
@@ -79,30 +79,90 @@ class byBordd(Plugin):
     def kang(s,z):
         s.z = z
         x = z.width/2
+        m = z.height == 100
+        px,py = (x-250,60) if m else (x-100,180)
+        size = (100,30 if m else 50)
         for i,j in enumerate(['UP','DOWN']):
-            if z.height == 100:
-                pos = (x-250-i*110,60)
-                size = (100,30)
-            else:
-                pos = (x-100,120-i*60)
-                size = (100,50)
             k = [1,-1][i]
             z.button(
                 cs(getattr(sc,j+'_ARROW')),
-                pos=pos,
+                pos=(
+                    (px-i*110,py) if m else
+                    (px,py-i*60)
+                ),
                 size=size,
                 call=Call(s.mv,k),
                 disabled=not 0<=s.i+k<=len(s.a)
             )
+        i += 1
+        z.button(
+            f"KB {['OFF','ON'][s.kb_on]}",
+            pos=(
+                (px-i*110,py) if m else
+                (px,py-i*60)
+            ),
+            size=size,
+            call=s.kb
+        )
         s.drop()
+        if s.kb_on: s.mk_kb()
+    def kb(s):
+        if s.kb_on:
+            s.yoff = 0
+            s.kb_on = False
+        else:
+            s.yoff = -375
+            s.kb_on = True
+        s.z.request_refresh()
+    def mk_kb(s):
+        m = s.z.height == 100
+        if not m: return
+        x = -s.z.width/2
+        res = [
+            'qwertyuiop',
+            'asdfghjkl',
+            cs(sc.UP_ARROW)+'zxcvbnm'+cs(sc.DELETE),
+            ' '
+        ]
+        sy = (s.yoff+75)/len(res)*-1
+        for i,a in enumerate(res):
+            if s.kb_caps: a = a.upper()
+            sx = s.z.width/len(a)
+            for j,b in enumerate(a):
+                style = 'black'
+                if i == 2:
+                    if j == 0: style = (
+                        'yellow_bright' if s.kb_caps else
+                        'yellow'
+                    )
+                    elif j == 8: style = 'red_bright'
+                elif i == 3: style = 'black_bright'
+                s.z.button(
+                    b,
+                    size=(sx,sy),
+                    pos=(x+(j*sx),-i*sy-120),
+                    call=Call(s.kb_man,b),
+                    style=style,
+                    corner_radius=0
+                )
+    def kb_man(s,b):
+        if b == cs(sc.UP_ARROW):
+            s.kb_caps = not s.kb_caps
+            s.z.request_refresh()
+            return
+        elif b == cs(sc.DELETE):
+            o = get()
+            o = o and o[:-1]
+        else:
+            o = get()+b
+        set(o)
+        s.pipe(o)
     def drop(s):
         g = s.l
         if not g or g.endswith(' ') or g.endswith('('): return
         c = []
-        p = ''
-        t = ''
+        p = t = oe = ''
         isa = False
-        oe = ''
         try:
             ns = _mod.get('__main__', _mod[__name__]).__dict__
             if g.endswith('('):
@@ -210,7 +270,7 @@ class byBordd(Plugin):
         sx = max(sx, sxn + 50.0)
         sx = min(sx, mbw)
         xd = xn + sxn
-        cyp = LH
+        cyp = LH + s.yoff
         for i, (n, (d, th)) in enumerate(zip(l, pds)):
             byp = cyp - th
             s.z.button(
