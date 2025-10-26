@@ -43,6 +43,13 @@ VAR = lambda s,v=None:(
 GSW = lambda t:strw(t,suppress_warning=True)
 NPW = 10.0
 LH = 25.0
+SPECIAL_UP = '__up__'
+SPECIAL_DELETE = '__delete__'
+SPECIAL_MODE_0 = '__mode_0__'
+SPECIAL_MODE_1 = '__mode_1__'
+SPECIAL_LOGO = '__logo__'
+SPECIAL_TAB = '__tab__'
+SPECIAL_SPACE = '__space__'
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
@@ -56,8 +63,9 @@ class byBordd(Plugin):
         p = A._do_apply
         A._do_apply = lambda z,t: (s.pipe(t),p(z,t))
         s.a = VAR(s.K) or []
-        s.i = s.yoff = s.kb_on = s.kb_caps = 0
+        s.i = s.kb_on = s.kb_caps = s.kb_mode = 0
         s.l = s.c = ''
+        s.on_tab = None
         s.st = tuck(0.1,s.spy,repeat=True)
     def pipe(s,t):
         if t == s.l: return
@@ -107,57 +115,124 @@ class byBordd(Plugin):
         s.drop()
         if s.kb_on: s.mk_kb()
     def kb(s):
-        if s.kb_on:
-            s.yoff = 0
-            s.kb_on = False
-        else:
-            s.yoff = -375
-            s.kb_on = True
+        s.kb_on = not s.kb_on
         s.z.request_refresh()
+    def get_yoff(s):
+        return (
+            -375 if s.z.height == 100 else
+            -s.z.height
+        ) if s.kb_on else 0
     def mk_kb(s):
-        m = s.z.height == 100
-        if not m: return
         x = -s.z.width/2
-        res = [
-            'qwertyuiop',
-            'asdfghjkl',
-            cs(sc.UP_ARROW)+'zxcvbnm'+cs(sc.DELETE),
-            ' '
-        ]
-        sy = (s.yoff+75)/len(res)*-1
-        for i,a in enumerate(res):
-            if s.kb_caps: a = a.upper()
-            sx = s.z.width/len(a)
-            for j,b in enumerate(a):
-                style = 'black'
-                if i == 2:
-                    if j == 0: style = (
-                        'yellow_bright' if s.kb_caps else
-                        'yellow'
-                    )
-                    elif j == 8: style = 'red_bright'
-                elif i == 3: style = 'black_bright'
+        if s.kb_mode == 0:
+            rows = [
+                [(c, c) for c in s.upper('qwertyuiop')],
+                [(c, c) for c in s.upper('asdfghjkl')],
+                [(SPECIAL_UP, cs(sc.UP_ARROW))] + [(c, c) for c in s.upper('zxcvbnm')],
+                [(SPECIAL_MODE_1, '!#1'), (SPECIAL_LOGO, cs(sc.LOGO_FLAT)), (',', ','),
+                 (SPECIAL_SPACE, ' '), ('.', '.'), (SPECIAL_TAB, 'TAB')]
+            ]
+        elif s.kb_mode == 1:
+            rows = [
+                [(c, c) for c in '1234567890'],
+                [(c, c) for c in '+"`\\|/_<>[]'],
+                [(c, c) for c in "-'%^&*{}()"],
+                [(SPECIAL_MODE_0, 'ABC'), (SPECIAL_LOGO, cs(sc.LOGO_FLAT)), (',', ','),
+                 (SPECIAL_SPACE, ' '), ('.', '.'), (SPECIAL_TAB, 'TAB')]
+            ]
+        else:
+            icons = [(name, cs(getattr(sc, name))) for name in dir(sc) if not name.startswith('_')]
+            base_len = len(icons) // 3
+            rows = [
+                icons[:base_len],
+                icons[base_len:2*base_len],
+                icons[2*base_len:],
+                [(SPECIAL_MODE_0, 'ABC'), (SPECIAL_MODE_1, '!#1'), (',', ','),
+                 (SPECIAL_SPACE, ' '), ('.', '.'), (SPECIAL_TAB, 'TAB')]
+            ]
+        rows[2].append((SPECIAL_DELETE, cs(sc.DELETE)))
+        sy = 75
+        yoff = 120 if s.z.height == 100 else -s.z.height+120
+        for i, row in enumerate(rows):
+            la = len(row)
+            if i == 3: sx = s.z.width/(la+3)
+            else: sx = s.z.width/la
+            x_offset = 0
+            for j, (key_id, display) in enumerate(row):
+                style = s.get_button_style(i, j, la, key_id, display)
+                if key_id == SPECIAL_SPACE:
+                    button_width = sx * 4
+                    x_offset_after = sx * 3
+                else:
+                    button_width = sx
+                    x_offset_after = 0
                 s.z.button(
-                    b,
-                    size=(sx,sy),
-                    pos=(x+(j*sx),-i*sy-120),
-                    call=Call(s.kb_man,b),
+                    display,
+                    size=(button_width, sy),
+                    pos=(x+(j*sx)+x_offset, -i*sy-yoff),
+                    call=Call(s.kb_man, key_id),
                     style=style,
                     corner_radius=0
                 )
-    def kb_man(s,b):
-        if b == cs(sc.UP_ARROW):
+                x_offset += x_offset_after
+    def get_button_style(s, row, col, row_len, key_id, display):
+        if row == 2:
+            if key_id == SPECIAL_UP:
+                return 'yellow_bright' if s.kb_caps else 'yellow'
+            elif col == row_len - 1:
+                return 'red_bright'
+        elif row == 3:
+            if display == ' ':
+                return 'black_bright'
+            elif key_id == SPECIAL_TAB:
+                return 'white'
+            elif key_id == SPECIAL_LOGO:
+                return 'red'
+            elif key_id == SPECIAL_MODE_0:
+                return 'blue_bright'
+            elif key_id == SPECIAL_MODE_1:
+                return 'blue'
+            else:
+                return 'purple'
+        return 'black'
+    def upper(s, t):
+        return t.upper() if s.kb_caps else t
+    def kb_man(s, b):
+        if b == SPECIAL_UP:
             s.kb_caps = not s.kb_caps
             s.z.request_refresh()
             return
-        elif b == cs(sc.DELETE):
+        elif b == SPECIAL_DELETE:
             o = get()
             o = o and o[:-1]
+        elif b == SPECIAL_MODE_1:
+            s.kb_mode = 1
+            s.z.request_refresh()
+            return
+        elif b == SPECIAL_MODE_0:
+            s.kb_mode = 0
+            s.z.request_refresh()
+            return
+        elif b == SPECIAL_TAB:
+            if s.on_tab is None:
+                return
+            s.pick(*s.on_tab)
+            return
+        elif b == SPECIAL_LOGO:
+            s.kb_mode = 2
+            s.z.request_refresh()
+            return
+        elif b == SPECIAL_SPACE:
+            o = get() + ' '
+        elif b in dir(sc):
+            o = get() + cs(getattr(sc,b))
         else:
-            o = get()+b
+            o = get() + b
         set(o)
         s.pipe(o)
     def drop(s):
+        s.on_tab = None
+        yoff = s.get_yoff() if s.z.height == 100 else 0
         g = s.l
         if not g or g.endswith(' ') or g.endswith('('): return
         c = []
@@ -270,7 +345,7 @@ class byBordd(Plugin):
         sx = max(sx, sxn + 50.0)
         sx = min(sx, mbw)
         xd = xn + sxn
-        cyp = LH + s.yoff
+        cyp = LH + yoff
         for i, (n, (d, th)) in enumerate(zip(l, pds)):
             byp = cyp - th
             s.z.button(
@@ -294,6 +369,7 @@ class byBordd(Plugin):
                     scale=0.7, style='faded'
                 )
             cyp -= th
+        if l: s.on_tab = (p,l[0])
     def pick(s,p,j):
         n = p+j
         suffix = ' '
