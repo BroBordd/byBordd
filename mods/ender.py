@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> BroBordd
 
 """
-Ender v1.0 - You're done.
+Ender v1.0 - Tryhard AI Bot
 
 A deadly bot that actively hunts any spaz nodes.
 I wrote some cool pvp abilities into its core.

@@ -1,5 +1,6 @@
 # Copyright 2025 - Solely by BrotherBoard
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Intended for personal use only
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Car v1.1 - vroom vroom
@@ -160,7 +161,6 @@ class Car:
             if s.kids: s.grant(s.kids[0])
             else: s.driver = None
 
-# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin): pass

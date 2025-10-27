@@ -3,9 +3,9 @@
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
-Dum v1.0 - Dum
+Dum v1.0 - Dummy plugin
 
-Dum
+Empty plugin
 """
 
 from babase import Plugin

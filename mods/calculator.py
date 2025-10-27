@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Calculator v1.5 - Math operations in the scene
@@ -494,7 +494,6 @@ def bruh(e):
     cm('ex. mid: /calc (-4, 0.2, 0) 100')
     cm('ex. adv: /calc (-11.2, 0.17, 0) 80 0.0075 0.1')
 
-# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(P):

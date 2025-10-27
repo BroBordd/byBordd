@@ -51,6 +51,7 @@ SPECIAL_LOGO = '__logo__'
 SPECIAL_TAB = '__tab__'
 SPECIAL_SPACE = '__space__'
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):

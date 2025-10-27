@@ -5,7 +5,7 @@
 Kang v1.0 - Simple roster grabber
 
 I made this to understand how stuff work.
-Will be used by Finder to collect users, soon.
+This is used by Finder to collect users!
 """
 
 from babase import (

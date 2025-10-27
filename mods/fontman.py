@@ -5,7 +5,11 @@
 """
 FontMan v1.0 - Font Manager
 
-Experimental.
+Change the game's font easily to any TTF you want.
+Adds a button in settings menu.
+
+Use font2bs to generate projects, and put them in mods/FontMan
+See exact steps on github: https://github.com/BroBordd/font2bs
 """
 
 import os
@@ -375,6 +379,7 @@ class FontMan(bui.MainWindow):
 core = lambda: op.join(bui.app.env.python_directory_user,'FontMan')
 base = lambda: op.join(op.dirname(bui.app.env.cache_directory),'ballistica_files','ba_data')
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):

@@ -1,15 +1,18 @@
 # Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Nuke v1.0 - Stupid game
+Nuke v1.0 - Stupid minigame
 
 Use the nuke console to bomb anyone.
 My first game, don't mind me lol.
+Requires my Beam plugin to be installed.
 """
 
 import bascenev1 as bs
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export bascenev1.GameActivity
 class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):

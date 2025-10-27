@@ -1,5 +1,6 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
+# Feedback is appreciated - Telegram >> @BroBordd
 
 """
 Chatools v1.0 - Simple chat window tools
