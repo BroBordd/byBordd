@@ -281,9 +281,9 @@
     },
     {
         "mod_name": "Polish",
-        "mod_fancy_name": "Your very UI designer",
+        "mod_fancy_name": "Your Very UI Designer",
         "mod_version": "2.7",
-        "mod_description": "Beta - Aims to help modders like me draw UI.\nStart by writing Polish() in dev console, or via settings UI.\nPolish uses a different static appearance to avoid visually conflicting with target container.\nIn a nutshell, Polish a container, get code, thrive.",
+        "mod_description": "A handy WYSIWYG (What-You-See-Is-What-You-Get) editor\nto visually design and build BombSquad UIs.\n\nStart by writing Polish() in the dev console, or launch it from\nthe game's settings UI.\n\nWhat it does:\n- Live Editor: Click any widget (or the root container)\n  to edit its position, size, and other properties in real-time.\n  It has flexible input options for attributes, letting you\n  set values via plain Text, raw code Eval, a visual\n  Color picker, or by picking another Widget.\n- Add Widgets: Easily drop in any standard bauiv1 widget, like\n  buttonwidget, textwidget, imagewidget, scrollwidget, etc.\n- Manage Layout: Tweak your layout by selecting, moving, resizing,\n  duplicating, and deleting any widget on your canvas.\n- Code Gen: Automatically generates clean, standalone\n  Python code for your complete UI layout.\n- Export & Copy: Instantly grab the generated code to your\n  clipboard or export it as a .py file.\n- Save/Load: Save your whole layout to a compact \"seed\"\n  string. Load it up later, or share the seed with friends\n  so they can load your project.\n- Presets: Quickly add pre-configured common stuff\n  like back buttons, titles, and separators.\n- Grid: Toggle a customizable grid overlay to\n  perfectly align your widgets.\n- Animations: Set and preview 'in' and 'out'\n  transition animations for your container.\n- Live Debugger: A one-click button to export and immediately\n  run your UI code in a live debug environment to mess around with your UI.",
         "api_version": 9,
         "mod_filename_base": "polish"
     },
