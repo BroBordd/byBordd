@@ -85,6 +85,9 @@ class byBordd(Plugin):
                 VAR(s.K,s.a)
             s.z.request_refresh()
     def kang(s,z):
+        try: s._kang(z)
+        except RuntimeError: pass
+    def _kang(s,z):
         s.z = z
         x = z.width/2
         m = z.height == 100
