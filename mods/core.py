@@ -1,4 +1,5 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
 # Feedback is appreciated - Telegram >> @GalaxyA14user
 
 """
@@ -116,7 +117,6 @@ def spy():
                 me.actor.connect_controls_to_player()
                 with open('/sdcard/Android/data/net.froemling.bombsquad/files/mods/core.json','w') as f:
                     f.write(str(Core.m))
-#                var('m',Core.m)
             else:
                 s.load()
 teck(5,spy)

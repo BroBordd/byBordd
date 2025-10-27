@@ -759,6 +759,7 @@ IPSUM = lambda: [
     "Snippet", "Fragment", "Block", "Element", "Component"
 ]
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):

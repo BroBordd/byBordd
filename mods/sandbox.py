@@ -1,8 +1,11 @@
-# Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
+# Copyright 2025 - Solely by BrotherBoard
+# Intended for personal use only
 # Feedback is appreciated - Telegram >> @GalaxyA14user
 
 """
 Sandbox v3.0 - Turn the scene into your very own sandbox
+
+Better use my Coolbox plugin cause Sandbox is kinda dirty.
 
 Sandbox gives you the ability to:
 - Spawn bots with advanced settings
@@ -5941,14 +5944,10 @@ class CustomBotSet(SpazBotSet):
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
-# Copyright 2024, solely by BroBordd. All rights reserved.
 # ba_meta export ba.Plugin
-
-
 class byBordd(ba.Plugin):
     def __init__(s):
         igm._refresh_in_game = Nice.Button(igm._refresh_in_game)
-
 
 # All Textures (generated)
 all_texture = [i[:-4] for i in ls("ba_data/textures")]

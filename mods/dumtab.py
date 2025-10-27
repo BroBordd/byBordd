@@ -1,6 +1,5 @@
 # Feel free to kang - Solely by BrotherBoard
-# Intended for personal use only
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 DumTab v1.1 - Dummy dev console tab example
@@ -30,7 +29,6 @@ class DumTab(TAB):
             v_align='bottom'
         )
 
-# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):

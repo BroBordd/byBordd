@@ -1,6 +1,6 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Power v2.7 - With one click

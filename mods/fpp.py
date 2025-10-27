@@ -101,7 +101,6 @@ class FPP:
         SCP(*camera_pos)
         SCT(*camera_target)
 
-# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin): pass

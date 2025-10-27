@@ -227,6 +227,5 @@ WHAT = lambda: [
 ]
 
 # ba_meta require api 9
-# brobord collide grass please
 # ba_meta export babase.Plugin
 class byBordd(Plugin): pass

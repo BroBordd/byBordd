@@ -580,6 +580,7 @@ lmao = lambda: [
     'We\'re having rosters for dinner!'
 ]
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):

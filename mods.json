@@ -137,9 +137,9 @@
     },
     {
         "mod_name": "Dum",
-        "mod_fancy_name": "Dum",
+        "mod_fancy_name": "Dummy plugin",
         "mod_version": "1.0",
-        "mod_description": "Dum",
+        "mod_description": "Empty plugin",
         "api_version": 9,
         "mod_filename_base": "dum"
     },
@@ -153,15 +153,15 @@
     },
     {
         "mod_name": "EasyCMD",
-        "mod_fancy_name": "Command manager",
+        "mod_fancy_name": "Command manager???",
         "mod_version": "1.0",
-        "mod_description": "Deprecated.",
+        "mod_description": "Deprecated. The code is a pile of trash.",
         "api_version": 8,
         "mod_filename_base": "easycmd"
     },
     {
         "mod_name": "Ender",
-        "mod_fancy_name": "You're done.",
+        "mod_fancy_name": "Tryhard AI Bot",
         "mod_version": "1.0",
         "mod_description": "A deadly bot that actively hunts any spaz nodes.\nI wrote some cool pvp abilities into its core.\nIt spawns at a random player's location or at the center if no players are present.\nOccasionally uses bubble_min to talk based on situations.\n\nTo spawn, just call Ender from dev console:\n>>> __import__('ender').Ender()\n\nTested in football stadium. Read code to know more.",
         "api_version": 9,
@@ -187,7 +187,7 @@
         "mod_name": "FontMan",
         "mod_fancy_name": "Font Manager",
         "mod_version": "1.0",
-        "mod_description": "Experimental.",
+        "mod_description": "Change the game's font easily to any TTF you want.\nAdds a button in settings menu.\n\nUse font2bs to generate projects, and put them in mods/FontMan\nSee exact steps on github: https://github.com/BroBordd/font2bs",
         "api_version": 9,
         "mod_filename_base": "fontman"
     },
@@ -211,7 +211,7 @@
         "mod_name": "Kang",
         "mod_fancy_name": "Simple roster grabber",
         "mod_version": "1.0",
-        "mod_description": "I made this to understand how stuff work.\nWill be used by Finder to collect users, soon.",
+        "mod_description": "I made this to understand how stuff work.\nThis is used by Finder to collect users!",
         "api_version": 9,
         "mod_filename_base": "kang"
     },
@@ -249,9 +249,9 @@
     },
     {
         "mod_name": "Nuke",
-        "mod_fancy_name": "Stupid game",
+        "mod_fancy_name": "Stupid minigame",
         "mod_version": "1.0",
-        "mod_description": "Use the nuke console to bomb anyone.\nMy first game, don't mind me lol.",
+        "mod_description": "Use the nuke console to bomb anyone.\nMy first game, don't mind me lol.\nRequires my Beam plugin to be installed.",
         "api_version": 9,
         "mod_filename_base": "nuke"
     },
@@ -347,7 +347,7 @@
         "mod_name": "Sandbox",
         "mod_fancy_name": "Turn the scene into your very own sandbox",
         "mod_version": "3.0",
-        "mod_description": "Sandbox gives you the ability to:\n- Spawn bots with advanced settings\n- Control bots gracefully\n- Apply effects to players and bots\n- Deploy objects anywhere\n- Tweak game attributes in real time\n- Load premade presets of mine\n- And many more!",
+        "mod_description": "Better use my Coolbox plugin cause Sandbox is kinda dirty.\n\nSandbox gives you the ability to:\n- Spawn bots with advanced settings\n- Control bots gracefully\n- Apply effects to players and bots\n- Deploy objects anywhere\n- Tweak game attributes in real time\n- Load premade presets of mine\n- And many more!",
         "api_version": 9,
         "mod_filename_base": "sandbox"
     },
