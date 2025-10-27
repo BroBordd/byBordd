@@ -1,14 +1,41 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
-Polish v2.7 - Your very UI designer
+Polish v2.7 - Your Very UI Designer
 
-Beta - Aims to help modders like me draw UI.
-Start by writing Polish() in dev console, or via settings UI.
-Polish uses a different static appearance to avoid visually conflicting with target container.
-In a nutshell, Polish a container, get code, thrive.
+A handy WYSIWYG (What-You-See-Is-What-You-Get) editor
+to visually design and build BombSquad UIs.
+
+Start by writing Polish() in the dev console, or launch it from
+the game's settings UI.
+
+What it does:
+- Live Editor: Click any widget (or the root container)
+  to edit its position, size, and other properties in real-time.
+  It has flexible input options for attributes, letting you
+  set values via plain Text, raw code Eval, a visual
+  Color picker, or by picking another Widget.
+- Add Widgets: Easily drop in any standard bauiv1 widget, like
+  buttonwidget, textwidget, imagewidget, scrollwidget, etc.
+- Manage Layout: Tweak your layout by selecting, moving, resizing,
+  duplicating, and deleting any widget on your canvas.
+- Code Gen: Automatically generates clean, standalone
+  Python code for your complete UI layout.
+- Export & Copy: Instantly grab the generated code to your
+  clipboard or export it as a .py file.
+- Save/Load: Save your whole layout to a compact "seed"
+  string. Load it up later, or share the seed with friends
+  so they can load your project.
+- Presets: Quickly add pre-configured common stuff
+  like back buttons, titles, and separators.
+- Grid: Toggle a customizable grid overlay to
+  perfectly align your widgets.
+- Animations: Set and preview 'in' and 'out'
+  transition animations for your container.
+- Live Debugger: A one-click button to export and immediately
+  run your UI code in a live debug environment to mess around with your UI.
 """
 
 from babase import (
