@@ -5944,7 +5944,6 @@ class CustomBotSet(SpazBotSet):
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
-# ba_meta export ba.Plugin
 class byBordd(ba.Plugin):
     def __init__(s):
         igm._refresh_in_game = Nice.Button(igm._refresh_in_game)
