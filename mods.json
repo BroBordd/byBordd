@@ -289,9 +289,9 @@
     },
     {
         "mod_name": "NaviBot",
-        "mod_fancy_name": "Node-based navigation with COB collision guide",
-        "mod_version": "3.2",
-        "mod_description": "Key fixes:\n- Edge pruning added to prevent skipping stairs/cliffs (MAX_VERTICAL_STEP).\n- Dot product check implemented for sharp, non-smoothed cornering.\n- Progress-based stuck check added to prevent infinite walking toward walls (NO_PROGRESS_TIME).\n- Velocity check added to prevent falling off cliffs/paths during sharp turns (MAX_TURN_VELOCITY).",
+        "mod_fancy_name": "Mission: Navigate.",
+        "mod_version": "1.0",
+        "mod_description": "Reads collision mesh (.cob) files and generates navigation data for bot pathfinding\n\nTo convert any map collision mesh (cob) to a path json,\nor get premade json files for game's builtin maps,\nsee my pathmaker:\nhttps://github.com/BroBordd/pathmaker\n\nFeatures:\n- A* pathfinding using a navigation graph of walkable triangles.\n- Vertical distance check (MAX_VERTICAL_STEP) to prevent unwanted jumps.\n- Progress check to detect and escape stuck states (e.g., walking into a wall).\n- Velocity check (MAX_TURN_VELOCITY) for momentum control during sharp turns.\n- Conditional, non-spamming dialogue via the 'bubble' module (if available).",
         "api_version": "N/A",
         "mod_filename_base": "navibot"
     },
