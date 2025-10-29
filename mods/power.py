@@ -38,7 +38,7 @@ from bauiv1 import (
     SpecialChar as sc,
     apptimer as teck,
     charstr as cs,
-    Call
+    CallPartial
 )
 
 class Power(TAB):
@@ -102,14 +102,14 @@ class Power(TAB):
                 pos=(x + 10 * sf, 606*zf),
                 size=(280*sf,35*zf),
                 disabled=s.eri <= 0,
-                call=Call(s.mv,'eri',-1)
+                call=CallPartial(s.mv,'eri',-1)
             )
             B(
                 cs(sc.DOWN_ARROW),
                 pos=(x + 10 * sf, 290*zf),
                 size=(280*sf,35*zf),
                 disabled=s.eri >= len(s.r)-7,
-                call=Call(s.mv,'eri',1)
+                call=CallPartial(s.mv,'eri',1)
             )
             nt = "No roster detected\nJoin some public party"
             w = GSW(nt)
@@ -131,7 +131,7 @@ class Power(TAB):
                     size=(280 * sf, 37*zf),
                     pos=(x + 10 * sf, (564-39*(i-s.eri))*zf),
                     style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
-                    call=Call(s.prv,c,p,n),
+                    call=CallPartial(s.prv,c,p,n),
                     label_scale=1 if w < 280 * sf else (280 * sf)/w
                 )
             B(
@@ -146,41 +146,41 @@ class Power(TAB):
                 pos=(x + 10 * sf, 230*zf),
                 size=(280 * sf, 40*zf),
                 disabled=bb,
-                call=Call(push,str(s.n))
+                call=CallPartial(push,str(s.n))
             )
             B(
                 'Mention',
                 size=(280 * sf, 40*zf),
                 pos=(x + 10 * sf, 185*zf),
-                call=Call(chat,str(s.n)),
+                call=CallPartial(chat,str(s.n)),
                 disabled=bb
             )
             B(
                 'Players',
                 size=(280 * sf, 40*zf),
                 pos=(x + 10 * sf, 140*zf),
-                call=Call(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
+                call=CallPartial(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
                 disabled=bb or (not s.p)
             )
             B(
                 'Kick',
                 size=(280 * sf, 40*zf),
                 pos=(x + 10 * sf, 95*zf),
-                call=Call(KICK,lambda:s.rr[s.n][0]),
+                call=CallPartial(KICK,lambda:s.rr[s.n][0]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'JKick',
                 size=(280 * sf, 40*zf),
                 pos=(x + 10 * sf, 50*zf),
-                call=Call(s.job,Call(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
+                call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'Vote',
                 size=(280 * sf, 40*zf),
                 pos=(x + 10 * sf, 5*zf),
-                call=Call(chat,'1'),
+                call=CallPartial(chat,'1'),
                 disabled=not s.r
             )
             B(
@@ -199,14 +199,14 @@ class Power(TAB):
                 pos=(x + 311 * sf, 606*zf),
                 disabled=not s.h,
                 label_scale=1 if w < 390 * sf else (390 * sf)/w,
-                call=Call(push,f"{t}\nHosted on build {getattr(s.h,'build_number','0')}" if t.strip() else 'Server is still loading...\nIf it remains stuck on this\nthen either party is full, or a network issue.'),
+                call=CallPartial(push,f"{t}\nHosted on build {getattr(s.h,'build_number','0')}" if t.strip() else 'Server is still loading...\nIf it remains stuck on this\nthen either party is full, or a network issue.'),
             )
             w = GSW(a)
             B(
                 a,
                 size=(300 * sf, 35*zf),
                 pos=(x + 311 * sf, 568*zf),
-                call=Call(COPY,a),
+                call=CallPartial(COPY,a),
                 disabled=not s.h,
                 label_scale=1 if w < 290 * sf else (290 * sf)/w
             )
@@ -216,7 +216,7 @@ class Power(TAB):
                 size=(97 * sf, 35*zf),
                 pos=(x + 614 * sf, 568*zf),
                 disabled=not s.h,
-                call=Call(COPY,str(p)),
+                call=CallPartial(COPY,str(p)),
                 label_scale=1 if w < 90 * sf else (90 * sf)/w
             )
             B(
@@ -230,34 +230,34 @@ class Power(TAB):
                 'Rejoin',
                 size=(200 * sf, 35*zf),
                 pos=(x + 311 * sf, 492*zf),
-                call=Call(REJOIN,a,p,lambda:s.re),
+                call=CallPartial(REJOIN,a,p,lambda:s.re),
                 disabled=not s.h
             )
             B(
                 'JRejoin',
                 size=(197 * sf, 35*zf),
                 pos=(x + 514 * sf, 492*zf),
-                call=Call(s.job,Call(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
+                call=CallPartial(s.job,CallPartial(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
                 disabled=not s.h
             )
             B(
                 '+',
                 size=(131 * sf, 35*zf),
                 pos=(x + 579 * sf, 454*zf),
-                call=Call(s.mv,'re',1)
+                call=CallPartial(s.mv,'re',1)
             )
             B(
                 str(s.re or 0.1),
                 size=(131 * sf, 35*zf),
                 pos=(x + 444 * sf, 454*zf),
-                call=Call(push,f"Rejoins after {s.re or 0.1} second{['','s'][s.re!=1]}\nKeep this 0.1 unless server kicks fast rejoins\nLife in server = job time - rejoin time")
+                call=CallPartial(push,f"Rejoins after {s.re or 0.1} second{['','s'][s.re!=1]}\nKeep this 0.1 unless server kicks fast rejoins\nLife in server = job time - rejoin time")
             )
             B(
                 '-',
                 size=(131 * sf, 35*zf),
                 pos=(x + 311 * sf, 454*zf),
                 disabled=s.re<=0.5,
-                call=Call(s.mv,'re',-1)
+                call=CallPartial(s.mv,'re',-1)
             )
             B(
                 '',
@@ -283,7 +283,7 @@ class Power(TAB):
                     size=(400 * sf, 37*zf),
                     pos=(x + 311 * sf, (358-39*(i-s.eii))*zf),
                     label_scale=1 if w < 290 * sf else (290 * sf)/w,
-                    call=Call(JOIN,a,p,False),
+                    call=CallPartial(JOIN,a,p,False),
                     disabled=n == '...'
                 )
             nt = "Server join history\nServers you join are saved here"
@@ -299,21 +299,21 @@ class Power(TAB):
                 pos=(x + 311 * sf, 8*zf),
                 size=(398*sf, 35*zf),
                 disabled=s.eii >= len(s.hi)-9,
-                call=Call(s.mv,'eii',1)
+                call=CallPartial(s.mv,'eii',1)
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x + 311 * sf, 400*zf),
                 size=(400*sf, 35*zf),
                 disabled=s.eii <= 0,
-                call=Call(s.mv,'eii',-1)
+                call=CallPartial(s.mv,'eii',-1)
             )
             bb = s.j[0] is None
             B(
                 'No job' if bb else 'Job',
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 606*zf),
-                call=Call(push,s.j[0]),
+                call=CallPartial(push,s.j[0]),
                 disabled=bb
             )
             w = 0 if bb else GSW(str(s.j[1]))
@@ -321,7 +321,7 @@ class Power(TAB):
                 'Target' if bb else str(s.j[1]),
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 568*zf),
-                call=Call(push,s.j[2]),
+                call=CallPartial(push,s.j[2]),
                 disabled=bb,
                 label_scale=1 if w<110 * sf else (110 * sf)/w
             )
@@ -329,33 +329,33 @@ class Power(TAB):
                 'Stop',
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 530*zf),
-                call=Call(s.job,None,[None,None,None]),
+                call=CallPartial(s.job,None,[None,None,None]),
                 disabled=bb
             )
             B(
                 '+',
                 size=(96 * sf, 35*zf),
                 pos=(x + 931 * sf, 492*zf),
-                call=Call(s.mv,'ji',1)
+                call=CallPartial(s.mv,'ji',1)
             )
             B(
                 str(s.ji or 0.1),
                 size=(100 * sf, 35*zf),
                 pos=(x + 828 * sf, 492*zf),
-                call=Call(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
+                call=CallPartial(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
             )
             B(
                 '-',
                 size=(98 * sf, 35*zf),
                 pos=(x + 727 * sf, 492*zf),
                 disabled=s.ji<=0.5,
-                call=Call(s.mv,'ji',-1)
+                call=CallPartial(s.mv,'ji',-1)
             )
             B(
                 'Power',
                 size=(300 * sf, 35*zf),
                 pos=(x + 727 * sf, 454*zf),
-                call=Call(push,'Power v2.5 FullUI\nCollapse dev console to switch to MinUI')
+                call=CallPartial(push,'Power v2.5 FullUI\nCollapse dev console to switch to MinUI')
             )
             B(
                 '',
@@ -388,7 +388,7 @@ class Power(TAB):
                     pos=(x + 1040*sf, (48+37*i)*zf),
                     style='purple',
                     label_scale=1 if w<(s1-10*sf) else (s1-10*sf)/w,
-                    call=Call(s.chk,sn)
+                    call=CallPartial(s.chk,sn)
                 )
                 s2 = 555*sf - s1 - 53*(_>1)
                 B(
@@ -417,14 +417,14 @@ class Power(TAB):
                 cs(sc.DOWN_ARROW),
                 pos=(x+1042*sf,8*zf),
                 size=(555*sf,35*zf),
-                call=Call(s.mv,'ci',-1),
+                call=CallPartial(s.mv,'ci',-1),
                 disabled=s.ci <= 0 or not s.cm
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x+1042*sf,606*zf),
                 size=(555*sf,35*zf),
-                call=Call(s.mv,'ci',1),
+                call=CallPartial(s.mv,'ci',1),
                 disabled=(s.ci >= len(s.cm)-15) or not s.cm
             )
             B(
@@ -432,14 +432,14 @@ class Power(TAB):
                 pos=(x+727*sf,8*zf),
                 size=(300*sf,35*zf),
                 disabled=(s.li >= len(s.ls)-16) or not s.ls,
-                call=Call(s.mv,'li',1)
+                call=CallPartial(s.mv,'li',1)
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x+727*sf,400*zf),
                 size=(300*sf,35*zf),
                 disabled=s.li<=0,
-                call=Call(s.mv,'li',-1)
+                call=CallPartial(s.mv,'li',-1)
             )
             0 if s.ls else T(
                 'Job logs here\nLike you even care',
@@ -457,7 +457,7 @@ class Power(TAB):
                     label_scale=0.7,
                     corner_radius=0,
                     style='black',
-                    call=Call(push,t)
+                    call=CallPartial(push,t)
                 )
                 T(
                     l,
@@ -471,14 +471,14 @@ class Power(TAB):
                 pos=(x + 10 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=(s.ri >= len(s.r)-3) or not s.r,
-                call=Call(s.mv,'ri',1)
+                call=CallPartial(s.mv,'ri',1)
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x + 250 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=(s.ri <= 0) or not s.r,
-                call=Call(s.mv,'ri',-1)
+                call=CallPartial(s.mv,'ri',-1)
             )
             nt = "No roster\nYou're alone"
             w = GSW(nt)
@@ -500,7 +500,7 @@ class Power(TAB):
                     size=(210 * sf, 27),
                     pos=(x + 40 * sf, s.height-35-27*(i-s.ri)),
                     style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
-                    call=Call(s.prv,c,p,n),
+                    call=CallPartial(s.prv,c,p,n),
                     label_scale=1 if w < 200 * sf else (200 * sf)/w
                 )
             bb = s.c is None
@@ -509,41 +509,41 @@ class Power(TAB):
                 pos=(x + 287 * sf, s.height-34),
                 size=(120 * sf, 27),
                 disabled=bb,
-                call=Call(push,str(s.n))
+                call=CallPartial(push,str(s.n))
             )
             B(
                 'Mention',
                 size=(120 * sf, 27),
                 pos=(x + 287 * sf, s.height-90),
-                call=Call(chat,str(s.n)),
+                call=CallPartial(chat,str(s.n)),
                 disabled=bb
             )
             B(
                 'Players',
                 size=(120 * sf, 27),
                 pos=(x + 287 * sf, s.height-62),
-                call=Call(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
+                call=CallPartial(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
                 disabled=bb or (not s.p)
             )
             B(
                 'Kick',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-34),
-                call=Call(KICK,lambda:s.rr[s.n][0]),
+                call=CallPartial(KICK,lambda:s.rr[s.n][0]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'JKick',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-62),
-                call=Call(s.job,Call(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
+                call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'Vote',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-90),
-                call=Call(chat,'1'),
+                call=CallPartial(chat,'1'),
                 disabled=not s.r
             )
             B(
@@ -557,7 +557,7 @@ class Power(TAB):
                 'No job' if bb else 'Job',
                 size=(120 * sf, 27),
                 pos=(x + 544 * sf, s.height-34),
-                call=Call(push,s.j[0]),
+                call=CallPartial(push,s.j[0]),
                 disabled=bb
             )
             w = 0 if bb else GSW(str(s.j[1]))
@@ -565,7 +565,7 @@ class Power(TAB):
                 'Target' if bb else str(s.j[1]),
                 size=(120 * sf, 27),
                 pos=(x + 544 * sf, s.height-62),
-                call=Call(push,s.j[2]),
+                call=CallPartial(push,s.j[2]),
                 disabled=bb,
                 label_scale=1 if w<110 * sf else (110 * sf)/w
             )
@@ -573,27 +573,27 @@ class Power(TAB):
                 'Stop',
                 size=(120 * sf, 27),
                 pos=(x + 544 * sf, s.height-90),
-                call=Call(s.job,None,[None,None,None]),
+                call=CallPartial(s.job,None,[None,None,None]),
                 disabled=bb
             )
             B(
                 '+',
                 size=(50 * sf, 27),
                 pos=(x + 664 * sf, s.height-34),
-                call=Call(s.mv,'ji',1)
+                call=CallPartial(s.mv,'ji',1)
             )
             B(
                 str(s.ji or 0.1),
                 size=(50 * sf, 27),
                 pos=(x + 664 * sf, s.height-62),
-                call=Call(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
+                call=CallPartial(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
             )
             B(
                 '-',
                 size=(50 * sf, 27),
                 pos=(x + 664 * sf, s.height-90),
                 disabled=s.ji<=0.5,
-                call=Call(s.mv,'ji',-1)
+                call=CallPartial(s.mv,'ji',-1)
             )
             B(
                 '',
@@ -611,14 +611,14 @@ class Power(TAB):
                 pos=(x + 732 * sf, s.height-34),
                 disabled=not s.h,
                 label_scale=1 if w < 290 * sf else (290 * sf)/w,
-                call=Call(push,f"{t}\nHosted on build {getattr(s.h,'build_number','0')}" if t.strip() else 'Server is still loading...\nIf it remains stuck on this\nthen either party is full, or a network issue.'),
+                call=CallPartial(push,f"{t}\nHosted on build {getattr(s.h,'build_number','0')}" if t.strip() else 'Server is still loading...\nIf it remains stuck on this\nthen either party is full, or a network issue.'),
             )
             w = GSW(a)
             B(
                 a,
                 size=(200 * sf, 27),
                 pos=(x + 732 * sf, s.height-62),
-                call=Call(COPY,a),
+                call=CallPartial(COPY,a),
                 disabled=not s.h,
                 label_scale=1 if w < 190 * sf else (190 * sf)/w
             )
@@ -628,7 +628,7 @@ class Power(TAB):
                 size=(97 * sf, 27),
                 pos=(x + 935 * sf, s.height-62),
                 disabled=not s.h,
-                call=Call(COPY,str(p)),
+                call=CallPartial(COPY,str(p)),
                 label_scale=1 if w < 90 * sf else (90 * sf)/w
             )
             B(
@@ -642,34 +642,34 @@ class Power(TAB):
                 'Rejoin',
                 size=(97 * sf, 27),
                 pos=(x + 835 * sf, s.height-90),
-                call=Call(REJOIN,a,p,lambda:s.re),
+                call=CallPartial(REJOIN,a,p,lambda:s.re),
                 disabled=not s.h
             )
             B(
                 'JRejoin',
                 size=(97 * sf, 27),
                 pos=(x + 935 * sf, s.height-90),
-                call=Call(s.job,Call(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
+                call=CallPartial(s.job,CallPartial(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
                 disabled=not s.h
             )
             B(
                 '+',
                 size=(50 * sf, 27),
                 pos=(x + 1035 * sf, s.height-34),
-                call=Call(s.mv,'re',1)
+                call=CallPartial(s.mv,'re',1)
             )
             B(
                 str(s.re or 0.1),
                 size=(50 * sf, 27),
                 pos=(x + 1035 * sf, s.height-62),
-                call=Call(push,f"Rejoins after {s.re or 0.1} second{['','s'][s.re!=1]}\nKeep this 0.1 unless server kicks fast rejoins\nLife in server = job time - rejoin time")
+                call=CallPartial(push,f"Rejoins after {s.re or 0.1} second{['','s'][s.re!=1]}\nKeep this 0.1 unless server kicks fast rejoins\nLife in server = job time - rejoin time")
             )
             B(
                 '-',
                 size=(50 * sf, 27),
                 pos=(x + 1035 * sf, s.height-90),
                 disabled=s.re<=0.5,
-                call=Call(s.mv,'re',-1)
+                call=CallPartial(s.mv,'re',-1)
             )
             B(
                 '',
@@ -689,7 +689,7 @@ class Power(TAB):
                     size=(300 * sf, 27),
                     pos=(x + 1134 * sf, s.height-34-28*(i-s.ii)),
                     label_scale=1 if w < 290 * sf else (290 * sf)/w,
-                    call=Call(JOIN,a,p,False),
+                    call=CallPartial(JOIN,a,p,False),
                     disabled=n == '...'
                 )
             nt = "Your server join history\nwill appear here. Hi."
@@ -706,14 +706,14 @@ class Power(TAB):
                 pos=(x + 1102 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=s.ii >= len(s.hi)-3,
-                call=Call(s.mv,'ii',1)
+                call=CallPartial(s.mv,'ii',1)
             )
             B(
                 cs(sc.UP_ARROW),
                 pos=(x + 1436 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=s.ii <= 0,
-                call=Call(s.mv,'ii',-1)
+                call=CallPartial(s.mv,'ii',-1)
             )
             B(
                 'Force leave',
@@ -724,13 +724,13 @@ class Power(TAB):
             )
             B(
                 'Laugh',
-                call=Call(chat,'hahaha'),
+                call=CallPartial(chat,'hahaha'),
                 pos=(x + 1469 * sf, s.height-62),
                 size=(130 * sf, 27)
             )
             B(
                 'Power',
-                call=Call(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI. thanks.'),
+                call=CallPartial(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI. thanks.'),
                 pos=(x + 1469 * sf, s.height-90),
                 size=(130 * sf, 27)
             )
@@ -756,7 +756,7 @@ class Power(TAB):
     def _job(s,f):
         if f != s.lf: return
         s.log(f'[{s.lii:02}] [{s.j[0]}] {s.hd}')
-        f(); teck(s.ji or 0.1,Call(s._job,f))
+        f(); teck(s.ji or 0.1,CallPartial(s._job,f))
     def prv(s,c,p,n):
         s.c,s.p,s.n = c,p,n
         s.rf()
@@ -776,7 +776,7 @@ KICK = lambda f: DISC(f())
 FORCE = lambda: teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
-REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,Call(JOIN,a,p,False))
+REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,CallPartial(JOIN,a,p,False))
 COPY = lambda s: ((CST(s) or 1) if CIS() else push('Clipboard not supported!')) and push('Copied!',color=(0,1,0))
 NOW = lambda: DT.now().strftime("%H:%M:%S")
 

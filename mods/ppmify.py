@@ -236,7 +236,7 @@ class Image:
         pixel_data: list[tuple[tuple[float, float, float], tuple[float, float, float]]] | None,
         error_message: str | None = None
     ) -> None:
-        """Callback on main thread after calculation."""
+        """CallPartialback on main thread after calculation."""
         s.calculating = False
 
         if s.deleted:

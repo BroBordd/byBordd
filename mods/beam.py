@@ -142,7 +142,7 @@ class Beam:
                 s.up = False
                 s.next.opacity = 1
             s.tip.opacity = 1
-            s.bye = bs.Timer(1.5,bs.Call(setattr,s.tip,'opacity',0))
+            s.bye = bs.Timer(1.5,bs.CallPartial(setattr,s.tip,'opacity',0))
             s.next.capture(n)
 
     def eye(s):
@@ -373,10 +373,10 @@ class Container:
         player.actor.node.move_left_right = 0
         player.resetinput()
         for i, _ in enumerate(['UP_DOWN', 'LEFT_RIGHT']):
-            player.assigninput(getattr(IT, _), bs.Call(s.manage, i))
+            player.assigninput(getattr(IT, _), bs.CallPartial(s.manage, i))
 
         # The bomb press should call dump(), which now releases everyone
-        player.assigninput(IT.BOMB_PRESS, bs.Call(s.release_one, player))
+        player.assigninput(IT.BOMB_PRESS, bs.CallPartial(s.release_one, player))
         player.assigninput(IT.PUNCH_PRESS, s.push)
 
         # Only animate the cursor if this is the first player

@@ -12,7 +12,7 @@ Read code to know more.
 from babase import Plugin
 from bauiv1 import (
     apptimer as teck,
-    Call,
+    CallPartial,
     app
 )
 from bacommon.bs import (
@@ -35,12 +35,12 @@ class byBordd(Plugin):
             with p.accounts.primary:
                 p.cloud.send_message_cb(
                     RM(),
-                    on_response=Call(s.eye,i)
+                    on_response=CallPartial(s.eye,i)
                 )
         except:
             return
     def eye(s,i,r):
-        if isinstance(r,CE): teck(1,Call(s.__init__,i-1))
+        if isinstance(r,CE): teck(1,CallPartial(s.__init__,i-1))
         else: s.claim(r)
     def claim(s,r):
         p = app.plus

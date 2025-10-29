@@ -65,7 +65,7 @@ from bauiv1 import (
     getsound as gs,
     charstr as cs,
     app as APP,
-    Call
+    CallPartial
 )
 from random import choice as CH, uniform as uf
 from traceback import print_exc as ERR
@@ -146,7 +146,7 @@ class Polish:
             enable_sound=False,
             color=File.COL1,
             textcolor=File.COL2,
-            on_activate_call=Call(s.go,File,[s])
+            on_activate_call=CallPartial(s.go,File,[s])
         ))
         # separator
         s.sps.append(iw(
@@ -164,7 +164,7 @@ class Polish:
             enable_sound=False,
             color=Root.COL1,
             textcolor=Root.COL2,
-            on_activate_call=Call(s.go,Root)
+            on_activate_call=CallPartial(s.go,Root)
         ))
         # Tran
         s.bws.append(bw(
@@ -175,7 +175,7 @@ class Polish:
             enable_sound=False,
             color=(0,0.2,0.2),
             textcolor=(0,0.5,0.5),
-            on_activate_call=Call(s.go,Anim)
+            on_activate_call=CallPartial(s.go,Anim)
         ))
         # separator
         s.sps.append(iw(
@@ -193,7 +193,7 @@ class Polish:
             enable_sound=False,
             color=(0,0.4,0),
             textcolor=(0,0.7,0),
-            on_activate_call=Call(s.go,Add)
+            on_activate_call=CallPartial(s.go,Add)
         ))
         s.bws.append(bw(
             parent=s.p,
@@ -203,7 +203,7 @@ class Polish:
             enable_sound=False,
             color=(0.4,0.4,0),
             textcolor=(0.7,0.7,0),
-            on_activate_call=Call(s.go,Preset,[s])
+            on_activate_call=CallPartial(s.go,Preset,[s])
         ))
         s.bws.append(bw(
             parent=s.p,
@@ -213,7 +213,7 @@ class Polish:
             enable_sound=False,
             color=(0.4,0,0),
             textcolor=(0.7,0,0),
-            on_activate_call=Call(s.go,Grid,[s,s.gtrash])
+            on_activate_call=CallPartial(s.go,Grid,[s,s.gtrash])
         ))
         # separator
         s.sps.append(iw(
@@ -298,7 +298,7 @@ class Polish:
         c = (c[0]-0.1,c[1]-0.1,c[2]-0.1)
         bw(b,color=c)
         if c[0] <= Man.COL1[0]+0.01: return
-        teck(0.05,Call(s.flash,b,c))
+        teck(0.05,CallPartial(s.flash,b,c))
     def bye(s):
         if s.sl[0] is None: btw('Select a widget first!'); return
         s.MEM.pop(s.sl[1])
@@ -312,7 +312,7 @@ class Polish:
         nice('Deleted!')
     def hold(s):
         if getattr(s,'busy',0): return 1
-        s.busy = 1; teck(0.2,Call(setattr,s,'busy',0))
+        s.busy = 1; teck(0.2,CallPartial(setattr,s,'busy',0))
     def logo(s):
         [h.delete() for h in s.hell]; s.hell.clear()
         x = res()[1]
@@ -402,7 +402,7 @@ class Polish:
                 texture=gt('white'),
                 enable_sound=False,
                 size=(s.width-30,30),
-                on_activate_call=Call(s.wid,i)
+                on_activate_call=CallPartial(s.wid,i)
             )
             s.K.append(b)
             s.ok.append(b)
@@ -1056,7 +1056,7 @@ class Preset:
             textcolor=c1,
             parent=po.p,
             texture=gt('white'),
-            on_activate_call=Call(s.load,i)
+            on_activate_call=CallPartial(s.load,i)
         )) for i,g in enumerate(src)]
     def load(s,i):
         deek()
@@ -1190,7 +1190,7 @@ class Man:
             mode=0,
             parent=po.p,
             color=s.COL2,
-            on_edit=Call(s.set,'position',0)
+            on_edit=CallPartial(s.set,'position',0)
         ).widget)
         K.append(ctw(
             position=(x+130,r[1]-35),
@@ -1199,7 +1199,7 @@ class Man:
             mode=0,
             parent=po.p,
             color=s.COL2,
-            on_edit=Call(s.set,'position',1)
+            on_edit=CallPartial(s.set,'position',1)
         ).widget)
         # size
         K.append(tw(
@@ -1217,7 +1217,7 @@ class Man:
                 mode=0,
                 parent=po.p,
                 color=s.COL2,
-                on_edit=Call(s.set,'size',0)
+                on_edit=CallPartial(s.set,'size',0)
             ).widget)
             K.append(ctw(
                 position=(x+130,r[1]-65),
@@ -1226,7 +1226,7 @@ class Man:
                 mode=0,
                 parent=po.p,
                 color=s.COL2,
-                on_edit=Call(s.set,'size',1)
+                on_edit=CallPartial(s.set,'size',1)
             ).widget)
         else:
             K.append(ctw(
@@ -1236,7 +1236,7 @@ class Man:
                 mode=0,
                 parent=po.p,
                 color=s.COL2,
-                on_edit=Call(s.set,'size',None)
+                on_edit=CallPartial(s.set,'size',None)
             ).widget)
         # separator
         K.append(iw(
@@ -1259,7 +1259,7 @@ class Man:
                 size=(po.width/5-2,po.width/5-2),
                 color=s.COL2,
                 textcolor=s.COL1,
-                on_activate_call=Call(s.mv,i)
+                on_activate_call=CallPartial(s.mv,i)
             )
             K.append(b)
         for i in range(4):
@@ -1274,7 +1274,7 @@ class Man:
                 size=(po.width/5-2,po.width/5-2),
                 color=s.COL2,
                 textcolor=s.COL1,
-                on_activate_call=Call(s.mv,i,10)
+                on_activate_call=CallPartial(s.mv,i,10)
             )
             K.append(b)
         # separator
@@ -1327,7 +1327,7 @@ class Man:
                 size=(xs,30),
                 color=s.COL3,
             )
-            tw(t,on_activate_call=Call(s.prev,k,t,mem=d))
+            tw(t,on_activate_call=CallPartial(s.prev,k,t,mem=d))
         # dot
         dot = tw(parent=c1,position=(0,ys),text='.')
         cw(c1,visible_child=dot)
@@ -1453,7 +1453,7 @@ class Man:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s._val1,k)
+            on_activate_call=CallPartial(s._val1,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1467,7 +1467,7 @@ class Man:
             texture=gt('white'),
             textcolor=s.COL1,
             color=s.COL2,
-            on_activate_call=Call(s._val2,k)
+            on_activate_call=CallPartial(s._val2,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1481,7 +1481,7 @@ class Man:
             texture=gt('white'),
             textcolor=s.COL1,
             color=s.COL2,
-            on_activate_call=Call(s._val3,k)
+            on_activate_call=CallPartial(s._val3,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1519,7 +1519,7 @@ class Man:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s._val0,k,v)
+            on_activate_call=CallPartial(s._val0,k,v)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1616,7 +1616,7 @@ class Man:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val0a,k)
+            on_activate_call=CallPartial(s.val0a,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1666,7 +1666,7 @@ class Man:
                     parent=po.p,
                     texture=gt('white'),
                     color=c,
-                    on_activate_call=Call(s.val3p,c,px,py),
+                    on_activate_call=CallPartial(s.val3p,c,px,py),
                     label='',
                     size=(ok,ok),
                     position=(px,py),
@@ -1721,7 +1721,7 @@ class Man:
             enable_sound=False,
             textcolor=s.COL1,
             color=s.COL2,
-            on_activate_call=Call(s.val3s,k)
+            on_activate_call=CallPartial(s.val3s,k)
         )
         s.K.append(ij)
         s.p3junk.append(ij)
@@ -1845,7 +1845,7 @@ class Man:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val1e,k)
+            on_activate_call=CallPartial(s.val1e,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -1915,7 +1915,7 @@ class Man:
                 glow_type='uniform',
                 click_activate=True
             )
-            tw(t,on_activate_call=Call(s.val2p,t,n))
+            tw(t,on_activate_call=CallPartial(s.val2p,t,n))
         # separator
         ij = iw(
             parent=po.p,
@@ -1937,7 +1937,7 @@ class Man:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val2c,k)
+            on_activate_call=CallPartial(s.val2c,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2002,7 +2002,7 @@ class Add:
                 color=(0,0.5,0),
                 textcolor=(0,0.8,0),
                 enable_sound=False,
-                on_activate_call=Call(s.add,i,t),
+                on_activate_call=CallPartial(s.add,i,t),
                 label=t,
                 position=(x+15,10+y+35*i)
             ))
@@ -2163,7 +2163,7 @@ class Root:
             mode=0,
             parent=s.p,
             color=s.COL2,
-            on_edit=Call(s.set,'stack_offset',0)
+            on_edit=CallPartial(s.set,'stack_offset',0)
         ).widget)
         K.append(ctw(
             position=(x+130,r[1]-35),
@@ -2172,7 +2172,7 @@ class Root:
             mode=0,
             parent=s.p,
             color=s.COL2,
-            on_edit=Call(s.set,'stack_offset',1)
+            on_edit=CallPartial(s.set,'stack_offset',1)
         ).widget)
         # size
         K.append(tw(
@@ -2188,7 +2188,7 @@ class Root:
             mode=0,
             parent=s.p,
             color=s.COL2,
-            on_edit=Call(s.set,'size',0)
+            on_edit=CallPartial(s.set,'size',0)
         ).widget)
         K.append(ctw(
             position=(x+130,r[1]-65),
@@ -2197,7 +2197,7 @@ class Root:
             mode=0,
             parent=s.p,
             color=s.COL2,
-            on_edit=Call(s.set,'size',1)
+            on_edit=CallPartial(s.set,'size',1)
         ).widget)
         # separator
         K.append(iw(
@@ -2220,7 +2220,7 @@ class Root:
                 size=(s.width/5-2,s.width/5-2),
                 color=s.COL2,
                 textcolor=s.COL1,
-                on_activate_call=Call(s.mv,i)
+                on_activate_call=CallPartial(s.mv,i)
             )
             K.append(b)
         for i in range(4):
@@ -2235,7 +2235,7 @@ class Root:
                 size=(s.width/5-2,s.width/5-2),
                 color=s.COL2,
                 textcolor=s.COL1,
-                on_activate_call=Call(s.mv,i,10)
+                on_activate_call=CallPartial(s.mv,i,10)
             )
             K.append(b)
         # separator
@@ -2287,7 +2287,7 @@ class Root:
                 size=(xs,30),
                 color=s.COL2,
             )
-            tw(t,on_activate_call=Call(s.prev,k,t,mem=d))
+            tw(t,on_activate_call=CallPartial(s.prev,k,t,mem=d))
         # dot
         dot = tw(parent=c1,position=(0,ys),text='.')
         cw(c1,visible_child=dot)
@@ -2354,7 +2354,7 @@ class Root:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s._val1,k,v)
+            on_activate_call=CallPartial(s._val1,k,v)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2368,7 +2368,7 @@ class Root:
             texture=gt('white'),
             textcolor=s.COL1,
             color=s.COL2,
-            on_activate_call=Call(s._val2,k)
+            on_activate_call=CallPartial(s._val2,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2382,7 +2382,7 @@ class Root:
             texture=gt('white'),
             textcolor=s.COL1,
             color=s.COL2,
-            on_activate_call=Call(s._val3,k)
+            on_activate_call=CallPartial(s._val3,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2419,7 +2419,7 @@ class Root:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s._val0,k,v)
+            on_activate_call=CallPartial(s._val0,k,v)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2505,7 +2505,7 @@ class Root:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val0a,k)
+            on_activate_call=CallPartial(s.val0a,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2559,7 +2559,7 @@ class Root:
                     parent=po.p,
                     texture=gt('white'),
                     color=c,
-                    on_activate_call=Call(s.val3p,c,px,py),
+                    on_activate_call=CallPartial(s.val3p,c,px,py),
                     label='',
                     size=(ok,ok),
                     position=(px,py),
@@ -2614,7 +2614,7 @@ class Root:
             enable_sound=False,
             textcolor=s.COL2,
             color=s.COL1,
-            on_activate_call=Call(s.val3s,k)
+            on_activate_call=CallPartial(s.val3s,k)
         )
         s.K.append(ij)
         s.p3junk.append(ij)
@@ -2742,7 +2742,7 @@ class Root:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val1e,k)
+            on_activate_call=CallPartial(s.val1e,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2811,7 +2811,7 @@ class Root:
                 glow_type='uniform',
                 click_activate=True
             )
-            tw(t,on_activate_call=Call(s.val2p,t,n))
+            tw(t,on_activate_call=CallPartial(s.val2p,t,n))
         # separator
         ij = iw(
             parent=s.p,
@@ -2833,7 +2833,7 @@ class Root:
             textcolor=s.COL1,
             color=s.COL2,
             enable_sound=False,
-            on_activate_call=Call(s.val2c,k)
+            on_activate_call=CallPartial(s.val2c,k)
         )
         s.K.append(b)
         s.p3junk.append(b)
@@ -2989,7 +2989,7 @@ def fade(w,i=0,j=0.025,a=0.1):
     if i > 1.0 or i < 0: return
     if not w.exists(): return
     iw(w,opacity=i)
-    teck(j,Call(fade,w,i+a,j,a))
+    teck(j,CallPartial(fade,w,i+a,j,a))
 
 # brobord collide grass
 # ba_meta require api 9

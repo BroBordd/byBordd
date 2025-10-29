@@ -32,7 +32,7 @@ from bauiv1 import (
     UIScale as uis,
     charstr as cs,
     app as APP,
-    Call
+    CallPartial
 )
 from bascenev1 import (
     get_chat_messages as GCM,
@@ -75,7 +75,7 @@ class Add:
                 iconscale=1.3,
                 icon=gt('file'),
                 position=(265,218-70*i),
-                on_activate_call=Call(s.paste,a[i])
+                on_activate_call=CallPartial(s.paste,a[i])
             )
         for i in range(2):
             tw(
@@ -100,7 +100,7 @@ class Add:
             position=(27.5,65),
             text='Search in message',
             value=s.cbv,
-            on_value_change_call=Call(setattr,s,'cbv'),
+            on_value_change_call=CallPartial(setattr,s,'cbv'),
             color=(0.75,0.75,0.75),
             textcolor=(1,1,1),
         )
@@ -117,7 +117,7 @@ class Add:
             label='Add',
             size=(50,35),
             position=(230,25),
-            on_activate_call=Call(s._add,a)
+            on_activate_call=CallPartial(s._add,a)
         )
         AR.swish()
     def _add(s,a):
@@ -144,7 +144,7 @@ class Add:
         if not CHT(): AR.err('Your clipboard is empty!'); return
         tw(t,text=CGT().replace('\n',' '),color=(0,1,0))
         gs('gunCocking').play()
-        teck(0.3,Call(tw,t,color=(1,1,1)))
+        teck(0.3,CallPartial(tw,t,color=(1,1,1)))
         push('Pasted!',color=(0,1,0))
 
 class Nuke:
@@ -172,7 +172,7 @@ class Nuke:
             label='Nuke',
             size=(60,25),
             position=(180,10),
-            on_activate_call=Call(s._nuke)
+            on_activate_call=CallPartial(s._nuke)
         )
         s.kids = []
         s.sl = None
@@ -202,7 +202,7 @@ class Nuke:
             selectable=True,
             click_activate=True,
             position=(0,(30*j)-30*(i+1)),
-            on_activate_call=Call(s.hl,i),
+            on_activate_call=CallPartial(s.hl,i),
         )) for i in range(j)]
         cw(s.c,size=(220,j*30))
     def hl(s,i):
@@ -236,7 +236,7 @@ class Tune:
                 value=var(c),
                 position=(30,20+40*i),
                 color=(0.13,0.13,0.13),
-                on_value_change_call=Call(var,c)
+                on_value_change_call=CallPartial(var,c)
             )
 
 class List:
@@ -310,7 +310,7 @@ class List:
             selectable=True,
             click_activate=True,
             position=(0,(30*j)-30*(i+1)),
-            on_activate_call=Call(s.hl,i),
+            on_activate_call=CallPartial(s.hl,i),
         )) for i in range(j)]
         cw(s.c,size=(220,j*30))
     """Highlight"""
@@ -354,7 +354,7 @@ class AR:
             parent=gsw('overlay_stack'),
             scale_origin_stack_offset=o
         )
-        cw(r,on_outside_click_call=Call(c.swish,t=r))
+        cw(r,on_outside_click_call=CallPartial(c.swish,t=r))
         return r
     swish = lambda c=0,t=0: (gs('swish').play(),cw(t,transition='out_scale') if t else t)
     err = lambda t: (gs('block').play(),push(t,color=(1,1,0)))
@@ -384,7 +384,7 @@ class AR:
                 position=(30,230-70*i),
                 icon=gt(f'ouya{k}Button')
             )
-            bw(b,on_activate_call=Call(mem[j],b))
+            bw(b,on_activate_call=CallPartial(mem[j],b))
         s.b = bw(
             parent=w,
             size=(60,40),
@@ -458,7 +458,7 @@ class byBordd(Plugin):
                 size=(90,30),
                 label='Auto'
             )
-            bw(b,on_activate_call=Call(AR,source=b))
+            bw(b,on_activate_call=CallPartial(AR,source=b))
             return r
         party.PartyWindow.__init__ = e
         s.z = []
@@ -490,6 +490,6 @@ class byBordd(Plugin):
     def S(s,b,a,f,j):
         if not var('state'): return # ignore
         p = AR.parse(t=a,s=f)
-        teck(b,Call(CM,p+s.B))
+        teck(b,CallPartial(CM,p+s.B))
         push(f"{['Equals','Contains'][j]}!\nReplying to: {f}\nWith text: {p}\nAfter {b} seconds!",color=(0,0.8,0.8)) if var('tune0') else None
         gs('dingSmallHigh').play() if var('tune1') else None

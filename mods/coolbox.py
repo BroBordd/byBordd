@@ -70,7 +70,7 @@ from bascenev1 import (
     newnode,
     emitfx,
     Timer,
-    Call
+    CallPartial
 )
 from random import (
     randrange as RR,
@@ -98,7 +98,7 @@ from uuid import uuid4
 class Coolbox:
     @classmethod
     def state(s,t=0):
-        teck(0 if t else 0.13, Call(bw, s.in_source, icon=gt(f"chest{'Open' if t else ''}Icon")))
+        teck(0 if t else 0.13, CallPartial(bw, s.in_source, icon=gt(f"chest{'Open' if t else ''}Icon")))
     def __init__(s, fresh=True, in_source=None, fb=None, fake=False, extra=None):
         # safe
         if not ga(): btw(CH(NAH())); return
@@ -137,8 +137,8 @@ class Coolbox:
                 )
                 bcls = mem[l]
                 args = (w,b,i,in_source,s.__class__,extra)
-                if not fake: bw(b,oac=Call(bcls, *args))
-                if fb == bcls.__name__: teck(0.5, Call(bcls, *args))
+                if not fake: bw(b,oac=CallPartial(bcls, *args))
+                if fb == bcls.__name__: teck(0.5, CallPartial(bcls, *args))
                 kids.append(b)
     """Icons and names"""
     def get(s,j,k):
@@ -343,7 +343,7 @@ class Bubble:
         s.mem = lambda: s.__class__.__mem__
         m = s.mem()
         o = m.get(node,0)
-        if not getattr(o,'dead',1): tick(0.2,Call(o.delete,force=True))
+        if not getattr(o,'dead',1): tick(0.2,CallPartial(o.delete,force=True))
         s.show()
         m[node] = s
     def show(s):
@@ -660,7 +660,7 @@ class icw:
         j = UIS(1)
         if s.ouis != j:
             s.ouis = j
-            [teck(z,Call(APP.set_ui_scale,j)) for z in [0.01,0.1]]
+            [teck(z,CallPartial(APP.set_ui_scale,j)) for z in [0.01,0.1]]
         a,b = [(0.2,0.007),(0.3,-0.0034),(0.33,0.0026)][i]
         ef = s.in_source
         of = gc(ef) if ef and ef.exists() else None
@@ -869,7 +869,7 @@ class SoundManager:
                 size=(200,45),
                 pos=(50,y)
             )
-            bw(b,oac=Call(SoundPipe,pipe=s.fresh,source=b,action=i,prf=prf))
+            bw(b,oac=CallPartial(SoundPipe,pipe=s.fresh,source=b,action=i,prf=prf))
             b = pbw(
                 p=w,
                 pos=(260,y+7),
@@ -894,10 +894,10 @@ class SoundManager:
             if t == 1:
                 ah = AUDIO()
                 t = ah[i]
-                bw(s.kids[o],texture=gt('audioIcon'),oac=Call(broad,t),color=(1,1,1),tint_texture=gt('black'))
+                bw(s.kids[o],texture=gt('audioIcon'),oac=CallPartial(broad,t),color=(1,1,1),tint_texture=gt('black'))
             else:
                 char = list(s.D.values())[i]
-                bw(s.kids[o],texture=gt(char.icon_texture),tint_texture=gt(char.icon_mask_texture),oac=Call(broad,list(s.D)[i],color=var(s.cols()[2])),color=(1,1,1))
+                bw(s.kids[o],texture=gt(char.icon_texture),tint_texture=gt(char.icon_mask_texture),oac=CallPartial(broad,list(s.D)[i],color=var(s.cols()[2])),color=(1,1,1))
     """Reset"""
     def reset(s):
         c = var(f'{s.prf}char')
@@ -938,14 +938,14 @@ class SoundPipe:
             size=(150,50),
             label='Characters'
         )
-        bw(b,oac=Call(CharPicker,pipe=s.pick,source=b,what='Select a sound',extra=[action,0],prf=None))
+        bw(b,oac=CallPartial(CharPicker,pipe=s.pick,source=b,what='Select a sound',extra=[action,0],prf=None))
         b = bw(
             p=w,
             pos=(200,25),
             size=(150,50),
             label='All Sounds'
         )
-        bw(b,oac=Call(SoundPicker,source=b,pipe=s.pick,extra=[action,1]))
+        bw(b,oac=CallPartial(SoundPicker,source=b,pipe=s.pick,extra=[action,1]))
     """Redirect all"""
     def pick(s,i,j):
         s.z.back()
@@ -994,7 +994,7 @@ class SoundPicker:
             )
             bw(
                 pos=p,
-                oac=Call(s.preview,i,extra),
+                oac=CallPartial(s.preview,i,extra),
                 texture=gt('empty'),
                 **j
             )
@@ -1108,7 +1108,7 @@ class MeshManager:
                 text_scale=[1,1.5][sx<51],
                 label=l.split('_')[0]
             )
-            bw(b,oac=Call(MeshPipe,pipe=s.fresh,source=b,part=i,title=l,prf=prf))
+            bw(b,oac=CallPartial(MeshPipe,pipe=s.fresh,source=b,part=i,title=l,prf=prf))
             tx = [105,105,325,325,325,325,325,105,325][i]
             ty = [253,199,385,97,199,49,282,307,147][i]
             t = pbw(
@@ -1133,7 +1133,7 @@ class MeshManager:
                 size=(160,70)
             )
             j = ['Texture','Mask'][i]
-            bw(b,oac=Call(TexPipe,source=b,pipe=s.update,prf=prf,mask=i,what=j))
+            bw(b,oac=CallPartial(TexPipe,source=b,pipe=s.update,prf=prf,mask=i,what=j))
             tw(
                 p=w,
                 pos=(120,135-73*i),
@@ -1176,7 +1176,7 @@ class MeshManager:
     def update(s):
         for i in range(len(DIR('mesh'))):
             g = var(f'{s.prf}mesh{i}')
-            bw(s.kids[i],texture=gt('menuIcon'),color=(1,1,1),oac=Call(broad,g))
+            bw(s.kids[i],texture=gt('menuIcon'),color=(1,1,1),oac=CallPartial(broad,g))
         iw(s.img[0],texture=gt(var(f'{s.prf}ctex') or get_ctex(var('char'))))
         iw(s.img[1],texture=gt(var(f'{s.prf}ctex2') or get_ctex2(var('char'))))
     """Fresh"""
@@ -1226,7 +1226,7 @@ class MeshPicker:
                 size=(280,30),
                 click_activate=True,
                 selectable=True,
-                on_activate_call=Call(s.fresh,i,j)
+                on_activate_call=CallPartial(s.fresh,i,j)
             )
             s.texts.append(t)
         s.up = lambda: cw(cv,visible_child=s.texts[s.n()])
@@ -1235,7 +1235,7 @@ class MeshPicker:
             label='Pick',
             size=(100,50),
             pos=(270,0),
-            oac=Call(s.pick,extra)
+            oac=CallPartial(s.pick,extra)
         )
         s.fresh()
     """Refresh"""
@@ -1286,14 +1286,14 @@ class MeshPipe:
             size=(150,50),
             label='Characters'
         )
-        bw(b,oac=Call(CharPicker,pipe=s.pick,source=b,what=f'Get {title} from',extra=0,prf=None))
+        bw(b,oac=CallPartial(CharPicker,pipe=s.pick,source=b,what=f'Get {title} from',extra=0,prf=None))
         b = bw(
             p=w,
             pos=(200,25),
             size=(150,50),
             label='All Meshes'
         )
-        bw(b,oac=Call(MeshPicker,source=b,pipe=s.pick,extra=1,mem=s.mem,what=f'Pick a mesh'))
+        bw(b,oac=CallPartial(MeshPicker,source=b,pipe=s.pick,extra=1,mem=s.mem,what=f'Pick a mesh'))
     """Redirect all"""
     def pick(s,i,j):
         s.z.back()
@@ -1330,14 +1330,14 @@ class TexPipe:
             size=(150,50),
             label='Characters'
         )
-        bw(b,oac=Call(CharPicker,pipe=Call(s.pick,0),source=b,what='Get texture from',prf=None))
+        bw(b,oac=CallPartial(CharPicker,pipe=CallPartial(s.pick,0),source=b,what='Get texture from',prf=None))
         b = bw(
             p=w,
             pos=(200,25),
             size=(150,50),
             label='All Textures'
         )
-        bw(b,oac=Call(TexPicker,source=b,pipe=Call(s.pick,1)))
+        bw(b,oac=CallPartial(TexPicker,source=b,pipe=CallPartial(s.pick,1)))
     """On pick"""
     def pick(s,n,p,e=None):
         s.z.back()
@@ -1383,7 +1383,7 @@ class TexPicker:
                     pos=(j*85,(ss-65)-i*100),
                     texture=gt(al[n]),
                 )
-                bw(b, color=(1,1,1), oac=Call(s.pick,n))
+                bw(b, color=(1,1,1), oac=CallPartial(s.pick,n))
                 t = al[n]
                 m = 15
                 if len(t) > m: t = t[:m]+'\n'+t[m:]
@@ -1445,7 +1445,7 @@ class CharPicker:
                     pos=(xp,yp-20),
                     texture=gt(ah[n].icon_texture),
                     tint_texture=gt(ah[n].icon_mask_texture),
-                    oac=Call(s.pick,n,extra),
+                    oac=CallPartial(s.pick,n,extra),
                     tex=mem
                 )
                 t = tw(
@@ -1514,7 +1514,7 @@ class SpazPicker:
                     p=cv,
                     size=(120,120),
                     pos=(155*j+30,yl-185*i),
-                    oac=Call(s.pick,n),
+                    oac=CallPartial(s.pick,n),
                     **ui[0]
                 )
                 tw(
@@ -1649,7 +1649,7 @@ class ColorPicker:
             bw(
                 s.shad[i],
                 color=d,
-                oac=Call(s.set,d)
+                oac=CallPartial(s.set,d)
             )
     """Randomize"""
     def randomize(s,silent=False):
@@ -1663,7 +1663,7 @@ class ColorPicker:
                 r = bw(
                     next(lol),
                     color=c,
-                    oac=Call(s.set,c),
+                    oac=CallPartial(s.set,c),
                 )
         None if silent else gs('cashRegister2').play()
     """Set color"""
@@ -1750,7 +1750,7 @@ class NodeManager:
         )
         s.btns = []
         for i in range(3):
-            j = ['Call','Random','Modify'][i]
+            j = ['CallPartial','Random','Modify'][i]
             m = ['startButton','replayIcon','settingsIcon'][i]
             o = [s.call,s.random,s.modify][i]
             b = bw(
@@ -1758,7 +1758,7 @@ class NodeManager:
                 label=j,
                 icon=gt(m),
                 size=(130,35),
-                oac=Call(s.t.insp,f=o),
+                oac=CallPartial(s.t.insp,f=o),
                 pos=(30+130*i,20)
             )
             s.btns.append(b)
@@ -1777,10 +1777,10 @@ class NodeManager:
             title='Random',
             label='Apply'
         )
-    """Call"""
+    """CallPartial"""
     def call(s,a):
         if not callable(a): btw('Not callable!'); return
-        Caller(obj=a,source=s.btns[0])
+        CallPartialer(obj=a,source=s.btns[0])
     """Modify"""
     def modify(s,a):
         if s.t.dead: btw('Object is dead!'); return
@@ -1812,7 +1812,7 @@ class Confirm:
             oac=lambda:(pipe(),z.back())
         )
 
-class Caller:
+class CallPartialer:
     """Object caller"""
     def __init__(s,source,obj):
         z = icw(
@@ -1820,7 +1820,7 @@ class Caller:
             show_nuke=False,
             back_anim='out_scale',
             size=(450,500),
-            title='Call'
+            title='CallPartial'
         )
         w = z.widget
         s.obj = obj
@@ -1881,7 +1881,7 @@ class Caller:
             p=w,
             pos=(325,20),
             icon=gt('startButton'),
-            label='Call',
+            label='CallPartial',
             size=(100,40),
             oac=s.call
         )
@@ -2111,7 +2111,7 @@ class atw:
                 pos=(0,y),
                 selectable=True,
                 click_activate=True,
-                on_activate_call=Call(s.set_text,u)
+                on_activate_call=CallPartial(s.set_text,u)
             )
             txt = type(s.get(u)).__name__
             uw = GSW(u+" ")
@@ -2150,7 +2150,7 @@ class atw:
             return
         try: sw(s.root, size=(s.x+60,i), position=(s.px,s.py-i))
         except: return
-        teck(0.0005, Call(s.anim,i+(1*r),r,nuke))
+        teck(0.0005, CallPartial(s.anim,i+(1*r),r,nuke))
 
 class NodePicker:
     """Node picker"""
@@ -2309,7 +2309,7 @@ class NodePicker:
                     v_align='center',
                     selectable=True,
                     click_activate=True,
-                    on_activate_call=Call(s.select,i),
+                    on_activate_call=CallPartial(s.select,i),
                     pos=(x,f)
                 )
                 s.kids[-1].append(t)
@@ -2389,7 +2389,7 @@ class Zoom:
         s.w(s.n)
         s.step = 1
         s._focus()
-        teck(1.5,Call(setattr,s,'step',2))
+        teck(1.5,CallPartial(setattr,s,'step',2))
     def _focus(s):
         if not s.u() or not s.n.exists(): s.x(); return
         if s.step == 2:
@@ -2407,7 +2407,7 @@ class Zoom:
         if d < 5:
             s.step = 3
             s._focus()
-            teck(2,Call(setattr,s,'step',4))
+            teck(2,CallPartial(setattr,s,'step',4))
             return
         e = 0.01+d*0.005
         e = min(e,0.8)
@@ -2453,7 +2453,7 @@ class ActionManager:
                pos=(470,310),
                label='Add',
                icon=gt('powerupHealth'))
-        bw(b,oac=Call(ActionPipe,source=b,pipe=s.add,what='Add'))
+        bw(b,oac=CallPartial(ActionPipe,source=b,pipe=s.add,what='Add'))
         s.kids = []
         for i in range(3):
             j = [s.edit,s.replace,s.delete][i]
@@ -2476,7 +2476,7 @@ class ActionManager:
                label=j,
                icon=gt(f'{j.lower()}Button'),
                repeat=True,
-               oac=Call(s.nav,-i))
+               oac=CallPartial(s.nav,-i))
         s.texts = []
         s.sl = None
         s.update()
@@ -2552,13 +2552,13 @@ class ActionManager:
                 maxwidth=350,
                 selectable=True,
                 click_activate=True,
-                on_activate_call=Call(s.select,i),
+                on_activate_call=CallPartial(s.select,i),
                 v_align='center',
                 pos=(20,(y-40)-i*30)
             )
             s.texts.append(t)
             if a[0] == 5 and a[1] != 'me' and not a[1] in ns:
-                tw(t, color=(1,0,0), on_activate_call=Call(s.select,i,dead=True))
+                tw(t, color=(1,0,0), on_activate_call=CallPartial(s.select,i,dead=True))
         s.sl = None
     """Update selection"""
     def up(s):
@@ -2593,7 +2593,7 @@ class ActionPipe:
                    pos=(25,(y-150)-60*i),
                    size=(250,55),
                    label=ah[i])
-            bw(b,oac=Call(eh[i],s.pick,b))
+            bw(b,oac=CallPartial(eh[i],s.pick,b))
     """Redirect"""
     def pick(s,i):
         s.z.back()
@@ -2664,7 +2664,7 @@ class ActionFollow:
                    label=j,
                    pos=(25,90-55*i),
                    size=(100,50))
-            o = [Call(s.pick,'me'),Call(NodePicker,s.pick,b,allow='3D',note='Coolbox stores picked nodes as strings for portability')][i]
+            o = [CallPartial(s.pick,'me'),CallPartial(NodePicker,s.pick,b,allow='3D',note='Coolbox stores picked nodes as strings for portability')][i]
             bw(b,oac=o)
         for i in range(3):
             j = ['Stop following when:','- Distance is less than','- Time is more than'][i]
@@ -2714,7 +2714,7 @@ class ActionKey:
                 p=w,
                 pos=(j,k),
                 icon=gt('button'+l),
-                oac=Call(s.set,i)
+                oac=CallPartial(s.set,i)
             )
     """Initial set"""
     def set(s,i):
@@ -2907,7 +2907,7 @@ class ConPipe:
                 size=(250,55),
                 label=j
             )
-            bw(b,oac=Call(s.collect,b,i))
+            bw(b,oac=CallPartial(s.collect,b,i))
     """Collect"""
     def collect(s,b,i):
         s.extra = i
@@ -2962,7 +2962,7 @@ class Collector:
             p=w,
             pos=(230,30),
             size=(50,30),
-            oac=Call(s.pick)
+            oac=CallPartial(s.pick)
         )
     def pick(s):
         t = s.t.get_text()
@@ -3371,7 +3371,7 @@ class Spawn:
                 pos=(60+50*i,150),
                 size=(38,38),
             )
-            oac = Call(
+            oac = CallPartial(
                 ColorPicker,
                 chr='char',
                 in_source=t,
@@ -3395,7 +3395,7 @@ class Spawn:
                 size=(160,55),
                 label=j
             )
-            bw(b,oac=Call([SoundManager,MeshManager][i],source=b,on_back=s.fresh))
+            bw(b,oac=CallPartial([SoundManager,MeshManager][i],source=b,on_back=s.fresh))
         # Attributes
         s.t2 = ctw(
             p=a[0],
@@ -3474,7 +3474,7 @@ class Spawn:
         push('Pasted seed from clipboard!',color=(0,1,1))
     """Randomize seed"""
     def randomize(s):
-        if not s.can_ran: (setattr(s,'can_blud',False),btw(CH(SLOWDOWN())),teck(5,Call(setattr,s,'can_blud',True))) if s.can_blud else gs('block').play(); return
+        if not s.can_ran: (setattr(s,'can_blud',False),btw(CH(SLOWDOWN())),teck(5,CallPartial(setattr,s,'can_blud',True))) if s.can_blud else gs('block').play(); return
         s.can_ran = False
         s.seed_t.set_text(RANDOM(),silent=True)
         gs('cashRegister2').play()
@@ -3614,7 +3614,7 @@ class shadow:
             if s.pro < 0: s.pro = 0; return
             s.pro += j
             iw(s.a,opacity=s.pro)
-            teck(0.001,Call(f,j))
+            teck(0.001,CallPartial(f,j))
         f(s.add)
 
 @NEW
@@ -3651,9 +3651,9 @@ class Modify:
                 **([{},{'cons':CONS()[0]}][i>1])
             )
             o = [
-                Call(SpazPicker,source=b,pipe=s.add,note="It's recommended to modify one spaz at a time"),
-                Call(ConPipe,source=b,pipe=s.add),
-                Call(s.kang,source=b)
+                CallPartial(SpazPicker,source=b,pipe=s.add,note="It's recommended to modify one spaz at a time"),
+                CallPartial(ConPipe,source=b,pipe=s.add),
+                CallPartial(s.kang,source=b)
             ][i]
             bw(b, oac=o)
         # Char name
@@ -3671,7 +3671,7 @@ class Modify:
             label='Load',
             size=(150,40)
         )
-        bw(b,oac=Call(SpazPicker,source=b,pipe=s.load,what='Copy who?'))
+        bw(b,oac=CallPartial(SpazPicker,source=b,pipe=s.load,what='Copy who?'))
         bw(
             p=w,
             pos=(410,153),
@@ -3706,7 +3706,7 @@ class Modify:
                 pos=(230+50*i,153),
                 size=(40,40)
             )
-            oac = Call(
+            oac = CallPartial(
                 ColorPicker,
                 in_source=t,
                 on_back=s.fresh,
@@ -3724,9 +3724,9 @@ class Modify:
                 icon=gt(['audioIcon','menuIcon','textClearButton'][i])
             )
             bw(b,oac=[
-                Call(SoundManager,source=b,prf='m',cols=s.cols),
-                Call(MeshManager,source=b,prf='m',cols=s.cols),
-                Call(s.creset,source=b)
+                CallPartial(SoundManager,source=b,prf='m',cols=s.cols),
+                CallPartial(MeshManager,source=b,prf='m',cols=s.cols),
+                CallPartial(s.creset,source=b)
             ][i])
         # Character preview
         b = s.pre = bw(
@@ -3735,7 +3735,7 @@ class Modify:
             color=(1,1,1),
             size=(130,130)
         )
-        bw(b,oac=Call(CharPicker,source=s.pre,pipe=s.pipe,cols=s.cols,prf='m'))
+        bw(b,oac=CallPartial(CharPicker,source=s.pre,pipe=s.pipe,cols=s.cols,prf='m'))
         s.targets = []
         s.kids = []
         # Name editable
@@ -3776,7 +3776,7 @@ class Modify:
             pos=(102,380),
             size=(40,40)
         )
-        bw(b,oac=Call(s.what,b))
+        bw(b,oac=CallPartial(s.what,b))
         # Attr button
         b = sbw(
             p=a[0],
@@ -3784,7 +3784,7 @@ class Modify:
             pos=(152,380),
             size=(40,40),
         )
-        bw(b,oac=Call(s.attr,b))
+        bw(b,oac=CallPartial(s.attr,b))
         # Shadows
         s.shads = []
         for i in range(7):
@@ -3840,7 +3840,7 @@ class Modify:
             chk(
                 text=j,
                 value=var(k),
-                on_value_change_call=Call(s.opipe,k,i),
+                on_value_change_call=CallPartial(s.opipe,k,i),
                 parent=w,
                 size=(200,20),
                 position=(30,235-35*i)
@@ -3925,7 +3925,7 @@ class Modify:
             source=source,
             title='Held player',
             label='Add as target',
-            pipe=Call(s.add,n)
+            pipe=CallPartial(s.add,n)
         )
     """Confirm reset"""
     def creset(s,source=None):
@@ -4023,7 +4023,7 @@ class Modify:
                 p=s.c,
                 pos=(10,i*155+29),
                 size=(110,110),
-                oac=Call(s.remove,n),
+                oac=CallPartial(s.remove,n),
                 **ui[0]
             )
             k2 = tw(
@@ -4104,14 +4104,14 @@ class Control:
             pos=(235,15),
             size=(150,40)
         )
-        bw(b,oac=Call(s.hold,b))
+        bw(b,oac=CallPartial(s.hold,b))
         bw(
             p=w,
             label='Right arm',
             icon=gt('rightButton'),
             pos=(235,155),
             size=(150,40),
-            oac=Call(s.yay,'_r'),
+            oac=CallPartial(s.yay,'_r'),
             repeat=True
         )
         bw(
@@ -4120,7 +4120,7 @@ class Control:
             icon=gt('leftButton'),
             pos=(235,108),
             size=(150,40),
-            oac=Call(s.yay,'_l'),
+            oac=CallPartial(s.yay,'_l'),
             repeat=True
         )
         bw(
@@ -4181,7 +4181,7 @@ class Control:
                 position=(x+115,y+5),
                 label=['',cs(sc.DPAD_CENTER_BUTTON)][b],
             )
-            bw(bb,oac=Call(s.check,bb,i,b))
+            bw(bb,oac=CallPartial(s.check,bb,i,b))
         for i in range(4):
             j = [
                 'Block him',
@@ -4196,7 +4196,7 @@ class Control:
                 position=(63.5,155-33*i),
                 value=var(v),
                 size=(170,30),
-                on_value_change_call=Call(s.cconf,v)
+                on_value_change_call=CallPartial(s.cconf,v)
             )
             tw(
                 p=s.w,
@@ -4213,7 +4213,7 @@ class Control:
                 pos=(j,k),
                 color=c[i],
                 size=(50,50),
-                oac=Call(s.key,i),
+                oac=CallPartial(s.key,i),
                 texture=gt('button'+l)
             )
         s.mbs = []
@@ -4235,7 +4235,7 @@ class Control:
                     size=(40,40),
                     position=(240+50*j,225+50*i)
                 )
-                bw(b,oac=Call(s.move,i,j,b))
+                bw(b,oac=CallPartial(s.move,i,j,b))
                 s.mbs.append(b)
         for i in range(4):
             j = [
@@ -4305,7 +4305,7 @@ class Control:
         if s.__class__.__up__ and getattr(s,'tcconf',True):
             s.tcconf = False
             broad('Restart control to apply changes')
-            teck(5,Call(setattr,s,'tcconf',True))
+            teck(5,CallPartial(setattr,s,'tcconf',True))
     """Send key"""
     def key(s,i):
         if s.nah(): return
@@ -4314,7 +4314,7 @@ class Control:
     def check(s,bb,i,b):
         b = not b
         var(f'cont{i}',b)
-        bw(bb,label=['',cs(sc.DPAD_CENTER_BUTTON)][b],oac=Call(s.check,bb,i,b))
+        bw(bb,label=['',cs(sc.DPAD_CENTER_BUTTON)][b],oac=CallPartial(s.check,bb,i,b))
         gs('deek').play()
     """Conditional CharPicker"""
     def pick(s):
@@ -4371,7 +4371,7 @@ class Control:
             if not getattr(s,'lmao1',True): return
             s.lmao1 = False
             broad(CH(["Now that's some self control lmao","Trying to control yourself?","Anyone but that.","But this is YOU!"]))
-            teck(5,Call(setattr,s,'lmao1',True))
+            teck(5,CallPartial(setattr,s,'lmao1',True))
             return
         b = s.__class__.__up__
         if not dry: s.__class__.__up__ = b = not b
@@ -4535,13 +4535,13 @@ class Effect:
             for x in range(2):
                 _ = y*2+x
                 i,j = r1[_]
-                f = Call(s.pup,j) if _ else lambda: Collector(source=s.more[0],pipe=lambda t: wga(lambda: Bubble(s.n,t,s.n.color)))
+                f = CallPartial(s.pup,j) if _ else lambda: Collector(source=s.more[0],pipe=lambda t: wga(lambda: Bubble(s.n,t,s.n.color)))
                 s.more.append(bw(
                     size=(60,60),
                     position=(405+x*70,315-65*y),
                     parent=w,
                     icon=gt(i),
-                    oac=Call(s.nah,f),
+                    oac=CallPartial(s.nah,f),
                     iconscale=1.2
                 ))
         for _,g in enumerate(res):
@@ -4560,7 +4560,7 @@ class Effect:
                 position=(22,18+20+_*155),
                 texture=gt(x),
                 color=(1,1,1),
-                oac=Call(s.nah,Call(s.add,_))
+                oac=CallPartial(s.nah,CallPartial(s.add,_))
             )
     def pup(s,j):
         s.n.handlemessage(PowerupMessage(j))
@@ -4579,20 +4579,20 @@ class Effect:
             v = [1.2,15][a]
             t = '_punch_power_scale'
             b = DLG(s.n)
-            h = Call(setattr,b,t,v)
+            h = CallPartial(setattr,b,t,v)
             h()
             if not a: return
-            g = Call(getattr,b,t)
+            g = CallPartial(getattr,b,t)
             f = lambda: s.n and (_ in s.MEM[s.n]) and (h() if g() != v else 0,tick(0.2,f))
             with ga().context: f()
         if e(1):
             v = [400,0][a]
             t = '_punch_cooldown'
             b = DLG(s.n)
-            h = Call(setattr,b,t,v)
+            h = CallPartial(setattr,b,t,v)
             h()
             if not a: return
-            g = Call(getattr,b,t)
+            g = CallPartial(getattr,b,t)
             f = lambda: s.n and (_ in s.MEM[s.n]) and (h() if g() != v else 0,tick(0.2,f))
             with ga().context: f()
         if e(2): s.set(hockey=a)
@@ -4621,7 +4621,7 @@ class Effect:
                 selectable=True,
                 position=(0,_*35),
                 text=res[i],
-                on_activate_call=Call(s.nah,Call(s.rem,i))
+                on_activate_call=CallPartial(s.nah,CallPartial(s.rem,i))
             )
             s.kids.append(t)
         cw(s.p1,size=(150,len(mem)*35))
@@ -4761,7 +4761,7 @@ class Deploy:
                 texture=gt(tx[1]),
                 position=(15,y+50),
                 color=(1,1,1),
-                oac=Call(s.load,at,_)
+                oac=CallPartial(s.load,at,_)
             )
             t = tw(
                 parent=s.prp,
@@ -4960,7 +4960,7 @@ class Deploy:
                 position=(200,y+35),
                 label='!',
                 parent=s.atp,
-                oac=Call(s.eattr,a,dv,old=(a,v),_=_),
+                oac=CallPartial(s.eattr,a,dv,old=(a,v),_=_),
                 size=(30,30)
             )
             s.atkids.append(edb)
@@ -4978,7 +4978,7 @@ class Deploy:
                 size=(30,26),
                 label='-',
                 parent=s.atp,
-                oac=Call(s.dattr,a)
+                oac=CallPartial(s.dattr,a)
             ))
         s.atkids.append(tw(
             text='Add an attribute',
@@ -5006,7 +5006,7 @@ class Deploy:
             double=a,
             two=True,
             title='Edit',
-            pipe=Call(s._eattr,old=old),
+            pipe=CallPartial(s._eattr,old=old),
             raw=True
         )
     def _eattr(s,t,old):

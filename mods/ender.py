@@ -159,7 +159,7 @@ class Ender(Bot):
             target_node = choice(player_nodes)
             initial_position = target_node.position
             
-        # Call the parent class constructor with the determined position
+        # CallPartial the parent class constructor with the determined position
         super().__init__(initial_position, color, highlight, character)
 
         s.last_skill_time = 0.0 # Cooldown for skill2

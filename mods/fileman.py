@@ -45,7 +45,7 @@ from bauiv1 import (
     charstr as cs,
     MainWindow,
     open_url,
-    Call,
+    CallPartial,
     app
 )
 from os.path import (
@@ -181,7 +181,7 @@ class FileMan(MainWindow):
             r.append(bw(
                 parent=s.p,
                 label=l,
-                oac=Call(s.act,0,_)
+                oac=CallPartial(s.act,0,_)
             ))
         s.btns.append(r)
         # extra
@@ -191,7 +191,7 @@ class FileMan(MainWindow):
             r.append(bw(
                 parent=s.p,
                 label=l,
-                oac=Call(s.act,1,_)
+                oac=CallPartial(s.act,1,_)
             ))
         s.btns.append(r)
         s.fltxt = tw(
@@ -219,7 +219,7 @@ class FileMan(MainWindow):
             r.append(bw(
                 parent=s.p,
                 label=l,
-                oac=Call(s.act,2,_)
+                oac=CallPartial(s.act,2,_)
             ))
         s.btns.append(r)
         # back
@@ -442,7 +442,7 @@ class FileMan(MainWindow):
                         if not s.rlyd:
                             s.beep(1,0)
                             s.push(f"Really delete "+["the file '"+bn+"'","the whole '"+bn+"' folder"][isdir(h)]+" forever? Press again to confirm.",du=3,color=s.COL3)
-                            s.rlydt = tuck(2.9,Call(setattr,s,'rlyd',False))
+                            s.rlydt = tuck(2.9,CallPartial(setattr,s,'rlyd',False))
                             s.rlyd = True
                             return
                         s.rlyd = False
@@ -617,7 +617,7 @@ class FileMan(MainWindow):
                             label=cs(sc.BACK),
                             size=(50,50),
                             text_scale=0.8,
-                            oac=Call(s.statbye,p,gcen)
+                            oac=CallPartial(s.statbye,p,gcen)
                         )
                         cw(p,cancel_button=b)
                         ix = xs-320
@@ -650,7 +650,7 @@ class FileMan(MainWindow):
                             label=cs(sc.REWIND_BUTTON),
                             position=(xs-141,ys-70),
                             size=(50,50),
-                            oac=Call(s.stata,-1),
+                            oac=CallPartial(s.stata,-1),
                             repeat=True
                         )
                         bw(
@@ -658,7 +658,7 @@ class FileMan(MainWindow):
                             label=cs(sc.FAST_FORWARD_BUTTON),
                             position=(xs-71,ys-70),
                             size=(50,50),
-                            oac=Call(s.stata,1),
+                            oac=CallPartial(s.stata,1),
                             repeat=True
                         )
                         bw(
@@ -714,7 +714,7 @@ class FileMan(MainWindow):
                                 bw(
                                     parent=p,
                                     label='Start',
-                                    oac=lambda:(b.activate(),teck(0.1,s.bye),teck(0.3,Call(REP,h))),
+                                    oac=lambda:(b.activate(),teck(0.1,s.bye),teck(0.3,CallPartial(REP,h))),
                                     position=(xs/2-75,ys/2-135),
                                     size=(150,40)
                                 )
@@ -740,7 +740,7 @@ class FileMan(MainWindow):
                                         label='Load',
                                         position=(xs/2-50,ys/2-135),
                                         size=(100,40),
-                                        oac=Call(s.loadt,h,gay=gay)
+                                        oac=CallPartial(s.loadt,h,gay=gay)
                                     )
                             elif ty == 'Audio':
                                 if bn in AUDIO():
@@ -778,7 +778,7 @@ class FileMan(MainWindow):
                                         label='Load',
                                         position=(xs/2-50,ys/2-135),
                                         size=(100,40),
-                                        oac=Call(s.loada,h,gay=gay)
+                                        oac=CallPartial(s.loada,h,gay=gay)
                                     )
                             elif ty == 'Mesh' and not msh:
                                 tw(
@@ -793,7 +793,7 @@ class FileMan(MainWindow):
                                     label='Load',
                                     position=(xs/2-50,ys/2-135),
                                     size=(100,40),
-                                    oac=Call(s.loadm,h,gay=gay)
+                                    oac=CallPartial(s.loadm,h,gay=gay)
                                 )
                             else:
                                 if msh:
@@ -826,6 +826,36 @@ class FileMan(MainWindow):
                                         maxwidth=xs/5,
                                         position=(35,75),
                                         color=(0.5,0.5,0.5)
+                                    )
+                                    tw(
+                                        parent=p,
+                                        text=f"{cs(sc.PLAY_STATION_CROSS_BUTTON)} {cs(sc.DPAD_CENTER_BUTTON)} {cs(sc.RIGHT_ARROW)}",
+                                        rotate=s.rnd_x,
+                                        position=(25,100),
+                                        h_align='center',
+                                        v_align='center',
+                                        scale=0.6,
+                                        selectable=True,
+                                        click_activate=True,
+                                        glow_type='uniform',
+                                        on_activate_call=CallPartial(s.rst_angle,0),
+                                        color=(0.8,0.2,0.2),
+                                        size=(100,100)
+                                    )
+                                    tw(
+                                        parent=p,
+                                        text=f"{cs(sc.PLAY_STATION_CIRCLE_BUTTON)} {cs(sc.DPAD_CENTER_BUTTON)} {cs(sc.RIGHT_ARROW)}",
+                                        rotate=s.rnd_y,
+                                        position=(95,100),
+                                        h_align='center',
+                                        v_align='center',
+                                        scale=0.6,
+                                        selectable=True,
+                                        click_activate=True,
+                                        glow_type='uniform',
+                                        on_activate_call=CallPartial(s.rst_angle,1),
+                                        color=(0.2,0.8,0.2),
+                                        size=(100,100)
                                     )
                                 else:
                                     tw(
@@ -887,7 +917,7 @@ class FileMan(MainWindow):
                                 position=(20,ys-20-by-(by+10)*_),
                                 size=(xs-40,by),
                                 label=srt[_],
-                                oac=Call(s.surt,_,p),
+                                oac=CallPartial(s.surt,_,p),
                                 parent=p
                             )
                     case 2:
@@ -964,7 +994,7 @@ class FileMan(MainWindow):
                             for l in range(20):
                                 ah = l / 19.0
                                 b = obw(
-                                    parent=p, position=(xs + l * ps, 47 + qs * 5 - qs * k), size=(ps + 2, qs / 2), label='', texture=gt('white'), enable_sound=False, on_activate_call=Call(f2, k, l),
+                                    parent=p, position=(xs + l * ps, 47 + qs * 5 - qs * k), size=(ps + 2, qs / 2), label='', texture=gt('white'), enable_sound=False, on_activate_call=CallPartial(f2, k, l),
                                     color=( (ah, 0, 0) if k < 1 else (0, ah, 0) if k < 2 else (0, 0, ah) if k < 3 else (ah, ah, ah) )
                                 )
                                 if k == 3: grad.append(b)
@@ -973,7 +1003,7 @@ class FileMan(MainWindow):
                             for y in range(3):
                                 z = x * 3 + y
                                 c = temp_colors[z]
-                                kids.append(bw(parent=p, position=(20 + (bs + 10) * x, 20 + (bs + 10) * y), size=(bs, bs), color=c, textcolor=INV(c), oac=Call(f, z)))
+                                kids.append(bw(parent=p, position=(20 + (bs + 10) * x, 20 + (bs + 10) * y), size=(bs, bs), color=c, textcolor=INV(c), oac=CallPartial(f, z)))
                         bw(parent=p, position=(xs + 5, 24 + qs), size=(172, qs - 2), label='Save', oac=save)
                         def reset():
                             mem = COL()
@@ -1094,7 +1124,7 @@ class FileMan(MainWindow):
             label=cs(sc.BACK),
             size=(50,50),
             text_scale=0.8,
-            oac=Call(s.edfile_bye,False)
+            oac=CallPartial(s.edfile_bye,False)
         )
         cw(p,cancel_button=b)
         ix = xs-250
@@ -1421,6 +1451,14 @@ class FileMan(MainWindow):
 
         cw(q0,visible_child=tw(parent=q0, text='', position=(0,rys)))
         cw(q1,visible_child=tw(parent=q1, text='', position=(0,rys)))
+    def rst_angle(s,what):
+        if what: s.rnd_y = 0
+        else: s.rnd_x = 0
+        [_.delete() for _ in s.killme]
+        s.killme.clear()
+        s.act(0,5,zap=True,gay=s.last_gay)
+        GUN()
+        s.push(f"Resetted {['X','Y'][what]} angle to 0 degrees")
     def stata(s,i):
         if not s.oops:
             n = s.statp+s.stat*i
@@ -1487,8 +1525,8 @@ class FileMan(MainWindow):
         f = s.sl[1]
         s.ding(1,0)
         s.push('Uploading...')
-        Thread(target=Call(s._upload,f)).start()
-        s.spyt = tuck(0.2,Call(s.spy,s.on_upload),repeat=True)
+        Thread(target=CallPartial(s._upload,f)).start()
+        s.spyt = tuck(0.2,CallPartial(s.spy,s.on_upload),repeat=True)
     def _upload(s, l):
         try:
             c = s.uploadc = GO('bashupload.com')
@@ -1614,7 +1652,7 @@ class FileMan(MainWindow):
         if skip: return
         # continue heavy stuff
         s.coveri = 0.1
-        s.spyt = tuck(0.05,lambda:s.spy(Call(s._fresh,x,y,sl,pren)),repeat=True)
+        s.spyt = tuck(0.05,lambda:s.spy(CallPartial(s._fresh,x,y,sl,pren)),repeat=True)
         aa = Thread(target=s.gfl)
         aa.daemon = True
         aa.start()
@@ -1677,7 +1715,7 @@ class FileMan(MainWindow):
                     v_align='center',
                     selectable=True,
                     click_activate=True,
-                    on_activate_call=Call(s._sl,i,_,fl),
+                    on_activate_call=CallPartial(s._sl,i,_,fl),
                     glow_type='uniform',
                     allow_clear_button=False,
                     color=s.COL2
@@ -1866,7 +1904,7 @@ class FileMan(MainWindow):
                 click_activate=True,
                 selectable=True,
                 glow_type='uniform',
-                on_activate_call=Call(s.pres,k)
+                on_activate_call=CallPartial(s.pres,k)
             )
     def pres(s,k):
         GUN()
@@ -1968,7 +2006,7 @@ class FileMan(MainWindow):
                 selectable=True,
                 click_activate=True,
                 glow_type='uniform',
-                on_activate_call=Call(s.cd,_),
+                on_activate_call=CallPartial(s.cd,_),
                 size=(GSW(_),30)
             ))
             s.drkids.append(tw(

@@ -27,7 +27,7 @@ from bauiv1 import (
     AppTimer as tuck,
     getsound as gs,
     charstr as cs,
-    Call
+    CallPartial
 )
 from keyword import kwlist as _kwl
 from builtins import set as _set
@@ -103,7 +103,7 @@ class byBordd(Plugin):
                     (px,py-i*60)
                 ),
                 size=size,
-                call=Call(s.mv,k),
+                call=CallPartial(s.mv,k),
                 disabled=not 0<=s.i+k<=len(s.a)
             )
         i += 1
@@ -174,7 +174,7 @@ class byBordd(Plugin):
                     display,
                     size=(button_width, sy),
                     pos=(x+(j*sx)+x_offset, -i*sy-yoff),
-                    call=Call(s.kb_man, key_id),
+                    call=CallPartial(s.kb_man, key_id),
                     style=style,
                     corner_radius=0
                 )
@@ -355,7 +355,7 @@ class byBordd(Plugin):
             s.z.button(
                 '', pos=(bsx, byp),
                 size=(sx, th),
-                corner_radius=0, style='black', call=Call(s.pick, p, n)
+                corner_radius=0, style='black', call=CallPartial(s.pick, p, n)
             )
             nyc = cyp - (LH/2)
             s.z.text(

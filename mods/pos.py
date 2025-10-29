@@ -11,7 +11,7 @@ Pos(widget,initial_pos)
 
 from babase import Plugin as P
 from bauiv1 import (
-    Call,
+    CallPartial,
     Widget,
     charstr as cs,
     getsound as gs,
@@ -92,7 +92,7 @@ class pos:
                 size=(30,30),
                 position=j[0],
                 enable_sound=False,
-                on_activate_call=Call(s.mv,i),
+                on_activate_call=CallPartial(s.mv,i),
                 label=cs(getattr(sc,j[1]+'_ARROW')),
             )
     """Refresh"""

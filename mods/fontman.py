@@ -219,7 +219,7 @@ class FontMan(bui.MainWindow):
                 color=s.COL2
             )
             s.kids.append(t)
-            bui.textwidget(t,on_activate_call=bui.Call(s.select,t,_))
+            bui.textwidget(t,on_activate_call=bui.CallPartial(s.select,t,_))
         # finally
         s.sound('powerup01')
     def mk_tv(s,main,tr='out_scale'):
@@ -439,7 +439,7 @@ class byBordd(Plugin):
             on_activate_call=lambda:s.run(z),
             id='FontMan'+str(id(z))
         )
-        s.bt = bui.AppTimer(0.7,bui.Call(s.anim,tex),repeat=True)
+        s.bt = bui.AppTimer(0.7,bui.CallPartial(s.anim,tex),repeat=True)
     def anim(s,tex):
         try: bui.buttonwidget(s.b,icon=choice(tex))
         except: s.bt = None

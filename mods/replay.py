@@ -40,7 +40,7 @@ from bauiv1 import (
     getsound as gs,
     UIScale as UIS,
     charstr as cs,
-    Call,
+    CallPartial,
     app
 )
 from bascenev1 import (
@@ -120,7 +120,7 @@ class Replay:
                 maxwidth=sy,
                 size=(sy,30),
                 color=s.COL2,
-                oac=Call(s.hl,i,_)
+                oac=CallPartial(s.hl,i,_)
             )
             s.kids.append(t)
         s.psrc = None
@@ -130,7 +130,7 @@ class Replay:
                 pos=(25+120*_,30),
                 size=(120,40),
                 label=['Show','Copy','Run'][_],
-                oac=Call(s.con,[s.show,s.copy,s.play][_]),
+                oac=CallPartial(s.con,[s.show,s.copy,s.play][_]),
                 icon=gt(['folder','file','nextLevelIcon'][_])
             )
             if _ == 2: s.psrc = b
@@ -230,7 +230,7 @@ class Replay:
             s.ohno = True
             otw(s.tpar,text='pybrp returned zero duration, error?\nclosing this window in 5 seconds')
             otw(s.tpar2,text='')
-        teck(1 if t else 5,Call(s._play,t))
+        teck(1 if t else 5,CallPartial(s._play,t))
     def spy(s,f,i=60):
         if not i:
             s.buf = None
@@ -241,7 +241,7 @@ class Replay:
             s.buf = None
             f(b)
             return
-        teck(0.5,Call(s.spy,f,i-1))
+        teck(0.5,CallPartial(s.spy,f,i-1))
     def _play(s,t):
         if t == 0:
             BTW("Couldn't load replay!")
@@ -394,7 +394,7 @@ class Player:
                 pos=pos,
                 size=(50,50),
                 color=s.COL2,
-                oac=Call(s.boost,[1,-1][_]),
+                oac=CallPartial(s.boost,[1,-1][_]),
                 repeat=True
             ))
             f(otw(
@@ -419,7 +419,7 @@ class Player:
                 pos=pos,
                 size=(50,50),
                 color=s.COL4,
-                oac=Call(s.seek,[1,-1][_]),
+                oac=CallPartial(s.seek,[1,-1][_]),
                 repeat=True
             ))
             f(otw(
@@ -515,7 +515,7 @@ class Player:
                 size=(tp,50),
                 texture=gt('empty'),
                 enable_sound=False,
-                on_activate_call=Call(s.jump,_/n),
+                on_activate_call=CallPartial(s.jump,_/n),
                 selectable=False
             ))
         # camera
@@ -661,7 +661,7 @@ class Player:
             textcolor=s.COL15,
             size=(98,30),
             repeat=True,
-            oac=Call(s.zoom,[1,-1][_])
+            oac=CallPartial(s.zoom,[1,-1][_])
         )) for _ in [0,1]]
         s.ztw = otw(
             parent=s.p,
@@ -753,7 +753,7 @@ class Player:
             position=(i*sz,j*sz),
             texture=gt('empty'),
             enable_sound=False,
-            on_activate_call=Call(s._look,i-ha,j-hb),
+            on_activate_call=CallPartial(s._look,i-ha,j-hb),
             label='',
             repeat=True
         ))
@@ -929,7 +929,7 @@ class Player:
                 s.mksnb()
                 obw(s.snbtn,label='Cinema Mode')
             return
-        teck(0.004,Call(s.snanim,a,b,i))
+        teck(0.004,CallPartial(s.snanim,a,b,i))
     def killsn(s):
         s.killsnui()
         [_.delete() for _ in s.snkids]
@@ -973,7 +973,7 @@ class Player:
         if not s.cambg.exists(): return
         iw(s.cambg,opacity=i)
         iw(s.cambg2,opacity=i)
-        teck(0.02,Call(s.fcam,i+a,a))
+        teck(0.02,CallPartial(s.fcam,i+a,a))
     def rloop(s):
         s.loop()
         s.fixps()
@@ -1002,12 +1002,12 @@ class Player:
             s.fkek(0,0.05)
             s.mkui()
             s.pro()
-        teck(0.21,Call(setattr,s,'kekbusy',0))
+        teck(0.21,CallPartial(setattr,s,'kekbusy',0))
     def fkek(s,i=0,a=0.1):
         if i > 0.4 or i < 0: return
         if not s.bg.exists(): return
         iw(s.bg,opacity=i)
-        teck(0.02,Call(s.fkek,i+a,a))
+        teck(0.02,CallPartial(s.fkek,i+a,a))
     def hm(s,t1,t2,c1,c2):
         if getattr(s,'tbye',0) and getattr(s,'frbro',0):
             s.frbro = s.tbye = False
@@ -1024,7 +1024,7 @@ class Player:
         if i > 0.7 or i < 0: return
         if not s.ok.exists(): return
         iw(s.ok,opacity=i)
-        teck(0.02,Call(s.fok,i+a,a))
+        teck(0.02,CallPartial(s.fok,i+a,a))
     def toggle(s,dry=False,shut=False):
         if not dry: s.ps = not s.ps
         t = cs(getattr(sc,['PAUSE','PLAY'][s.ps]+'_BUTTON'))
@@ -1040,7 +1040,7 @@ class Player:
     def fixps(s):
         if not s.ps: return
         s.toggle(shut=True)
-        teck(0.02,Call(s.toggle,shut=True))
+        teck(0.02,CallPartial(s.toggle,shut=True))
     def clock(s):
         t = time()
         r = t - s.rt
@@ -1090,9 +1090,9 @@ class Player:
         if getattr(s,'frbro',0): s._bye(); return
         s.hm('Exit','Press again to confirm',s.COL0,s.COL1)
         s.frbro = True
-        s.tbye = tock(1.5,Call(setattr,s,'frbro',False))
+        s.tbye = tock(1.5,CallPartial(setattr,s,'frbro',False))
     def _bye(s):
-        fade(0,time=0.75,endcall=Call(fade,1,time=0.75))
+        fade(0,time=0.75,endcall=CallPartial(fade,1,time=0.75))
         gs('deek').play()
         BYE()
         s.stop()

@@ -20,7 +20,7 @@ from bascenev1 import (
     get_chat_messages as GCM,
     timer as tick,
     StandMessage,
-    Call
+    CallPartial
 )
 from bauiv1 import (
     apptimer as teck,
@@ -55,7 +55,7 @@ class Core:
     def load(s):
         m = s.__class__.m.copy()
         for i,a in m.items():
-            tick(i,Call(s._load,a))
+            tick(i,CallPartial(s._load,a))
     def _load(s,a):
         i,j = a
         if i == 5: s.b.on_move_up_down(j)

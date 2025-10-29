@@ -29,7 +29,7 @@ from math import floor
 from bascenev1 import (
     timer as tick,
     newnode,
-    Call,
+    CallPartial,
     getactivity,
     Activity
 )
@@ -202,7 +202,7 @@ class Image:
             pushcall(lambda: s._on_calc_complete(None, error_msg), from_other_thread=True)
 
     def _on_calc_complete(s, pa, err = None) -> None:
-        """Callback executed in the main thread when background processing finishes."""
+        """CallPartialback executed in the main thread when background processing finishes."""
         s.data = pa
         s.error = err
         s.processing_complete = True
@@ -226,7 +226,7 @@ class Image:
 
         Args:
             callback: A function that takes the Image instance as its argument.
-                      Called in the main BombSquad thread within an activity context.
+                      CallPartialed in the main BombSquad thread within an activity context.
         """
         s.on_data_ready_callback = callback
         if s.processing_complete:
@@ -419,7 +419,7 @@ class Video:
         pa,
         err = None
     ) -> None:
-        """Callback executed in the main thread when a single frame processing finishes."""
+        """CallPartialback executed in the main thread when a single frame processing finishes."""
         s.processed_frames += 1
 
         if err:
@@ -436,7 +436,7 @@ class Video:
             s._on_processing_complete()
 
     def _on_processing_complete(s) -> None:
-        """Callback executed in the main thread when all video frames are processed."""
+        """CallPartialback executed in the main thread when all video frames are processed."""
         if s.error:
             print(f"BSMVideo: Video processing finished with errors: {s.error}")
         else:
@@ -461,7 +461,7 @@ class Video:
 
         Args:
             callback: A function that takes the Video instance as its argument.
-                      Called in the main BombSquad thread within an activity context.
+                      CallPartialed in the main BombSquad thread within an activity context.
         """
         s.on_data_ready_callback = callback
         if s.processing_complete:
@@ -659,7 +659,7 @@ class Screen:
             media.set_on_data_ready_callback(s._on_media_data_ready)
 
     def _on_media_data_ready(s, media: Image | Video) -> None:
-        """Callback executed when the loaded media's data is ready."""
+        """CallPartialback executed when the loaded media's data is ready."""
         if media.error:
             print(f"BSMScreen: Media loading failed with error: {media.error}")
             s.fill((1.0, 0.0, 0.0))
@@ -819,7 +819,7 @@ class Screen:
                     actual_delay = delay / s.video_playback_speed
                     if actual_delay < 0: actual_delay = 0
 
-                    tick(actual_delay, Call(s._play_next_video_frame))
+                    tick(actual_delay, CallPartial(s._play_next_video_frame))
                 else:
                     print("BSMScreen: Video playback complete.")
                     if s.video_loop:

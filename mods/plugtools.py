@@ -36,7 +36,7 @@ from os import (
 from babase import (
     PluginSpec,
     Plugin,
-    Call,
+    CallPartial,
     env,
     app
 )
@@ -241,7 +241,7 @@ class PlugTools(TAB):
                     size=(mx,43),
                     pos=(z+sx*i,50-45*j),
                     label_scale=1 if tw<zx else zx/tw,
-                    call=Call(s.hl,t),
+                    call=CallPartial(s.hl,t),
                     style=[['blue','blue_bright'],['purple','purple_bright']][t in s.bad][t==by]
                 )
         # Prev

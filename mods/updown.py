@@ -14,7 +14,7 @@ from babase import (
     SpecialChar as sc,
     charstr as cs,
     Plugin,
-    Call
+    CallPartial
 )
 from bauiv1 import (
     containerwidget as cw,
@@ -88,7 +88,7 @@ class VeryPW(party.PartyWindow):
             )
             tw(
                 txt,
-                on_activate_call=Call(s._copy_msg, s._w1[z])
+                on_activate_call=CallPartial(s._copy_msg, s._w1[z])
             )
             cw(edit=s._columnwidget, visible_child=txt)
 
