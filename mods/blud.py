@@ -428,7 +428,7 @@ class Blud(SpazBot):
             # Epsilon decay is GLOBAL
             epsilon = max(epsilon_min, epsilon * epsilon_decay)
 
-            # Commented out: Call to show bubble
+            # Commented out: CallPartial to show bubble
             # s._maybe_show_bubble()
 
             # Reschedule move timer for THIS bot instance

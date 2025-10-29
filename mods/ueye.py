@@ -72,7 +72,7 @@ class UEye(TAB):
                 '',
                 size=(button_width, button_height),
                 pos=(pos_x, pos_y),
-                call=bui.Call(s.pick,widget) if s.hot else (bui.Call(s.edit,g) if s.sl != g else bui.Call(s.show,widget)),
+                call=bui.CallPartial(s.pick,widget) if s.hot else (bui.CallPartial(s.edit,g) if s.sl != g else bui.CallPartial(s.show,widget)),
                 style='yellow' if s.hot else ('purple' if s.sl != g else 'purple_bright'),
                 corner_radius=10
             )
@@ -231,7 +231,7 @@ class Editor:
                 color=s.COL2
             )
             ORG['textwidget'](
-                w,on_activate_call=bui.Call(s.select,w,a)
+                w,on_activate_call=bui.CallPartial(s.select,w,a)
             )
             s.kids.append(w)
         # finally
@@ -253,7 +253,7 @@ class Editor:
                 texture=bui.gettexture('white'),
                 color=s.COL1,
                 textcolor=s.COL3,
-                on_activate_call=bui.Call(s.action,_),
+                on_activate_call=bui.CallPartial(s.action,_),
                 enable_sound=False
             )
             s.trash.append(b)
@@ -506,7 +506,7 @@ class Editor:
                         f(
                             k,
                             color=c,
-                            on_activate_call=bui.Call(cset,c)
+                            on_activate_call=bui.CallPartial(cset,c)
                         )
                 # set color
                 def cset(c):
@@ -683,7 +683,7 @@ class Shower:
         o = -i/2+s.width/2
         ORG['imagewidget'](s.img,size=(i,i),position=(o,o))
         if i <= 100: return
-        bui.apptimer(0.01,bui.Call(s.anim,i-25))
+        bui.apptimer(0.01,bui.CallPartial(s.anim,i-25))
     def decay(s):
         if s.dying: return
         s.dying = True
@@ -692,7 +692,7 @@ class Shower:
     def fade(s,i):
         try: ORG['imagewidget'](s.img,opacity=i)
         except: return
-        bui.apptimer(0.01,bui.Call(s.fade,i-0.05))
+        bui.apptimer(0.01,bui.CallPartial(s.fade,i-0.05))
     def delete(s):
         s.root.delete()
 

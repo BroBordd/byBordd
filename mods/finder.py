@@ -42,7 +42,7 @@ from bauiv1 import (
     getsound as gs,
     getmesh as gm,
     charstr as cs,
-    Call
+    CallPartial
 )
 from babase import (
     app_instance_uuid as U,
@@ -245,7 +245,7 @@ class Finder:
                 selectable=True,
                 click_activate=True,
                 glow_type='uniform',
-                on_activate_call=Call(s.copy,t)
+                on_activate_call=CallPartial(s.copy,t)
             ))
 
         c.IKIDS.append(bw(
@@ -255,7 +255,7 @@ class Finder:
             label=p,
             color=s.COL2,
             textcolor=s.COL4,
-            oac=Call(s.oke,'\n'.join([' | '.join([str(j) for j in _.values()]) for _ in pz]) or 'Nothing')
+            oac=CallPartial(s.oke,'\n'.join([' | '.join([str(j) for j in _.values()]) for _ in pz]) or 'Nothing')
         ))
         c.IKIDS.append(bw(
             parent=c.P,
@@ -264,7 +264,7 @@ class Finder:
             label='Connect',
             color=s.COL2,
             textcolor=s.COL4,
-            oac=Call(CON,i['a'],i['p'],False)
+            oac=CallPartial(CON,i['a'],i['p'],False)
         ))
     def oke(s,t):
         TIP(t)
@@ -311,7 +311,7 @@ class Finder:
         a = ['Small','']
         for i,_ in enumerate(z):
             h = 'ding'+a[_]
-            teck(i/10,Call(s.snd,h) if i<(len(z)-1) else gs(h).play)
+            teck(i/10,CallPartial(s.snd,h) if i<(len(z)-1) else gs(h).play)
     def fresh(s):
         c = s.__class__
         if c.BUSY:
@@ -342,7 +342,7 @@ class Finder:
         executor = ThreadPoolExecutor(max_workers=256)
         
         c.THR = [
-            executor.submit(Call(s.ping,_,i)) for i,_ in enumerate(c.MEM)
+            executor.submit(CallPartial(s.ping,_,i)) for i,_ in enumerate(c.MEM)
         ]
         
         s.sus_starter()
@@ -398,7 +398,7 @@ class Finder:
                 text=p,
                 position=(0,sy-30-30*_),
                 maxwidth=175,
-                on_activate_call=Call(s.hl,_,p),
+                on_activate_call=CallPartial(s.hl,_,p),
                 v_align='center'
             )
             if not dun and p == c.SL: ocw(c.P2,visible_child=tt); dun = 1

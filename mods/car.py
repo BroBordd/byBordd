@@ -22,7 +22,7 @@ from bascenev1 import (
     Material,
     newnode,
     getmesh,
-    Call
+    CallPartial
 )
 
 class Car:
@@ -134,13 +134,13 @@ class Car:
         a.node.move_up_down = 0
         a.node.move_left_right = 0
         p.resetinput()
-        p.assigninput(IT.BOMB_PRESS,Call(s.bye,p))
+        p.assigninput(IT.BOMB_PRESS,CallPartial(s.bye,p))
         s.kids.append(p)
         if not s.driver: s.grant(p)
     def grant(s,p):
         s.driver = p
         for i,_ in enumerate(['UP_DOWN','LEFT_RIGHT']):
-            p.assigninput(getattr(IT,_),Call(s.man,p,i))
+            p.assigninput(getattr(IT,_),CallPartial(s.man,p,i))
     def man(s,p,i,v):
         if i: s.nx = v
         else: s.ny = v

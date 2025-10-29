@@ -139,7 +139,7 @@ class Nice(igm):
         global root_widget, old_ga, nood
         if Nice.pause_when_bots:
             with ga().context:
-                bs.timer(0, bs.Call(s.pause, True))
+                bs.timer(0, bs.CallPartial(s.pause, True))
         if str(ga()) != old_ga:
             s.on_ga_change()
         if call_sand:
@@ -194,7 +194,7 @@ class Nice(igm):
             position=(395, 30),
             color=colb,
             textcolor=wht,
-            on_activate_call=bs.Call(pos))
+            on_activate_call=bs.CallPartial(pos))
 
         bui.textwidget(parent=root_widget,
                        color=(0.1, 0.7, 1),
@@ -210,7 +210,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(40, 185),
-                         on_activate_call=bs.Call(s.spawn_window))
+                         on_activate_call=bs.CallPartial(s.spawn_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Control',
@@ -221,7 +221,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(180, 185),
-                         on_activate_call=bs.Call(s.control_window))
+                         on_activate_call=bs.CallPartial(s.control_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Tune',
@@ -232,7 +232,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(320, 185),
-                         on_activate_call=bs.Call(s.config_window))
+                         on_activate_call=bs.CallPartial(s.config_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Modify',
@@ -243,7 +243,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(40, 125),
-                         on_activate_call=bs.Call(s.mod_window))
+                         on_activate_call=bs.CallPartial(s.mod_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Effect',
@@ -254,7 +254,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(180, 125),
-                         on_activate_call=bs.Call(s.effect_window))
+                         on_activate_call=bs.CallPartial(s.effect_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Listen',
@@ -265,7 +265,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(320, 125),
-                         on_activate_call=bs.Call(s.listen_window))
+                         on_activate_call=bs.CallPartial(s.listen_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Deploy',
@@ -276,7 +276,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(40, 65),
-                         on_activate_call=bs.Call(s.drop_window))
+                         on_activate_call=bs.CallPartial(s.drop_window))
 
         bui.buttonwidget(parent=root_widget,
                          label='Tweak',
@@ -287,7 +287,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(180, 65),
-                         on_activate_call=bs.Call(s.tweak_window))
+                         on_activate_call=bs.CallPartial(s.tweak_window))
 
         bacc = bui.buttonwidget(
             parent=root_widget,
@@ -298,7 +298,7 @@ class Nice(igm):
             position=(30, 30),
             color=colb,
             textcolor=wht,
-            on_activate_call=bs.Call(s.back))
+            on_activate_call=bs.CallPartial(s.back))
         bui.containerwidget(edit=root_widget, cancel_button=bacc)
 
         s.center_btn = bui.buttonwidget(
@@ -310,7 +310,7 @@ class Nice(igm):
             position=(30, 250),  # (395, 250) if left
             color=colb,
             textcolor=wht,
-            on_activate_call=bs.Call(s.center))
+            on_activate_call=bs.CallPartial(s.center))
 
         bui.buttonwidget(parent=root_widget,
                          label='More',
@@ -321,7 +321,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(320, 65),
-                         on_activate_call=bs.Call(s.lol_window))
+                         on_activate_call=bs.CallPartial(s.lol_window))
 
     def center(s):
         if s.soff == (0, 0):
@@ -373,7 +373,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(40, 125),
-                         on_activate_call=bs.Call(s.lol_teams_window))
+                         on_activate_call=bs.CallPartial(s.lol_teams_window))
 
         bui.buttonwidget(parent=s.lol_widget,
                          label='Epic',
@@ -384,7 +384,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(180, 125),
-                         on_activate_call=bs.Call(s.epic_window))
+                         on_activate_call=bs.CallPartial(s.epic_window))
 
         bui.buttonwidget(parent=s.lol_widget,
                          label='Tint',
@@ -395,7 +395,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(320, 125),
-                         on_activate_call=bs.Call(s.light_window))
+                         on_activate_call=bs.CallPartial(s.light_window))
 
         bui.buttonwidget(parent=s.lol_widget,
                          label='Dim',
@@ -406,7 +406,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(40, 65),
-                         on_activate_call=bs.Call(s.dim_window))
+                         on_activate_call=bs.CallPartial(s.dim_window))
 
         bui.buttonwidget(parent=s.lol_widget,
                          label='Load',
@@ -417,7 +417,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(180, 65),
-                         on_activate_call=bs.Call(s.load_window))
+                         on_activate_call=bs.CallPartial(s.load_window))
 
         bui.buttonwidget(parent=s.lol_widget,
                          label='About',
@@ -428,7 +428,7 @@ class Nice(igm):
                          textcolor=wht,
                          button_type='square',
                          position=(320, 65),
-                         on_activate_call=bs.Call(s.about_window))
+                         on_activate_call=bs.CallPartial(s.about_window))
 
         bacc = bui.buttonwidget(
             parent=s.lol_widget,
@@ -438,7 +438,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.lol_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.lol_widget))
         bui.containerwidget(edit=s.lol_widget, cancel_button=bacc)
 
         bui.textwidget(parent=s.lol_widget,
@@ -482,7 +482,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, about_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, about_widget))
         bui.containerwidget(edit=about_widget, cancel_button=bacc)
 
     def load_window(s):
@@ -519,7 +519,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.do_load))
+            on_activate_call=bs.CallPartial(s.do_load))
 
         load_scroll = bui.scrollwidget(parent=load_widget,
                                        position=(30, 80),
@@ -542,7 +542,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, load_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, load_widget))
         bui.containerwidget(edit=load_widget, cancel_button=bacc)
         bui.textwidget(edit=s.load_preview_text, text="Preset Name")
 
@@ -554,7 +554,7 @@ class Nice(igm):
                            h_align='left',
                            v_align='center',
                            color=(1, 1, 1),
-                           on_activate_call=bs.Call(s.load_preview, j),
+                           on_activate_call=bs.CallPartial(s.load_preview, j),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -698,7 +698,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          position=(20, 60),
-                         on_activate_call=bs.Call(s.switch_dim, 1))
+                         on_activate_call=bs.CallPartial(s.switch_dim, 1))
 
         bacc = bui.buttonwidget(
             parent=s.dim_widget,
@@ -708,7 +708,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.dim_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.dim_widget))
         bui.containerwidget(edit=s.dim_widget, cancel_button=bacc)
 
     def switch_dim(s, t=0):
@@ -765,7 +765,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(200, 30),
-            on_activate_call=bs.Call(s.collect_dim, x, y, z, t))
+            on_activate_call=bs.CallPartial(s.collect_dim, x, y, z, t))
 
         def back(s):
             s.kill(True, s.switch_dim_widget, keep_hl=True)
@@ -778,7 +778,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(back, s))
+            on_activate_call=bs.CallPartial(back, s))
         bui.containerwidget(edit=s.switch_dim_widget, cancel_button=bacc)
 
     def gettext(s, w):
@@ -838,7 +838,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.epic_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.epic_widget))
         bui.containerwidget(edit=s.epic_widget, cancel_button=bacc)
 
     def switch_epic(s):
@@ -872,7 +872,7 @@ class Nice(igm):
                                       textcolor=wht,
                                       scale=s.scale,
                                       position=(20, 125),
-                                      on_activate_call=bs.Call(PickerLight, tent))
+                                      on_activate_call=bs.CallPartial(PickerLight, tent))
         bui.buttonwidget(edit=light_pick, color=tent, textcolor=ntent)
 
         bui.buttonwidget(
@@ -883,7 +883,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(200, 70),
-            on_activate_call=bs.Call(s.mult))
+            on_activate_call=bs.CallPartial(s.mult))
 
         bui.buttonwidget(
             parent=s.light_widget,
@@ -893,7 +893,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 70),
-            on_activate_call=bs.Call(s.mult, 1))
+            on_activate_call=bs.CallPartial(s.mult, 1))
 
         bui.buttonwidget(
             parent=s.light_widget,
@@ -903,7 +903,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(200, 30),
-            on_activate_call=bs.Call(s.collect_light))
+            on_activate_call=bs.CallPartial(s.collect_light))
 
         bacc = bui.buttonwidget(
             parent=s.light_widget,
@@ -913,7 +913,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.light_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.light_widget))
         bui.containerwidget(edit=s.light_widget, cancel_button=bacc)
 
     def mult(s, i=0):
@@ -922,7 +922,7 @@ class Nice(igm):
         Nice.ga_tint = c = (c[0]*x, c[1]*x, c[2]*x)
         bui.buttonwidget(edit=light_pick, color=c)
         bui.buttonwidget(edit=light_pick, textcolor=Nice.negate(Nice, c))
-        bui.buttonwidget(edit=light_pick, on_activate_call=bs.Call(PickerLight, c))
+        bui.buttonwidget(edit=light_pick, on_activate_call=bs.CallPartial(PickerLight, c))
 
     def collect_light(s):
         ding("Success!")
@@ -962,7 +962,7 @@ class Nice(igm):
                          icon=bui.gettexture("powerupCurse"),
                          textcolor=wht,
                          position=(20, 60),
-                         on_activate_call=bs.Call(s.lol_teams_window_nuke))
+                         on_activate_call=bs.CallPartial(s.lol_teams_window_nuke))
 
         bacc = bui.buttonwidget(
             parent=s.LTW,
@@ -972,7 +972,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.LTW))
+            on_activate_call=bs.CallPartial(s.kill, True, s.LTW))
         bui.containerwidget(edit=s.LTW, cancel_button=bacc)
 
     def lol_teams_window_nuke(s):
@@ -998,7 +998,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.do_nuke))
+            on_activate_call=bs.CallPartial(s.do_nuke))
 
         LTWNS = bui.scrollwidget(parent=s.LTWN,
                                  position=(30, 80),
@@ -1028,7 +1028,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.LTWN))
+            on_activate_call=bs.CallPartial(s.kill, True, s.LTWN))
         bui.containerwidget(edit=s.LTWN, cancel_button=bacc)
 
         s.LTWN_load_teams()
@@ -1045,7 +1045,7 @@ class Nice(igm):
                            h_align='left',
                            v_align='center',
                            color=t.color,
-                           on_activate_call=bs.Call(s.LTWN_prev, i),
+                           on_activate_call=bs.CallPartial(s.LTWN_prev, i),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -1087,7 +1087,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.LTWA))
+            on_activate_call=bs.CallPartial(s.kill, True, s.LTWA))
         bui.containerwidget(edit=s.LTWA, cancel_button=bacc)
 
         bui.textwidget(parent=s.LTWA,
@@ -1128,7 +1128,7 @@ class Nice(igm):
             textcolor=s.negate(Nice.LTWAC),
             position=(30, 70),
             color=Nice.LTWAC,
-            on_activate_call=bs.Call(PickerLol, Nice.LTWAC))
+            on_activate_call=bs.CallPartial(PickerLol, Nice.LTWAC))
 
         s.LTWA_ran = bui.buttonwidget(
             parent=s.LTWA,
@@ -1139,7 +1139,7 @@ class Nice(igm):
             textcolor=wht,
             button_type="square",
             position=(340, 70),
-            on_activate_call=bs.Call(s.LTWA_random))
+            on_activate_call=bs.CallPartial(s.LTWA_random))
 
         bui.buttonwidget(
             parent=s.LTWA,
@@ -1149,7 +1149,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(340, 30),
-            on_activate_call=bs.Call(s.lol_teams_window_done))
+            on_activate_call=bs.CallPartial(s.lol_teams_window_done))
 
     def negate(s, c): return (1-c[0], 1-c[1], 1-c[2])
 
@@ -1310,7 +1310,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.do_tweak))
+            on_activate_call=bs.CallPartial(s.do_tweak))
 
         tweak_scroll = bui.scrollwidget(parent=s.tweak_widget,
                                         position=(30, 80),
@@ -1346,7 +1346,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.tweak_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.tweak_widget))
         bui.containerwidget(edit=s.tweak_widget, cancel_button=bacc)
 
         bui.textwidget(
@@ -1390,7 +1390,7 @@ class Nice(igm):
                            h_align='left',
                            v_align='center',
                            color=(1, 1, 1),
-                           on_activate_call=bs.Call(s.tweak_preview, i, t),
+                           on_activate_call=bs.CallPartial(s.tweak_preview, i, t),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -1512,7 +1512,7 @@ class Nice(igm):
         bui.buttonwidget(
             parent=s.tweakz_widget,
             size=(70, 30),
-            label='Call',
+            label='CallPartial',
             button_type='square',
             scale=s.scale,
             color=colb,
@@ -1539,7 +1539,7 @@ class Nice(igm):
             tabdefs,
             pos=(30, 230),
             size=(250, 0),
-            on_select_call=bs.Call(s.switch_tweakz_tab, node))
+            on_select_call=bs.CallPartial(s.switch_tweakz_tab, node))
 
         # the right order
         s.tweakz_tab.update_appearance('node')
@@ -1554,7 +1554,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.tweakz_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, s.tweakz_widget))
         bui.containerwidget(edit=s.tweakz_widget, cancel_button=bacc)
 
     def switch_tweakz_tab(s, node, t):
@@ -1607,7 +1607,7 @@ class Nice(igm):
                            color=col[i],
                            h_align='left',
                            v_align='center',
-                           on_activate_call=bs.Call(s.tweakz_preview, i, t),
+                           on_activate_call=bs.CallPartial(s.tweakz_preview, i, t),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -1727,7 +1727,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.TTW))
+            on_activate_call=bs.CallPartial(s.kill, True, s.TTW))
 
         bui.buttonwidget(
             parent=s.TTW,
@@ -1737,7 +1737,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(340, 30),
-            on_activate_call=bs.Call(s.gather_tweakz, s.tweakz_name[i], typ, mode))
+            on_activate_call=bs.CallPartial(s.gather_tweakz, s.tweakz_name[i], typ, mode))
 
     def gather_tweakz(s, name, typ, mode):
         value = cast(str, bui.textwidget(query=s.tweakz_box))
@@ -1811,7 +1811,7 @@ class Nice(igm):
 
         bui.textwidget(parent=s.CTW,
                        color=(0.1, 0.7, 1),
-                       text=f"Call {name}",
+                       text=f"CallPartial {name}",
                        position=(205, 150),
                        h_align="center",
                        maxwidth=400)
@@ -1824,17 +1824,17 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.CTW))
+            on_activate_call=bs.CallPartial(s.kill, True, s.CTW))
 
         bui.buttonwidget(
             parent=s.CTW,
             size=(60, 20),
-            label='Call',
+            label='CallPartial',
             scale=s.scale,
             color=colb,
             textcolor=wht,
             position=(340, 30),
-            on_activate_call=bs.Call(s.do_call_this, attr, name))
+            on_activate_call=bs.CallPartial(s.do_call_this, attr, name))
 
         s.call_this_box = bui.textwidget(parent=s.CTW,
                                          color=(0.1, 0.7, 1),
@@ -1901,7 +1901,7 @@ class Nice(igm):
                                           color=(1, 1, 1),
                                           texture=bui.gettexture(drop_texture[Nice.drop_indox]),
                                           mask_texture=bui.gettexture('characterIconMask'),
-                                          on_activate_call=bs.Call(Picker, 69))
+                                          on_activate_call=bs.CallPartial(Picker, 69))
 
         s.drop_where = bui.buttonwidget(parent=s.drop_widget,
                                         label='',  # Where To Deploy?
@@ -1929,7 +1929,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          button_type='square',
-                         on_activate_call=bs.Call(s.show_in_game, 0, 69))
+                         on_activate_call=bs.CallPartial(s.show_in_game, 0, 69))
 
         bui.buttonwidget(parent=s.drop_widget,
                          label='Draw a line',
@@ -1938,7 +1938,7 @@ class Nice(igm):
                          button_type='square',
                          color=colb,
                          textcolor=wht,
-                         on_activate_call=bs.Call(s.show_in_game, 1, 69))
+                         on_activate_call=bs.CallPartial(s.show_in_game, 1, 69))
 
         Nice.drop_name = bui.textwidget(parent=s.drop_widget,
                                         text=drop_name[Nice.drop_indox],
@@ -1966,7 +1966,7 @@ class Nice(igm):
             scale=s.scale,
             textcolor=wht,
             position=(350, 30),
-            on_activate_call=bs.Call(s.do_drop))
+            on_activate_call=bs.CallPartial(s.do_drop))
 
     def edit_drop_attrs(s):
         s.edit_drop_widget = bui.containerwidget(parent=bui.get_special_widget('overlay_stack'),
@@ -1989,7 +1989,7 @@ class Nice(igm):
                        text="gravity_scale",
                        click_activate=True,
                        selectable=True,
-                       on_activate_call=bs.Call(s.welp, -1))
+                       on_activate_call=bs.CallPartial(s.welp, -1))
 
         bui.textwidget(parent=s.edit_drop_widget,
                        color=wht,
@@ -1998,7 +1998,7 @@ class Nice(igm):
                        text="sticky",
                        click_activate=True,
                        selectable=True,
-                       on_activate_call=bs.Call(s.welp, -2))
+                       on_activate_call=bs.CallPartial(s.welp, -2))
 
         bui.textwidget(parent=s.edit_drop_widget,
                        color=wht,
@@ -2008,7 +2008,7 @@ class Nice(igm):
                        maxwidth=190,
                        click_activate=True,
                        selectable=True,
-                       on_activate_call=bs.Call(s.welp, -3))
+                       on_activate_call=bs.CallPartial(s.welp, -3))
 
         bui.textwidget(parent=s.edit_drop_widget,
                        color=wht,
@@ -2018,7 +2018,7 @@ class Nice(igm):
                        maxwidth=190,
                        click_activate=True,
                        selectable=True,
-                       on_activate_call=bs.Call(s.welp, -4))
+                       on_activate_call=bs.CallPartial(s.welp, -4))
 
         bui.textwidget(parent=s.edit_drop_widget,
                        color=wht,
@@ -2028,7 +2028,7 @@ class Nice(igm):
                        maxwidth=190,
                        click_activate=True,
                        selectable=True,
-                       on_activate_call=bs.Call(s.welp, -5))
+                       on_activate_call=bs.CallPartial(s.welp, -5))
 
         s.drop_attr1 = bui.textwidget(parent=s.edit_drop_widget,
                                       color=wht,
@@ -2043,7 +2043,7 @@ class Nice(igm):
                            text="",
                            color=colb,
                            scale=s.scale/1.3,
-                           on_value_change_call=bs.Call(s.check_drop_attrs, 0),
+                           on_value_change_call=bs.CallPartial(s.check_drop_attrs, 0),
                            position=(225, 220))
 
         s.drop_radio1 = bui.checkboxwidget(parent=s.edit_drop_widget,
@@ -2051,7 +2051,7 @@ class Nice(igm):
                                            text="",
                                            color=colb,
                                            scale=s.scale/1.3,
-                                           on_value_change_call=bs.Call(s.check_drop_attrs, 1),
+                                           on_value_change_call=bs.CallPartial(s.check_drop_attrs, 1),
                                            position=(225, 190))
 
         s.drop_radio2 = bui.checkboxwidget(parent=s.edit_drop_widget,
@@ -2059,7 +2059,7 @@ class Nice(igm):
                                            text="",
                                            color=colb,
                                            scale=s.scale/1.3,
-                                           on_value_change_call=bs.Call(s.check_drop_attrs, 2),
+                                           on_value_change_call=bs.CallPartial(s.check_drop_attrs, 2),
                                            position=(225, 160))
 
         s.drop_attr2 = bui.textwidget(parent=s.edit_drop_widget,
@@ -2078,7 +2078,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(s.collect_drop_attrs))
+            on_activate_call=bs.CallPartial(s.collect_drop_attrs))
         bui.containerwidget(edit=s.edit_drop_widget, cancel_button=bacc)
 
         bui.buttonwidget(
@@ -2089,7 +2089,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(200, 30),
-            on_activate_call=bs.Call(s.welp, 69123))
+            on_activate_call=bs.CallPartial(s.welp, 69123))
 
     def collect_drop_attrs(s):
         t1 = cast(str, bui.textwidget(query=s.drop_attr1))
@@ -2202,7 +2202,7 @@ class Nice(igm):
                          scale=s.scale,
                          color=colb,
                          position=(20, 125),
-                         on_activate_call=bs.Call(s.use_my_pos, 69))
+                         on_activate_call=bs.CallPartial(s.use_my_pos, 69))
 
         bui.textwidget(parent=s.DW,
                        color=(0.1, 0.7, 1),
@@ -2219,7 +2219,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          position=(20, 60),
-                         on_activate_call=bs.Call(s.custom_drop_window))
+                         on_activate_call=bs.CallPartial(s.custom_drop_window))
 
         bacc = bui.buttonwidget(
             parent=s.DW,
@@ -2229,7 +2229,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, s.DW))
+            on_activate_call=bs.CallPartial(s.kill, True, s.DW))
         bui.containerwidget(edit=s.DW, cancel_button=bacc)
 
     # custom position
@@ -2301,7 +2301,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(190, 30),
-            on_activate_call=bs.Call(collect, s))
+            on_activate_call=bs.CallPartial(collect, s))
 
         bacc = bui.buttonwidget(
             parent=custom_drop_widget,
@@ -2311,7 +2311,7 @@ class Nice(igm):
             textcolor=wht,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(back, s))
+            on_activate_call=bs.CallPartial(back, s))
         bui.containerwidget(edit=custom_drop_widget, cancel_button=bacc)
 
     def spawn_window(s):
@@ -2353,7 +2353,7 @@ class Nice(igm):
                                       size=(180, 100),
                                       position=(150, 120),
                                       button_type='square',
-                                      on_activate_call=bs.Call(s.cords_window))
+                                      on_activate_call=bs.CallPartial(s.cords_window))
 
         attr_view = bui.buttonwidget(parent=spawn_widget,
                                      label='Edit\nAttrs',
@@ -2362,7 +2362,7 @@ class Nice(igm):
                                      textcolor=wht,
                                      position=(350, 120),
                                      button_type='square',
-                                     on_activate_call=bs.Call(s.attr_window))
+                                     on_activate_call=bs.CallPartial(s.attr_window))
 
         try:
             if cords[0] != 69123:
@@ -2383,7 +2383,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          button_type='square',
-                         on_activate_call=bs.Call(s.show_in_game))
+                         on_activate_call=bs.CallPartial(s.show_in_game))
 
         bui.buttonwidget(parent=spawn_widget,
                          label='Draw a line',
@@ -2392,7 +2392,7 @@ class Nice(igm):
                          button_type='square',
                          color=colb,
                          textcolor=wht,
-                         on_activate_call=bs.Call(s.show_in_game, 1))
+                         on_activate_call=bs.CallPartial(s.show_in_game, 1))
 
         def back(s):
             s.kill(True, spawn_widget)
@@ -2405,7 +2405,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(back, s))
+            on_activate_call=bs.CallPartial(back, s))
         bui.containerwidget(edit=s._sw, cancel_button=bacc)
 
         bui.buttonwidget(
@@ -2416,7 +2416,7 @@ class Nice(igm):
             scale=s.scale,
             textcolor=wht,
             position=(350, 30),
-            on_activate_call=bs.Call(s.do_spawn))
+            on_activate_call=bs.CallPartial(s.do_spawn))
 
     """Button, my little wrappie"""
     def Button(s):
@@ -2426,7 +2426,7 @@ class Nice(igm):
 
         def openBox(self):
             bui.buttonwidget(edit=self.sbox, icon=bui.gettexture('chestOpenIcon'))
-            bs.apptimer(0.6, bs.Call(closeBox, self))
+            bs.apptimer(0.6, bs.CallPartial(closeBox, self))
 
         def closeBox(self):
             if self.sbox.exists():
@@ -2446,8 +2446,8 @@ class Nice(igm):
                 label="Sandbox",
                 icon=bui.gettexture('chestIcon'),
                 iconscale=0.8,
-                on_select_call=bs.Call(openBox, self),
-                on_activate_call=bs.Call(lmao, self))
+                on_select_call=bs.CallPartial(openBox, self),
+                on_activate_call=bs.CallPartial(lmao, self))
             return r
         return wrap
 
@@ -2467,7 +2467,7 @@ class Nice(igm):
                          scale=s.scale,
                          color=colb,
                          position=(20, 125),
-                         on_activate_call=bs.Call(s.use_my_pos))
+                         on_activate_call=bs.CallPartial(s.use_my_pos))
 
         bui.textwidget(parent=cords_widget,
                        color=(0.1, 0.7, 1),
@@ -2484,7 +2484,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          position=(20, 60),
-                         on_activate_call=bs.Call(s.custom_window))
+                         on_activate_call=bs.CallPartial(s.custom_window))
 
         bacc = bui.buttonwidget(
             parent=cords_widget,
@@ -2494,7 +2494,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, cords_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, cords_widget))
         bui.containerwidget(edit=cords_widget, cancel_button=bacc)
 
     # custom position
@@ -2573,7 +2573,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(190, 30),
-            on_activate_call=bs.Call(collect, s))
+            on_activate_call=bs.CallPartial(collect, s))
 
         bacc = bui.buttonwidget(
             parent=custom_widget,
@@ -2583,7 +2583,7 @@ class Nice(igm):
             textcolor=wht,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(back, s))
+            on_activate_call=bs.CallPartial(back, s))
         bui.containerwidget(edit=custom_widget, cancel_button=bacc)
 
     def attr_window(s):
@@ -2629,7 +2629,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(290, 45),
-            on_activate_call=bs.Call(s.welp, 69123))
+            on_activate_call=bs.CallPartial(s.welp, 69123))
 
         bui.buttonwidget(
             parent=attr_widget,
@@ -2639,7 +2639,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(150, 45),
-            on_activate_call=bs.Call(s.gather, True))
+            on_activate_call=bs.CallPartial(s.gather, True))
 
         bui.checkboxwidget(
             parent=attr_widget,
@@ -2650,7 +2650,7 @@ class Nice(igm):
             textcolor=(1, 1, 1),
             scale=s.scale/2,
             value=s.auto_spawn_on_random,
-            on_value_change_call=bs.Call(s.tick, 0))
+            on_value_change_call=bs.CallPartial(s.tick, 0))
 
         bui.checkboxwidget(
             parent=attr_widget,
@@ -2661,7 +2661,7 @@ class Nice(igm):
             textcolor=(1, 1, 1),
             scale=s.scale/2,
             value=s.random_peace,
-            on_value_change_call=bs.Call(s.tick, 1))
+            on_value_change_call=bs.CallPartial(s.tick, 1))
 
         # -> no = 23
         # -> cw = 595 (+26)
@@ -2685,7 +2685,7 @@ class Nice(igm):
                            scale=s.scale/2,
                            h_align='left',
                            v_align='center',
-                           on_activate_call=bs.Call(s.welp, i),
+                           on_activate_call=bs.CallPartial(s.welp, i),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -2698,7 +2698,7 @@ class Nice(igm):
                                        text="",
                                        color=colb,
                                        scale=s.scale/2,
-                                       on_value_change_call=bs.Call(s.check, i),
+                                       on_value_change_call=bs.CallPartial(s.check, i),
                                        position=(180, cb - (20 * i)))
             elif isinstance(a, tuple) or i == 6 or i == 11 or i == 28:
                 k = Nice.val_attrs[i]
@@ -2708,7 +2708,7 @@ class Nice(igm):
                                      size=(30, 12),
                                      color=k,
                                      textcolor=(1-k[0], 1-k[1], 1-k[2]),  # invert
-                                     on_activate_call=bs.Call(NicePick, s, a, i),
+                                     on_activate_call=bs.CallPartial(NicePick, s, a, i),
                                      position=(180, cb - (20 * i)))
             else:
                 l = bui.textwidget(parent=attr_sub,
@@ -2842,7 +2842,7 @@ class Nice(igm):
                                          color=(1, 1, 1),
                                          texture=lol,
                                          mask_texture=bui.gettexture('characterIconMask'),
-                                         on_activate_call=bs.Call(push, 'Set the skin in modify menu'))
+                                         on_activate_call=bs.CallPartial(push, 'Set the skin in modify menu'))
 
         preview_text = bui.textwidget(parent=control_widget,
                                       text=p1,
@@ -2890,7 +2890,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.start_or_stop))  # , True))
+            on_activate_call=bs.CallPartial(s.start_or_stop))  # , True))
 
         control_scroll = bui.scrollwidget(parent=control_widget,
                                           position=(30, 80),
@@ -2913,7 +2913,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, control_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, control_widget))
         bui.containerwidget(edit=control_widget, cancel_button=bacc)
 
         bui.checkboxwidget(
@@ -2950,7 +2950,7 @@ class Nice(igm):
                                     h_align='left',
                                     v_align='center',
                                     color=((1, 1, 1) if alive else (0.6, 0.6, 0.6)),
-                                    on_activate_call=bs.Call(s.preview, i, alive),
+                                    on_activate_call=bs.CallPartial(s.preview, i, alive),
                                     selectable=True,
                                     autoselect=True,
                                     click_activate=True,
@@ -3126,12 +3126,12 @@ class Nice(igm):
                 s.hl2(lmao_bots[currently_dux].node, True)
 
                 # start control from here
-                i.assigninput(ba.InputType.UP_DOWN, bs.Call(s.set_x))
-                i.assigninput(ba.InputType.LEFT_RIGHT, bs.Call(s.set_y))
-                i.assigninput(ba.InputType.PICK_UP_PRESS, bs.Call(s.key, 0))
-                i.assigninput(ba.InputType.BOMB_PRESS, bs.Call(s.key, 3))
-                i.assigninput(ba.InputType.PUNCH_PRESS, bs.Call(s.key, 1))
-                i.assigninput(ba.InputType.JUMP_PRESS, bs.Call(s.key, 2))
+                i.assigninput(ba.InputType.UP_DOWN, bs.CallPartial(s.set_x))
+                i.assigninput(ba.InputType.LEFT_RIGHT, bs.CallPartial(s.set_y))
+                i.assigninput(ba.InputType.PICK_UP_PRESS, bs.CallPartial(s.key, 0))
+                i.assigninput(ba.InputType.BOMB_PRESS, bs.CallPartial(s.key, 3))
+                i.assigninput(ba.InputType.PUNCH_PRESS, bs.CallPartial(s.key, 1))
+                i.assigninput(ba.InputType.JUMP_PRESS, bs.CallPartial(s.key, 2))
                 break  # i have nothing to do w other players left
 
     def draw(s, what=None, where=(650, 600), color=(0, 1, 1)):
@@ -3179,7 +3179,7 @@ class Nice(igm):
                            text="Invincible while controlling bots",
                            textcolor=(1, 1, 1),
                            value=Nice.while_control,
-                           on_value_change_call=bs.Call(s.conf, 0),
+                           on_value_change_call=bs.CallPartial(s.conf, 0),
                            scale=s.scale/1.3,
                            position=(30, 268))
 
@@ -3188,7 +3188,7 @@ class Nice(igm):
                            text="Notify when my bots die",
                            textcolor=(1, 1, 1),
                            value=Nice.notify_bot_ded,
-                           on_value_change_call=bs.Call(s.conf, 1),
+                           on_value_change_call=bs.CallPartial(s.conf, 1),
                            scale=s.scale/1.3,
                            position=(30, 233))
 
@@ -3197,7 +3197,7 @@ class Nice(igm):
                            text="Pause the game when using this",
                            textcolor=(1, 1, 1),
                            value=Nice.pause_when_bots,
-                           on_value_change_call=bs.Call(s.conf, 2),
+                           on_value_change_call=bs.CallPartial(s.conf, 2),
                            scale=s.scale/1.3,
                            position=(30, 198))
 
@@ -3206,7 +3206,7 @@ class Nice(igm):
                                          text="Show screen messages on top right",
                                          textcolor=(1, 1, 1),
                                          value=Nice.top_msg,
-                                         on_value_change_call=bs.Call(s.conf, 3),
+                                         on_value_change_call=bs.CallPartial(s.conf, 3),
                                          scale=s.scale/1.3,
                                          position=(30, 163))
 #        s.do_your_thing(ga().globalsnode.slow_motion, False)
@@ -3216,7 +3216,7 @@ class Nice(igm):
                            text="Lite mode (keep off unless lags)",
                            textcolor=(1, 1, 1),
                            value=Nice.lite_mode,
-                           on_value_change_call=bs.Call(s.conf, 4),
+                           on_value_change_call=bs.CallPartial(s.conf, 4),
                            scale=s.scale/1.3,
                            position=(30, 128))
 
@@ -3225,7 +3225,7 @@ class Nice(igm):
                            text="Rotate camera on control (cool)",
                            textcolor=(1, 1, 1),
                            value=Nice.animate_camera,
-                           on_value_change_call=bs.Call(s.conf, 5),
+                           on_value_change_call=bs.CallPartial(s.conf, 5),
                            scale=s.scale/1.3,
                            position=(30, 93))
 
@@ -3234,7 +3234,7 @@ class Nice(igm):
                            text="Play ding sound on success",
                            textcolor=(1, 1, 1),
                            value=Nice.do_ding,
-                           on_value_change_call=bs.Call(s.conf, 6),
+                           on_value_change_call=bs.CallPartial(s.conf, 6),
                            scale=s.scale/1.3,
                            position=(30, 58))
 
@@ -3246,7 +3246,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, config_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, config_widget))
         bui.containerwidget(edit=config_widget, cancel_button=bacc)
 
     def conf(s, i, b):
@@ -3318,7 +3318,7 @@ class Nice(igm):
                     bs.animate(title_node[i], 'opacity', {0.0: 1.0, 0.1: 0.0})
                 except:
                     return  # what are we doing here
-                bs.timer(0.08, bs.Call(fade, title_node[i], i))
+                bs.timer(0.08, bs.CallPartial(fade, title_node[i], i))
 
     def mod_window(s):
         if ga() is None:
@@ -3341,7 +3341,7 @@ class Nice(igm):
                                          button_type='square',
                                          color=colb,
                                          mask_texture=bui.gettexture('characterIconMask'),
-                                         on_activate_call=bs.Call(push, 'Press modify to set the skin and stuff'))
+                                         on_activate_call=bs.CallPartial(push, 'Press modify to set the skin and stuff'))
 
         preview_text = bui.textwidget(parent=mod_widget,
                                       text='',
@@ -3376,7 +3376,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.do_modify))
+            on_activate_call=bs.CallPartial(s.do_modify))
 
         mod_scroll = bui.scrollwidget(parent=mod_widget,
                                       position=(30, 80),
@@ -3399,7 +3399,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, mod_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, mod_widget))
         bui.containerwidget(edit=mod_widget, cancel_button=bacc)
 
         bui.buttonwidget(edit=preview_image, texture=None, color=(1, 1, 1))
@@ -3431,7 +3431,7 @@ class Nice(igm):
                            h_align='left',
                            v_align='center',
                            color=((1, 1, 1) if alive else (0.6, 0.6, 0.6)),
-                           on_activate_call=bs.Call(s.preview, i, alive, 1),
+                           on_activate_call=bs.CallPartial(s.preview, i, alive, 1),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -3477,7 +3477,7 @@ class Nice(igm):
                                       texture=bui.gettexture(
                                           bot_texture[bot_name.index(lmao_chars[dux])]+'Icon'),
                                       mask_texture=bui.gettexture('characterIconMask'),
-                                      on_activate_call=bs.Call(Picker, 1))
+                                      on_activate_call=bs.CallPartial(Picker, 1))
 
         # Apply bot's stuff to mod preset (clean up)
         cap = bot_name.index(lmao_chars[drux])
@@ -3503,7 +3503,7 @@ class Nice(igm):
                                        size=(180, 100),
                                        position=(150, 120),
                                        button_type='square',
-                                       on_activate_call=bs.Call(s.cords2_window))
+                                       on_activate_call=bs.CallPartial(s.cords2_window))
 
         attr_view = bui.buttonwidget(parent=mid_widget,
                                      label='Edit\nAttrs',
@@ -3512,7 +3512,7 @@ class Nice(igm):
                                      textcolor=wht,
                                      position=(350, 120),
                                      button_type='square',
-                                     on_activate_call=bs.Call(s.do_modify2))
+                                     on_activate_call=bs.CallPartial(s.do_modify2))
 
         s.update_cords_view(True)
 
@@ -3529,7 +3529,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          button_type='square',
-                         on_activate_call=bs.Call(s.show_in_game, 0, True))
+                         on_activate_call=bs.CallPartial(s.show_in_game, 0, True))
 
         bui.buttonwidget(parent=mid_widget,
                          label='Draw a line',
@@ -3538,7 +3538,7 @@ class Nice(igm):
                          button_type='square',
                          color=colb,
                          textcolor=wht,
-                         on_activate_call=bs.Call(s.show_in_game, 1, True))
+                         on_activate_call=bs.CallPartial(s.show_in_game, 1, True))
 
         bacc = bui.buttonwidget(
             parent=mid_widget,
@@ -3548,7 +3548,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, mid_widget, True))
+            on_activate_call=bs.CallPartial(s.kill, True, mid_widget, True))
         bui.containerwidget(edit=mid_widget, cancel_button=bacc)
 
         bui. buttonwidget(
@@ -3568,7 +3568,7 @@ class Nice(igm):
             value=do_tp,
             color=cola,
             textcolor=(1, 1, 1),
-            on_value_change_call=bs.Call(s.tp_check),
+            on_value_change_call=bs.CallPartial(s.tp_check),
             scale=s.scale/1.5,
             position=(340, 90))
 
@@ -3625,7 +3625,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(290, 30),
-            on_activate_call=bs.Call(s.welp, 69123))
+            on_activate_call=bs.CallPartial(s.welp, 69123))
 
         bui.buttonwidget(
             parent=mud_widget,
@@ -3635,7 +3635,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(150, 30),
-            on_activate_call=bs.Call(s.gather2, True))
+            on_activate_call=bs.CallPartial(s.gather2, True))
 
         # -> no = 23
         # -> cw = 595 (+26)
@@ -3659,8 +3659,8 @@ class Nice(igm):
                            scale=s.scale/2,
                            h_align='left',
                            v_align='center',
-                           on_activate_call=bs.Call(
-                               s.welp, i) if i not in not_editable else bs.Call(s.welp, i, nah=True),
+                           on_activate_call=bs.CallPartial(
+                               s.welp, i) if i not in not_editable else bs.CallPartial(s.welp, i, nah=True),
                            selectable=True,
                            autoselect=True,
                            color=(1, 1, 1) if i not in not_editable else (0.6, 0.6, 0.6),
@@ -3674,8 +3674,8 @@ class Nice(igm):
                                        text="",
                                        color=colb,
                                        scale=s.scale/2,
-                                       on_value_change_call=bs.Call(
-                                           s.check, i, mod=True) if i not in not_editable else bs.Call(s.welp, i, ignore=True),
+                                       on_value_change_call=bs.CallPartial(
+                                           s.check, i, mod=True) if i not in not_editable else bs.CallPartial(s.welp, i, ignore=True),
                                        position=(180, cb - (20 * i)))
             elif isinstance(a, tuple) or i == 6 or i == 11 or i == 28:
                 k = val_attrs2[i]
@@ -3685,7 +3685,7 @@ class Nice(igm):
                                      size=(30, 12),
                                      color=k,
                                      textcolor=(1-k[0], 1-k[1], 1-k[2]),  # invert
-                                     on_activate_call=bs.Call(NicePick2, s, a, i),
+                                     on_activate_call=bs.CallPartial(NicePick2, s, a, i),
                                      position=(180, cb - (20 * i)))
             else:
                 l = bui.textwidget(parent=mud_sub,
@@ -3796,7 +3796,7 @@ class Nice(igm):
                          scale=s.scale,
                          color=colb,
                          position=(20, 125),
-                         on_activate_call=bs.Call(s.use_my_pos, True))
+                         on_activate_call=bs.CallPartial(s.use_my_pos, True))
 
         bui.textwidget(parent=cords2_widget,
                        color=(0.1, 0.7, 1),
@@ -3813,7 +3813,7 @@ class Nice(igm):
                          color=colb,
                          textcolor=wht,
                          position=(20, 60),
-                         on_activate_call=bs.Call(s.custom2_window))
+                         on_activate_call=bs.CallPartial(s.custom2_window))
 
         bacc = bui.buttonwidget(
             parent=cords2_widget,
@@ -3823,7 +3823,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, cords2_widget, True))
+            on_activate_call=bs.CallPartial(s.kill, True, cords2_widget, True))
         bui.containerwidget(edit=cords2_widget, cancel_button=bacc)
 
     def custom2_window(s):
@@ -3901,7 +3901,7 @@ class Nice(igm):
             textcolor=wht,
             scale=s.scale,
             position=(190, 30),
-            on_activate_call=bs.Call(collect, s))
+            on_activate_call=bs.CallPartial(collect, s))
 
         bacc = bui.buttonwidget(
             parent=custom2_widget,
@@ -3911,7 +3911,7 @@ class Nice(igm):
             textcolor=wht,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(back, s))
+            on_activate_call=bs.CallPartial(back, s))
         bui.containerwidget(edit=custom2_widget, cancel_button=bacc)
 
     def apply_mods(s):
@@ -4046,7 +4046,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(370, 30),
-            on_activate_call=bs.Call(s.play_music))
+            on_activate_call=bs.CallPartial(s.play_music))
 
         bui.buttonwidget(
             parent=listen_widget,
@@ -4059,7 +4059,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(270, 30),
-            on_activate_call=bs.Call(s.play_music, True))
+            on_activate_call=bs.CallPartial(s.play_music, True))
 
         listen_scroll = bui.scrollwidget(parent=listen_widget,
                                          position=(30, 80),
@@ -4082,7 +4082,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, listen_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, listen_widget))
         bui.containerwidget(edit=listen_widget, cancel_button=bacc)
 
         bui.buttonwidget(edit=music_preview_image, texture=None, color=(1, 1, 1))
@@ -4098,7 +4098,7 @@ class Nice(igm):
                            h_align='left',
                            v_align='center',
                            color=(1, 1, 1),
-                           on_activate_call=bs.Call(s.preview_music, i),
+                           on_activate_call=bs.CallPartial(s.preview_music, i),
                            selectable=True,
                            autoselect=True,
                            click_activate=True,
@@ -4158,7 +4158,7 @@ class Nice(igm):
                                          color=(1, 1, 1),
                                          texture=lol,
                                          mask_texture=bui.gettexture('characterIconMask'),
-                                         on_activate_call=bs.Call(push, 'what are you trying to achieve'))
+                                         on_activate_call=bs.CallPartial(push, 'what are you trying to achieve'))
 
         preview_text = bui.textwidget(parent=effect_widget,
                                       text=p1,
@@ -4200,7 +4200,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(360, 30),
-            on_activate_call=bs.Call(s.do_effect))
+            on_activate_call=bs.CallPartial(s.do_effect))
 
         effect_scroll = bui.scrollwidget(parent=effect_widget,
                                          position=(30, 80),
@@ -4230,7 +4230,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, effect_widget))
+            on_activate_call=bs.CallPartial(s.kill, True, effect_widget))
         bui.containerwidget(edit=effect_widget, cancel_button=bacc)
 
         s.cola_fill(effect_widget)
@@ -4291,7 +4291,7 @@ class Nice(igm):
                                     h_align='left',
                                     v_align='center',
                                     color=((1, 1, 1) if alive else (0.6, 0.6, 0.6)),
-                                    on_activate_call=bs.Call(s.preview, i, alive, mod),
+                                    on_activate_call=bs.CallPartial(s.preview, i, alive, mod),
                                     selectable=True,
                                     autoselect=True,
                                     click_activate=True,
@@ -4398,7 +4398,7 @@ class Nice(igm):
                                       color=(1, 1, 1),
                                       texture=bui.gettexture(effect_texture[effect_indox]),
                                       mask_texture=bui.gettexture('characterIconMask'),
-                                      on_activate_call=bs.Call(Picker, 2))
+                                      on_activate_call=bs.CallPartial(Picker, 2))
 
         # Apply bot's stuff to mod preset (clean up)
         if not s.select_all_bots:
@@ -4422,7 +4422,7 @@ class Nice(igm):
             scale=s.scale,
             color=colb,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, eff_widget, True))
+            on_activate_call=bs.CallPartial(s.kill, True, eff_widget, True))
         bui.containerwidget(edit=eff_widget, cancel_button=bacc)
 
         bui. buttonwidget(
@@ -4504,7 +4504,7 @@ class Nice(igm):
                         bot.on_jump_press = s.spaz_bot_fly(bot.on_jump_press)
                     else:
                         lmao_players[i].assigninput(
-                            ba.InputType.JUMP_PRESS, bs.Call(s.spaz_fly, bot))
+                            ba.InputType.JUMP_PRESS, bs.CallPartial(s.spaz_fly, bot))
                 elif a == 'Normal Jumps':
                     bot.on_jump_press = s.spaz_not_fly
                 elif a == 'GodMode Preset':
@@ -4566,7 +4566,7 @@ class Nice(igm):
         if random.choice([False, False, False, True]):
             PopupText("Hoppie", position=p2, random_offset=0.3, color=(1, 0, 1)).autoretain()
         bs.timer((random.choice([0.1, 0.4, 0.7, 0.1]) if p2[1] <
-                 4 else 1.5), bs.Call(s.constant_jump, s, bot))
+                 4 else 1.5), bs.CallPartial(s.constant_jump, s, bot))
 
     """toxic celebrate - when a player dies,
        celebrate the hunt, called from outside Nice."""
@@ -4590,7 +4590,7 @@ class Nice(igm):
             p2 = (p[0], p[1]-0.2, p[2])
             bot.handlemessage(bs.PowerupMessage('health'))
             PopupText("Healed", position=p2, random_offset=0.3, color=(0, 1, 0)).autoretain()
-            bs.timer(4, bs.Call(s.constant_heal, s, bot))
+            bs.timer(4, bs.CallPartial(s.constant_heal, s, bot))
 
     """Make Toxic - makes a bot say toxic stuff.
        only called from outside Nice"""
@@ -4605,7 +4605,7 @@ class Nice(igm):
 #            PopupText(random.choice(toxic),position=p2,random_offset=0.3,color=(1,0,0)).autoretain()
             n = s.link_text(s, text=random.choice(toxic), bot=bot, color=(1, 0, 0))
             s.nodetimer(s, 1.5, n)
-            bs.timer(2, bs.Call(s.make_toxic, s, bot))
+            bs.timer(2, bs.CallPartial(s.make_toxic, s, bot))
 
     def phew(s, pos):
         PopupText("Damage ignored", position=pos, random_offset=0.3).autoretain()
@@ -4620,7 +4620,7 @@ class Nice(igm):
             p = bot.node.position
             p2 = (p[0], p[1]-0.2, p[2])
             PopupText("z", position=p2, random_offset=0.3).autoretain()
-            bs.timer(0.9, bs.Call(s.spam_knock, bot))
+            bs.timer(0.9, bs.CallPartial(s.spam_knock, bot))
 
     def spam_curse(s, bot):
         with ga().context:
@@ -4695,7 +4695,7 @@ class Nice(igm):
         if b:
             bomb_down = True
             with ga().context:
-                bs.timer(0.1, bs.Call(s.bombdown, 0))
+                bs.timer(0.1, bs.CallPartial(s.bombdown, 0))
         else:
             bomb_down = False
 
@@ -4818,7 +4818,7 @@ class Nice(igm):
             color=colb,
             textcolor=wht,
             position=(30, 30),
-            on_activate_call=bs.Call(s.kill, True, welp_widget, True))
+            on_activate_call=bs.CallPartial(s.kill, True, welp_widget, True))
         bui.containerwidget(edit=welp_widget, cancel_button=bacc)
 
     # checkbox manager
@@ -4969,11 +4969,11 @@ class Nice(igm):
         # that spaz is goin blinking fr
         if Nice.lite_mode:
             return
-        bs.apptimer(0, bs.Call(hl4_on, bot, old))
-        bs.apptimer(0.5, bs.Call(hl4_off, bot, old_off))
-        bs.apptimer(1, bs.Call(hl4_on, bot, old))
-        bs.apptimer(1.5, bs.Call(hl4_off, bot, old_off))
-        bs.apptimer(2, bs.Call(hl4_on, bot, old))
+        bs.apptimer(0, bs.CallPartial(hl4_on, bot, old))
+        bs.apptimer(0.5, bs.CallPartial(hl4_off, bot, old_off))
+        bs.apptimer(1, bs.CallPartial(hl4_on, bot, old))
+        bs.apptimer(1.5, bs.CallPartial(hl4_off, bot, old_off))
+        bs.apptimer(2, bs.CallPartial(hl4_on, bot, old))
 
     def reset_bright_bots(s):
         global lmao_bots, lmao_players
@@ -5028,8 +5028,8 @@ class Nice(igm):
             p.color = shade
             if old[0] > shade[0]:
                 return
-            bs.apptimer(0.001, bs.Call(nah, n))
-        bs.apptimer(0 if instant else 2, bs.Call(nah, n))
+            bs.apptimer(0.001, bs.CallPartial(nah, n))
+        bs.apptimer(0 if instant else 2, bs.CallPartial(nah, n))
 
     def hl(s, p):
         v1 = 2
@@ -5130,7 +5130,7 @@ class NicePick(bui.Window):
         bui.buttonwidget(edit=ins[hmm],
                          label=f"{str(c[0]+0.01)[:3]} {str(c[1]+0.01)[:3]}, {str(c[2]+0.01)[:3]}",
                          color=c,
-                         on_activate_call=bs.Call(NicePick, s, c, hmm),
+                         on_activate_call=bs.CallPartial(NicePick, s, c, hmm),
                          textcolor=(1-c[0], 1-c[1], 1-c[2]))
         Nice.gather(Nice, False, False)
         val_attrs2[hmm] = c
@@ -5156,7 +5156,7 @@ class NicePick2(bui.Window):
         val_attrs2[hmm2] = c
         bui.buttonwidget(
             edit=ins2[hmm2], label=f"{str(c[0]+0.01)[:3]} {str(c[1]+0.01)[:3]}, {str(c[2]+0.01)[:3]}", color=c, textcolor=(1-c[0], 1-c[1], 1-c[2]))
-        bui.buttonwidget(edit=ins2[hmm2], on_activate_call=bs.Call(NicePick2, s, c, hmm2))
+        bui.buttonwidget(edit=ins2[hmm2], on_activate_call=bs.CallPartial(NicePick2, s, c, hmm2))
 
     def color_picker_closing(self, picker): pass
 
@@ -5175,7 +5175,7 @@ class PickerLight(bui.Window):
     def color_picker_selected_color(s, picker, c):
         bui.buttonwidget(edit=light_pick, color=c)
         bui.buttonwidget(edit=light_pick, textcolor=Nice.negate(Nice, c))
-        bui.buttonwidget(edit=light_pick, on_activate_call=bs.Call(PickerLight, c))
+        bui.buttonwidget(edit=light_pick, on_activate_call=bs.CallPartial(PickerLight, c))
         Nice.ga_tint = c
 
     def color_picker_closing(self, picker): pass
@@ -5196,7 +5196,7 @@ class PickerLol(bui.Window):
         Nice.LTWAC = c
         bui.buttonwidget(edit=LTWAB, color=c)
         bui.buttonwidget(edit=LTWAB, textcolor=Nice.negate(Nice, c))
-        bui.buttonwidget(edit=LTWAB, on_activate_call=bs.Call(PickerLol, Nice.LTWAC))
+        bui.buttonwidget(edit=LTWAB, on_activate_call=bs.CallPartial(PickerLol, Nice.LTWAC))
 
     def color_picker_closing(self, picker): pass
 
@@ -5264,7 +5264,7 @@ class Picker(popup.PopupWindow):
                     color=(1, 1, 1),
                     mask_texture=mask_texture,
                     label='',
-                    on_activate_call=bs.Call(s.ok, index, mod))
+                    on_activate_call=bs.CallPartial(s.ok, index, mod))
                 bui.widget(edit=btn, show_buffer_top=60, show_buffer_bottom=60)
                 name = bot_name[index] if mod not in [
                     2, 69] else effect_name[index] if mod != 69 else drop_name[index]
@@ -5342,7 +5342,7 @@ class TexturePicker(popup.PopupWindow):
                     texture=icon,
                     color=(1, 1, 1),
                     label='',
-                    on_activate_call=bs.Call(s.ok, index))
+                    on_activate_call=bs.CallPartial(s.ok, index))
                 bui.widget(edit=btn, show_buffer_top=60, show_buffer_bottom=60)
                 name = all_texture[index]
                 bui.textwidget(parent=s._subcontainer,
@@ -5685,15 +5685,15 @@ def meow_patch(og):
         elif isinstance(msg, bs.ImpactDamageMessage) and hasattr(self.node.getdelegate(object), 'source_player') and self.node.getdelegate(object).node.invincible:
             pos = self.node.getdelegate(object).node.position
             with ga().context:
-                bs.timer(0.001, bs.Call(Nice.phew, Nice, pos))
+                bs.timer(0.001, bs.CallPartial(Nice.phew, Nice, pos))
             return
         elif isinstance(msg, bs.PowerupMessage) and msg.poweruptype == 'punch' and hasattr(self.node.getdelegate(object), "_super") and self.node.getdelegate(object)._super:
             if on_control:
                 push('Gloves have canceled your Super Punch effect\nDon\'t worry, restoring Super Punch')
             bot = self.node.getdelegate(object)
             with ga().context:
-                bs.timer(0.01, bs.Call(Nice.give_sp, Nice, bot))
-                bs.timer(20.1, bs.Call(Nice.restore_sp, Nice, bot))
+                bs.timer(0.01, bs.CallPartial(Nice.give_sp, Nice, bot))
+                bs.timer(20.1, bs.CallPartial(Nice.restore_sp, Nice, bot))
         try:
             return og(self, msg)
         except:

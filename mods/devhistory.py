@@ -24,7 +24,7 @@ from bauiv1 import (
     apptimer as teck,
     gettexture as gt,
     getsound as gs,
-    Call
+    CallPartial
 )
 from _babase import (
     get_dev_console_input_text as get,
@@ -79,7 +79,7 @@ class byBordd(P):
                 size=(45,45),
                 texture=gt('white'),
                 enable_sound=False,
-                on_activate_call=Call(s.nav,[-1,1][i])
+                on_activate_call=CallPartial(s.nav,[-1,1][i])
             )
     def nav(s,i):
         n = s.i + i

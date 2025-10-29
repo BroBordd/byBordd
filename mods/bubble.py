@@ -18,7 +18,7 @@ from bascenev1 import (
     animate_array,
     animate,
     newnode,
-    Call
+    CallPartial
 )
 from math import ceil
 from random import choice as CH
@@ -74,7 +74,7 @@ class Bubble:
         s.mem = lambda: s.__class__.__mem__
         m = s.mem()
         o = m.get(node,0)
-        if not getattr(o,'dead',1): tick(0.2,Call(o.delete,force=True))
+        if not getattr(o,'dead',1): tick(0.2,CallPartial(o.delete,force=True))
         s.show()
         m[node] = s
     def show(s):

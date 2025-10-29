@@ -18,7 +18,7 @@ from bascenev1 import (
     newnode,
     Player,
     Actor,
-    Call
+    CallPartial
 )
 from bascenev1lib.actor.powerupbox import PowerupBoxFactory
 from bascenev1lib.gameutils import SharedObjects
@@ -61,7 +61,7 @@ class CALC:
     """Start controling calculator instance"""
     def control(s):
         for p in ga().players:
-            p.assigninput(IT.BOMB_PRESS, Call(s.press, p.node))
+            p.assigninput(IT.BOMB_PRESS, CallPartial(s.press, p.node))
         s.eta = s.tdoze
         s.rdoze()
         if s.active: return
@@ -95,7 +95,7 @@ class CALC:
         if s.can_snail: s.eta -= 1
         else: s.eta = s.tdoze
         if s.eta > 0:
-            with ga().context: tick(s.tdoze/10, Call(s.eye))
+            with ga().context: tick(s.tdoze/10, CallPartial(s.eye))
         else:
             s.active = False
 
@@ -107,7 +107,7 @@ class CALC:
             s.snail[i].color = (0,1,1)
             s.doze_n += 1
         else: s.doze_n = 0
-        tick(s.tdoze/10, Call(s.sdoze))
+        tick(s.tdoze/10, CallPartial(s.sdoze))
 
     """Reset doze"""
     def rdoze(s, i=0):
@@ -172,7 +172,7 @@ class CALC:
                 s.lcd.pixels[a[n+i+10]] = c
         except IndexError: pass
         except: push('Some of Calculator LCD pixels went out of bounds,\nreduce pixels or pick another position.', color=(1,0,0)); s.delete(); return
-        if s.active: tick(0.01, Call(s.blink, c, down))
+        if s.active: tick(0.01, CallPartial(s.blink, c, down))
         else: tick(0.1, s.doze)
 
     """Handle bomb press"""
@@ -188,7 +188,7 @@ class CALC:
     """Small blink after each press"""
     def tink(s, n, b=False):
         n.color_texture = gt(f"ouya{'Y' if b else 'O'}Button")
-        if not b: tick(0.1, Call(s.tink, n, True))
+        if not b: tick(0.1, CallPartial(s.tink, n, True))
 
     """Solve the input"""
     def solve(s):
@@ -237,14 +237,14 @@ class LCD:
             s.pixels[p] = c
             p.color = c
         if i >= (len(l)): return
-        tick(0.015, Call(s.simu,l,c,i+10))
+        tick(0.015, CallPartial(s.simu,l,c,i+10))
 
     """Erase pixels simultaneously"""
     def simue(s, l, i=0):
         a = list(s.pixels)
         if i >= (len(l)): return
         for j in range(10): a[l[i+j]].color = (1,1,1)
-        tick(0.015, Call(s.simue,l,i+10))
+        tick(0.015, CallPartial(s.simue,l,i+10))
 
     """Fill white pixels"""
     def fill(s, c):
@@ -255,7 +255,7 @@ class LCD:
     """Flash the LCD"""
     def flash(s, c=(1,0,0)):
         s.fill(c)
-        tick(1, Call(s.grad, c))
+        tick(1, CallPartial(s.grad, c))
 
     """Gradually cool the LCD"""
     def grad(s, c):
@@ -264,7 +264,7 @@ class LCD:
         c = list(c)
         for i in range(len(c)):
             if c[i] < 1: c[i] += 0.1
-        tick(0.05, Call(s.grad, (c[0],c[1],c[2])))
+        tick(0.05, CallPartial(s.grad, (c[0],c[1],c[2])))
 
     """Clear the LCD"""
     def clear(s):

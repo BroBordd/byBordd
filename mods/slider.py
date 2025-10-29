@@ -13,7 +13,7 @@ from bauiv1 import (
     imagewidget as iw,
     gettexture as gt,
     buttonwidget as bw,
-    Call
+    CallPartial
 )
 
 class Slider:
@@ -27,7 +27,7 @@ class Slider:
                 position=(100+10*i,200),
                 label='',
                 button_type='square',
-                on_activate_call=Call(s.set,i),
+                on_activate_call=CallPartial(s.set,i),
                 size=(10,10),
                 texture=gt('empty')
             )

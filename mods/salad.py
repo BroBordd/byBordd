@@ -19,7 +19,7 @@ from bascenev1 import (
     getcollision as COL,
     StandMessage,
     animate,
-    Call
+    CallPartial
 )
 from bauiv1 import (
     charstr as CS,
@@ -61,7 +61,7 @@ class Salad:
         s.node.getdelegate(object).handlemessage = s.add
         s.fm = __import__('bascenev1lib').gameutils.SharedObjects.get().footing_material
         p = position
-        tick(5,Call(animate,s.text('To the pot\n'+' '*6+CS(SC.DOWN_ARROW),(p[0]-0.5,p[1]+1.5,p[2])),'opacity',{0:1,0.3:0}))
+        tick(5,CallPartial(animate,s.text('To the pot\n'+' '*6+CS(SC.DOWN_ARROW),(p[0]-0.5,p[1]+1.5,p[2])),'opacity',{0:1,0.3:0}))
         p = (p[0]-3.5,p[1]+1.5,p[2])
         s.pour = (p[0]+1,p[1]+2.5,p[2]+1)
         s.p = p

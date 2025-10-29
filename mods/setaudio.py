@@ -19,7 +19,7 @@ from bauiv1 import (
     gettexture as gt,
     textwidget as tw,
     getsound as gs,
-    Call,
+    CallPartial,
     app
 )
 
@@ -38,7 +38,7 @@ class SetAudio(A.AudioSettingsWindow):
                 size=(50,35),
                 label='',
             )
-            bw(b,on_activate_call=Call(s.set,b,i))
+            bw(b,on_activate_call=CallPartial(s.set,b,i))
     def set(s,b,i):
         p = b.get_screen_space_center()
         c = cw(
