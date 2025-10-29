@@ -288,6 +288,14 @@
         "mod_filename_base": "modcast"
     },
     {
+        "mod_name": "NaviBot",
+        "mod_fancy_name": "Node-based navigation with COB collision guide",
+        "mod_version": "3.2",
+        "mod_description": "Key fixes:\n- Edge pruning added to prevent skipping stairs/cliffs (MAX_VERTICAL_STEP).\n- Dot product check implemented for sharp, non-smoothed cornering.\n- Progress-based stuck check added to prevent infinite walking toward walls (NO_PROGRESS_TIME).\n- Velocity check added to prevent falling off cliffs/paths during sharp turns (MAX_TURN_VELOCITY).",
+        "api_version": "N/A",
+        "mod_filename_base": "navibot"
+    },
+    {
         "mod_name": "NewLine",
         "mod_fancy_name": "Break chat lines",
         "mod_version": "1.0",
