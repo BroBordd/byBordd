@@ -36,8 +36,7 @@ def log(msg):
 class NavGraph:
     """Handles navigation mesh loading and pathfinding"""
 
-    # ADJUSTABLE: How much to penalize steep climbs (higher = avoid steep paths more)
-    CLIMB_PENALTY = 5.0  # Multiply edge cost by this when climbing
+    CLIMB_PENALTY = 4
 
     def __init__(self, filename):
         self.nodes = []
@@ -46,6 +45,7 @@ class NavGraph:
         self._load(filename)
 
     def _load(self, filename):
+        filename += "_navguide.json"
         try:
             filepath = os.path.join(app.env.python_directory_user, 'Paths', filename)
 
@@ -101,6 +101,12 @@ class NavGraph:
                 best_dist = dist
                 best_id = node['id']
 
+        # Check if nearest node is too far
+        if best_dist > 10.0:
+            log(f"Nearest node too far: {best_dist:.2f} from pos {pos}")
+            return None
+
+        log(f"Nearest node: {best_id} at distance {best_dist:.2f}")
         return best_id
 
     def find_path(self, start_pos, goal_pos):
@@ -108,7 +114,10 @@ class NavGraph:
         start_id = self.find_nearest_node(start_pos)
         goal_id = self.find_nearest_node(goal_pos)
 
+        log(f"Pathfinding: start_id={start_id}, goal_id={goal_id}")
+
         if start_id is None or goal_id is None:
+            log(f"Cannot find nodes - start_pos={start_pos}, goal_pos={goal_pos}")
             return []
 
         if start_id == goal_id:
@@ -125,7 +134,11 @@ class NavGraph:
 
         f_score = {start_id: heuristic(start_id)}
 
-        while open_set:
+        iterations = 0
+        max_iterations = 10000
+
+        while open_set and iterations < max_iterations:
+            iterations += 1
             current = min(open_set, key=lambda n: f_score.get(n, float('inf')))
 
             if current == goal_id:
@@ -136,6 +149,7 @@ class NavGraph:
                     current = came_from[current]
                 path.reverse()
                 path.append(goal_pos)
+                log(f"Path found: {len(path)} waypoints, {iterations} iterations")
                 return path
 
             open_set.remove(current)
@@ -149,23 +163,23 @@ class NavGraph:
                     f_score[neighbor_id] = tentative_g + heuristic(neighbor_id)
                     open_set.add(neighbor_id)
 
+        log(f"No path found after {iterations} iterations")
         return []
 
 
 class NaviBot:
     """Smart navigation bot for BombSquad"""
 
-    NAV_FILE = "cragCastleLevelCollide_path.json"
-    MAX_VELOCITY = 5.0  # Max horizontal velocity before slowing down
+    MAX_VELOCITY = 6
 
-    def __init__(self, position=(0,0,0), color=(0,0,0), highlight=(0.1,0.1,0.1), character='Pixel'):
+    def __init__(self, navguide: str, position=(0,0,0), color=(0,0,0), highlight=(0.1,0.1,0.1), character='Pixel'):
         # Spawn bot
         self.bot = Spaz(color=color, highlight=highlight, character=character)
         self.bot.handlemessage(bs.StandMessage(position, 0))
         self.node = self.bot.node
 
         # Load navigation graph
-        self.nav = NavGraph(self.NAV_FILE)
+        self.nav = NavGraph(navguide)
         if not self.nav.loaded:
             print("[NaviBot] Failed to load navigation data")
             return
@@ -186,7 +200,7 @@ class NaviBot:
         # Height tracking for vertical movement
         self.vertical_progress_start = None
         self.last_height = None
-        
+
         # Velocity control
         self.run_multiplier = 1.0  # Controls run intensity (0 to 1)
 
@@ -242,11 +256,11 @@ class NaviBot:
         """Monitor velocity and adjust run_multiplier to prevent falling"""
         if not self.node or not self.node.exists():
             return
-        
+
         try:
             vx, vy, vz = self.node.velocity
             horizontal_speed = sqrt(vx**2 + vz**2)
-            
+
             if horizontal_speed > self.MAX_VELOCITY:
                 # Too fast! Stop running to slow down
                 self.run_multiplier = 0.0
@@ -271,7 +285,7 @@ class NaviBot:
         except:
             self.stop()
             return
-        
+
         # Check velocity to prevent falling from momentum
         self._check_velocity()
 
@@ -282,7 +296,7 @@ class NaviBot:
             (pos[2] - self.target[2])**2
         )
 
-        if dist_to_target < 0.5:
+        if dist_to_target < 0.6:
             log("Target reached!")
             self._speak("Target acquired")
             self.yay()
@@ -329,7 +343,7 @@ class NaviBot:
 
         # CRITICAL: Handle vertical movement specially
         # If waypoint is significantly above us, we're climbing
-        if height_diff > 0:
+        if height_diff > 0.3:
             # We're going uphill - TINY distance threshold
 
             if self.vertical_progress_start is None:
@@ -371,7 +385,7 @@ class NaviBot:
         dz = waypoint[2] - pos[2]
         dist = sqrt(dx*dx + dz*dz)
 
-        if dist > 0.01:
+        if dist > 0.1:
             move_x = dx / dist
             move_z = dz / dist
             self._move(move_x, move_z)
@@ -398,7 +412,7 @@ class NaviBot:
         if self.current_waypoint < len(self.path):
             wp = self.path[self.current_waypoint]
             dist = sqrt((pos[0]-wp[0])**2 + (pos[2]-wp[2])**2)
-            if dist > 5.0:
+            if dist > 1:
                 return True
 
         return False
@@ -422,17 +436,21 @@ class NaviBot:
 
 
 # Test function
-def spawn_test_bot():
+def debug():
     """Spawn a test bot for debugging"""
+#    pos = __import__('coolbox').getme(1).node.position
+    pos = (0,6,0)
     bot = NaviBot(
-        position=(0, 5, 0),
-        color=(0, 0, 0),
-        highlight=(0.1, 0.1, 0.1),
-        character='Pixel'
+        position=pos,
+        color=(0,0,0),
+        highlight=(0.1,0.1,0.1),
+        character='Pixel',
+        navguide='cragCastle'
+#        navguide='stepRightUp'
     )
 
-    # Command it to move somewhere
-    bot.move_to_point(10, 5, -5)
+#    target = (x,y,z)
+#    bot.move_to_point(target)
 
     print("[Test] NaviBot spawned")
     return bot
