@@ -132,7 +132,7 @@ class PlugTools(TAB):
                 s.bad.append(_)
             s.eye = eye
             b = 1
-        if nu:
+        if nu and nu[0]:
             l = len(nu)
             push(f"Found {l} new plugin{['s',''][l==1]}:\n{', '.join(nu)}\nSee what to do with {['it','them'][l!=1]}",color=(1,1,0))
             gs('dingSmallHigh').play()
