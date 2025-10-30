@@ -38,16 +38,14 @@ class NavGraph:
 
     CLIMB_PENALTY = 4
 
-    def __init__(self, filename):
+    def __init__(self, filepath):
         self.nodes = []
         self.edges = {}
         self.loaded = False
-        self._load(filename)
+        self._load(filepath)
 
-    def _load(self, filename):
-        filename += "_navguide.json"
+    def _load(self, filepath):
         try:
-            filepath = os.path.join(app.env.python_directory_user, 'Paths', filename)
 
             if not os.path.exists(filepath):
                 print(f"[NavGraph] File not found: {filepath}")
@@ -177,6 +175,7 @@ class NaviBot:
         self.bot = Spaz(color=color, highlight=highlight, character=character)
         self.bot.handlemessage(bs.StandMessage(position, 0))
         self.node = self.bot.node
+        self.node.name = self.__class__.__name__
 
         # Load navigation graph
         self.nav = NavGraph(navguide)
@@ -203,14 +202,14 @@ class NaviBot:
 
         # Velocity control
         self.run_multiplier = 1.0  # Controls run intensity (0 to 1)
-
+        self.pinch = False
         self._speak("NaviBot online")
         log("Initialized")
 
     def _speak(self, text):
         """Display dialogue bubble if available"""
         if HAS_BUBBLE and self.node and self.node.exists():
-            Bubble(node=self.node, text=text, time=2.0, color=self.node.color)
+            Bubble(node=self.node, text=text, time=3.0, color=self.node.name_color)
 
     def yay(self):
         """Yay"""
@@ -220,6 +219,7 @@ class NaviBot:
         """Command bot to navigate to target position"""
         self.target = (x, y, z)
         self.path = []
+        self.pinch = False
         self.current_waypoint = 0
         self.stuck_counter = 0
         self.vertical_progress_start = None
@@ -227,7 +227,7 @@ class NaviBot:
         self.run_multiplier = 1.0
 
         log(f"New target: {self.target}")
-        self._speak("Moving out!")
+        self._speak("Moving!")
 
         # Start update loops
         if self.update_timer is None:
@@ -310,11 +310,13 @@ class NaviBot:
             self.vertical_progress_start = None
 
             if not self.path:
-                log("No path found")
-                self._speak("Path blocked")
+                if not self.pinch:
+                    log("No path found")
+                    self._speak("Path blocked")
+                    self.pinch = True
                 self._move(0, 0)
                 return
-
+            self.pinch = False
             log(f"Path calculated: {len(self.path)} waypoints")
 
         # Check for being stuck
@@ -435,22 +437,17 @@ class NaviBot:
         return self.stuck_counter > 30  # ~1.5 seconds of no movement
 
 
-# Test function
-def debug():
-    """Spawn a test bot for debugging"""
-#    pos = __import__('coolbox').getme(1).node.position
-    pos = (0,6,0)
+def spawn(pos=None):
+    map = bs.getactivity().map
+    pos = pos or map.ffa_spawn_points[0]
+    filename = str(map.node.collision_mesh).split('"')[1]+"_navguide.json"
+    filepath = os.path.join(app.env.python_directory_user, 'Paths', filename)
     bot = NaviBot(
         position=pos,
         color=(0,0,0),
         highlight=(0.1,0.1,0.1),
         character='Pixel',
-        navguide='cragCastle'
-#        navguide='stepRightUp'
+        navguide=filepath
     )
 
-#    target = (x,y,z)
-#    bot.move_to_point(target)
-
-    print("[Test] NaviBot spawned")
     return bot
