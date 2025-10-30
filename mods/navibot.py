@@ -72,7 +72,7 @@ class NavGraph:
 
                         # PENALIZE UPHILL EDGES
                         height_diff = neighbor_pos[1] - pos[1]
-                        if height_diff > 0.2:  # Going uphill
+                        if height_diff > 0:
                             dist *= self.CLIMB_PENALTY  # Make steep paths "longer"
 
                         self.edges[node_id].append((neighbor_id, dist))
@@ -156,6 +156,7 @@ class NaviBot:
     """Smart navigation bot for BombSquad"""
 
     NAV_FILE = "cragCastleLevelCollide_path.json"
+    MAX_VELOCITY = 5.0  # Max horizontal velocity before slowing down
 
     def __init__(self, position=(0,0,0), color=(0,0,0), highlight=(0.1,0.1,0.1), character='Pixel'):
         # Spawn bot
@@ -185,6 +186,9 @@ class NaviBot:
         # Height tracking for vertical movement
         self.vertical_progress_start = None
         self.last_height = None
+        
+        # Velocity control
+        self.run_multiplier = 1.0  # Controls run intensity (0 to 1)
 
         self._speak("NaviBot online")
         log("Initialized")
@@ -194,6 +198,10 @@ class NaviBot:
         if HAS_BUBBLE and self.node and self.node.exists():
             Bubble(node=self.node, text=text, time=2.0, color=self.node.color)
 
+    def yay(self):
+        """Yay"""
+        self.node.handlemessage('celebrate',200)
+
     def move_to_point(self, x, y, z):
         """Command bot to navigate to target position"""
         self.target = (x, y, z)
@@ -202,6 +210,7 @@ class NaviBot:
         self.stuck_counter = 0
         self.vertical_progress_start = None
         self.last_height = None
+        self.run_multiplier = 1.0
 
         log(f"New target: {self.target}")
         self._speak("Moving out!")
@@ -224,10 +233,31 @@ class NaviBot:
             self.bot.on_run(0)
 
     def _abuse_movement(self):
-        """Abuse timer for 90 degree breaks (mandatory)"""
+        """Abuse timer for 90 degree breaks (mandatory) - uses run_multiplier"""
         if self.bot.exists():
             self.bot.on_run(0)
-            bs.timer(0.02, lambda: self.bot.on_run(1))
+            bs.timer(0.02, lambda: self.bot.on_run(self.run_multiplier))
+
+    def _check_velocity(self):
+        """Monitor velocity and adjust run_multiplier to prevent falling"""
+        if not self.node or not self.node.exists():
+            return
+        
+        try:
+            vx, vy, vz = self.node.velocity
+            horizontal_speed = sqrt(vx**2 + vz**2)
+            
+            if horizontal_speed > self.MAX_VELOCITY:
+                # Too fast! Stop running to slow down
+                self.run_multiplier = 0.0
+                log(f"Velocity too high: {horizontal_speed:.2f}, cooling down")
+            else:
+                # Safe speed, resume running
+                if self.run_multiplier < 1.0:
+                    self.run_multiplier = 1.0
+                    log(f"Velocity safe: {horizontal_speed:.2f}, resuming")
+        except:
+            pass
 
     def _update(self):
         """Main navigation update loop"""
@@ -241,6 +271,9 @@ class NaviBot:
         except:
             self.stop()
             return
+        
+        # Check velocity to prevent falling from momentum
+        self._check_velocity()
 
         # Check if we reached the target
         dist_to_target = sqrt(
@@ -252,6 +285,7 @@ class NaviBot:
         if dist_to_target < 0.5:
             log("Target reached!")
             self._speak("Target acquired")
+            self.yay()
             self.stop()
             return
 
@@ -295,7 +329,7 @@ class NaviBot:
 
         # CRITICAL: Handle vertical movement specially
         # If waypoint is significantly above us, we're climbing
-        if height_diff > 0.3:
+        if height_diff > 0:
             # We're going uphill - TINY distance threshold
 
             if self.vertical_progress_start is None:
@@ -352,7 +386,8 @@ class NaviBot:
         if self.bot.exists():
             self.bot.on_move_left_right(x)
             self.bot.on_move_up_down(-z)
-            self.bot.on_run(1 if (x != 0 or z != 0) else 0)
+            # Always call on_run with run_multiplier (controlled by velocity check)
+            self.bot.on_run(self.run_multiplier if (x != 0 or z != 0) else 0)
 
     def _should_replan(self, pos):
         """Check if path needs recalculation"""
@@ -401,4 +436,3 @@ def spawn_test_bot():
 
     print("[Test] NaviBot spawned")
     return bot
-
