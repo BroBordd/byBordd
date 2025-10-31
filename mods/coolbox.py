@@ -87,12 +87,12 @@ from bascenev1lib.actor.spaz import Spaz
 from traceback import format_exc as ERR
 from zlib import compress, decompress
 from inspect import signature as SIG
-from os.path import join, dirname
+from os.path import join, dirname, exists, abspath
 from math import dist, sqrt, ceil
 from weakref import ref as REF
 from time import time_ns as NS
 from json import dumps, loads
-from os import listdir as ls
+from os import listdir as ls, getcwd
 from uuid import uuid4
 
 class Coolbox:
@@ -5109,7 +5109,27 @@ class About:
 # Stored as callabes and only called when needed
 # Very beneficial for performance and memory
 def D(): d = APP.classic.spaz_appearances; [d.pop(i) for i in d.copy() if i != 'Pascal' and d[i].default_color == (0.3,0.5,0.8)]; return d
-BASE = lambda: join(dirname(APP.env.cache_directory),'ballistica_files','ba_data')
+_INIT_CWD = getcwd()
+def BASE():
+    app_py_dir = getattr(APP.env, "python_directory_app", None)
+    if app_py_dir:
+        base_from_app = join(
+            dirname(dirname(abspath(app_py_dir))),
+            "ba_data"
+        )
+        if exists(base_from_app):
+            return base_from_app
+
+    base_from_cwd = join(_INIT_CWD, "ba_data")
+    if exists(base_from_cwd):
+        return base_from_cwd
+
+    return join(
+        dirname(APP.env.cache_directory),
+        "ballistica_files",
+        "ba_data"
+    )
+#BASE = lambda: join(dirname(APP.env.cache_directory),'ballistica_files','ba_data')
 NAME = lambda: list(D())
 SPAZ = lambda: list(D().values())
 KIDS = lambda: [i for i in GN() if i.getnodetype() == 'spaz']
