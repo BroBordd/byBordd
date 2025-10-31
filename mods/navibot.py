@@ -5,6 +5,9 @@
 """
 NaviBot v1.0 - Mission: Navigate.
 
+Included in NaviKit plugin already.
+Should be used from there.
+
 NaviBot uses A* pathfinding using a navigation graph of walkable triangles.
 Relies on mapLevelCollide cob mesh, baked as a json using pathmaker.
 
