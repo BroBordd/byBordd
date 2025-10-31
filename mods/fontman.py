@@ -5,11 +5,12 @@
 """
 FontMan v1.0 - Font Manager
 
+Adds a button in settings menu. Experimental.
 Change the game's font easily to any TTF you want.
-Adds a button in settings menu.
 
-Use font2bs to generate projects, and put them in mods/FontMan
-See exact steps on github: https://github.com/BroBordd/font2bs
+FontMan reads your project folders from <mods>/FontMan/*
+- To convert your own TTF font into a FontMan project, use my font2bs tool. See exact steps on github: https://github.com/BroBordd/font2bs
+- Alternatively, you can get premade projects from byBordd/examples/fontman here: https://github.com/BroBordd/byBordd/tree/main/examples/fontman
 """
 
 import os
@@ -377,7 +378,26 @@ class FontMan(bui.MainWindow):
 
 # resources
 core = lambda: op.join(bui.app.env.python_directory_user,'FontMan')
-base = lambda: op.join(op.dirname(bui.app.env.cache_directory),'ballistica_files','ba_data')
+_INIT_CWD = os.getcwd()
+def base():
+    app_py_dir = getattr(bui.app.env, "python_directory_app", None)
+    if app_py_dir:
+        base_from_app = op.join(
+            op.dirname(op.dirname(op.abspath(app_py_dir))),
+            "ba_data"
+        )
+        if op.exists(base_from_app):
+            return base_from_app
+
+    base_from_cwd = op.join(_INIT_CWD, "ba_data")
+    if op.exists(base_from_cwd):
+        return base_from_cwd
+
+    return op.join(
+        op.dirname(bui.app.env.cache_directory),
+        "ballistica_files",
+        "ba_data"
+    )
 
 # brobord collide grass
 # ba_meta require api 9
