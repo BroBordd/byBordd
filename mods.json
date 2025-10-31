@@ -83,7 +83,7 @@
         "mod_name": "FontMan",
         "mod_fancy_name": "Font Manager",
         "mod_version": "1.0",
-        "mod_description": "Change the game's font easily to any TTF you want.\nAdds a button in settings menu.\n\nUse font2bs to generate projects, and put them in mods/FontMan\nSee exact steps on github: https://github.com/BroBordd/font2bs",
+        "mod_description": "Adds a button in settings menu. Experimental.\nChange the game's font easily to any TTF you want.\n\nFontMan reads your project folders from <mods>/FontMan/*\n- To convert your own TTF font into a FontMan project, use my font2bs tool. See exact steps on github: https://github.com/BroBordd/font2bs\n- Alternatively, you can get premade projects from byBordd/examples/fontman here: https://github.com/BroBordd/byBordd/tree/main/examples/fontman",
         "api_version": 9,
         "mod_filename_base": "fontman"
     },
