@@ -6,7 +6,7 @@
 UEye v1.0 - Real-Time UI Debugger
 
 Your eye for UI. Adds a dev console tab.
-Ability to modify any visible UI without having its references.
+Ability to tweak any visible UI without having its references.
 Experimental.
 """
 
@@ -44,8 +44,17 @@ class UEye(TAB):
     def safe_refresh(s):
         try: s.request_refresh()
         except RuntimeError: pass
+    def check(s,t,size,i=1):
+        z = {'suppress_warning':1}
+        w = bui.get_string_width(t,**z)
+        h = bui.get_string_height(t,**z)
+        x,y = size
+        return min(
+            i if w < x else x/w,
+            i if h < y else y/h
+        )
     def up(s):
-        containers = [(g,at) for g,at in MEM.items() if g[0] == 'containerwidget']
+        containers = MEM.items()
         num_containers = len(containers)
         if num_containers == 0: return
 
@@ -61,6 +70,7 @@ class UEye(TAB):
 
             button_width = grid_width / cols
             button_height = grid_height / rows
+            size = (button_width,button_height)
 
             start_x = -s.width / 2
             start_y = 0
@@ -74,25 +84,21 @@ class UEye(TAB):
                 pos_x = start_x + (current_col * button_width)
                 pos_y = start_y + (current_row * button_height)
 
-                guess = kwargs.get('text',0) or kwargs.get('label',0) or text[:-6]
-                if hasattr(guess,'evaluate'):
-                    guess = guess.evaluate()
-                
                 style = s.CONTAINER_HOT if s.hot else (s.CONTAINER_OFF if s.sl != g else s.CONTAINER_ON)
                 
                 s.button(
                     '',
-                    size=(button_width, button_height),
+                    size=size,
                     pos=(pos_x, pos_y),
                     call=bui.CallPartial(s.expand_container,g) if not s.hot else bui.CallPartial(s.pick,widget),
                     style=style,
                     corner_radius=10
                 )
-                chk = bui.get_string_width(guess,suppress_warning=True)
+                t = text[:-6]
                 s.text(
-                    guess,
+                    t,
                     pos=(pos_x+button_width/2, pos_y+button_height/2),
-                    scale=1 if chk<button_width else button_width/chk,
+                    scale=s.check(t,size),
                     style='normal'
                 )
         else:
@@ -110,10 +116,11 @@ class UEye(TAB):
                 style=s.BACK_BUTTON,
                 corner_radius=10
             )
-            
+
+            size = (grid_width - back_button_width, header_height)
             s.button(
                 '',
-                size=(grid_width - back_button_width, header_height),
+                size=size,
                 pos=(-s.width/2 + back_button_width, grid_height - header_height),
                 call=bui.CallPartial(s.pick,widget) if s.hot else bui.CallPartial(s.edit,s.expanded),
                 style=s.HEADER_BUTTON_HOT if s.hot else s.HEADER_BUTTON_ON if is_selected else s.HEADER_BUTTON_OFF,
@@ -121,12 +128,11 @@ class UEye(TAB):
             )
             
             label_text = f'Inside container at {hex(id(widget))} - Click to '+['debug','pick'][s.hot]
-            chk = bui.get_string_width(label_text,suppress_warning=True)
             max_label_width = grid_width - back_button_width - 20
             s.text(
                 label_text,
                 pos=(back_button_width/2, grid_height - header_height/2),
-                scale=1 if chk<max_label_width else max_label_width/chk,
+                scale=s.check(label_text,size),
                 style='normal'
             )
             
@@ -168,21 +174,27 @@ class UEye(TAB):
                         is_selected = s.sl and s.sl[1] == child
                         child_style = s.WIDGET_ON if is_selected else s.WIDGET_OFF
                         child_call = bui.CallPartial(s.edit,(child_type+'widget',child)) if not is_selected else bui.CallPartial(s.show,child)
-                    
+
+                    size = (child_width, child_height)
                     s.button(
                         '',
-                        size=(child_width, child_height),
+                        size=size,
                         pos=(pos_x, pos_y),
                         call=child_call,
                         style=child_style,
                         corner_radius=5
                     )
-                    
-                    chk = bui.get_string_width(child_type,suppress_warning=True)
+                    guess = (
+                        ORG['textwidget'](query=child) if child_type == 'text' else
+                        child_type
+                    )
+                    try: guess = bui.Lstr.from_json(guess).evaluate()
+                    except: pass
+                    chk = s.check(guess,size)
                     s.text(
-                        child_type,
+                        guess,
                         pos=(pos_x+child_width/2, pos_y+child_height/2),
-                        scale=0.8 if chk<child_width else (child_width*0.8)/chk,
+                        scale=s.check(guess,size,0.8),
                         style='normal'
                     )
             else:
@@ -204,8 +216,12 @@ class UEye(TAB):
         s.safe_refresh()
     
     def edit(s,g):
+        widget = g[1]
+        if not widget.exists():
+            bui.getsound('block').play()
+            return
         if s.sl == g:
-            s.show(g[1])
+            s.show(widget)
             return
         if s.editor: s.editor.bye()
         s.sl = g
