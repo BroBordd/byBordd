@@ -21,73 +21,201 @@ from babase._devconsole import (
 )
 
 class UEye(TAB):
+    CONTAINER_OFF = 'purple'
+    CONTAINER_ON = 'purple_bright'
+    CONTAINER_HOT = 'red'
+    WIDGET_OFF = 'blue'
+    WIDGET_ON = 'black'
+    WIDGET_HOT = 'red'
+    BACK_BUTTON = 'red_bright'
+    HEADER_BUTTON_OFF = 'black_bright'
+    HEADER_BUTTON_ON = 'black'
+    HEADER_BUTTON_HOT = 'red'
+    EMPTY_STATE = 'faded'
     def __init__(s):
         s.sl = s.editor = s.shower = None
         s.hot = False
+        s.expanded = None
     def refresh(s):
         if s.sl and not (getattr(s.sl[1],'exists',lambda:0)()): s.sl = None
         s.up()
+    def deek(s):
+        bui.getsound('deek').play()
     def safe_refresh(s):
         try: s.request_refresh()
         except RuntimeError: pass
     def up(s):
-        num_items = len(MEM)
-        if num_items == 0: return
+        containers = [(g,at) for g,at in MEM.items() if g[0] == 'containerwidget']
+        num_containers = len(containers)
+        if num_containers == 0: return
 
         grid_width = s.width
         grid_height = s.height
         if grid_height <= 0: return
 
-        desired_ratio = 200 / 50
+        if s.expanded is None:
+            desired_ratio = 200 / 50
+            sqrt_val = (grid_width * num_containers) / (grid_height * desired_ratio)
+            cols = max(1, round(sqrt_val ** 0.5))
+            rows = (num_containers + cols - 1) // cols
 
-        sqrt_val = (grid_width * num_items) / (grid_height * desired_ratio)
-        cols = max(1, round(sqrt_val ** 0.5))
+            button_width = grid_width / cols
+            button_height = grid_height / rows
 
-        rows = (num_items + cols - 1) // cols
+            start_x = -s.width / 2
+            start_y = 0
 
-        button_width = grid_width / cols
-        button_height = grid_height / rows
+            for i,(g,at) in enumerate(containers):
+                text, widget = g
+                args, kwargs = at
+                current_row = i // cols
+                current_col = i % cols
 
-        start_x = -s.width / 2
-        start_y = 0
+                pos_x = start_x + (current_col * button_width)
+                pos_y = start_y + (current_row * button_height)
 
-        for i,h in enumerate(MEM.items()):
-            g,at = h
-            text, widget = g
-            args, kwargs = at
-            current_row = i // cols
-            current_col = i % cols
-
-            pos_x = start_x + (current_col * button_width)
-            pos_y = start_y + (current_row * button_height)
-
-            guess = (
-                kwargs.get('text',0) or
-                kwargs.get('label',0) or
-                text[:-6]
-            )
-            if hasattr(guess,'evaluate'):
-                guess = guess.evaluate()
+                guess = kwargs.get('text',0) or kwargs.get('label',0) or text[:-6]
+                if hasattr(guess,'evaluate'):
+                    guess = guess.evaluate()
+                
+                style = s.CONTAINER_HOT if s.hot else (s.CONTAINER_OFF if s.sl != g else s.CONTAINER_ON)
+                
+                s.button(
+                    '',
+                    size=(button_width, button_height),
+                    pos=(pos_x, pos_y),
+                    call=bui.CallPartial(s.expand_container,g) if not s.hot else bui.CallPartial(s.pick,widget),
+                    style=style,
+                    corner_radius=10
+                )
+                chk = bui.get_string_width(guess,suppress_warning=True)
+                s.text(
+                    guess,
+                    pos=(pos_x+button_width/2, pos_y+button_height/2),
+                    scale=1 if chk<button_width else button_width/chk,
+                    style='normal'
+                )
+        else:
+            text, widget = s.expanded
+            is_selected = s.sl and s.sl[1] == widget
+            
+            header_height = 50
+            back_button_width = 60
+            
             s.button(
-                '',
-                size=(button_width, button_height),
-                pos=(pos_x, pos_y),
-                call=bui.CallPartial(s.pick,widget) if s.hot else (bui.CallPartial(s.edit,g) if s.sl != g else bui.CallPartial(s.show,widget)),
-                style='yellow' if s.hot else ('purple' if s.sl != g else 'purple_bright'),
+                bui.charstr(bui.SpecialChar.BACK),
+                size=(back_button_width, header_height),
+                pos=(-s.width/2, grid_height - header_height),
+                call=bui.CallPartial(s.collapse_container),
+                style=s.BACK_BUTTON,
                 corner_radius=10
             )
-            chk = bui.get_string_width(guess,suppress_warning=True)
-            s.text(
-                guess,
-                pos=(pos_x+button_width/2, pos_y+button_height/2),
-                scale=1 if chk<button_width else button_width/chk
+            
+            s.button(
+                '',
+                size=(grid_width - back_button_width, header_height),
+                pos=(-s.width/2 + back_button_width, grid_height - header_height),
+                call=bui.CallPartial(s.pick,widget) if s.hot else bui.CallPartial(s.edit,s.expanded),
+                style=s.HEADER_BUTTON_HOT if s.hot else s.HEADER_BUTTON_ON if is_selected else s.HEADER_BUTTON_OFF,
+                corner_radius=10
             )
+            
+            label_text = f'Inside container at {hex(id(widget))} - Click to '+['debug','pick'][s.hot]
+            chk = bui.get_string_width(label_text,suppress_warning=True)
+            max_label_width = grid_width - back_button_width - 20
+            s.text(
+                label_text,
+                pos=(back_button_width/2, grid_height - header_height/2),
+                scale=1 if chk<max_label_width else max_label_width/chk,
+                style='normal'
+            )
+            
+            try:
+                children = widget.get_children()
+            except:
+                children = []
+            
+            margin = 20 if s.height > 100 else 0
+            inner_width = grid_width - 2 * margin
+            inner_height = grid_height - header_height - 2 * margin
+            
+            if children:
+                num_children = len(children)
+                desired_ratio = 150 / 40
+                sqrt_val = (inner_width * num_children) / (inner_height * desired_ratio)
+                child_cols = max(1, round(sqrt_val ** 0.5))
+                child_rows = (num_children + child_cols - 1) // child_cols
+
+                child_width = inner_width / child_cols
+                child_height = inner_height / child_rows
+
+                start_x = -s.width / 2 + margin
+                start_y = margin
+
+                for i, child in enumerate(children):
+                    current_row = i // child_cols
+                    current_col = i % child_cols
+
+                    pos_x = start_x + (current_col * child_width)
+                    pos_y = start_y + (current_row * child_height)
+
+                    child_type = child.get_widget_type()
+                    
+                    if s.hot:
+                        child_style = s.WIDGET_HOT
+                        child_call = bui.CallPartial(s.pick,child)
+                    else:
+                        is_selected = s.sl and s.sl[1] == child
+                        child_style = s.WIDGET_ON if is_selected else s.WIDGET_OFF
+                        child_call = bui.CallPartial(s.edit,(child_type+'widget',child)) if not is_selected else bui.CallPartial(s.show,child)
+                    
+                    s.button(
+                        '',
+                        size=(child_width, child_height),
+                        pos=(pos_x, pos_y),
+                        call=child_call,
+                        style=child_style,
+                        corner_radius=5
+                    )
+                    
+                    chk = bui.get_string_width(child_type,suppress_warning=True)
+                    s.text(
+                        child_type,
+                        pos=(pos_x+child_width/2, pos_y+child_height/2),
+                        scale=0.8 if chk<child_width else (child_width*0.8)/chk,
+                        style='normal'
+                    )
+            else:
+                s.text(
+                    'No children' if widget.exists() else "I'm dead",
+                    pos=(0, (grid_height - header_height)/2),
+                    scale=1.5,
+                    style=s.EMPTY_STATE
+                )
+    
+    def expand_container(s,g):
+        s.deek()
+        s.expanded = g
+        s.safe_refresh()
+    
+    def collapse_container(s):
+        s.deek()
+        s.expanded = None
+        s.safe_refresh()
+    
     def edit(s,g):
-        s.sl = g
+        if s.sl == g:
+            s.show(g[1])
+            return
         if s.editor: s.editor.bye()
+        s.sl = g
         s.editor = Editor(g)
         s.safe_refresh()
     def show(s,w):
+        if not w.exists():
+            bui.getsound('block').play()
+            return
+        s.deek()
         if s.shower: s.shower.decay()
         s.shower = Shower(w)
         bui.apptimer(1,s.shower.decay)
@@ -111,16 +239,13 @@ class Editor:
     def __init__(s,g):
         s.sl = None
         s.trash = []
-        # sound
         wop = bui.getsound('powerup01')
         wop.play()
         bui.apptimer(0.15,wop.stop)
-        # ui
         x,y = s.x,s.y = (600,450)
         s.opacity = 0.7
         s.what, s.widget = g
         snipe = s.widget.get_screen_space_center()
-        # root
         s.root = ORG['containerwidget'](
             parent=bui.get_special_widget('overlay_stack'),
             size=(x,y),
@@ -128,7 +253,6 @@ class Editor:
             scale_origin_stack_offset=snipe,
             transition='in_scale'
         )
-        # shadow
         ORG['imagewidget'](
             parent=s.root,
             position=(-x*0.1,-y*0.1),
@@ -137,7 +261,6 @@ class Editor:
             opacity=s.opacity,
             color=s.COL0
         )
-        # bg
         ORG['imagewidget'](
             parent=s.root,
             position=(-1,-1),
@@ -146,7 +269,6 @@ class Editor:
             color=s.COL0,
             opacity=s.opacity
         )
-        # bye
         s.backb = ORG['buttonwidget'](
             parent=s.root,
             position=(20,y-70),
@@ -159,7 +281,6 @@ class Editor:
             on_activate_call=lambda:s.bye(manual=True) or bui.getsound('laser').play(),
             enable_sound=False
         )
-        # title dock
         px,py = 90,y-70-2
         dx,dy = x-110,50+4
         ORG['imagewidget'](
@@ -170,17 +291,15 @@ class Editor:
             size=(dx,dy),
             opacity=s.opacity
         )
-        # title
         ORG['textwidget'](
             parent=s.root,
-            text=f'{s.what} at {hex(id(s.widget))}',
+            text=f'{s.what[:-6]} at {hex(id(s.widget))}',
             h_align='center',
             v_align='center',
             maxwidth=dx-20,
             position=(px+dx/2.23,py+dy/4-2),
             color=s.COL3
         )
-        # attr scroll
         fx,fy = x/2-20,y-110
         p0 = ORG['scrollwidget'](
             parent=s.root,
@@ -189,7 +308,6 @@ class Editor:
             border_opacity=0,
             color=s.COL2
         )
-        # attr root
         s.attrs = inspect(ORG[s.what],bad=['edit'])
         ry = max(fy-5,len(s.attrs)*30)
         p1 = ORG['containerwidget'](
@@ -197,7 +315,6 @@ class Editor:
             background=False,
             size=(fx,ry)
         )
-        # attr bg
         ORG['imagewidget'](
             parent=p1,
             size=(fx+2,ry*1.5),
@@ -206,7 +323,6 @@ class Editor:
             color=s.COL1,
             opacity=s.opacity
         )
-        # scoller bg
         ORG['imagewidget'](
             parent=p1,
             size=(20,ry),
@@ -215,7 +331,6 @@ class Editor:
             color=s.COL1,
             opacity=1
         )
-        # attrs
         s.kids = []
         for i,a in enumerate(s.attrs):
             w = ORG['textwidget'](
@@ -234,13 +349,11 @@ class Editor:
                 w,on_activate_call=bui.CallPartial(s.select,w,a)
             )
             s.kids.append(w)
-        # finally
         s.make()
     def clean(s):
         for _ in s.trash: _.delete()
     def make(s):
         s.clean()
-        # setters
         ops = ['String','Bool','Widget','Color','Eval','Hint']
         by = (s.y-110)/len(ops)
         s.mx = s.x/2+20
@@ -272,17 +385,14 @@ class Editor:
         if not s.root: return
         ORG['containerwidget'](s.root,transition='out_scale')
     def action(s,_):
-        # safe
         if _ == 'Hint':
             if s.sl is None:
                 bui.getsound('block').play()
                 bui.screenmessage('Select an attribute to grab hints from!',color=s.COL3)
                 return
         else: s.clean()
-        # menus
         match _:
             case 'String':
-                # tip
                 s.trash.append(ORG['textwidget'](
                     parent=s.root,
                     text='Enter raw text here:',
@@ -290,7 +400,6 @@ class Editor:
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                # input
                 tw = ORG['textwidget'](
                     parent=s.root,
                     editable=True,
@@ -303,7 +412,6 @@ class Editor:
                     glow_type='uniform'
                 )
                 s.trash.append(tw)
-                # apply
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-215),
@@ -327,7 +435,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # bye
                 backb = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-265),
@@ -342,7 +449,6 @@ class Editor:
                 s.trash.append(backb)
                 ORG['containerwidget'](s.root,cancel_button=backb)
             case 'Bool':
-                # yes
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-135),
@@ -366,7 +472,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # no
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-185),
@@ -390,7 +495,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # bye
                 backb = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-235),
@@ -405,7 +509,6 @@ class Editor:
                 s.trash.append(backb)
                 ORG['containerwidget'](s.root,cancel_button=backb)
             case 'Widget':
-                # tip
                 s.trash.append(ORG['textwidget'](
                     parent=s.root,
                     text='Now select a widget\nfrom the UEye tab',
@@ -413,7 +516,6 @@ class Editor:
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                # bye
                 backb = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-205),
@@ -431,7 +533,6 @@ class Editor:
                 )
                 s.trash.append(backb)
                 ORG['containerwidget'](s.root,cancel_button=backb)
-                # picker
                 byBordd.INS.picker(on_pick=lambda widget:(
                     (e:=tri(
                         s.what,
@@ -452,7 +553,6 @@ class Editor:
                 color = None
                 blind = lambda r,g,b:0 if(0.299*r+0.587*g+0.114*b)>0.5 else 1
                 rcol = lambda: tuple(round(random(),2) for _ in range(3))
-                # color scroll
                 p0 = ORG['scrollwidget'](
                     parent=s.root,
                     position=(s.mx-11,220),
@@ -461,14 +561,12 @@ class Editor:
                     color=s.COL2
                 )
                 s.trash.append(p0)
-                # color root
                 all = 52*20
                 p1 = ORG['containerwidget'](
                     parent=p0,
                     background=False,
                     size=(s.mx-56,all)
                 )
-                # color bg
                 ORG['imagewidget'](
                     parent=p1,
                     texture=bui.gettexture('white'),
@@ -477,7 +575,6 @@ class Editor:
                     size=(s.mx,all*1.5),
                     opacity=s.opacity
                 )
-                # color scroll bg
                 ORG['imagewidget'](
                     parent=p1,
                     texture=bui.gettexture('white'),
@@ -486,7 +583,6 @@ class Editor:
                     position=(s.mx-63,-all/4),
                     size=(10,all*1.5),
                 )
-                # make color kids
                 ckids = []
                 for j in range(20):
                     for i in range(5):
@@ -498,7 +594,6 @@ class Editor:
                             texture=bui.gettexture('white'),
                             enable_sound=False
                         ))
-                # colorize color kids
                 def cckids():
                     f = ORG['buttonwidget']
                     for k in ckids:
@@ -508,7 +603,6 @@ class Editor:
                             color=c,
                             on_activate_call=bui.CallPartial(cset,c)
                         )
-                # set color
                 def cset(c):
                     bui.getsound('deek').play()
                     nonlocal color
@@ -519,7 +613,6 @@ class Editor:
                         label=f'{choice(LOREM())} {choice(IPSUM())}',
                         textcolor=[s.COL0,s.COL2][blind(*c)]
                     )
-                # color preview
                 pre = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,125),
@@ -532,7 +625,6 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(pre)
-                # color randomizer
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,175),
@@ -549,7 +641,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # apply
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,75),
@@ -573,7 +664,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # bye
                 backb = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,25),
@@ -590,11 +680,9 @@ class Editor:
                 )
                 ORG['containerwidget'](s.root,cancel_button=backb)
                 s.trash.append(backb)
-                # finally
                 cckids()
                 cset(rcol())
             case 'Eval':
-                # tip
                 s.trash.append(ORG['textwidget'](
                     parent=s.root,
                     text='Enter something to evaluate.\nYou can use globals that are\ndefined in ueye.py',
@@ -602,7 +690,6 @@ class Editor:
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                # input
                 tw = ORG['textwidget'](
                     parent=s.root,
                     editable=True,
@@ -615,7 +702,6 @@ class Editor:
                     glow_type='uniform'
                 )
                 s.trash.append(tw)
-                # apply
                 s.trash.append(ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-255),
@@ -640,7 +726,6 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                # bye
                 backb = ORG['buttonwidget'](
                     parent=s.root,
                     position=(s.mx,s.y-305),
@@ -670,7 +755,8 @@ class Shower:
             parent=bui.get_special_widget('overlay_stack'),
             size=(s.width,s.width),
             background=False,
-            stack_offset=s.off
+            stack_offset=s.off,
+            on_outside_click_call=s.delete
         )
         s.img = ORG['imagewidget'](
             parent=s.root,
@@ -680,23 +766,25 @@ class Shower:
         )
         s.anim(s.width*10)
     def anim(s,i):
+        if not s.img: return
         o = -i/2+s.width/2
         ORG['imagewidget'](s.img,size=(i,i),position=(o,o))
         if i <= 100: return
         bui.apptimer(0.01,bui.CallPartial(s.anim,i-25))
     def decay(s):
+        if not s.img: return
         if s.dying: return
         s.dying = True
         s.fade(s.opacity)
         bui.apptimer(0.5,s.delete)
     def fade(s,i):
+        if not s.img: return
         try: ORG['imagewidget'](s.img,opacity=i)
         except: return
         bui.apptimer(0.01,bui.CallPartial(s.fade,i-0.05))
     def delete(s):
         s.root.delete()
 
-# attribute fetcher
 def inspect(f, bad=[]):
     doc = f.__doc__
     if not doc:
@@ -728,7 +816,6 @@ def inspect(f, bad=[]):
                 res[an] = ts.rstrip(',')
     return res
 
-# try and see
 def tri(what,obj,attr,value,ev=False):
     if attr is None:
         bui.getsound('block').play()
@@ -742,7 +829,6 @@ def tri(what,obj,attr,value,ev=False):
         if hasattr(value,'get_widget_type'): value = 'that'
         return f'{what}(this, {attr}={value}) says:\n{e}'
 
-# global
 ORG = {}
 MEM = {}
 EYE = None
@@ -759,20 +845,17 @@ IPSUM = lambda: [
     "Snippet", "Fragment", "Block", "Element", "Component"
 ]
 
-# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     INS = None
     def __init__(s):
-        # tab
         C = UEye
         N = C.__name__
         E = ENT(N,C)
         I = bui.app.devconsole
         I.tabs = [_ for _ in I.tabs if _.name != N]+[E]
         I._tab_instances[N] = s.__class__.INS = E.factory()
-        # stealer
         for _ in dir(bui):
             if not (
                 _.endswith('widget')
@@ -781,15 +864,15 @@ class byBordd(Plugin):
             ): continue
             ORG[_] = getattr(bui,_)
             setattr(bui,_,getattr(s,_))
-        # cleaner
         global EYE
         EYE = bui.AppTimer(0.05,s.eye,repeat=True)
     def __getattr__(s,_):
         @wraps(ORG[_])
         def wrapper(*a,**k):
             r = ORG[_](*a,**k)
-            z = (_,r)
-            MEM.update({z:(a,k)})
+            if _ == 'containerwidget':
+                z = (_,r)
+                MEM.update({z:(a,k)})
             return r
         return wrapper
     def eye(s):
