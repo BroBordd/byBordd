@@ -862,6 +862,7 @@ IPSUM = lambda: [
 ]
 
 # ba_meta require api 9
+# brobord collide grass
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     INS = None
