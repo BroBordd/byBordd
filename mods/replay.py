@@ -144,12 +144,24 @@ class Replay:
         [bui.textwidget(w, color=self.COL2) for w in self.replay_widgets]
         bui.textwidget(self.replay_widgets[idx], color=self.COL3)
 
+#    def play(self):
+#        if self.is_busy():
+#            return
+#        self.is_busy(True)
+#        bui.getsound('deek').play()
+#        self.load()
+
     def play(self):
-        if self.is_busy():
-            return
+        """Start replay immediately without waiting for duration calculation"""
+        if self.is_busy(): return
         self.is_busy(True)
         bui.getsound('deek').play()
-        self.load()
+        # Start replay immediately
+        bs.set_replay_speed_exponent(0)
+        bui.fade_screen(1)
+        # Create player with unknown duration
+        Player(path=self.get_replay_path(), duration=None)
+        self.is_busy(False)
 
     def load(self):
         src = self.play_source.get_screen_space_center()
@@ -300,35 +312,106 @@ class Player:
     COL16 = (0.1, 0.2, 0.4)
     COL17 = (1, 1.7, 2)
 
+#    def __init__(self, path, duration):
+#        self.path = path
+#        self.duration_ms = duration
+#        self.duration_sec = self.duration_ms / 1000
+#        self.paused = self.ui_hidden = self.camera_on = self.cinema_mode = self.manual_zoom = False
+#        self.camera_look = None
+#        self.replay_time = self.start_time = self.progress_val = 0
+#        self.camera_zoom = 1
+#        [setattr(self, attr, []) for attr in ['ui_widgets', 'camera_widgets', 'hide_widgets', 'cinema_widgets', 'cinema_ui_widgets']]
+#        bs.new_replay_session(path)
+#        width, height = bui.get_virtual_screen_size()
+#        self.bar_height = 80
+#        self.parent = bui.containerwidget(
+#            size=(width, self.bar_height),
+#            stack_offset=(0, -height / 2 + self.bar_height / 2),
+#            background=False
+#        )
+#        self.background = bui.imagewidget(
+#            parent=self.parent,
+#            texture=bui.gettexture('black'),
+#            size=(width + 3, self.bar_height + 5),
+#            position=(0, -2),
+#            opacity=0.4
+#        )
+#        self.create_ui()
+#        self.create_hide_button()
+#        self.speed = 1
+#        self.start_focus()
+#        self.play()
+
     def __init__(self, path, duration):
-        self.path = path
-        self.duration_ms = duration
-        self.duration_sec = self.duration_ms / 1000
-        self.paused = self.ui_hidden = self.camera_on = self.cinema_mode = self.manual_zoom = False
-        self.camera_look = None
-        self.replay_time = self.start_time = self.progress_val = 0
-        self.camera_zoom = 1
-        [setattr(self, attr, []) for attr in ['ui_widgets', 'camera_widgets', 'hide_widgets', 'cinema_widgets', 'cinema_ui_widgets']]
-        bs.new_replay_session(path)
-        width, height = bui.get_virtual_screen_size()
-        self.bar_height = 80
-        self.parent = bui.containerwidget(
-            size=(width, self.bar_height),
-            stack_offset=(0, -height / 2 + self.bar_height / 2),
-            background=False
-        )
-        self.background = bui.imagewidget(
-            parent=self.parent,
-            texture=bui.gettexture('black'),
-            size=(width + 3, self.bar_height + 5),
-            position=(0, -2),
-            opacity=0.4
-        )
-        self.create_ui()
-        self.create_hide_button()
-        self.speed = 1
-        self.start_focus()
-        self.play()
+            self.path = path
+            self.duration_ms = duration  # Will be None initially
+            self.duration_sec = None if duration is None else duration / 1000
+            self.scanning = duration is None
+            self.scan_progress = [0, 1]
+            
+            self.paused = self.ui_hidden = self.camera_on = self.cinema_mode = self.manual_zoom = False
+            self.camera_look = None
+            self.replay_time = self.start_time = self.progress_val = 0
+            self.camera_zoom = 1
+            [setattr(self, attr, []) for attr in ['ui_widgets', 'camera_widgets', 'hide_widgets', 'cinema_widgets', 'cinema_ui_widgets']]
+            
+            # Start replay immediately
+            bs.new_replay_session(path)
+            
+            width, height = bui.get_virtual_screen_size()
+            self.bar_height = 80
+            self.parent = bui.containerwidget(
+                size=(width, self.bar_height),
+                stack_offset=(0, -height / 2 + self.bar_height / 2),
+                background=False
+            )
+            self.background = bui.imagewidget(
+                parent=self.parent,
+                texture=bui.gettexture('black'),
+                size=(width + 3, self.bar_height + 5),
+                position=(0, -2),
+                opacity=0.4
+            )
+            
+            self.create_ui()
+            self.create_hide_button()
+            self.speed = 1
+            self.start_focus()
+            self.play()
+            
+            # Start background duration calculation if needed
+            if self.scanning:
+                self.huffman = _Huffman()
+                Thread(target=self.calculate_duration).start()
+                self.scan_timer = bui.AppTimer(0.1, self.update_scan_progress, repeat=True)
+
+    def calculate_duration(self):
+        """Calculate duration in background thread"""
+        try:
+            self.duration_ms = get_replay_duration(self.huffman, self.path, self.scan_progress)
+            self.duration_sec = self.duration_ms / 1000
+        except:
+            self.duration_ms = 0
+            self.duration_sec = 0
+        finally:
+            self.scanning = False
+
+    def update_scan_progress(self):
+        """Update duration text with scan progress"""
+        if not self.scanning:
+            self.scan_timer = None
+            # Update to show final duration
+            if hasattr(self, 'duration_time_text') and self.duration_time_text.exists():
+                bui.textwidget(self.duration_time_text, text=format_time(self.duration_sec))
+            return
+        
+        # Show scanning progress
+        if hasattr(self, 'duration_time_text') and self.duration_time_text.exists():
+            current, total = self.scan_progress
+            if total > 0:
+                percent = int((current / total) * 100)
+                bui.textwidget(self.duration_time_text, text=f'Scan {percent}%')
+    
 
     def create_hide_button(self):
         widgets = self.hide_widgets.append
@@ -494,12 +577,14 @@ class Player:
             text=format_time(self.replay_time - self.start_time)
         )
         widgets(self.current_time_text)
-        widgets(bui.textwidget(
+
+        self.duration_time_text = bui.textwidget(
             parent=parent,
             position=(155, 11),
-            text=format_time(self.duration_sec),
+            text='Scanning...' if self.scanning else format_time(self.duration_sec),
             color=self.COL6
-        ))
+        )
+        widgets(self.duration_time_text)
 
         sensor_x, sensor_y = (285, 15)
         sensor_count = 100
@@ -1115,23 +1200,60 @@ class Player:
     def start_progress_timer(self):
         self.progress_timer = bui.AppTimer(self.TICK, self.update_progress_ui, repeat=True)
 
+#    def seek(self, direction):
+#        label = ['Forward by', 'Rewind by'][direction == -1]
+#        amount = direction * self.speed
+#        amount = (self.duration_sec / 20) * amount
+#        new_time = (self.replay_time - self.start_time) + amount
+#        if (new_time >= self.duration_sec) or (new_time <= 0):
+#            self.loop()
+#        else:
+#            self.start_time = self.replay_time - new_time
+#            self.reset_replay()
+#            bs.seek_replay(new_time)
+#        self.real_time = time()
+#        self.fix_pause()
+#        amount = abs(round(amount, 2))
+#        self.show_message('Seek', label + f" {amount} second{['s', ''][amount == 1]}", self.COL4, self.COL5)
+
     def seek(self, direction):
+        """Modified to handle unknown duration"""
+        if self.scanning:
+            self.show_message('Scanning', 'Please wait for scan to complete', self.COL2, self.COL3)
+            return
+        
         label = ['Forward by', 'Rewind by'][direction == -1]
         amount = direction * self.speed
         amount = (self.duration_sec / 20) * amount
         new_time = (self.replay_time - self.start_time) + amount
+        
         if (new_time >= self.duration_sec) or (new_time <= 0):
             self.loop()
         else:
             self.start_time = self.replay_time - new_time
             self.reset_replay()
             bs.seek_replay(new_time)
+        
         self.real_time = time()
         self.fix_pause()
         amount = abs(round(amount, 2))
         self.show_message('Seek', label + f" {amount} second{['s', ''][amount == 1]}", self.COL4, self.COL5)
+    
+
+#    def jump(self, percent):
+#        target_time = self.duration_sec * percent
+#        self.start_time = self.replay_time - target_time
+#        self.reset_replay()
+#        bs.seek_replay(target_time)
+#        self.real_time = time()
+#        self.fix_pause()
 
     def jump(self, percent):
+        """Modified to handle unknown duration"""
+        if self.scanning:
+            self.show_message('Scanning', 'Please wait for scan to complete', self.COL2, self.COL3)
+            return
+        
         target_time = self.duration_sec * percent
         self.start_time = self.replay_time - target_time
         self.reset_replay()
@@ -1156,12 +1278,37 @@ class Player:
         self.exit_timer = None
         _ba.set_camera_manual(False)
 
+#    def update_progress_ui(self):
+#        elapsed = self.replay_time - self.start_time
+#        if self.replay_time - self.start_time >= self.duration_sec:
+#            self.loop()
+#        nub_x, nub_y = self.nub_pos
+#        progress = (elapsed / self.duration_sec) * self.progress_width
+#        try:
+#            bui.imagewidget(self.nub, position=(nub_x + progress, nub_y))
+#            bui.textwidget(self.current_time_text, text=format_time(elapsed))
+#        except ReferenceError:
+#            pass
+
     def update_progress_ui(self):
+        """Modified to handle scanning state"""
         elapsed = self.replay_time - self.start_time
-        if self.replay_time - self.start_time >= self.duration_sec:
+        
+        # Check for loop only if we know the duration
+        if not self.scanning and self.duration_sec and elapsed >= self.duration_sec:
             self.loop()
+        
         nub_x, nub_y = self.nub_pos
-        progress = (elapsed / self.duration_sec) * self.progress_width
+        
+        # Calculate progress
+        if self.scanning or not self.duration_sec:
+            # Show progress based on elapsed time only
+            # Nub position stays at start or minimal position
+            progress = min(elapsed / max(elapsed, 1) * self.progress_width * 0.1, self.progress_width * 0.1)
+        else:
+            # Normal progress calculation
+            progress = (elapsed / self.duration_sec) * self.progress_width
+        
         try:
             bui.imagewidget(self.nub, position=(nub_x + progress, nub_y))
             bui.textwidget(self.current_time_text, text=format_time(elapsed))
