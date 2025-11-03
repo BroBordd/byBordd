@@ -128,14 +128,6 @@
         "mod_filename_base": "replay"
     },
     {
-        "mod_name": "UEye",
-        "mod_fancy_name": "Real-Time UI Debugger",
-        "mod_version": "1.0",
-        "mod_description": "Your eye for UI. Adds a dev console tab.\nAbility to modify any visible UI without having its references.\nExperimental.",
-        "api_version": 9,
-        "mod_filename_base": "ueye"
-    },
-    {
         "mod_name": "BitBox",
         "mod_fancy_name": "Bored me brings bits to the game",
         "mod_version": "1.0",
@@ -406,6 +398,14 @@
         "mod_description": "When chat is muted, show messages top right\nin the same place as kill logs. Blocks spam\naswell. Combine with APW to see chat when muted.",
         "api_version": 9,
         "mod_filename_base": "topmsg"
+    },
+    {
+        "mod_name": "UEye",
+        "mod_fancy_name": "Real-Time UI Debugger",
+        "mod_version": "1.0",
+        "mod_description": "Your eye for UI. Adds a dev console tab.\nAbility to modify any visible UI without having its references.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "ueye"
     },
     {
         "mod_name": "UpDown",
