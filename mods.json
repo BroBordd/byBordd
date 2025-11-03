@@ -403,7 +403,7 @@
         "mod_name": "UEye",
         "mod_fancy_name": "Real-Time UI Debugger",
         "mod_version": "1.0",
-        "mod_description": "Your eye for UI. Adds a dev console tab.\nAbility to modify any visible UI without having its references.\nExperimental.",
+        "mod_description": "Your eye for UI. Adds a dev console tab.\nAbility to tweak any visible UI without having its references.\nExperimental.",
         "api_version": 9,
         "mod_filename_base": "ueye"
     },
