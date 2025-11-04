@@ -185,7 +185,7 @@ class UEye(TAB):
                         corner_radius=5
                     )
                     guess = (
-                        ORG['textwidget'](query=child) if child_type == 'text' else
+                        bui.textwidget(query=child) if child_type == 'text' else
                         child_type
                     )
                     try: guess = bui.Lstr.from_json(guess).evaluate()
@@ -262,14 +262,14 @@ class Editor:
         s.opacity = 0.7
         s.what, s.widget = g
         snipe = s.widget.get_screen_space_center()
-        s.root = ORG['containerwidget'](
+        s.root = CON(
             parent=bui.get_special_widget('overlay_stack'),
             size=(x,y),
             background=False,
             scale_origin_stack_offset=snipe,
             transition='in_scale'
         )
-        ORG['imagewidget'](
+        bui.imagewidget(
             parent=s.root,
             position=(-x*0.1,-y*0.1),
             size=(x*1.2,y*1.2),
@@ -277,7 +277,7 @@ class Editor:
             opacity=s.opacity,
             color=s.COL0
         )
-        ORG['imagewidget'](
+        bui.imagewidget(
             parent=s.root,
             position=(-1,-1),
             size=(x,y),
@@ -285,7 +285,7 @@ class Editor:
             color=s.COL0,
             opacity=s.opacity
         )
-        s.backb = ORG['buttonwidget'](
+        s.backb = bui.buttonwidget(
             parent=s.root,
             position=(20,y-70),
             size=(50,50),
@@ -299,7 +299,7 @@ class Editor:
         )
         px,py = 90,y-70-2
         dx,dy = x-110,50+4
-        ORG['imagewidget'](
+        bui.imagewidget(
             parent=s.root,
             texture=bui.gettexture('white'),
             color=s.COL1,
@@ -307,7 +307,7 @@ class Editor:
             size=(dx,dy),
             opacity=s.opacity
         )
-        ORG['textwidget'](
+        bui.textwidget(
             parent=s.root,
             text=f'{s.what[:-6]} at {hex(id(s.widget))}',
             h_align='center',
@@ -317,21 +317,21 @@ class Editor:
             color=s.COL3
         )
         fx,fy = x/2-20,y-110
-        p0 = ORG['scrollwidget'](
+        p0 = bui.scrollwidget(
             parent=s.root,
             position=(20,20),
             size=(fx,fy),
             border_opacity=0,
             color=s.COL2
         )
-        s.attrs = inspect(ORG[s.what],bad=['edit'])
+        s.attrs = inspect(getattr(bui,s.what),bad=['edit'])
         ry = max(fy-5,len(s.attrs)*30)
-        p1 = ORG['containerwidget'](
+        p1 = CON(
             parent=p0,
             background=False,
             size=(fx,ry)
         )
-        ORG['imagewidget'](
+        bui.imagewidget(
             parent=p1,
             size=(fx+2,ry*1.5),
             position=(-1,-ry/4),
@@ -339,7 +339,7 @@ class Editor:
             color=s.COL1,
             opacity=s.opacity
         )
-        ORG['imagewidget'](
+        bui.imagewidget(
             parent=p1,
             size=(20,ry),
             position=(fx-20+2,0),
@@ -349,7 +349,7 @@ class Editor:
         )
         s.kids = []
         for i,a in enumerate(s.attrs):
-            w = ORG['textwidget'](
+            w = bui.textwidget(
                 parent=p1,
                 text=a,
                 maxwidth=fx-20,
@@ -361,7 +361,7 @@ class Editor:
                 glow_type='uniform',
                 color=s.COL2
             )
-            ORG['textwidget'](
+            bui.textwidget(
                 w,on_activate_call=bui.CallPartial(s.select,w,a)
             )
             s.kids.append(w)
@@ -374,7 +374,7 @@ class Editor:
         by = (s.y-110)/len(ops)
         s.mx = s.x/2+20
         for i,_ in enumerate(ops):
-            b = ORG['buttonwidget'](
+            b = bui.buttonwidget(
                 parent=s.root,
                 position=(s.mx,s.y-142-by*i),
                 size=(s.mx-70,by-10),
@@ -386,9 +386,9 @@ class Editor:
                 enable_sound=False
             )
             s.trash.append(b)
-        ORG['containerwidget'](s.root,cancel_button=s.backb)
+        CON(s.root,cancel_button=s.backb)
     def select(s,w,a):
-        f = ORG['textwidget']
+        f = bui.textwidget
         for _ in s.kids: f(_,color=s.COL2)
         f(w,color=s.COL3)
         s.sl = a
@@ -399,7 +399,7 @@ class Editor:
             try: byBordd.INS.safe_refresh()
             except: pass
         if not s.root: return
-        ORG['containerwidget'](s.root,transition='out_scale')
+        CON(s.root,transition='out_scale')
     def action(s,_):
         if _ == 'Hint':
             if s.sl is None:
@@ -409,14 +409,14 @@ class Editor:
         else: s.clean()
         match _:
             case 'String':
-                s.trash.append(ORG['textwidget'](
+                s.trash.append(bui.textwidget(
                     parent=s.root,
                     text='Enter raw text here:',
                     color=s.COL3,
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                tw = ORG['textwidget'](
+                tw = bui.textwidget(
                     parent=s.root,
                     editable=True,
                     color=s.COL2,
@@ -428,7 +428,7 @@ class Editor:
                     glow_type='uniform'
                 )
                 s.trash.append(tw)
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-215),
                     size=(s.mx-70,40),
@@ -441,7 +441,7 @@ class Editor:
                             s.what,
                             s.widget,
                             s.sl,
-                            ORG['textwidget'](query=tw)
+                            bui.textwidget(query=tw)
                         )) and (
                             bui.getsound('block').play(),
                             bui.screenmessage(e,color=s.COL3)
@@ -451,7 +451,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                backb = ORG['buttonwidget'](
+                backb = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-265),
                     size=(s.mx-70,40),
@@ -463,9 +463,9 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(backb)
-                ORG['containerwidget'](s.root,cancel_button=backb)
+                CON(s.root,cancel_button=backb)
             case 'Bool':
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-135),
                     size=(s.mx-70,40),
@@ -488,7 +488,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-185),
                     size=(s.mx-70,40),
@@ -511,7 +511,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                backb = ORG['buttonwidget'](
+                backb = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-235),
                     size=(s.mx-70,40),
@@ -523,16 +523,16 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(backb)
-                ORG['containerwidget'](s.root,cancel_button=backb)
+                CON(s.root,cancel_button=backb)
             case 'Widget':
-                s.trash.append(ORG['textwidget'](
+                s.trash.append(bui.textwidget(
                     parent=s.root,
                     text='Now select a widget\nfrom the UEye tab',
                     color=s.COL3,
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                backb = ORG['buttonwidget'](
+                backb = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-205),
                     size=(s.mx-70,40),
@@ -548,7 +548,7 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(backb)
-                ORG['containerwidget'](s.root,cancel_button=backb)
+                CON(s.root,cancel_button=backb)
                 byBordd.INS.picker(on_pick=lambda widget:(
                     (e:=tri(
                         s.what,
@@ -569,7 +569,7 @@ class Editor:
                 color = None
                 blind = lambda r,g,b:0 if(0.299*r+0.587*g+0.114*b)>0.5 else 1
                 rcol = lambda: tuple(round(random(),2) for _ in range(3))
-                p0 = ORG['scrollwidget'](
+                p0 = bui.scrollwidget(
                     parent=s.root,
                     position=(s.mx-11,220),
                     border_opacity=0,
@@ -578,12 +578,12 @@ class Editor:
                 )
                 s.trash.append(p0)
                 all = 52*20
-                p1 = ORG['containerwidget'](
+                p1 = CON(
                     parent=p0,
                     background=False,
                     size=(s.mx-56,all)
                 )
-                ORG['imagewidget'](
+                bui.imagewidget(
                     parent=p1,
                     texture=bui.gettexture('white'),
                     color=s.COL1,
@@ -591,7 +591,7 @@ class Editor:
                     size=(s.mx,all*1.5),
                     opacity=s.opacity
                 )
-                ORG['imagewidget'](
+                bui.imagewidget(
                     parent=p1,
                     texture=bui.gettexture('white'),
                     color=s.COL1,
@@ -602,7 +602,7 @@ class Editor:
                 ckids = []
                 for j in range(20):
                     for i in range(5):
-                        ckids.append(ORG['buttonwidget'](
+                        ckids.append(bui.buttonwidget(
                             label='',
                             parent=p1,
                             size=(40,40),
@@ -611,7 +611,7 @@ class Editor:
                             enable_sound=False
                         ))
                 def cckids():
-                    f = ORG['buttonwidget']
+                    f = bui.buttonwidget
                     for k in ckids:
                         c = rcol()
                         f(
@@ -623,13 +623,13 @@ class Editor:
                     bui.getsound('deek').play()
                     nonlocal color
                     color = c
-                    ORG['buttonwidget'](
+                    bui.buttonwidget(
                         pre,
                         color=c,
                         label=f'{choice(LOREM())} {choice(IPSUM())}',
                         textcolor=[s.COL0,s.COL2][blind(*c)]
                     )
-                pre = ORG['buttonwidget'](
+                pre = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,125),
                     size=(s.mx-70,40),
@@ -641,7 +641,7 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(pre)
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,175),
                     size=(s.mx-70,40),
@@ -657,7 +657,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,75),
                     size=(s.mx-70,40),
@@ -680,7 +680,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                backb = ORG['buttonwidget'](
+                backb = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,25),
                     size=(s.mx-70,40),
@@ -694,19 +694,19 @@ class Editor:
                     ),
                     enable_sound=False
                 )
-                ORG['containerwidget'](s.root,cancel_button=backb)
+                CON(s.root,cancel_button=backb)
                 s.trash.append(backb)
                 cckids()
                 cset(rcol())
             case 'Eval':
-                s.trash.append(ORG['textwidget'](
+                s.trash.append(bui.textwidget(
                     parent=s.root,
                     text='Enter something to evaluate.\nYou can use globals that are\ndefined in ueye.py',
                     color=s.COL3,
                     maxwidth=s.mx-70,
                     position=(s.mx,s.y-120)
                 ))
-                tw = ORG['textwidget'](
+                tw = bui.textwidget(
                     parent=s.root,
                     editable=True,
                     color=s.COL2,
@@ -718,7 +718,7 @@ class Editor:
                     glow_type='uniform'
                 )
                 s.trash.append(tw)
-                s.trash.append(ORG['buttonwidget'](
+                s.trash.append(bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-255),
                     size=(s.mx-70,40),
@@ -731,7 +731,7 @@ class Editor:
                             s.what,
                             s.widget,
                             s.sl,
-                            ORG['textwidget'](query=tw),
+                            bui.textwidget(query=tw),
                             ev=True
                         )) and (
                             bui.getsound('block').play(),
@@ -742,7 +742,7 @@ class Editor:
                     ),
                     enable_sound=False
                 ))
-                backb = ORG['buttonwidget'](
+                backb = bui.buttonwidget(
                     parent=s.root,
                     position=(s.mx,s.y-305),
                     size=(s.mx-70,40),
@@ -754,7 +754,7 @@ class Editor:
                     enable_sound=False
                 )
                 s.trash.append(backb)
-                ORG['containerwidget'](s.root,cancel_button=backb)
+                CON(s.root,cancel_button=backb)
             case 'Hint':
                 bui.screenmessage(s.attrs[s.sl],color=s.COL3)
                 bui.getsound('dingSmall').play()
@@ -767,14 +767,14 @@ class Shower:
         s.opacity=0.6
         s.dying = False
         s.off = w.get_screen_space_center()
-        s.root = ORG['containerwidget'](
+        s.root = CON(
             parent=bui.get_special_widget('overlay_stack'),
             size=(s.width,s.width),
             background=False,
             stack_offset=s.off,
             on_outside_click_call=s.delete
         )
-        s.img = ORG['imagewidget'](
+        s.img = bui.imagewidget(
             parent=s.root,
             texture=bui.gettexture('achievementOutline'),
             color=(10,0,0),
@@ -784,7 +784,7 @@ class Shower:
     def anim(s,i):
         if not s.img: return
         o = -i/2+s.width/2
-        ORG['imagewidget'](s.img,size=(i,i),position=(o,o))
+        bui.imagewidget(s.img,size=(i,i),position=(o,o))
         if i <= 100: return
         bui.apptimer(0.01,bui.CallPartial(s.anim,i-25))
     def decay(s):
@@ -795,7 +795,7 @@ class Shower:
         bui.apptimer(0.5,s.delete)
     def fade(s,i):
         if not s.img: return
-        try: ORG['imagewidget'](s.img,opacity=i)
+        try: bui.imagewidget(s.img,opacity=i)
         except: return
         bui.apptimer(0.01,bui.CallPartial(s.fade,i-0.05))
     def delete(s):
@@ -839,14 +839,14 @@ def tri(what,obj,attr,value,ev=False):
     if ev:
         try: value = eval(value,globals())
         except Exception as e: return f"eval('{value}') says:\n{e}"
-    try: ORG[what](obj,**{attr:value})
+    try: getattr(bui,what)(obj,**{attr:value})
     except Exception as e:
         if isinstance(value,str): value = f"'{value}'"
         if hasattr(value,'get_widget_type'): value = 'that'
         return f'{what}(this, {attr}={value}) says:\n{e}'
 
-ORG = {}
 MEM = {}
+CON = None
 EYE = None
 LOREM = lambda: [
     "Lorem", "Ipsum", "Dolor", "Sit", "Amet",
@@ -873,33 +873,27 @@ class byBordd(Plugin):
         I = bui.app.devconsole
         I.tabs = [_ for _ in I.tabs if _.name != N]+[E]
         I._tab_instances[N] = s.__class__.INS = E.factory()
-        for _ in dir(bui):
-            if not (
-                _.endswith('widget')
-                and '_' not in _
-                and 'widget' != _
-            ): continue
-            ORG[_] = getattr(bui,_)
-            setattr(bui,_,getattr(s,_))
+
+        global CON
+        CON = bui.containerwidget
+
+        @wraps(CON)
+        def wrapper(*a, **k):
+            r = CON(*a, **k)
+            z = ('containerwidget', r)
+            MEM.update({z: (a, k)})
+            return r
+
+        bui.containerwidget = wrapper
+
         global EYE
         EYE = bui.AppTimer(0.05,s.eye,repeat=True)
-    def __getattr__(s,_):
-        @wraps(ORG[_])
-        def wrapper(*a,**k):
-            r = ORG[_](*a,**k)
-            if _ == 'containerwidget':
-                z = (_,r)
-                MEM.update({z:(a,k)})
-            return r
-        return wrapper
+
     def eye(s):
         pure = 1
         for _ in MEM.copy():
-           w = _[1]
-           if not (
-               w and
-               getattr(w,'exists',lambda:0)()
-           ):
-               MEM.pop(_)
-               pure = 0
+            w = _[1]
+            if not w:
+                MEM.pop(_)
+                pure = 0
         if not pure: s.__class__.INS.safe_refresh()
