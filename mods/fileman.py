@@ -3,12 +3,12 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-FileMan v1.3 - Advanced File Manager Plugin
+FileMan v1.4 - Advanced File Manager Plugin
 
 A comprehensive suite for in-game file management, including:
 - Core Operations: Copy, Move, Delete (with confirmation), Rename.
 - File Creation: Create New Files and Folders.
-- File Sharing: Share files via the bashupload.com service.
+- Download: Fetch files from HTTP(S) URLs, plain domains (auto-adds https://), data URIs (with base64 support for images/files), handles redirects, empty responses, and auto-generates filenames from MIME types or domains.
 - Navigation & Utilities: Editable Path Bar, Go Up, Refresh, Sort, Filter, and Bookmark (Star) favorite directories.
 - Text & Code Handling: View, Paginate, and Edit text/code files, featuring basic Python syntax highlighting.
 - Asset Loading: Load/Copy custom Meshes (.bob), Textures (.ktx), and Audio (.ogg) directly to the game folders/directories.
@@ -20,6 +20,7 @@ A comprehensive suite for in-game file management, including:
 
 from babase import (
     PluginSubsystem as SUB,
+    pushcall,
     Plugin,
     env
 )
@@ -48,35 +49,6 @@ from bauiv1 import (
     CallPartial,
     app
 )
-from os.path import (
-    basename,
-    getmtime,
-    splitext,
-    dirname,
-    getsize,
-    exists,
-    isfile,
-    isdir,
-    join,
-    sep
-)
-from os import (
-    listdir as ls,
-    scandir,
-    getcwd,
-    rename,
-    remove,
-    access,
-    mkdir,
-    X_OK,
-    R_OK
-)
-from shutil import (
-    copytree,
-    rmtree,
-    copy,
-    move
-)
 from bascenev1 import new_replay_session as REP
 from http.client import HTTPSConnection as GO
 from datetime import datetime as DT
@@ -85,6 +57,7 @@ from mimetypes import guess_type
 from random import uniform as UF
 from threading import Thread
 from pathlib import Path
+import os, shutil
 
 class FileMan(MainWindow):
     main_window_should_preserve_selection = lambda s: False
@@ -108,9 +81,7 @@ class FileMan(MainWindow):
     def sweep(s):
         [_.delete() for _ in s.killme]
         s.killme.clear()
-        c = s.uploadc
-        s.spyt = s.sharel = s.buf = s.uploadc = None
-        if c: c.close()
+        s.spyt = s.buf = None
     def __init__(s,src):
         s.__class__.clean()
         s.__class__.INS.append(s)
@@ -123,7 +94,7 @@ class FileMan(MainWindow):
         s.coveri = -0.1
         s.rnd_r = 64
         s.sl = (None,None)
-        [setattr(s,_,None) for _ in ['pushe','eno','leno','clp','gab','clpm','rlydt','buf','uploadc','cursnd','rfl','rflo']]
+        [setattr(s,_,None) for _ in ['pushe','eno','leno','clp','gab','clpm','rlydt','buf','cursnd','rfl','rflo']]
         [setattr(s,_,[]) for _ in ['trash','btns','secs','docs','drkids','drol','okes','fkids','ftrash','statkids','fcons','flkids','killme']]
         s.pushq = ''
         # root
@@ -177,7 +148,7 @@ class FileMan(MainWindow):
         )
         r = []
         for _ in range(6):
-            l = ['Copy','Move','Delete','Share','Rename','Open'][_]
+            l = ['Copy','Move','Delete','Download','Rename','Open'][_]
             r.append(bw(
                 parent=s.p,
                 label=l,
@@ -381,13 +352,13 @@ class FileMan(MainWindow):
                                 s.btw("You're already doing something else!")
                                 return
                             c = var('cwd')
-                            chk = join(c,basename(s.clp))
-                            st1,st2 = splitext(chk)
-                            nn = st1+'_copy'+st2 if exists(chk) else chk
-                            if exists(nn):
-                                s.btw('A copy of this '+['file','folder'][isdir(chk)]+' already exists!')
+                            chk = os.path.join(c,os.path.basename(s.clp))
+                            st1,st2 = os.path.splitext(chk)
+                            nn = st1+'_copy'+st2 if os.path.exists(chk) else chk
+                            if os.path.exists(nn):
+                                s.btw('A copy of this '+['file','folder'][os.path.isdir(chk)]+' already exists!')
                                 return
-                            try: [copy,copytree][isdir(s.clp)](s.clp,nn)
+                            try: [shutil.copy,shutil.copytree][os.path.isdir(s.clp)](s.clp,nn)
                             except Exception as e:
                                 s.btw(str(e))
                                 return
@@ -410,11 +381,11 @@ class FileMan(MainWindow):
                                 s.btw("You are already doing something else!")
                                 return
                             c = var('cwd')
-                            chk = join(c,basename(s.clp))
-                            if exists(chk):
-                                s.btw('There is a '+['file','folder'][isdir(chk)]+' with the same name here.')
+                            chk = os.path.join(c,os.path.basename(s.clp))
+                            if os.path.exists(chk):
+                                s.btw('There is a '+['file','folder'][os.path.isdir(chk)]+' with the same name here.')
                                 return
-                            try: move(s.clp,c)
+                            try: shutil.move(s.clp,c)
                             except Exception as e:
                                 s.btw(str(e))
                                 return
@@ -438,16 +409,16 @@ class FileMan(MainWindow):
                             return
                         if s.meh(): return
                         h = s.sl[1]
-                        bn = basename(h)
+                        bn = os.path.basename(h)
                         if not s.rlyd:
                             s.beep(1,0)
-                            s.push(f"Really delete "+["the file '"+bn+"'","the whole '"+bn+"' folder"][isdir(h)]+" forever? Press again to confirm.",du=3,color=s.COL3)
+                            s.push(f"Really delete "+["the file '"+bn+"'","the whole '"+bn+"' folder"][os.path.isdir(h)]+" forever? Press again to confirm.",du=3,color=s.COL3)
                             s.rlydt = tuck(2.9,CallPartial(setattr,s,'rlyd',False))
                             s.rlyd = True
                             return
                         s.rlyd = False
                         s.rlydt = None
-                        f = [remove,rmtree][isdir(h)]
+                        f = [os.remove,shutil.rmtree][os.path.isdir(h)]
                         try: f(h)
                         except Exception as e:
                             s.btw(str(e))
@@ -458,66 +429,274 @@ class FileMan(MainWindow):
                             s.sl = (None,None)
                             s.fresh()
                     case 3:
-                        # share
-                        if s.meh(): return
-                        f = s.sl[1]
-                        if isdir(f):
-                            s.btw("You can't share a folder!")
-                            return
+                        # download
+                        xs, ys = 450, 300
                         s.wop()
-                        o = w.get_screen_space_center()
-                        xs,ys = 400,170
-                        p = s.uploadp = cw(
+                        gcen = lambda: ((o:=w.get_screen_space_center()),(o[0]-s.size[0]/5,o[1]) if gay else o)[1]
+                        o = gcen()
+                        p = cw(
                             parent=zw('overlay_stack'),
                             scale_origin_stack_offset=o,
-                            stack_offset=o,
                             size=(xs,ys),
                             background=False,
-                            transition='in_scale'
+                            transition='in_scale',
+                            on_outside_click_call=lambda:(cw(p,transition='out_scale'),s.laz())
                         )
                         s.killme.append(p)
                         iw(
                             parent=p,
                             size=(xs*1.2,ys*1.2),
                             texture=gt('softRect'),
-                            opacity=[0.2,0.55][s.amoled],
+                            opacity=[0.3,0.7][s.amoled],
                             position=(-xs*0.1,-ys*0.1),
                             color=s.COL5
                         )
                         iw(
                            parent=p,
                            texture=gt('white'),
-                           color=s.COL1,
+                           color=s.COL5,
                            opacity=0.7,
-                           size=(xs,ys)
+                           size=(xs,ys),
+                           position=(-2,0)
                         )
+                        # back button
+                        b = bw(
+                            parent=p,
+                            position=(20,ys-70),
+                            label=cs(sc.BACK),
+                            size=(50,50),
+                            text_scale=0.8,
+                            oac=lambda:(cw(p,transition='out_scale'),s.laz())
+                        )
+                        cw(p,cancel_button=b)
+                        # title bar
+                        ix = xs-110
+                        iw(
+                            parent=p,
+                            texture=gt('white'),
+                            color=s.COL1,
+                            position=(88,ys-72),
+                            size=(ix,54),
+                            opacity=0.5
+                        )
+                        tw(
+                            parent=p,
+                            h_align='center',
+                            v_align='center',
+                            position=(xs/2,ys-60),
+                            text='Download from URL',
+                            maxwidth=ix-40
+                        )
+                        # main content area
+                        iw(
+                            parent=p,
+                            texture=gt('white'),
+                            color=s.COL1,
+                            opacity=0.5,
+                            position=(18,20),
+                            size=(xs-40,ys-110)
+                        )
+                        # instructions
+                        tw(
+                            parent=p,
+                            text='Enter URL/Link/Data URI to download:',
+                            position=(xs/2-30,ys-130),
+                            h_align='center',
+                            v_align='center',
+                            color=s.COL4,
+                            scale=0.75,
+                            maxwidth=xs-60
+                        )
+                        # url input field
+                        url_input = tw(
+                            editable=True,
+                            parent=p,
+                            size=(xs-80,40),
+                            position=(40,ys-180),
+                            text='',
+                            v_align='center',
+                            glow_type='uniform',
+                            allow_clear_button=True,
+                            description='Any URL, domain, or data URI'
+                        )
+                        # download button
+                        def do_download():
+                            url = tw(query=url_input).strip()
+                            if not url:
+                                s.btw('Enter a URL first!')
+                                return
+                            s.push('Starting download...',du=2)
+                            def download_thread():
+                                try:
+                                    import base64
+                                    import re
+                                    from urllib.parse import urlparse, unquote
+                                    
+                                    # Handle data URIs
+                                    if url.startswith('data:'):
+                                        match = re.match(r'data:([^;,]+)?(;base64)?,(.+)', url)
+                                        if not match:
+                                            pushcall(CallPartial(s.btw, 'Invalid data URI format'), from_other_thread=True)
+                                            return
+                                        
+                                        mime_type = match.group(1) or 'text/plain'
+                                        is_base64 = match.group(2) is not None
+                                        data_part = match.group(3)
+                                        
+                                        # Decode data
+                                        if is_base64:
+                                            try:
+                                                file_data = base64.b64decode(data_part)
+                                            except Exception as e:
+                                                pushcall(CallPartial(s.btw, f'Base64 decode error: {str(e)}'), from_other_thread=True)
+                                                return
+                                        else:
+                                            file_data = unquote(data_part).encode('utf-8')
+                                        
+                                        # Generate filename based on MIME type
+                                        ext_map = {
+                                            'image/png': '.png',
+                                            'image/jpeg': '.jpg',
+                                            'image/gif': '.gif',
+                                            'image/webp': '.webp',
+                                            'image/svg+xml': '.svg',
+                                            'text/html': '.html',
+                                            'text/plain': '.txt',
+                                            'application/json': '.json',
+                                            'application/xml': '.xml',
+                                            'application/pdf': '.pdf',
+                                        }
+                                        ext = ext_map.get(mime_type, '.bin')
+                                        filename = f'data_download{ext}'
+                                        
+                                        dest_path = os.path.join(var('cwd'), filename)
+                                        if os.path.exists(dest_path):
+                                            base, extension = os.path.splitext(filename)
+                                            counter = 1
+                                            while os.path.exists(dest_path):
+                                                dest_path = os.path.join(var('cwd'), f"{base}_{counter}{extension}")
+                                                counter += 1
+                                        
+                                        with open(dest_path, 'wb') as f:
+                                            f.write(file_data)
+                                        
+                                        saved_name = os.path.basename(dest_path)
+                                        pushcall(CallPartial(s.push, f'Downloaded: {saved_name}'), from_other_thread=True)
+                                        pushcall(lambda: (cw(p,transition='out_scale'),s.fresh()), from_other_thread=True)
+                                        pushcall(GUN, from_other_thread=True)
+                                        return
+                                    
+                                    # Normalize URL - add https:// if missing protocol
+                                    if not url.startswith(('http://', 'https://', 'ftp://')):
+                                        url_normalized = 'https://' + url
+                                    else:
+                                        url_normalized = url
+                                    
+                                    parsed = urlparse(url_normalized)
+                                    
+                                    # Extract filename from path or use domain name
+                                    path_parts = parsed.path.rstrip('/').split('/')
+                                    filename = path_parts[-1] if path_parts[-1] else None
+                                    
+                                    # If no filename in path, generate from domain
+                                    if not filename or '.' not in filename:
+                                        domain = parsed.netloc.replace('www.', '')
+                                        filename = f"{domain.replace('.', '_')}.html"
+                                    
+                                    # Decode URL-encoded filename
+                                    filename = unquote(filename)
+                                    
+                                    dest_path = os.path.join(var('cwd'), filename)
+                                    if os.path.exists(dest_path):
+                                        base, ext = os.path.splitext(filename)
+                                        counter = 1
+                                        while os.path.exists(dest_path):
+                                            dest_path = os.path.join(var('cwd'), f"{base}_{counter}{ext}")
+                                            counter += 1
+                                    
+                                    # Determine connection type
+                                    if url_normalized.startswith('https://'):
+                                        from http.client import HTTPSConnection as Connection
+                                        default_port = 443
+                                    else:
+                                        from http.client import HTTPConnection as Connection
+                                        default_port = 80
+                                    
+                                    # Handle custom ports
+                                    host = parsed.netloc
+                                    port = default_port
+                                    if ':' in host:
+                                        host, port_str = host.rsplit(':', 1)
+                                        try:
+                                            port = int(port_str)
+                                        except ValueError:
+                                            pass
+                                    
+                                    path = parsed.path or '/'
+                                    if parsed.query:
+                                        path += '?' + parsed.query
+                                    
+                                    # Make request
+                                    conn = Connection(host, port)
+                                    headers = {
+                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                    }
+                                    conn.request('GET', path, headers=headers)
+                                    response = conn.getresponse()
+                                    
+                                    # Handle redirects
+                                    if response.status in (301, 302, 303, 307, 308):
+                                        redirect_url = response.getheader('Location')
+                                        conn.close()
+                                        if redirect_url:
+                                            msg = f'Redirected, follow manually: {redirect_url[:50]}...'
+                                            pushcall(CallPartial(s.btw, msg), from_other_thread=True)
+                                        else:
+                                            pushcall(CallPartial(s.btw, 'Redirect without location header'), from_other_thread=True)
+                                        return
+                                    
+                                    if response.status == 200:
+                                        data = response.read()
+                                        conn.close()
+                                        
+                                        # If empty response, save minimal HTML
+                                        if not data:
+                                            data = f'<!-- Downloaded from {url} -->\n<html><body>Empty response</body></html>'.encode('utf-8')
+                                        
+                                        with open(dest_path, 'wb') as f:
+                                            f.write(data)
+                                        
+                                        saved_name = os.path.basename(dest_path)
+                                        pushcall(CallPartial(s.push, f'Downloaded: {saved_name}'), from_other_thread=True)
+                                        pushcall(lambda: (cw(p,transition='out_scale'),s.fresh()), from_other_thread=True)
+                                        pushcall(GUN, from_other_thread=True)
+                                    else:
+                                        msg = f'Error {response.status}: {response.reason}'
+                                        pushcall(CallPartial(s.btw, msg), from_other_thread=True)
+                                        conn.close()
+                                except Exception as e:
+                                    error_msg = f'Download failed: {str(e)}'
+                                    pushcall(CallPartial(s.btw, error_msg), from_other_thread=True)
+                            
+                            Thread(target=download_thread, daemon=True).start()
+
                         bw(
                             parent=p,
-                            label='Back',
-                            oac=s.cupload,
-                            position=(30,15),
-                            size=(xs-60,30)
+                            label='Download',
+                            position=(xs/2-50,80),
+                            size=(100,30),
+                            oac=do_download
                         )
-                        s.cpsharelb = bw(
+                        # status hint
+                        tw(
                             parent=p,
-                            label='...',
-                            oac=s.cpsharel,
-                            position=(30,50),
-                            size=(xs-60,30)
-                        )
-                        s.opsharelb = bw(
-                            parent=p,
-                            label='...',
-                            oac=s.opsharel,
-                            position=(30,85),
-                            size=(xs-60,30)
-                        )
-                        bw(
-                            parent=p,
-                            label='Upload to bashupload.com',
-                            oac=s.upload,
-                            position=(30,120),
-                            size=(xs-60,30)
+                            text='Supports http(s), data URIs, base64, any domain.\nDownloads entire html if no file found. Beta.',
+                            position=(xs/2-30,35),
+                            h_align='center',
+                            v_align='center',
+                            color=s.COL4,
+                            scale=0.65,
+                            maxwidth=xs-60
                         )
                     case 4:
                         # rename
@@ -527,25 +706,25 @@ class FileMan(MainWindow):
                         if s.clp == j:
                             q = tw(query=t)
                             try:
-                                if sep in q: raise ValueError("You can't use directory separator in filename!")
+                                if os.path.sep in q: raise ValueError("You can't use directory separator in filename!")
                                 Path(q)
                             except Exception as e:
                                 s.btw(str(e) or 'Invalid filename!')
                                 return
                             else:
-                                if (basename(fp) == q) and not gay:
+                                if (os.path.basename(fp) == q) and not gay:
                                     s.btw("Write a new name blud")
                                     return
-                                chk = join(var('cwd'),q)
-                                if exists(chk):
-                                    s.btw(f"There is a {['file','folder'][isdir(chk)]} with this name already!")
+                                chk = os.path.join(var('cwd'),q)
+                                if os.path.exists(chk):
+                                    s.btw(f"There is a {['file','folder'][os.path.isdir(chk)]} with this name already!")
                                     return
                                 else:
-                                    nfp = join(dirname(fp),q)
+                                    nfp = os.path.join(os.path.dirname(fp),q)
                                     try:
-                                        rename(fp,nfp)
+                                        os.rename(fp,nfp)
                                     except PermissionError:
-                                        if exists(nfp): pass
+                                        if os.path.exists(nfp): pass
                                         else:
                                             s.push('Permission denied!')
                                             return
@@ -576,8 +755,8 @@ class FileMan(MainWindow):
                             s.btw("Press again when you're free!")
                             return
                         h = s.sl[1]
-                        bn = basename(h)
-                        if isdir(h):
+                        bn = os.path.basename(h)
+                        if os.path.isdir(h):
                             s.cd(h)
                             s.snd('deek')
                             return
@@ -634,7 +813,7 @@ class FileMan(MainWindow):
                             h_align='center',
                             v_align='center',
                             position=(xs/2-95,ys-60),
-                            text=basename(h),
+                            text=os.path.basename(h),
                             maxwidth=ix-60
                         )
                         iw(
@@ -721,7 +900,7 @@ class FileMan(MainWindow):
                             elif ty == 'Texture':
                                 if bn in TEX():
                                     wd = min(xs-80,ys-150)
-                                    tex = gt(splitext(bn)[0])
+                                    tex = gt(os.path.splitext(bn)[0])
                                     iw(
                                         parent=p,
                                         texture=tex,
@@ -754,7 +933,7 @@ class FileMan(MainWindow):
                                     bw(
                                         parent=p,
                                         label=cs(sc.PLAY_BUTTON),
-                                        oac=lambda:(getattr(s.cursnd,'stop',lambda:0)(),setattr(s,'cursnd',gs(splitext(bn)[0])),s.cursnd.play()),
+                                        oac=lambda:(getattr(s.cursnd,'stop',lambda:0)(),setattr(s,'cursnd',gs(os.path.splitext(bn)[0])),s.cursnd.play()),
                                         position=(xs/2-60,ys/2-135),
                                         size=(40,40)
                                     )
@@ -869,6 +1048,7 @@ class FileMan(MainWindow):
             case 1:
                 match j:
                     case 0:
+                        # star
                         star = var('star')
                         c = var('cwd')
                         if c in star:
@@ -881,6 +1061,7 @@ class FileMan(MainWindow):
                         GUN()
                         s.fresh(skip=True)
                     case 1:
+                        # sort
                         xs,ys = 200,230
                         s.wop()
                         gcen = lambda: ((o:=w.get_screen_space_center()),(o[0]-s.size[0]/5,o[1]) if gay else o)[1]
@@ -921,10 +1102,12 @@ class FileMan(MainWindow):
                                 parent=p
                             )
                     case 2:
+                        # filter
                         s.flon = True
                         s.snd('deek')
                         s.fresh(skip=True)
                     case 3:
+                        # theme
                         ox, oy = s.size
                         xs = ys = min(ox / 2, oy / 2)
                         xs *= 1.3
@@ -938,7 +1121,7 @@ class FileMan(MainWindow):
                         p = cw(parent=zw('overlay_stack'), scale_origin_stack_offset=o, size=(xs, ys), stack_offset=(-100,0), background=False, transition='in_scale',on_outside_click_call=nuke)
                         bw(parent=p,size=(xs+200,ys),bg='empty')
                         s.killme.append(p)
-                        iw(parent=p, size=(xs * 1.2, ys * 1.2), texture=gt('softRect'), opacity=[0.3,0.7][s.amoled], position=(-xs * 0.1, -ys * 0.1), color=s.COL5)
+                        iw(parent=p, size=((xs+200) * 1.2, ys * 1.2), texture=gt('softRect'), opacity=[0.3,0.7][s.amoled], position=(-xs * 0.1, -ys * 0.1), color=s.COL5)
                         iw(parent=p, texture=gt('white'), color=s.COL5, opacity=0.7, size=(xs + 200, ys))
                         temp_colors, scl, sl = [getattr(s, f'COL{i}') for i in range(12)], [0, 0, 0, 0], 0
                         kids, nubs, grad = [], [], []
@@ -1024,8 +1207,8 @@ class FileMan(MainWindow):
                             s.btw("You're already in the middle of something")
                             return
                         c = var('cwd')
-                        n = join(c,'new_file')
-                        while exists(n): n+='_again'
+                        n = os.path.join(c,'new_file')
+                        while os.path.exists(n): n+='_again'
                         try: Path(n).touch()
                         except PermissionError:
                             s.btw('Permission denied!')
@@ -1040,9 +1223,9 @@ class FileMan(MainWindow):
                             s.btw("You're already in the middle of something")
                             return
                         c = var('cwd')
-                        n = join(c,'new_folder')
-                        while exists(n): n+='_again'
-                        try: mkdir(n)
+                        n = os.path.join(c,'new_folder')
+                        while os.path.exists(n): n+='_again'
+                        try: os.mkdir(n)
                         except PermissionError:
                             s.btw('Permission denied!')
                             return
@@ -1141,7 +1324,7 @@ class FileMan(MainWindow):
             h_align='center',
             v_align='center',
             position=(xs/2-65,ys-60),
-            text=basename(h),
+            text=os.path.basename(h),
             maxwidth=ix-50
         )
         fxs = xs-40
@@ -1199,32 +1382,32 @@ class FileMan(MainWindow):
         )
         cw(p5,visible_child=tl)
     def loadt(s,h,gay):
-        mem = join(BASE(),'textures')
-        nam = basename(h)
+        mem = os.path.join(BASE(),'textures')
+        nam = os.path.basename(h)
         if nam in TEX():
             s.btw("A texture with that name already exists! Try renaming.")
             return
-        copy(h,join(mem,nam))
+        shutil.copy(h,os.path.join(mem,nam))
         [_.delete() for _ in s.killme]
         s.killme.clear()
         s.act(0,5,zap=True,gay=gay)
     def loada(s,h,gay):
-        mem = join(BASE(),'audio')
-        nam = basename(h)
+        mem = os.path.join(BASE(),'audio')
+        nam = os.path.basename(h)
         if nam in AUDIO():
             s.btw("An audio with that name already exists! Try renaming.")
             return
-        copy(h,join(mem,nam))
+        shutil.copy(h,os.path.join(mem,nam))
         [_.delete() for _ in s.killme]
         s.killme.clear()
         s.act(0,5,zap=True,gay=gay)
     def loadm(s,h,gay):
-        mem = join(BASE(),'meshes')
-        nam = basename(h)
+        mem = os.path.join(BASE(),'meshes')
+        nam = os.path.basename(h)
         if nam in MESH():
             s.btw("A mesh with that name already exists! Try renaming.")
             return
-        copy(h,join(mem,nam))
+        shutil.copy(h,os.path.join(mem,nam))
         [_.delete() for _ in s.killme]
         s.killme.clear()
         s.act(0,5,zap=True,gay=gay)
@@ -1283,7 +1466,7 @@ class FileMan(MainWindow):
         lines = [_ for _ in da.splitlines(True)]
         zc = len(str(az + len(lines)))
         ah = '\\n'
-#        da = ah.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
+#        da = ah.path.join([f"{str(i+1+az).zfill(zc)} | {_}" for i, _ in enumerate(lines)])
         da = ah.join([f"{str(i+1+az).zfill(zc)} | {_.rstrip()}" for i, _ in enumerate(lines)])
         z = len(da)
         p0 = s.statp0
@@ -1495,62 +1678,6 @@ class FileMan(MainWindow):
             s.act(0,5,zap=True,gay=s.last_gay)
         else:
             s.btw('No buffers to cycle!')
-    def cpsharel(s):
-        l = s.vsharel()
-        if not l: return
-        COPY(str(l))
-        s.ding(1,1)
-        s.push(f"Copied '{l}' to clipboard!")
-    def opsharel(s):
-        l = s.vsharel()
-        if not l: return
-        s.snd('deek')
-        open_url(l)
-    def vsharel(s):
-        l = getattr(s,'sharel',0)
-        if not l:
-            s.btw("Upload first!")
-            return
-        return l
-    def cupload(s):
-        c = s.uploadc
-        s.spyt = s.sharel = s.buf = s.uploadc = None
-        if c:
-            c.close()
-            s.ding(0,0)
-            s.push('Cancelled!')
-        else: s.laz()
-        cw(s.uploadp,transition='out_scale')
-    def upload(s):
-        f = s.sl[1]
-        s.ding(1,0)
-        s.push('Uploading...')
-        Thread(target=CallPartial(s._upload,f)).start()
-        s.spyt = tuck(0.2,CallPartial(s.spy,s.on_upload),repeat=True)
-    def _upload(s, l):
-        try:
-            c = s.uploadc = GO('bashupload.com')
-            filename = basename(l)
-            url_path = '/' + filename
-            with open(l, 'rb') as f: body = f.read()
-            headers = {'Content-Type': 'application/octet-stream'}
-            c.request('POST', url_path, body=body, headers=headers)
-            s.buf = c.getresponse().read().decode()
-        except Exception:
-            if s.uploadc: s.buf = ''
-        finally:
-            if s.uploadc:
-                s.uploadc.close()
-                s.uploadc = s.sharel = None
-    def on_upload(s,t):
-        if not t:
-            s.btw("Couldn't upload")
-            return
-        s.sharel = t.splitlines()[5][5:]+'?download=1'
-        s.ding(0,1)
-        s.push('Success!')
-        obw(s.cpsharelb,label='Copy Direct URL')
-        obw(s.opsharelb,label=s.sharel)
     def ding(s,i,j):
         a = ['Small','']
         x,y = a[i],a[j]
@@ -1683,7 +1810,7 @@ class FileMan(MainWindow):
         s.flkids.clear()
         u = s.rfl
         if s.flon and s.rfl:
-            fl = [_ for _ in fl if (_ == '..') or (u in basename(_))]
+            fl = [_ for _ in fl if (_ == '..') or (u in os.path.basename(_))]
             cur = s.sl[1]
             if cur:
                 if cur in fl: sl = cur
@@ -1722,7 +1849,7 @@ class FileMan(MainWindow):
                 )
                 if s.flon and u and not k:
                     ci = 0
-                    bn = basename(_)
+                    bn = os.path.basename(_)
                     ret = []
                     while True:
                         nxt = bn.find(u,ci)
@@ -1765,7 +1892,7 @@ class FileMan(MainWindow):
         ty = s.gtype(_)
         t = (
             'replayIcon' if _ == '..' else
-            'folder' if isdir(_) else
+            'folder' if os.path.isdir(_) else
             'tv' if ty == 'Replay' else
             'audioIcon' if ty == 'Audio' else
             'graphicsIcon' if ty == 'Texture' else
@@ -1780,7 +1907,7 @@ class FileMan(MainWindow):
         sli = s.sl[0]
         for i,g in enumerate(zip(fl,s.fkids,s.fcons)):
             _,w,r = g
-            c = [(s.COL10,s.COL11),(s.COL8,s.COL9)][isdir(_)][sli == i]
+            c = [(s.COL10,s.COL11),(s.COL8,s.COL9)][os.path.isdir(_)][sli == i]
             tw(w,color=c,editable=False)
             iw(r,color=c)
         for i,z in enumerate(s.flkids):
@@ -1788,25 +1915,25 @@ class FileMan(MainWindow):
                 tw(j,color=[s.COL0,s.COL3][sli==i])
     def _sl(s,i,_,fl):
         if s.sl[0] == i:
-            if isdir(_): s.cd(_)
+            if os.path.isdir(_): s.cd(_)
             else: s.act(0,5,gay=True)
             return
         s.sl = (i,_)
         s.slco(fl)
     def gdata(s,_):
-        b = isdir(_)
-        try: mt = DT.fromtimestamp(getmtime(_)).strftime('%m/%d/%Y %I:%M %p')
+        b = os.path.isdir(_)
+        try: mt = DT.fromtimestamp(os.path.getmtime(_)).strftime('%m/%d/%Y %I:%M %p')
         except: mt = '?'
-        try: sz = FMT(getsize(_))
+        try: sz = FMT(os.path.getsize(_))
         except: sz = '?'
         return (
-            basename(_),
+            os.path.basename(_),
             s.gtype(_),
             '' if b else mt,
             '' if b else sz
         )
     def gtype(s,_):
-        if isdir(_): return ['Folder','Parent'][_=='..']
+        if os.path.isdir(_): return ['Folder','Parent'][_=='..']
         f = 'File'
         h = guess_type(_)[0] or f
         if not '.' in _: return h.title()
@@ -1822,13 +1949,13 @@ class FileMan(MainWindow):
         else: return h.title()
     def gfull(s):
         c = var('cwd')
-        h = ['..'] if dirname(c) != c else []
-        if not access(c, R_OK): return h
+        h = ['..'] if os.path.dirname(c) != c else []
+        if not os.access(c, os.R_OK): return h
         sort_key_map = {0: 1, 1: 2, 2: 3}
         sort_index = sort_key_map.get(s.sorti, 4)
         items_with_metadata = []
         try:
-            with scandir(c) as it:
+            with os.scandir(c) as it:
                 for entry in it:
                     try:
                         _, item_type, date_modified_str, _ = s.gdata(entry.path)
@@ -1913,29 +2040,29 @@ class FileMan(MainWindow):
     def _pre(s):
         e = app.env
         c = e.cache_directory
-        d = dirname
-        f = join(d(c),'ballistica_files','ba_data')
+        d = os.path.dirname
+        f = os.path.join(d(c),'ballistica_files','ba_data')
         g = cs(sc.LOGO_FLAT)+' '
         return [
-            *[(cs(sc.DPAD_CENTER_BUTTON)+' '+(basename(_) or _),_) for _ in var('star')],
+            *[(cs(sc.DPAD_CENTER_BUTTON)+' '+(os.path.basename(_) or _),_) for _ in var('star')],
             (g+'Mods',e.python_directory_user),
             (g+'Replays',rdir()),
             (g+'Config',e.config_directory),
             (g+'Cache',c),
             (g+'Files',f),
-            (g+'Python',join(f,'python')),
-            (g+'Meshes',join(f,'meshes')),
-            (g+'Audio',join(f,'audio')),
-            (g+'Textures',join(f,'textures'))
+            (g+'Python',os.path.join(f,'python')),
+            (g+'Meshes',os.path.join(f,'meshes')),
+            (g+'Audio',os.path.join(f,'audio')),
+            (g+'Textures',os.path.join(f,'textures'))
         ]
     def rf(s):
         s.snd('ding')
         s.fresh()
         c = var('cwd')
-        s.push('Refreshed '+(basename(c) or c))
+        s.push('Refreshed '+(os.path.basename(c) or c))
     def up(s):
         o = var('cwd')
-        n = dirname(o)
+        n = os.path.dirname(o)
         if o == n:
             s.eno = 2
             s.nah()
@@ -1945,15 +2072,15 @@ class FileMan(MainWindow):
         s.snd('deek')
     def glike(s):
         c = var('cwd')
-        if not access(c,R_OK):
-            s.eno = not access(c,X_OK)
+        if not os.access(c,os.R_OK):
+            s.eno = not os.access(c,os.X_OK)
             s.nah()
             return []
-        a = ls(c)
+        a = os.listdir(c)
         f = []
         for _ in a:
-            j = join(c,_)
-            if isdir(j): f.append(j)
+            j = os.path.join(c,_)
+            if os.path.isdir(j): f.append(j)
         r = [_ for _ in f if _.startswith(s.url)]
         return r
     def nah(s):
@@ -2062,10 +2189,10 @@ class FileMan(MainWindow):
         if s.gn: return
         try: s.url = tw(query=s.urla)
         except: s.ragequit(); return
-        b1 = exists(s.url)
-        b2 = isdir(s.url)
-        g1 = access(var('cwd'),R_OK)
-        g2 = access(s.url,X_OK)
+        b1 = os.path.exists(s.url)
+        b2 = os.path.isdir(s.url)
+        g1 = os.access(var('cwd'),os.R_OK)
+        g2 = os.access(s.url,os.X_OK)
         b = b1 and b2 and g1 and g2
         av = not b1 and g1 and not g2 and s.drol
         if b or av: s.eno = None
@@ -2082,19 +2209,19 @@ class FileMan(MainWindow):
         )
         tw(s.urlt,text=s.url+[' ','|'][s.urlbln or q],color=co)
         s.urlo = s.url
-        if can or isdir(s.url): return
+        if can or os.path.isdir(s.url): return
         # complete
-        f = dirname(s.url)
-        if not exists(f): return
+        f = os.path.dirname(s.url)
+        if not os.path.exists(f): return
         if f == lurl: return
         s.cd(f,dry=True)
     def cd(s,t,dry=False):
-        if t == '..': t = dirname(var('cwd'))
+        if t == '..': t = os.path.dirname(var('cwd'))
         s.sl = (None,None)
         if s.flon and s.rfl:
             s.push("Filter is active! Press 'X' to cancel.",du=1.2,color=s.COL3)
         var('cwd',t)
-        if s.eno != 1 and not access(t,X_OK):
+        if s.eno != 1 and not os.access(t,os.X_OK):
             s.eno = 1
             s.nah()
         0 if dry else tw(s.urla,text=t)
@@ -2240,10 +2367,29 @@ FMT = lambda size: (
     f"{size / 1024:.1f} KB" if size >= 1024 else f"{size} B"))
 )
 GUN = lambda: gs('gunCocking').play()
-BASE = lambda: join(dirname(app.env.cache_directory),'ballistica_files','ba_data')
-AUDIO = lambda: ls(join(BASE(),'audio'))
-TEX = lambda: ls(join(BASE(),'textures'))
-MESH = lambda: ls(join(BASE(),'meshes'))
+_INIT_CWD = os.getcwd()
+def BASE():
+    app_py_dir = getattr(app.env, "python_directory_app", None)
+    if app_py_dir:
+        base_from_app = os.path.join(
+            os.path.os.path.dirname(os.path.dirname(os.path.abspath(app_py_dir))),
+            "ba_data"
+        )
+        if os.path.exists(base_from_app):
+            return base_from_app
+
+    base_from_cwd = os.path.join(_INIT_CWD, "ba_data")
+    if os.path.exists(base_from_cwd):
+        return base_from_cwd
+
+    return os.path.join(
+        os.path.dirname(app.env.cache_directory),
+        "ballistica_files",
+        "ba_data"
+    )
+AUDIO = lambda: os.listdir(os.path.join(BASE(),'audio'))
+TEX = lambda: os.listdir(os.path.join(BASE(),'textures'))
+MESH = lambda: os.listdir(os.path.join(BASE(),'meshes'))
 SRT = lambda: ['Name','Type','Date Modifed','Size']
 INV = lambda c: ((1-c[0])*2,(1-c[1])*2,(1-c[2])*2)
 COL = lambda: [
@@ -2269,7 +2415,7 @@ def con(v,t):
     if var(v) is None: var(v,t)
 
 # Default
-con('cwd',getcwd())
+con('cwd',os.getcwd())
 con('star',[])
 con('col',COL())
 
