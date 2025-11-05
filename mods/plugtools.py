@@ -82,7 +82,7 @@ class PlugTools(TAB):
     def spy(s):
         b = 0
         for _ in s.bys.copy():
-            if not exists(PAT(_)):
+            if _ is not None and not exists(PAT(_)):
                 s.bys.remove(_)
                 push(f'Plugin {_} suddenly disappeared!\nAnd so, was removed from list.',color=(1,1,0))
                 gs('block').play()
