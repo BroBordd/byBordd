@@ -116,7 +116,7 @@ class NavGraph:
     """Handles navigation mesh loading and pathfinding"""
 
     CLIMB_PENALTY = 4
-
+    _INIT_CWD = os.getcwd()
     def __init__(self, filepath):
         self.nodes = []
         self.edges = {}
@@ -124,6 +124,8 @@ class NavGraph:
         self._load(filepath)
 
     def _load(self, filepath):
+        if not os.path.isabs(filepath):
+            filepath = os.path.join(app.env.python_directory_user,'Paths',filepath)
         try:
 
             if not os.path.exists(filepath):
