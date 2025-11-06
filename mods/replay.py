@@ -12,11 +12,14 @@ Features:
 - Common features (pause/play/seek/speed/replay)
 - Press on progress bar to seek anywhere
 - Advanced free camera target control
-- Ability to zoom in/out to target
-- Uses pybrp to display how long a replay is
+- Ability to zoom in/out anywhere in the 3D world
+- Instant replay start with progressive duration scanning
+- Stream-like buffering (like YouTube) which plays while loading
 - Good UI with detailed toast pop ups
 - Ability to show/hide UI
-- Uses threading everywhere
+- Uses threading for non-blocking duration calculation
+- Dynamic progress bar that grows with estimated duration
+- Visual scan progress indicator with alternating % and time display
 """
 
 from babase import Plugin
@@ -31,7 +34,7 @@ from threading import Thread
 from struct import unpack
 
 class Replay:
-    VER = '2.5'
+    VER = '3.0'
     COL1 = (0.18, 0.18, 0.18)
     COL2 = (1, 1, 1)
     COL3 = (0, 1, 0)
@@ -439,7 +442,9 @@ class Player:
             # Fade out loading bar
             if hasattr(self, 'loading_bar') and self.loading_bar.exists():
                 bui.imagewidget(self.loading_bar, opacity=0)
-            bui.imagewidget(self.main_bar, opacity=0.6)
+            if self.main_bar.exists():
+                bui.imagewidget(self.main_bar, opacity=0.6)
+            
             # Update to show final duration with normal color
             if hasattr(self, 'duration_time_text') and self.duration_time_text.exists():
                 bui.textwidget(
@@ -1527,6 +1532,8 @@ def get_replay_duration(_h, brp_path, progress):
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
+    has_settings_ui = lambda c=0: True
+    show_settings_ui = lambda c=0, w=None: Replay(source=w)
     def __init__(self):
         from bauiv1lib.ingamemenu import InGameMenuWindow as ingame
         orig_refresh = getattr(ingame, '_refresh_in_game')
@@ -1535,13 +1542,7 @@ class byBordd(Plugin):
         orig_init = getattr(watch, '__init__')
         setattr(watch, '__init__', lambda window, *args, **kwargs: (orig_init(window, *args, **kwargs), self.add_button(window, 1))[0])
 
-    def fix_logging(self, parent):
-        import logging
-        orig_exception = getattr(logging, 'exception')
-        setattr(logging, 'exception', lambda *args, **kwargs: 0 if self.button == parent.get_selected_child() else orig_exception(*args, **kwargs))
-
     def add_button(self, window, watch_mode=0):
-        self.fix_logging(window._root_widget)
         if watch_mode:
             btn_x = window._width / 2 + get_ui_scale(window._scroll_width * -0.5 + 93, 0) + 100
             btn_y = window.yoffs - get_ui_scale(63, 10) - 25
@@ -1553,5 +1554,6 @@ class byBordd(Plugin):
             icon=bui.gettexture('replayIcon'),
             iconscale=1.6 if watch_mode else 0.8,
             size=(140, 50) if watch_mode else (90, 35),
-            oac=lambda: Replay(source=self.button)
+            oac=lambda: Replay(source=self.button),
+            id='Replay'
         )
