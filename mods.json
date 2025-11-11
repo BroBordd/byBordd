@@ -240,6 +240,14 @@
         "mod_filename_base": "easycmd"
     },
     {
+        "mod_name": "Flashback",
+        "mod_fancy_name": "Let's see that again",
+        "mod_version": "1.0",
+        "mod_description": "Record what happens, and see it happen again.\nPlays recordings by creating passthrough ghosts tha try to imitate what happened.\nHeavily experimental! Feedback is appreciated.",
+        "api_version": 9,
+        "mod_filename_base": "flashback"
+    },
+    {
         "mod_name": "FPP",
         "mod_fancy_name": "First person perspective",
         "mod_version": "1.0",
