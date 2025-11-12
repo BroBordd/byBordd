@@ -2996,7 +2996,7 @@ def fade(w,i=0,j=0.025,a=0.1):
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     has_settings_ui = lambda s: True
-    show_settings_ui = lambda s,b: s.make()
+    show_settings_ui = lambda s,b: Polish()
     def __init__(s):
         s.last = ''
         # dumb workaround
