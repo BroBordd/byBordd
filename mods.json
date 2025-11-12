@@ -241,9 +241,9 @@
     },
     {
         "mod_name": "Flashback",
-        "mod_fancy_name": "Let's see that again",
-        "mod_version": "1.0",
-        "mod_description": "Record what happens, and see it happen again.\nPlays recordings by creating passthrough ghosts tha try to imitate what happened.\nHeavily experimental! Feedback is appreciated.",
+        "mod_fancy_name": "Let's see that again (Time-Accurate Edition)",
+        "mod_version": "1.1",
+        "mod_description": "Record what happens, and see it happen again.\nPlays recordings by creating passthrough ghosts that try to imitate what happened.\nNow with accurate timing for node spawning, despawning, and attribute changes!",
         "api_version": 9,
         "mod_filename_base": "flashback"
     },
