@@ -120,6 +120,14 @@
         "mod_filename_base": "power"
     },
     {
+        "mod_name": "Proto",
+        "mod_fancy_name": "Your client bot",
+        "mod_version": "1.0",
+        "mod_description": "Experimental. Used for debugging and understanding client to server communication.\nStart by sending Proto() in dev console, or via settings UI.",
+        "api_version": 9,
+        "mod_filename_base": "proto"
+    },
+    {
         "mod_name": "Replay",
         "mod_fancy_name": "Simple replay player",
         "mod_version": "3.0",
