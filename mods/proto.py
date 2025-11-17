@@ -14,10 +14,12 @@ import babase as ba
 import bauiv1 as bui
 import bascenev1 as bs
 
+from traceback import format_exc
 from threading import Thread
+from time import time, sleep
 from random import randint
+from enum import IntEnum
 from json import dumps
-from time import time
 from re import match
 
 # static
@@ -32,12 +34,13 @@ _mrf = lambda o,n: (lambda s,r:([None for i in range(len(s))if i<len(s)and s[i]n
 _var = lambda s,v=None: (cfg:=bui.app.config) and (s:='proto_'+s) and v is None and cfg.get(s,v) or (cfg.__setitem__(s,v) or cfg.commit())
 
 # global
+_incr = 0x20
 _inst = None
 _info = {}
 _logs = []
 _sock = None
 _thrd = None
-_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph']
+_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph','buffer','buffer2']
 
 # visual
 class DarkTheme:
@@ -85,6 +88,7 @@ class Log:
 
 class Proto:
     def __init__(s):
+        s.cache = {}
         global _inst
         _inst = s
         _snd('powerup01',0.15)
@@ -510,7 +514,10 @@ class Proto:
         )
         # packet root
         pak = Packet.get()
-        ry = len(pak)*30
+        _extr = ['me','him']
+        _extr2 = ['spec','auth']
+        all = pak+_extr+_extr2
+        ry = len(all)*30
         p1 = bui.containerwidget(
             parent=p0,
             color=Theme.TINT,
@@ -518,7 +525,21 @@ class Proto:
             background=False
         )
         # packet list
-        for i,_ in enumerate(pak):
+        def add_data(_):
+            if _ in pak:
+                e = getattr(Packet,_).to_bytes().hex()
+            elif _ in _extr: e = _info.get(_,'00')
+            elif _ in _extr2: e = str(getattr(s,f'build_{_}')().decode())
+            else: e = '??'
+            box = _ in _extr2 and s.buffer2 or s.buffer
+            bui.textwidget(
+                box,
+                text=bui.textwidget(
+                    query=box
+                ) + str(e)
+            )
+            _snd('deek')
+        for i,_ in enumerate(all):
             bui.textwidget(
                 parent=p1,
                 size=(fx,30),
@@ -529,7 +550,8 @@ class Proto:
                 position=(0,ry-30-30*i),
                 selectable=True,
                 glow_type='uniform',
-                click_activate=True
+                click_activate=True,
+                on_activate_call=bui.CallPartial(add_data,_)
             )
         # separator
         bui.imagewidget(
@@ -540,7 +562,55 @@ class Proto:
             opacity=Theme.OPACITY,
             position=(x+20,y/2)
         )
-        #TODO packet code
+        # START TODO packet code
+        dx,dy = ex-40,50
+        py = y/2-dy-20
+        # buffer box
+        s.buffer = bui.textwidget(
+            parent=s.root,
+            color=Theme.TEXT,
+            editable=True,
+            glow_type='uniform',
+            size=(dx,dy),
+            v_align='center',
+            allow_clear_button=False,
+            position=(x+24,py+2),
+            maxwidth=dx
+        )
+        # buffer hint
+        s.buffer_hint = bui.textwidget(
+            parent=s.root,
+            position=(x+24,py+2),
+            size=(dx,dy),
+            v_align='center',
+            color=(*Theme.TEXT,Theme.OPACITY),
+            text='Hex header',
+            description='Appended first in packet\nExample input: 250b17ff00ff'
+        )
+        # buffer2 box
+        py -= (dy+10)
+        s.buffer2 = bui.textwidget(
+            parent=s.root,
+            color=Theme.TEXT,
+            editable=True,
+            glow_type='uniform',
+            size=(dx,dy),
+            v_align='center',
+            allow_clear_button=False,
+            position=(x+24,py+2),
+            maxwidth=dx
+        )
+        # buffer2 hint
+        s.buffer2_hint = bui.textwidget(
+            parent=s.root,
+            position=(x+24,py+2),
+            size=(dx,dy),
+            v_align='center',
+            color=(*Theme.TEXT,Theme.OPACITY),
+            text='Tailing data',
+            description='Appened after hex data as bytes\nExample input: {"b":"123456","a":"foo"}blarg!'
+        )
+        # OWARI TODO
         # splitter
         bui.imagewidget(
             parent=s.root,
@@ -552,12 +622,13 @@ class Proto:
         )
         # log scroll
         s.log_next = 0
-        s.log_x = ex2-20
+        s.log_x = ex2-40
         s.log_y = y-40
+        px,py = x+ex+20,20
         p0 = bui.scrollwidget(
             border_opacity=Theme.OPACITY,
-            position=(x+ex+20,20),
-            size=(s.log_x-20,s.log_y),
+            position=(px,py),
+            size=(s.log_x,s.log_y),
             color=Theme.TINT,
             parent=s.root
         )
@@ -566,39 +637,62 @@ class Proto:
             parent=p0,
             background=False
         )
+        # log note
+        s.cache['log_note'] = type('',(object,),{'__del__':(
+            bui.textwidget(
+                parent=s.root,
+                position=(
+                    x+ex+s.log_x/2-5,
+                    y-s.log_y/2-30
+                ),
+                color=(*Theme.TINT,Theme.OPACITY),
+                text='No logs',
+                h_align='center',
+                v_align='center'
+            ).delete
+        )})()
         # finally
         s.catch_up()
-        s.cache = {'spy':bui.AppTimer(0.01,s.safe_spy,repeat=True)}
-        # debug animation
+        s.cache['spy'] = bui.AppTimer(0.01,s.safe_spy,repeat=True)
+        if not _info.get('ready',0):
+            _info['ready'] = 1
+            s.gather()
+        # debug
         def debug():
-            global _sock
-            _sock = 1
-            _info['me'] = _info['him'] = '69'
-            s.update()
+            if 0:
+                # animation
+                global _sock
+                _sock = 1
+                _info['me'] = _info['him'] = '69'
+                s.update()
+            if 1:
+                # logging
+                try: 1+"BrotherBoard"
+                except Exception as e: s.log([str(e),format_exc()],Log.BAD)
+                s.log((
+                    (10*('BrotherBoard should touch grass!'*5+'\n'))
+                ).encode(),Log.ME)
+                s.log('Utterly amazing! Very nice!',Log.GOOD)
         0 and bui.apptimer(2,debug)
-        # debug log expansion
-        0 and s.log((
-             (10*('BrotherBoard should touch grass!'*5+'\n'))
-         ).encode().hex(' '),hx=True)
-        0 and s.log('Utterly amazing! Very nice!',Log.GOOD)
     def catch_up(s):
         # list logs
-        for z,t,hx in _logs: s.log(t,z,dry=True,hx=hx)
+        for z,t in _logs: s.log(t,z,dry=True)
         # set texts
         s.sync()
         # update online state
         s.update(dry=True)
-    def log(s,t,z=2,dry=False,hx=False):
-        if hx: real = t.hex(' ')
+    def log(s,t,z=2,dry=False):
+        if z in [Log.ME,Log.HIM]: real = t.hex(' ')
+        elif z == Log.BAD: real = t[0]
         else: real = t
-        if not dry: _logs.append((z,t,hx))
+        if not dry: _logs.append((z,t))
         if not s.root: return
         # background
         bui.imagewidget(
             parent=s.log_root,
             texture=bui.gettexture('white'),
             color=Log.bg(z),
-            size=(s.log_x-35,30),
+            size=(s.log_x-15,30),
             position=(-5,s.log_next*30),
             opacity=Theme.OPACITY
         )
@@ -615,12 +709,13 @@ class Proto:
             click_activate=True,
             glow_type='uniform',
             v_align='center',
-            maxwidth=s.log_x-40
+            maxwidth=s.log_x-20
         )
-        bui.textwidget(vc,on_activate_call=ba.CallPartial(s.expand,t,z,vc,hx))
+        bui.textwidget(vc,on_activate_call=ba.CallPartial(s.expand,t,z,vc))
         # finally
         bui.containerwidget(s.log_root,size=(s.log_x,max(s.log_next*30+30,s.log_y-15)),visible_child=vc)
         s.log_next += 1
+        s.cache.pop('log_note',0)
     def tran(s,w,o,t,f,h):
         s.cache[str(w)] = [0,_mrf(o,t),bui.AppTimer(0.03,ba.CallPartial(s.safe_anim,w),repeat=True),f,h]
     def safe_anim(s,w):
@@ -885,14 +980,17 @@ class Proto:
             enable_sound=False,
             on_activate_call=ld
         )
-    def expand(s,t,z,src,hx):
+    def expand(s,t,z,src):
         _snd('powerup01',0.15)
         real = t
-        if hx:
-            try: rep = '\n'.join((12*' ').join((3*' ').join(chr(b) if 32 <= b < 127 else '.' for b in t[i:i+8]) for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
-            except: hx = False
-            else: real = '\n'.join((6*' ').join(t[i:i+8].hex(' ') for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
-        x,y = (650,hx and 400 or 200)
+        if z == Log.ME or z == Log.HIM:
+            try: rep = '\n'.join((3*' ').join((3*' ').join(chr(b) if 32 <= b < 127 else '.' for b in t[i:i+8]) for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
+            except: z = -1
+            else: real = '\n'.join((' ').join(t[i:i+8].hex(' ') for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
+        elif z == Log.BAD:
+            real = t[0]
+            rep = t[1]
+        x,y = (650,(z == Log.ME or z == Log.HIM or z == Log.BAD) and 400 or 200)
         ox,oy = src.get_screen_space_center()
         bye = lambda z=1: (z and _snd('laser')) or bui.containerwidget(root,transition='out_scale')
         # root
@@ -953,7 +1051,7 @@ class Proto:
         # hex bg
         bui.imagewidget(
             parent=p1,
-            size=(dx,ry),
+            size=(dx-17,ry),
             color=Log.bg(z),
             texture=bui.gettexture('white'),
             opacity=Theme.OPACITY
@@ -970,10 +1068,10 @@ class Proto:
             glow_type='uniform',
             on_activate_call=ba.CallPartial(
                 bui.clipboard_set_text,
-                t.hex() if hx else real
+                t.hex() if (z == Log.ME or z == Log.HIM) else real
             )
         )
-        if not hx: return
+        if z != Log.ME and z != Log.HIM and z != Log.BAD: return
         # separator
         py += dy+20
         bui.imagewidget(
@@ -994,38 +1092,78 @@ class Proto:
             color=Theme.TINT
         )
         # repr box
-        ry = bui.get_string_height(rep,suppress_warning=True)
-        ry = max(ry,dy-15)
-        rx = bui.get_string_width(rep,suppress_warning=True)
-        rx = max(rx,dx-15)
-        p1 = bui.containerwidget(
-            parent=p0,
-            background=False,
-            size=(dx,ry)
-        )
-        # repr bg
-        bui.imagewidget(
-            parent=p1,
-            size=(rx,ry),
-            color=Log.bg(z),
-            texture=bui.gettexture('white'),
-            opacity=Theme.OPACITY
-        )
-        # repr text
-        bui.textwidget(
-            parent=p1,
-            text=rep,
-            color=(*Log.text(z),Theme.OPACITY),
-            position=(5,0),
-            selectable=True,
-            click_activate=True,
-            size=(rx,ry),
-            glow_type='uniform',
-            on_activate_call=ba.CallPartial(
-                bui.clipboard_set_text,
-                t.decode('utf-8', errors='replace').translate(str.maketrans({c: '.' for c in range(0x10000) if not chr(c).isprintable()}))
+        if z == Log.ME or z == Log.HIM:
+            ry = bui.get_string_height(rep,suppress_warning=True)
+            ry = max(ry,dy-15)
+            p1 = bui.containerwidget(
+                parent=p0,
+                background=False,
+                size=(dx,ry)
             )
-        )
+            # repr bg
+            bui.imagewidget(
+                parent=p1,
+                size=(dx-17,ry),
+                color=Log.bg(z),
+                texture=bui.gettexture('white'),
+                opacity=Theme.OPACITY
+            )
+            # repr text
+            bui.textwidget(
+                parent=p1,
+                text=rep,
+                color=(*Log.text(z),Theme.OPACITY),
+                position=(5,0),
+                selectable=True,
+                click_activate=True,
+                size=(dx,ry),
+                glow_type='uniform',
+                on_activate_call=ba.CallPartial(
+                    bui.clipboard_set_text,
+                    t.decode('utf-8', errors='replace').translate(str.maketrans({c: '.' for c in range(0x10000) if not chr(c).isprintable()}))
+                )
+            )
+        elif z == Log.BAD:
+            rx = bui.get_string_width(rep,suppress_warning=True)
+            ry = bui.get_string_height(rep,suppress_warning=True)
+            mw = dx - 30
+            if rx > mw:
+                scale_factor = mw / rx
+                actual_height = ry * scale_factor
+            else:
+                actual_height = ry
+
+            actual_height = max(actual_height, dy - 15)
+
+            p1 = bui.containerwidget(
+                parent=p0,
+                background=False,
+                size=(dx, actual_height)
+            )
+            # repr bg
+            bui.imagewidget(
+                parent=p1,
+                size=(dx-15, actual_height),
+                color=Log.bg(z),
+                texture=bui.gettexture('white'),
+                opacity=Theme.OPACITY
+            )
+            # repr text
+            bui.textwidget(
+                parent=p1,
+                text=rep,
+                color=(*Log.text(z), Theme.OPACITY),
+                position=(5, 0),
+                selectable=True,
+                maxwidth=mw,
+                click_activate=True,
+                size=(dx, actual_height),
+                glow_type='uniform',
+                on_activate_call=ba.CallPartial(
+                    bui.clipboard_set_text,
+                    rep
+                )
+            )
     def safe_esta(s):
         if _info.get('busy',0):
             _say('Already Establishing, wait.')
@@ -1057,21 +1195,9 @@ class Proto:
             _say('Enter a port!')
             _snd('block')
             return
-        # build spec
-        spec = _dum({
-            's':dumps({
-                'n':_info['spec_n'],
-                'sn':_info['spec_sn'],
-                'a':_info['spec_a']
-            }),
-            'd':_info['spec_d']
-        })
-        # build auth
-        auth = _dum({
-            'b':(auth_b:=_info['auth_b']).isdigit() and int(auth_b) or auth_b,
-            'tk':_info['auth_tk'],
-            'ph':_info['auth_ph']
-        })
+        # build
+        spec = s.build_spec()
+        auth = s.build_auth()
         # start thread
         global _thrd
         _thrd = Thread(
@@ -1082,30 +1208,46 @@ class Proto:
         _snd('dingSmall')
         s.log('Establishing',Log.INFO)
         return True
+    def build_spec(s):
+        return _dum({
+            's':dumps({
+                'n':_info['spec_n'],
+                'sn':_info['spec_sn'],
+                'a':_info['spec_a']
+            }),
+            'd':_info['spec_d']
+        })
+    def build_auth(s):
+        return _dum({
+            'b':(auth_b:=_info['auth_b']).isdigit() and int(auth_b) or auth_b,
+            'tk':_info['auth_tk'],
+            'ph':_info['auth_ph']
+        })
     def safe_connect(s,*a):
         try: s.connect(*a)
         except Exception as e:
-            ba.pushcall(ba.CallPartial(s.log,str(e),3),from_other_thread=True)
+            ba.pushcall(ba.CallPartial(s.log,[str(e),format_exc()],Log.BAD),from_other_thread=True)
             ba.pushcall(s.cleanup,from_other_thread=True)
             ba.pushcall(ba.CallPartial(_snd,'dingSmall'),from_other_thread=True)
         else: ba.pushcall(ba.CallPartial(_snd,'dingSmallHigh'),from_other_thread=True)
         _info['busy'] = False
     def connect(s,spec,auth):
-        _log = lambda t,c=2,hx=False: (
+        _log = lambda t,c=2: (
             ba.pushcall(
-                ba.CallPartial(s.log,t,c,hx=hx),
+                ba.CallPartial(s.log,t,c),
                 from_other_thread=True
             )
         )
         _com = lambda d: (
             (_sock.sendto(d,(addr,port)) or 1) and
-            _log(d,Log.ME,hx=True)
+            _log(d,Log.ME)
         )
         _get = lambda s: (
             (d:=_sock.recvfrom(s)[0]),
-            _log(d,Log.HIM,hx=True)
+            _log(d,Log.HIM)
         ) and d
         _hex = lambda t: bytes.fromhex(t)
+        _pak = lambda t: getattr(Packet,t).to_bytes()
         addr = _info['addr']
         port = int(_info['port'])
         global _sock
@@ -1116,11 +1258,11 @@ class Proto:
         # ping first
         _log('Pinging')
         ping_start = time()
-        _com(Packet.P_SIMPLE_PING)
+        _com(_pak('P_SIMPLE_PING'))
         data, recv_addr = _sock.recvfrom(10)
 
         if (
-            data != Packet.P_SIMPLE_PONG
+            data != _pak('P_SIMPLE_PONG')
             or recv_addr[0] != addr
         ): _log('Ping failed!',Log.ERROR); return
 
@@ -1130,23 +1272,39 @@ class Proto:
         _info['me'] = me = f'{(71 + randint(0, 150)):02x}'
         _log(f"Trying '{me}'")
         _com(
-            Packet.P_CLIENT_REQUEST +
+            _pak('P_CLIENT_REQUEST') +
             _hex('21') + #TODO define these
             _hex('00') +
             _hex(me) +
             ba.app_instance_uuid().encode()
         )
-        # wait
-        while len((shake:=_get(3))) < 2: pass
+        # handle
+        _tmp = None
+        while not (shake:=_get(1024)).startswith(_pak('P_CLIENT_ACCEPT')):
+            if _tmp == shake: continue
+            elif shake.startswith(_pak('P_CLIENT_DENY_PARTY_FULL')):
+                _log('Waiting (party full)')
+            elif shake.startswith(_pak('P_CLIENT_DENY_ALREADY_IN_PARTY')):
+                _log('Waiting (already in party)')
+            elif shake.startswith(_pak('P_CLIENT_DENY')):
+                _log('Still waiting')
+            elif shake.startswith(_pak('P_CLIENT_DENY_VERSION_MISMATCH')):
+                raise Exception('Version mismatch')
+            else:
+                raise Exception('Unexpected response: '+shake.hex(' '))
+            _tmp = shake
+            sleep(1)
+        del _tmp
         # shake back
         _info['him'] = him = f'{shake[1]:02x}'
         _log(f"Established! {me} -> {him}",Log.GOOD)
-        # flush server info
+        # flush host info
+        _log('Flushing host info')
         _get(1024)
         # send spec
         _log('Sending spec')
         _com(
-            Packet.P_CLIENT_GAMEPACKET_COMPRESSED +
+            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
             _hex(him) +
             _hex('10') +
             _hex('21') +
@@ -1156,7 +1314,7 @@ class Proto:
         # send auth
         _log('Sending auth')
         _com(
-            Packet.P_CLIENT_GAMEPACKET_COMPRESSED +
+            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
             _hex(him) +
             _hex('11') +
             _hex('f0') +
@@ -1170,7 +1328,7 @@ class Proto:
         # send empty packet
         _log('Sending empty packet')
         _com(
-            Packet.P_CLIENT_GAMEPACKET_COMPRESSED +
+            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
             _hex(him) +
             _hex('11') +
             _hex('f1') +
@@ -1182,8 +1340,9 @@ class Proto:
             _dum({})
         )
         # final shake
+        _log('Sending final shake')
         _com(
-            Packet.P_CLIENT_GAMEPACKET_COMPRESSED +
+            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
             _hex(him) +
             _hex('11') +
             _hex('f2') +
@@ -1194,26 +1353,89 @@ class Proto:
             _hex('03')
         )
         # flush stuff
+        _log('Flushing party info')
         _get(1024)
         _get(9)
+        # keepalive
+        _log('Starting keepalive service')
+        def keepalive():
+            global _incr
+            _incr = (_incr+32) & 0xFFFFFF
+            _sock.sendto(
+                _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+                _hex(him) +
+                _pak('SP_KEEPALIVE') +
+                _incr.to_bytes(3,'little'),
+                (addr, port)
+            )
+        ba.pushcall(bui.CallPartial(
+            s.pack_timer,
+            'keepalive',
+            0.1,
+            keepalive,
+            repeat=True
+        ),from_other_thread=True)
+        # listener
+        _log('Starting listener')
+        pfix = (
+            _pak('P_HOST_GAMEPACKET_COMPRESSED') +
+            _hex(me) +
+            _pak('SP_MESSAGE')
+        )
+        chat = Packet.M_CHAT.to_bytes()
+        def listener():
+            resp = _sock.recvfrom(1024)[0]
+            # Quick check: is this a chat packet?
+            # byte[0] = 25 (P_CLIENT_ACCEPT), byte[2] = 17 (SP_MESSAGE), byte[9] = 10 (M_CHAT)
+            if len(resp) > 10 and resp[0] == 0x25 and resp[2] == 0x11 and resp[9] == 0x0a:
+                spec_size = resp[10]  # byte at position 10 is the spec size
+                spec_start = 11
+                spec_end = spec_start + spec_size
+                spec = resp[spec_start:spec_end].decode('utf-8', errors='ignore')
+                message = resp[spec_end:].decode('utf-8', errors='ignore')
+                print(f"CHAT | Spec: {spec} | Message: {message}")
+            if b'WATASHI' in resp:
+                print('SEIKAI!',resp)
+        ba.pushcall(bui.CallPartial(
+            s.pack_timer,
+            'listener',
+            0.01,
+            listener,
+            repeat=True
+        ),from_other_thread=True)
+        # register disconnect
+        def disconnect():
+            _sock.sendto(
+                _pak('P_DISCONNECT_FROM_CLIENT_REQUEST') +
+                _hex(him),
+                (addr, port)
+            )
+            s.log('Disconnecting')
+        _info['disconnect'] = disconnect
         # finally
-        _log('Connected!',Log.GOOD)
         ba.pushcall(s.update,from_other_thread=True)
+        _log('Connected!',Log.GOOD)
+    def pack_timer(s,n,*a,**kw):
+        _info[n] = bui.AppTimer(*a,**kw)
     def cleanup(s):
-        global _sock, _thrd
+        global _sock, _thrd, _incr
+        # stop services
+        _info['keepalive'] = None
+        _info['listener'] = None
+        # reset
+        _info.pop('disconnect',lambda:0)()
         _sock.close()
         _sock = None
         _thrd.join()
         _thrd = None
+        _incr = 0x20
 
-class PacketType(type):
-    def __getattribute__(cls, name):
-        value = super().__getattribute__(name)
-        return bytes([value]) if name.isupper() else value
-
-class Packet(metaclass=PacketType):
+class Packet(IntEnum):
     @classmethod
-    def get(c): return [_ for _ in dir(c) if _.isupper()]
+    def get(cls):
+        return [p.name for p in cls]
+    def to_bytes(self):
+        return bytes([self.value])
     P_REMOTE_PING = 0
     P_REMOTE_PONG = 1
     P_REMOTE_ID_REQUEST = 2
