@@ -40,7 +40,7 @@ _info = {}
 _logs = []
 _sock = None
 _thrd = None
-_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph','buffer','buffer2']
+_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph','buffer','buffer2','delay']
 
 # visual
 class DarkTheme:
@@ -460,7 +460,30 @@ class Proto:
         # save
         py -= 90
         dx = (x-110)/3
-        s.save_b = bui.buttonwidget(
+        def save():
+            mem = _var('save') or {}
+            if mem:
+                nam = f'# Save '+str(
+                    1 + int(
+                        list(mem)[-1].split()[-1]
+                    )
+                )
+            else: nam = '# Save 1'
+            buf = {}
+            for _ in _attr:
+                val = bui.textwidget(query=getattr(s,_))
+                if not val: continue
+                buf[_] = val
+            if not buf:
+                _say('Nothing to save!')
+                _snd('block')
+                return
+            mem[nam] = buf
+            _var('save',mem)
+            _say(f'Saved as {nam}!')
+            _snd('gunCocking')
+            return True
+        bui.buttonwidget(
             parent=s.root,
             texture=bui.gettexture('white'),
             color=Theme.TINT,
@@ -469,7 +492,7 @@ class Proto:
             size=(dx,50),
             position=(23,py),
             label='Save',
-            on_activate_call=s.save
+            on_activate_call=save
         )
         # memory
         s.memory_b = bui.buttonwidget(
@@ -514,9 +537,7 @@ class Proto:
         )
         # packet root
         pak = Packet.get()
-        _extr = ['me','him']
-        _extr2 = ['spec','auth']
-        all = pak+_extr+_extr2
+        all = pak
         ry = len(all)*30
         p1 = bui.containerwidget(
             parent=p0,
@@ -526,17 +547,15 @@ class Proto:
         )
         # packet list
         def add_data(_):
-            if _ in pak:
-                e = getattr(Packet,_).to_bytes().hex()
-            elif _ in _extr: e = _info.get(_,'00')
-            elif _ in _extr2: e = str(getattr(s,f'build_{_}')().decode())
-            else: e = '??'
-            box = _ in _extr2 and s.buffer2 or s.buffer
             bui.textwidget(
-                box,
+                s.buffer,
                 text=bui.textwidget(
                     query=box
-                ) + str(e)
+                ) + (
+                    _ in pak and
+                    getattr(Packet,_).to_bytes().hex()
+                    or '??'
+                )
             )
             _snd('deek')
         for i,_ in enumerate(all):
@@ -562,7 +581,6 @@ class Proto:
             opacity=Theme.OPACITY,
             position=(x+20,y/2)
         )
-        # START TODO packet code
         dx,dy = ex-40,50
         py = y/2-dy-20
         # buffer box
@@ -575,6 +593,7 @@ class Proto:
             v_align='center',
             allow_clear_button=False,
             position=(x+24,py+2),
+            description='Appended first in packet\nExample input: 250b17ff00ff\nEnter',
             maxwidth=dx
         )
         # buffer hint
@@ -584,11 +603,10 @@ class Proto:
             size=(dx,dy),
             v_align='center',
             color=(*Theme.TEXT,Theme.OPACITY),
-            text='Hex header',
-            description='Appended first in packet\nExample input: 250b17ff00ff'
+            text='Hex header'
         )
         # buffer2 box
-        py -= (dy+10)
+        py -= (dy+5)
         s.buffer2 = bui.textwidget(
             parent=s.root,
             color=Theme.TEXT,
@@ -598,7 +616,8 @@ class Proto:
             v_align='center',
             allow_clear_button=False,
             position=(x+24,py+2),
-            maxwidth=dx
+            maxwidth=dx,
+            description='Appened after hex data as bytes\nExample input: {"b":"123456","a":"foo"}blarg!\nEnter'
         )
         # buffer2 hint
         s.buffer2_hint = bui.textwidget(
@@ -607,10 +626,84 @@ class Proto:
             size=(dx,dy),
             v_align='center',
             color=(*Theme.TEXT,Theme.OPACITY),
-            text='Tailing data',
-            description='Appened after hex data as bytes\nExample input: {"b":"123456","a":"foo"}blarg!'
+            text='Tailing data'
         )
-        # OWARI TODO
+        # delay box
+        py -= (dy+3)
+        s.delay = bui.textwidget(
+            parent=s.root,
+            size=(dx,dy),
+            position=(x+24,py-1),
+            color=Theme.TEXT,
+            glow_type='uniform',
+            allow_clear_button=False,
+            editable=True
+        )
+        # delay hint
+        s.delay_hint = bui.textwidget(
+            parent=s.root,
+            position=(x+24,py+2),
+            size=(dx,dy),
+            v_align='center',
+            color=(*Theme.TEXT,Theme.OPACITY),
+            text='Delay'
+        )
+        # send
+        def safe_send():
+            try: send()
+            except Exception as e:
+                s.log([str(e),format_exc()],Log.BAD)
+            _snd('deek')
+        def wrap(t):
+            for old,new in {
+                '{incr}': _incr.to_bytes(3,'little').hex(),
+                '{me}': _info['me'],
+                '{him}': _info['him'],
+                '{spec_size}': f"{len(_info['spec']):x}",
+                '{auth_size}': f"{len(_info['auth']):x}"
+            }.items(): t = t.replace(old, new)
+            return t
+        def wrap2(t):
+            for old,new in {
+                '{spec}': _info['spec'].decode(),
+                '{auth}': _info['auth'].decode()
+            }.items(): t = t.replace(old,new)
+            return t
+        def send():
+            if not _sock:
+                _say('Socket is not active!')
+                _snd('block')
+                return
+            # hex head
+            out = bytes.fromhex(
+                wrap(
+                    bui.textwidget(
+                        query=s.buffer
+                    ).strip()
+                )
+            )
+            # raw tail
+            out += wrap2(bui.textwidget(
+                query=s.buffer2
+            )).encode()
+            # finally
+            s.log(out,Log.ME)
+            _sock.sendto(
+                out,
+                (_info['addr'],int(_info['port']))
+            )
+        py -= dy
+        bui.buttonwidget(
+            parent=s.root,
+            label='Send',
+            position=(x+30,py-2),
+            size=(dx-18,dy-14),
+            color=Theme.TINT,
+            textcolor=Theme.TEXT,
+            on_activate_call=safe_send,
+            enable_sound=False,
+            texture=bui.gettexture('white')
+        )
         # splitter
         bui.imagewidget(
             parent=s.root,
@@ -623,8 +716,8 @@ class Proto:
         # log scroll
         s.log_next = 0
         s.log_x = ex2-40
-        s.log_y = y-40
-        px,py = x+ex+20,20
+        s.log_y = y-90
+        px,py = x+ex+20,70
         p0 = bui.scrollwidget(
             border_opacity=Theme.OPACITY,
             position=(px,py),
@@ -636,6 +729,23 @@ class Proto:
         s.log_root = bui.containerwidget(
             parent=p0,
             background=False
+        )
+        # clear logs
+        def clear_logs():
+            _logs.clear()
+            s.log_next = 0
+            for _ in s.log_root.get_children(): _.delete()
+            bui.containerwidget(s.log_root,size=(s.log_x,0))
+        bui.buttonwidget(
+            parent=s.root,
+            texture=bui.gettexture('white'),
+            enable_sound=False,
+            on_activate_call=clear_logs,
+            label='Clear',
+            position=(px+8,20),
+            size=(s.log_x-14,dy-14),
+            color=Theme.TINT,
+            textcolor=Theme.TEXT
         )
         # log note
         s.cache['log_note'] = type('',(object,),{'__del__':(
@@ -770,95 +880,6 @@ class Proto:
                         and Theme.OPACITY
                     )
                 )
-    def save(s):
-        _snd('powerup01',0.15)
-        x,y = (160,50)
-        ox,oy = s.save_b.get_screen_space_center()
-        bye = lambda z=1: (z and _snd('laser')) or bui.containerwidget(root,transition='out_scale')
-        # root
-        root = bui.containerwidget(
-            parent=bui.get_special_widget('overlay_stack'),
-            size=(x,y),
-            background=False,
-            transition='in_scale',
-            scale_origin_stack_offset=(ox,oy),
-            stack_offset=(ox,oy),
-            on_outside_click_call=bye
-        )
-        # shadow
-        bui.imagewidget(
-            parent=root,
-            position=(-x*0.1,-y*0.1),
-            size=(x*1.2,y*1.2),
-            texture=bui.gettexture('softRect'),
-            opacity=Theme.OPACITY,
-            color=Theme.SHADOW
-        )
-        # background
-        bui.imagewidget(
-            parent=root,
-            position=(-1,-1),
-            size=(x,y),
-            texture=bui.gettexture('white'),
-            color=Theme.MAIN,
-            opacity=Theme.OPACITY
-        )
-        # footing
-        bui.buttonwidget(
-            parent=root,
-            size=(x,y),
-            enable_sound=False,
-            texture=bui.gettexture('empty'),
-            opacity=0,
-            selectable=False,
-            label=''
-        )
-        # input
-        inp = bui.textwidget(
-            parent=root,
-            size=(x-10-y,y-16),
-            position=(10,8),
-            editable=True,
-            color=Theme.TEXT,
-            glow_type='uniform',
-            allow_clear_button=False
-        )
-        # done
-        bui.buttonwidget(
-            parent=root,
-            size=(y-20,y-20),
-            label=bui.charstr(bui.SpecialChar.RIGHT_ARROW),
-            color=Theme.TINT,
-            textcolor=Theme.TEXT,
-            enable_sound=False,
-            texture=bui.gettexture('white'),
-            position=(x-y+10,10),
-            on_activate_call=lambda:s._save(bui.textwidget(query=inp)) and bye(0)
-        )
-    def _save(s,t):
-        mem = _var('save') or {}
-        if not t:
-            _say('Enter something!')
-            _snd('block')
-            return
-        if t in mem:
-            _say('Name already exists!')
-            _snd('block')
-            return
-        buf = {}
-        for _ in _attr:
-            val = bui.textwidget(query=getattr(s,_))
-            if not val: continue
-            buf[_] = val
-        if not buf:
-            _say('Nothing to save!')
-            _snd('block')
-            return
-        mem[t] = buf
-        _var('save',mem)
-        _say(f'Saved as {t}!')
-        _snd('gunCocking')
-        return True
     def memory(s):
         _snd('powerup01',0.15)
         x,y = (160,240)
@@ -868,6 +889,7 @@ class Proto:
         root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
             size=(x,y),
+            scale=1.3,
             background=False,
             transition='in_scale',
             scale_origin_stack_offset=(ox,oy),
@@ -912,7 +934,7 @@ class Proto:
             color=Theme.TINT
         )
         # mem root
-        mem = _var('save')
+        mem = _var('save') or {}
         ry = max(len(mem)*30,fy-15)
         p1 = bui.containerwidget(
             parent=p0,
@@ -927,19 +949,22 @@ class Proto:
             cache['on'] = t
             bui.textwidget(t,color=Theme.MAIN)
         # list mem
-        for i,_ in enumerate(mem):
-            t = bui.textwidget(
-                parent=p1,
-                position=(0,ry-30-30*i),
-                text=_,
-                maxwidth=fx,
-                selectable=True,
-                click_activate=True,
-                color=Theme.TEXT,
-                glow_type='uniform',
-                size=(fx,30)
-            )
-            bui.textwidget(t,on_activate_call=bui.CallPartial(sl,t))
+        def mk():
+            for _ in p1.get_children(): _.delete()
+            for i,_ in enumerate(mem):
+                t = bui.textwidget(
+                    parent=p1,
+                    position=(0,ry-30-30*i),
+                    text=_,
+                    maxwidth=fx,
+                    selectable=True,
+                    click_activate=True,
+                    color=Theme.TEXT,
+                    glow_type='uniform',
+                    size=(fx,30)
+                )
+                bui.textwidget(t,on_activate_call=bui.CallPartial(sl,t))
+        mk()
         # delete
         no = lambda: _say('Select something!') or _snd('block')
         def rm():
@@ -948,7 +973,7 @@ class Proto:
             _var('save',mem)
             _say(f'Deleted {q}!')
             _snd('laser')
-            bye()
+            mk()
         dx = x/2-20
         bui.buttonwidget(
             parent=root,
@@ -1209,7 +1234,7 @@ class Proto:
         s.log('Establishing',Log.INFO)
         return True
     def build_spec(s):
-        return _dum({
+        _info['spec'] = r = _dum({
             's':dumps({
                 'n':_info['spec_n'],
                 'sn':_info['spec_sn'],
@@ -1217,12 +1242,14 @@ class Proto:
             }),
             'd':_info['spec_d']
         })
+        return r
     def build_auth(s):
-        return _dum({
+        _info['auth'] = r = _dum({
             'b':(auth_b:=_info['auth_b']).isdigit() and int(auth_b) or auth_b,
             'tk':_info['auth_tk'],
             'ph':_info['auth_ph']
         })
+        return r
     def safe_connect(s,*a):
         try: s.connect(*a)
         except Exception as e:
@@ -1385,17 +1412,9 @@ class Proto:
         chat = Packet.M_CHAT.to_bytes()
         def listener():
             resp = _sock.recvfrom(1024)[0]
-            # Quick check: is this a chat packet?
-            # byte[0] = 25 (P_CLIENT_ACCEPT), byte[2] = 17 (SP_MESSAGE), byte[9] = 10 (M_CHAT)
-            if len(resp) > 10 and resp[0] == 0x25 and resp[2] == 0x11 and resp[9] == 0x0a:
-                spec_size = resp[10]  # byte at position 10 is the spec size
-                spec_start = 11
-                spec_end = spec_start + spec_size
-                spec = resp[spec_start:spec_end].decode('utf-8', errors='ignore')
-                message = resp[spec_end:].decode('utf-8', errors='ignore')
-                print(f"CHAT | Spec: {spec} | Message: {message}")
-            if b'WATASHI' in resp:
-                print('SEIKAI!',resp)
+            ty = resp[0]
+            if ty in Packet:
+                print(resp.hex(' '),resp)
         ba.pushcall(bui.CallPartial(
             s.pack_timer,
             'listener',
