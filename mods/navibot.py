@@ -1,27 +1,15 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Bug? Feedback? Telegram >> @BroBordd
 
 """
-NaviBot v1.0 - Mission: Navigate.
-
-Included in NaviKit plugin already.
-Should be used from there.
-
-NaviBot uses A* pathfinding using a navigation graph of walkable triangles.
-Relies on mapLevelCollide cob mesh, baked as a json using pathmaker.
-
-To convert any map collision mesh (cob) to a path json,
-or get premade json files for game's builtin maps,
-see my pathmaker:
-https://github.com/BroBordd/pathmaker
+NaviBot v2.0 - Intelligent Pathfinding
 """
 
 from bascenev1lib.actor.spaz import Spaz
-from babase import app
 import bascenev1 as bs
-from math import sqrt
 import json
+import math
+import heapq
 import os
 
 try:
@@ -30,184 +18,232 @@ try:
 except ImportError:
     HAS_BUBBLE = False
 
-DEBUG = False
+DEBUG = True
 
 def log(msg):
     if DEBUG:
         print(f"[NaviBot] {msg}")
 
-class NavGraph:
-    """Handles navigation mesh loading and pathfinding"""
-
-    CLIMB_PENALTY = 4
-
-    def __init__(self, filepath):
-        self.nodes = []
-        self.edges = {}
-        self.loaded = False
-        self._load(filepath)
-
-    def _load(self, filepath):
-        try:
-
-            if not os.path.exists(filepath):
-                print(f"[NavGraph] File not found: {filepath}")
-                return
-
-            with open(filepath, 'r') as f:
-                data = json.load(f)
-
-            self.nodes = data.get('nodes', [])
-
-            # Build adjacency list from node neighbors
-            self.edges = {}
-            for node in self.nodes:
-                node_id = node['id']
-                self.edges[node_id] = []
-
-                pos = node['position']
-                for neighbor_id in node.get('neighbors', []):
-                    if neighbor_id < len(self.nodes):
-                        neighbor_pos = self.nodes[neighbor_id]['position']
-                        dist = self._distance(pos, neighbor_pos)
-
-                        # PENALIZE UPHILL EDGES
-                        height_diff = neighbor_pos[1] - pos[1]
-                        if height_diff > 0:
-                            dist *= self.CLIMB_PENALTY  # Make steep paths "longer"
-
-                        self.edges[node_id].append((neighbor_id, dist))
-
-            self.loaded = len(self.nodes) > 0
-            log(f"Loaded {len(self.nodes)} nodes with climb penalty {self.CLIMB_PENALTY}x")
-
-        except Exception as e:
-            print(f"[NavGraph] Load error: {e}")
-
-    @staticmethod
-    def _distance(a, b):
-        return sqrt((a[0]-b[0])**2 + (a[1]-b[1])**2 + (a[2]-b[2])**2)
-
-    def find_nearest_node(self, pos):
-        """Find closest navigation node to position"""
-        if not self.nodes:
-            return None
-
-        best_id = 0
-        best_dist = float('inf')
-
-        for node in self.nodes:
-            dist = self._distance(pos, node['position'])
-            if dist < best_dist:
-                best_dist = dist
-                best_id = node['id']
-
-        # Check if nearest node is too far
-        if best_dist > 10.0:
-            log(f"Nearest node too far: {best_dist:.2f} from pos {pos}")
-            return None
-
-        log(f"Nearest node: {best_id} at distance {best_dist:.2f}")
-        return best_id
-
-    def find_path(self, start_pos, goal_pos):
-        """A* pathfinding between two positions"""
-        start_id = self.find_nearest_node(start_pos)
-        goal_id = self.find_nearest_node(goal_pos)
-
-        log(f"Pathfinding: start_id={start_id}, goal_id={goal_id}")
-
-        if start_id is None or goal_id is None:
-            log(f"Cannot find nodes - start_pos={start_pos}, goal_pos={goal_pos}")
-            return []
-
-        if start_id == goal_id:
-            return [goal_pos]
-
-        # A* algorithm
-        open_set = {start_id}
-        came_from = {}
-        g_score = {start_id: 0}
-
-        def heuristic(node_id):
-            pos = self.nodes[node_id]['position']
-            return self._distance(pos, self.nodes[goal_id]['position'])
-
-        f_score = {start_id: heuristic(start_id)}
-
-        iterations = 0
-        max_iterations = 10000
-
-        while open_set and iterations < max_iterations:
-            iterations += 1
-            current = min(open_set, key=lambda n: f_score.get(n, float('inf')))
-
-            if current == goal_id:
-                # Reconstruct path
-                path = []
-                while current in came_from:
-                    path.append(self.nodes[current]['position'])
-                    current = came_from[current]
-                path.reverse()
-                path.append(goal_pos)
-                log(f"Path found: {len(path)} waypoints, {iterations} iterations")
-                return path
-
-            open_set.remove(current)
-
-            for neighbor_id, edge_cost in self.edges.get(current, []):
-                tentative_g = g_score[current] + edge_cost
-
-                if neighbor_id not in g_score or tentative_g < g_score[neighbor_id]:
-                    came_from[neighbor_id] = current
-                    g_score[neighbor_id] = tentative_g
-                    f_score[neighbor_id] = tentative_g + heuristic(neighbor_id)
-                    open_set.add(neighbor_id)
-
-        log(f"No path found after {iterations} iterations")
-        return []
-
-
 class NaviBot:
-    """Smart navigation bot for BombSquad"""
+    """
+    Advanced bot with A* pathfinding and run-abuse physics.
+    """
 
-    MAX_VELOCITY = 6
-
-    def __init__(self, navguide: str, position=(0,0,0), color=(0,0,0), highlight=(0.1,0.1,0.1), character='Pixel'):
+    def __init__(self, position=(0,0,0), color=(0,0,0), highlight=(0.1,0.1,0.1), character='Pixel'):
         # Spawn bot
         self.bot = Spaz(color=color, highlight=highlight, character=character)
         self.bot.handlemessage(bs.StandMessage(position, 0))
         self.node = self.bot.node
         self.node.name = self.__class__.__name__
 
-        # Load navigation graph
-        self.nav = NavGraph(navguide)
-        if not self.nav.loaded:
-            print("[NaviBot] Failed to load navigation data")
+        # Movement Configuration
+        self.run_multiplier = 1.0
+        self.waypoint_threshold = 1.2  # Distance to node before switching to next
+        
+        # Navigation State
+        self.nav_graph = None # { 'nodes': [], 'adj': {} }
+        self.current_path = [] # List of coordinate tuples (x,y,z)
+        self.target_node_idx = None
+        self.move_timer = None
+        
+        # Run Abuse Timer (The "Cut Turn" mechanic)
+        # We keep this running to allow sharp turns physics
+        self.abuse_timer = bs.Timer(0.15, self._abuse_movement, repeat=True)
+
+        self._speak("NaviBot v2 Online")
+        log("Initialized")
+
+    def load_map(self, json_path):
+        """Loads the pathmaker_v2.py output JSON."""
+        try:
+            # In a real mod, you might need to adjust the path to where BombSquad stores mods
+            with open(json_path, 'r') as f:
+                self.nav_graph = json.load(f)
+            
+            # Convert adjacency keys to int because JSON makes them strings
+            self.nav_graph['adj'] = {int(k): v for k, v in self.nav_graph['adj'].items()}
+            log(f"Map loaded: {len(self.nav_graph['nodes'])} nodes.")
+        except Exception as e:
+            log(f"Failed to load map: {e}")
+            self._speak("Map Load Error!")
+
+    def move_to(self, x, y, z):
+        """
+        Public API: Commands the bot to go to a coordinate.
+        """
+        if not self.nav_graph:
+            log("No nav graph loaded!")
             return
 
-        # Navigation state
-        self.target = None
-        self.path = []
-        self.current_waypoint = 0
+        # 1. Find Start Node (closest to bot)
+        start_node = self._get_closest_node(self.node.position)
+        
+        # 2. Find End Node (closest to target)
+        target_node = self._get_closest_node((x, y, z))
 
-        # Timers
-        self.update_timer = None
-        self.abuse_timer = None
+        if start_node is None or target_node is None:
+            self._speak("Cannot find path logic")
+            return
 
-        # Movement state
-        self.last_pos = None
-        self.stuck_counter = 0
+        # 3. A* Pathfinding
+        path_indices = self._astar(start_node, target_node)
+        
+        if not path_indices:
+            self._speak("No path found!")
+            return
 
-        # Height tracking for vertical movement
-        self.vertical_progress_start = None
-        self.last_height = None
+        # 4. Convert indices to coordinates
+        self.current_path = [self.nav_graph['nodes'][i]['p'] for i in path_indices]
+        
+        # Add the exact final coordinate as the very last step
+        self.current_path.append((x, y, z))
+        
+        log(f"Path computed: {len(self.current_path)} steps.")
+        
+        # 5. Start Control Loop if not running
+        if self.move_timer is None:
+            self.move_timer = bs.Timer(0.05, self._update_movement, repeat=True)
 
-        # Velocity control
-        self.run_multiplier = 1.0  # Controls run intensity (0 to 1)
-        self.pinch = False
-        self._speak("NaviBot online")
-        log("Initialized")
+    def stop(self):
+        """Stop all movement and clear path."""
+        self.current_path = []
+        if self.bot.exists():
+            self.bot.on_move_left_right(0)
+            self.bot.on_move_up_down(0)
+            self.bot.on_run(0)
+
+    def _update_movement(self):
+        """
+        Called every 50ms. Handles steering along the path.
+        """
+        if not self.bot.exists():
+            self.move_timer = None
+            return
+
+        if not self.current_path:
+            self.stop()
+            return
+
+        # Get current target waypoint
+        target = self.current_path[0]
+        pos = self.node.position
+
+        # Vector to target
+        dx = target[0] - pos[0]
+        dy = target[1] - pos[1] # Used for 3D distance check
+        dz = target[2] - pos[2]
+        
+        dist_sq = dx*dx + dy*dy + dz*dz
+
+        # Check if we reached the waypoint
+        # Note: We use 3D distance. On cliffs, dy matters.
+        if dist_sq < (self.waypoint_threshold ** 2):
+            self.current_path.pop(0)
+            if not self.current_path:
+                self.stop()
+                self.yay() # Celebration on arrival
+                return
+            # Recalculate for next point immediately to avoid stutter
+            target = self.current_path[0]
+            dx = target[0] - pos[0]
+            dz = target[2] - pos[2]
+
+        # Normalize 2D vector for input
+        # We ignore Y for input because characters can't fly, they just walk
+        length = math.sqrt(dx*dx + dz*dz)
+        if length > 0.01:
+            vx = dx / length
+            vz = dz / length
+        else:
+            vx, vz = 0, 0
+
+        # Apply Input
+        self.bot.on_move_left_right(vx)
+        self.bot.on_move_up_down(-vz) # BS uses negative Z for forward usually
+        
+        # Run is handled by _abuse_movement, but we ensure multiplier is set
+        self.run_multiplier = 1.0
+
+    def _abuse_movement(self):
+        """
+        Toggles run on/off rapidly to allow sharp turns without inertia.
+        This is the 'Cut Turn' feature.
+        """
+        if self.bot.exists() and self.current_path:
+            # Momentarily cut throttle
+            self.bot.on_run(0)
+            # Re-apply throttle in 20ms
+            bs.timer(0.02, lambda: self.bot.on_run(self.run_multiplier) if self.bot.exists() else None)
+
+    def _get_closest_node(self, pos):
+        """Brute force closest node (Fast enough for <1000 nodes)."""
+        best_dist = float('inf')
+        best_idx = None
+        px, py, pz = pos
+        
+        for node in self.nav_graph['nodes']:
+            nx, ny, nz = node['p']
+            # Weighted distance: Y distance penalizes more to differentiate floors
+            dist = (nx-px)**2 + (ny-py)**2 * 4.0 + (nz-pz)**2
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = node['id']
+        return best_idx
+
+    def _astar(self, start_id, goal_id):
+        """Standard A* implementation."""
+        open_set = []
+        heapq.heappush(open_set, (0, start_id))
+        
+        came_from = {}
+        g_score = {node['id']: float('inf') for node in self.nav_graph['nodes']}
+        g_score[start_id] = 0
+        
+        f_score = {node['id']: float('inf') for node in self.nav_graph['nodes']}
+        f_score[start_id] = self._heuristic(start_id, goal_id)
+        
+        open_set_hash = {start_id} # For O(1) lookup
+
+        while open_set:
+            current = heapq.heappop(open_set)[1]
+            open_set_hash.discard(current)
+
+            if current == goal_id:
+                return self._reconstruct_path(came_from, current)
+
+            # Get neighbors from adjacency dict
+            neighbors = self.nav_graph['adj'].get(current, [])
+            
+            for neighbor in neighbors:
+                # Distance between current and neighbor
+                d = self._dist(current, neighbor)
+                tentative_g = g_score[current] + d
+
+                if tentative_g < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g
+                    f_score[neighbor] = tentative_g + self._heuristic(neighbor, goal_id)
+                    
+                    if neighbor not in open_set_hash:
+                        heapq.heappush(open_set, (f_score[neighbor], neighbor))
+                        open_set_hash.add(neighbor)
+        
+        return None # Path not found
+
+    def _heuristic(self, a_id, b_id):
+        return self._dist(a_id, b_id)
+
+    def _dist(self, id1, id2):
+        p1 = self.nav_graph['nodes'][id1]['p']
+        p2 = self.nav_graph['nodes'][id2]['p']
+        return math.sqrt((p1[0]-p2[0])**2 + (p1[1]-p2[1])**2 + (p1[2]-p2[2])**2)
+
+    def _reconstruct_path(self, came_from, current):
+        total_path = [current]
+        while current in came_from:
+            current = came_from[current]
+            total_path.append(current)
+        return total_path[::-1]
 
     def _speak(self, text):
         """Display dialogue bubble if available"""
@@ -215,242 +251,31 @@ class NaviBot:
             Bubble(node=self.node, text=text, time=3.0, color=self.node.name_color)
 
     def yay(self):
-        """Yay"""
-        self.node.handlemessage('celebrate',200)
+        """Celebration animation"""
+        self.node.handlemessage('celebrate', 2000)
 
-    def move_to_point(self, x, y, z):
-        """Command bot to navigate to target position"""
-        self.target = (x, y, z)
-        self.path = []
-        self.pinch = False
-        self.current_waypoint = 0
-        self.stuck_counter = 0
-        self.vertical_progress_start = None
-        self.last_height = None
-        self.run_multiplier = 1.0
+def getme():
+    for p in bs.get_foreground_host_activity().players:
+        if p.sessionplayer.inputdevice.client_id == -1:
+            return p.actor
 
-        log(f"New target: {self.target}")
-        self._speak("Moving!")
-
-        # Start update loops
-        if self.update_timer is None:
-            self.update_timer = bs.Timer(0.05, self._update, repeat=True)
-            self.abuse_timer = bs.Timer(0.15, self._abuse_movement, repeat=True)
-
-    def stop(self):
-        """Stop all movement"""
-        self.target = None
-        self.path = []
-        self.update_timer = None
-        self.abuse_timer = None
-
-        if self.bot.exists():
-            self.bot.on_move_left_right(0)
-            self.bot.on_move_up_down(0)
-            self.bot.on_run(0)
-
-    def _abuse_movement(self):
-        """Abuse timer for 90 degree breaks (mandatory) - uses run_multiplier"""
-        if self.bot.exists():
-            self.bot.on_run(0)
-            bs.timer(0.02, lambda: self.bot.on_run(self.run_multiplier))
-
-    def _check_velocity(self):
-        """Monitor velocity and adjust run_multiplier to prevent falling"""
-        if not self.node or not self.node.exists():
-            return
-
-        try:
-            vx, vy, vz = self.node.velocity
-            horizontal_speed = sqrt(vx**2 + vz**2)
-
-            if horizontal_speed > self.MAX_VELOCITY:
-                # Too fast! Stop running to slow down
-                self.run_multiplier = 0.0
-                log(f"Velocity too high: {horizontal_speed:.2f}, cooling down")
-            else:
-                # Safe speed, resume running
-                if self.run_multiplier < 1.0:
-                    self.run_multiplier = 1.0
-                    log(f"Velocity safe: {horizontal_speed:.2f}, resuming")
-        except:
-            pass
-
-    def _update(self):
-        """Main navigation update loop"""
-        # Safety checks
-        if not self.target or not self.node or not self.node.exists():
-            self.stop()
-            return
-
-        try:
-            pos = tuple(self.node.position)
-        except:
-            self.stop()
-            return
-
-        # Check velocity to prevent falling from momentum
-        self._check_velocity()
-
-        # Check if we reached the target
-        dist_to_target = sqrt(
-            (pos[0] - self.target[0])**2 +
-            (pos[1] - self.target[1])**2 +
-            (pos[2] - self.target[2])**2
-        )
-
-        if dist_to_target < 0.6:
-            log("Target reached!")
-            self._speak("Target acquired")
-            self.yay()
-            self.stop()
-            return
-
-        # Generate path if needed
-        if not self.path or self._should_replan(pos):
-            self.path = self.nav.find_path(pos, self.target)
-            self.current_waypoint = 0
-            self.vertical_progress_start = None
-
-            if not self.path:
-                if not self.pinch:
-                    log("No path found")
-                    self._speak("Path blocked")
-                    self.pinch = True
-                self._move(0, 0)
-                return
-            self.pinch = False
-            log(f"Path calculated: {len(self.path)} waypoints")
-
-        # Check for being stuck
-        if self._is_stuck(pos):
-            log("Stuck detected, replanning")
-            self._speak("Recalculating")
-            self.path = []
-            self.stuck_counter = 0
-            self.vertical_progress_start = None
-            return
-
-        # Navigate to current waypoint
-        if self.current_waypoint >= len(self.path):
-            self._move(0, 0)
-            return
-
-        waypoint = self.path[self.current_waypoint]
-
-        # Calculate distances
-        dist_2d = sqrt(
-            (pos[0] - waypoint[0])**2 +
-            (pos[2] - waypoint[2])**2
-        )
-
-        height_diff = waypoint[1] - pos[1]
-
-        # CRITICAL: Handle vertical movement specially
-        # If waypoint is significantly above us, we're climbing
-        if height_diff > 0.3:
-            # We're going uphill - TINY distance threshold
-
-            if self.vertical_progress_start is None:
-                self.vertical_progress_start = pos[1]
-                self.last_height = pos[1]
-
-            # Calculate FULL 3D distance to waypoint
-            dist_3d = sqrt(
-                (pos[0] - waypoint[0])**2 +
-                (pos[1] - waypoint[1])**2 +
-                (pos[2] - waypoint[2])**2
-            )
-
-            # TINY THRESHOLD - must be basically ON TOP of the waypoint
-            can_advance = dist_3d < 0.1
-
-            if can_advance:
-                log(f"Climb complete: 3D distance {dist_3d:.3f}")
-                self.current_waypoint += 1
-                self.vertical_progress_start = None
-                self.last_height = None
-                if self.current_waypoint < len(self.path):
-                    waypoint = self.path[self.current_waypoint]
-                else:
-                    return
-        else:
-            # Normal horizontal movement or downhill - standard distance check
-            if dist_2d < 0.4:
-                self.current_waypoint += 1
-                self.vertical_progress_start = None
-                self.last_height = None
-                if self.current_waypoint < len(self.path):
-                    waypoint = self.path[self.current_waypoint]
-                else:
-                    return
-
-        # Move towards waypoint
-        dx = waypoint[0] - pos[0]
-        dz = waypoint[2] - pos[2]
-        dist = sqrt(dx*dx + dz*dz)
-
-        if dist > 0.1:
-            move_x = dx / dist
-            move_z = dz / dist
-            self._move(move_x, move_z)
-        else:
-            self._move(0, 0)
-
-        self.last_pos = pos
-        self.last_height = pos[1]
-
-    def _move(self, x, z):
-        """Set bot movement direction"""
-        if self.bot.exists():
-            self.bot.on_move_left_right(x)
-            self.bot.on_move_up_down(-z)
-            # Always call on_run with run_multiplier (controlled by velocity check)
-            self.bot.on_run(self.run_multiplier if (x != 0 or z != 0) else 0)
-
-    def _should_replan(self, pos):
-        """Check if path needs recalculation"""
-        if not self.path:
-            return True
-
-        # Replan if bot has drifted far from path
-        if self.current_waypoint < len(self.path):
-            wp = self.path[self.current_waypoint]
-            dist = sqrt((pos[0]-wp[0])**2 + (pos[2]-wp[2])**2)
-            if dist > 1:
-                return True
-
-        return False
-
-    def _is_stuck(self, pos):
-        """Detect if bot is stuck"""
-        if self.last_pos is None:
-            return False
-
-        movement = sqrt(
-            (pos[0] - self.last_pos[0])**2 +
-            (pos[2] - self.last_pos[2])**2
-        )
-
-        if movement < 0.02:
-            self.stuck_counter += 1
-        else:
-            self.stuck_counter = 0
-
-        return self.stuck_counter > 30  # ~1.5 seconds of no movement
-
-
-def spawn(pos=None):
-    map = bs.getactivity().map
-    pos = pos or map.ffa_spawn_points[0]
-    filename = str(map.node.collision_mesh).split('"')[1]+"_navguide.json"
-    filepath = os.path.join(app.env.python_directory_user, 'Paths', filename)
-    bot = NaviBot(
-        position=pos,
-        color=(0,0,0),
-        highlight=(0.1,0.1,0.1),
-        character='Pixel',
-        navguide=filepath
-    )
-
+# Helper to test in game
+def spawn_with_path(cob_json_path):
+    """Spawn a bot and load the specific map JSON."""
+    map_obj = bs.getactivity().map
+    pos = map_obj.ffa_spawn_points[0]
+    
+    bot = NaviBot(position=pos)
+    bot.load_map(cob_json_path)
     return bot
+
+def debug():
+    from babase import app
+    map_obj = bs.getactivity().map
+    return spawn_with_path(
+        os.path.join(
+            app.env.python_directory_user,
+            'Paths',
+            str(map_obj.node.collision_mesh).split('"')[1]+'.json'
+        )
+    )
