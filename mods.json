@@ -305,9 +305,9 @@
     },
     {
         "mod_name": "NaviBot",
-        "mod_fancy_name": "Mission: Navigate.",
-        "mod_version": "1.0",
-        "mod_description": "Included in NaviKit plugin already.\nShould be used from there.\n\nNaviBot uses A* pathfinding using a navigation graph of walkable triangles.\nRelies on mapLevelCollide cob mesh, baked as a json using pathmaker.\n\nTo convert any map collision mesh (cob) to a path json,\nor get premade json files for game's builtin maps,\nsee my pathmaker:\nhttps://github.com/BroBordd/pathmaker",
+        "mod_fancy_name": "Intelligent Pathfinding",
+        "mod_version": "2.0",
+        "mod_description": "No description provided.",
         "api_version": "N/A",
         "mod_filename_base": "navibot"
     },
