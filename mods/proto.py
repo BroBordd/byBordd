@@ -15,11 +15,12 @@ import bauiv1 as bui
 import bascenev1 as bs
 
 from traceback import format_exc
+from json import dumps, loads
 from threading import Thread
 from time import time, sleep
 from random import randint
 from enum import IntEnum
-from json import dumps
+from uuid import uuid4
 from re import match
 
 # static
@@ -660,13 +661,17 @@ class Proto:
                 '{me}': _info['me'],
                 '{him}': _info['him'],
                 '{spec_size}': f"{len(_info['spec']):x}",
+                '{spec_s_size}': f"{len(loads(_info['spec'].decode())['s']):x}",
+                '{spec_d_size}': f"{len(loads(_info['spec'].decode())['d']):x}",
                 '{auth_size}': f"{len(_info['auth']):x}"
             }.items(): t = t.replace(old, new)
             return t
         def wrap2(t):
             for old,new in {
                 '{spec}': _info['spec'].decode(),
-                '{auth}': _info['auth'].decode()
+                '{spec_s}': loads(_info['spec'].decode())['s'],
+                '{spec_d}': loads(_info['spec'].decode())['d'],
+                '{auth}': _info['auth'].decode(),
             }.items(): t = t.replace(old,new)
             return t
         def send():
@@ -1303,7 +1308,7 @@ class Proto:
             _hex('21') + #TODO define these
             _hex('00') +
             _hex(me) +
-            ba.app_instance_uuid().encode()
+            str(uuid4()).encode()
         )
         # handle
         _tmp = None
@@ -1404,21 +1409,15 @@ class Proto:
         ),from_other_thread=True)
         # listener
         _log('Starting listener')
-        pfix = (
-            _pak('P_HOST_GAMEPACKET_COMPRESSED') +
-            _hex(me) +
-            _pak('SP_MESSAGE')
-        )
-        chat = Packet.M_CHAT.to_bytes()
+        msg = Packet.M_JMESSAGE.to_bytes()
         def listener():
             resp = _sock.recvfrom(1024)[0]
-            ty = resp[0]
-            if ty in Packet:
-                print(resp.hex(' '),resp)
-        ba.pushcall(bui.CallPartial(
+            if len(resp)>8 and resp[8] == msg:
+                print(resp)
+        0 and ba.pushcall(bui.CallPartial(
             s.pack_timer,
             'listener',
-            0.01,
+            0.001,
             listener,
             repeat=True
         ),from_other_thread=True)
