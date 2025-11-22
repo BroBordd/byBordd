@@ -551,7 +551,7 @@ class Proto:
             bui.textwidget(
                 s.buffer,
                 text=bui.textwidget(
-                    query=box
+                    query=s.buffer
                 ) + (
                     _ in pak and
                     getattr(Packet,_).to_bytes().hex()
@@ -798,7 +798,7 @@ class Proto:
         s.update(dry=True)
     def log(s,t,z=2,dry=False):
         if z in [Log.ME,Log.HIM]: real = t.hex(' ')
-        elif z == Log.BAD: real = t[0]
+        elif z in [Log.BAD,Log.INFO]: real = t[0]
         else: real = t
         if not dry: _logs.append((z,t))
         if not s.root: return
@@ -832,7 +832,7 @@ class Proto:
         s.log_next += 1
         s.cache.pop('log_note',0)
     def tran(s,w,o,t,f,h):
-        s.cache[str(w)] = [0,_mrf(o,t),bui.AppTimer(0.03,ba.CallPartial(s.safe_anim,w),repeat=True),f,h]
+        s.cache[str(w)] = [0,_mrf(o,t),bui.AppTimer(0.02,ba.CallPartial(s.safe_anim,w),repeat=True),f,h]
     def safe_anim(s,w):
         try: s.anim(w)
         except: s.cache.pop(str(w),0)
@@ -845,16 +845,45 @@ class Proto:
             s.cache.pop(str(w),0)
             return
         g[0] = i
-    def update(s,dry=False):
+    def ui_safe(s):
+        return s.root.exists() and not s.root.transitioning_out
+    def update(s,dry=False,what=0):
+        if not s.ui_safe(): return
         up = bool(_sock)
         # title
-        t = f'Proto v{__version__} - '
-        if up: t += f"Online! ({_info['me']} -> {_info['him']})"
-        else: t += 'Ready.'
-        dry and bui.textwidget(s.title,text=t) or s.tran(s.title,bui.textwidget(query=s.title),t,bui.textwidget,'text')
+        if what in [0,1]:
+            t = f'Proto v{__version__} - '
+            if up: t += f"Online! ({_info['me']} -> {_info['him']})"
+            else: t += 'Ready.'
+            dry and bui.textwidget(
+                s.title,
+                text=t
+            ) or s.tran(
+                s.title,
+                bui.textwidget(query=s.title),
+                t,
+                bui.textwidget,
+                'text'
+            )
         # establish button
-        a = ['Establish','Terminate']
-        dry and bui.buttonwidget(s.esta_button,label=a[up]) or s.tran(s.esta_button,a[not up],a[up],bui.buttonwidget,'label')
+        if what in [0,2]:
+            a = ['Establish','Terminate']
+            if up:
+                old = a[0]
+                new = a[1]
+            else:
+                old = a[1]
+                new = a[0]
+            dry and bui.buttonwidget(
+                s.esta_button,
+                label=a[up]
+            ) or s.tran(
+                s.esta_button,
+                old,
+                new,
+                bui.buttonwidget,
+                'label'
+            )
     def sync(s):
         for _ in _attr:
             if (v:=_info.get(_,None)) is None: continue
@@ -940,11 +969,10 @@ class Proto:
         )
         # mem root
         mem = _var('save') or {}
-        ry = max(len(mem)*30,fy-15)
         p1 = bui.containerwidget(
             parent=p0,
             background=False,
-            size=(fx,ry)
+            size=(fx,0)
         )
         # selection
         cache = {}
@@ -954,7 +982,10 @@ class Proto:
             cache['on'] = t
             bui.textwidget(t,color=Theme.MAIN)
         # list mem
+        ry = None
         def mk():
+            nonlocal ry
+            ry = max(len(mem)*30,fy-15)
             for _ in p1.get_children(): _.delete()
             for i,_ in enumerate(mem):
                 t = bui.textwidget(
@@ -969,6 +1000,7 @@ class Proto:
                     size=(fx,30)
                 )
                 bui.textwidget(t,on_activate_call=bui.CallPartial(sl,t))
+            bui.containerwidget(p1,size=(fx,ry))
         mk()
         # delete
         no = lambda: _say('Select something!') or _snd('block')
@@ -1013,14 +1045,17 @@ class Proto:
     def expand(s,t,z,src):
         _snd('powerup01',0.15)
         real = t
-        if z == Log.ME or z == Log.HIM:
+        byte = [Log.ME,Log.HIM]
+        sequ = [Log.BAD,Log.INFO]
+        big = byte+sequ
+        if z in byte:
             try: rep = '\n'.join((3*' ').join((3*' ').join(chr(b) if 32 <= b < 127 else '.' for b in t[i:i+8]) for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
             except: z = -1
             else: real = '\n'.join((' ').join(t[i:i+8].hex(' ') for i in range(j, min(j+16, len(t)), 8)) for j in range(0, len(t), 16))
-        elif z == Log.BAD:
+        elif z in sequ:
             real = t[0]
             rep = t[1]
-        x,y = (650,(z == Log.ME or z == Log.HIM or z == Log.BAD) and 400 or 200)
+        x,y = (650,z in big and 400 or 200)
         ox,oy = src.get_screen_space_center()
         bye = lambda z=1: (z and _snd('laser')) or bui.containerwidget(root,transition='out_scale')
         # root
@@ -1094,14 +1129,15 @@ class Proto:
             position=(5,0),
             selectable=True,
             size=(dx,ry),
+            maxwidth=dx-30,
             click_activate=True,
             glow_type='uniform',
             on_activate_call=ba.CallPartial(
                 bui.clipboard_set_text,
-                t.hex() if (z == Log.ME or z == Log.HIM) else real
+                t.hex() if z in byte else real
             )
         )
-        if z != Log.ME and z != Log.HIM and z != Log.BAD: return
+        if z not in big: return
         # separator
         py += dy+20
         bui.imagewidget(
@@ -1122,7 +1158,7 @@ class Proto:
             color=Theme.TINT
         )
         # repr box
-        if z == Log.ME or z == Log.HIM:
+        if z in byte:
             ry = bui.get_string_height(rep,suppress_warning=True)
             ry = max(ry,dy-15)
             p1 = bui.containerwidget(
@@ -1153,7 +1189,7 @@ class Proto:
                     t.decode('utf-8', errors='replace').translate(str.maketrans({c: '.' for c in range(0x10000) if not chr(c).isprintable()}))
                 )
             )
-        elif z == Log.BAD:
+        elif z in sequ:
             rx = bui.get_string_width(rep,suppress_warning=True)
             ry = bui.get_string_height(rep,suppress_warning=True)
             mw = dx - 30
@@ -1202,7 +1238,7 @@ class Proto:
         _info['busy'] = s.esta()
     def esta(s):
         if _sock:
-            s.log('Terminating',Log.INFO)
+            s.log('Terminating')
             _snd('deek')
             s.cleanup()
             s.update()
@@ -1226,18 +1262,23 @@ class Proto:
             _snd('block')
             return
         # build
-        spec = s.build_spec()
-        auth = s.build_auth()
-        # start thread
+        _info['last_spec'] = s.build_spec()
+        _info['last_auth'] = s.build_auth()
+        # actually connect
+        s.do_connect()
+        _snd('dingSmall')
+        s.log('Establishing')
+        return True
+    def do_connect(s):
         global _thrd
         _thrd = Thread(
-            target=lambda:s.safe_connect(spec,auth),
+            target=lambda:s.safe_connect(
+                _info['last_spec'],
+                _info['last_auth']
+            ),
             daemon=True
         )
         _thrd.start()
-        _snd('dingSmall')
-        s.log('Establishing',Log.INFO)
-        return True
     def build_spec(s):
         _info['spec'] = r = _dum({
             's':dumps({
@@ -1315,11 +1356,11 @@ class Proto:
         while not (shake:=_get(1024)).startswith(_pak('P_CLIENT_ACCEPT')):
             if _tmp == shake: continue
             elif shake.startswith(_pak('P_CLIENT_DENY_PARTY_FULL')):
-                _log('Waiting (party full)')
+                raise Exception('Party is full')
             elif shake.startswith(_pak('P_CLIENT_DENY_ALREADY_IN_PARTY')):
-                _log('Waiting (already in party)')
+                raise Exception('Already in party somehow')
             elif shake.startswith(_pak('P_CLIENT_DENY')):
-                _log('Still waiting')
+                raise Exception('Server says no')
             elif shake.startswith(_pak('P_CLIENT_DENY_VERSION_MISMATCH')):
                 raise Exception('Version mismatch')
             else:
@@ -1386,7 +1427,9 @@ class Proto:
         )
         # flush stuff
         _log('Flushing party info')
-        _get(1024)
+        if _get(1024)[2] == Packet.SP_DISCONNECT.value:
+            # server returned BA_SCENEPACKET_DISCONNECT
+            raise Exception('Server changed its mind')
         _get(9)
         # keepalive
         _log('Starting keepalive service')
@@ -1409,18 +1452,31 @@ class Proto:
         ),from_other_thread=True)
         # listener
         _log('Starting listener')
-        msg = Packet.M_JMESSAGE.to_bytes()
-        def listener():
-            resp = _sock.recvfrom(1024)[0]
-            if len(resp)>8 and resp[8] == msg:
-                print(resp)
-        0 and ba.pushcall(bui.CallPartial(
-            s.pack_timer,
-            'listener',
-            0.001,
-            listener,
-            repeat=True
-        ),from_other_thread=True)
+        def safe_listen():
+            try: listen()
+            except: pass
+        def listen():
+            # define
+            chat = Packet.M_CHAT.value
+            # check
+            while True:
+                resp = _sock.recvfrom(1024)[0]
+                if len(resp) > 8 and resp[8] == chat:
+                    spec_size = resp[9]
+                    spc, msg = loads(resp[10:10+spec_size]), resp[10+spec_size:].decode()
+                    _log([
+                        f"{spc['n']}: {msg}",
+                        f"BA_MESSAGE_CHAT\nSPEC={spc}\nMESSAGE='{msg}'"
+                    ],Log.INFO)
+                    if (
+                        spc == {'n':'<HOST>','sn':'','a':''}
+                        and
+                        msg == f"A kick vote has been started for {_info['spec_n']}."
+                    ):
+                        _log(['ANTIKICK',f"Someone tried to kick '{_info['spec_n']}'\nwhich is basically me, based on spec name.\nTo evade the kick, I will rejoin."],Log.INFO)
+                        s.cleanup()
+                        s.do_connect()
+        Thread(target=safe_listen).start()
         # register disconnect
         def disconnect():
             _sock.sendto(
@@ -1439,7 +1495,7 @@ class Proto:
         global _sock, _thrd, _incr
         # stop services
         _info['keepalive'] = None
-        _info['listener'] = None
+        _info['listen'] = None
         # reset
         _info.pop('disconnect',lambda:0)()
         _sock.close()
@@ -1451,7 +1507,7 @@ class Proto:
 class Packet(IntEnum):
     @classmethod
     def get(cls):
-        return [p.name for p in cls]
+        return [p for p in cls.__members__]
     def to_bytes(self):
         return bytes([self.value])
     P_REMOTE_PING = 0
