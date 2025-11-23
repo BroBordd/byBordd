@@ -537,42 +537,41 @@ class Proto:
             size=(fx,y/2-40)
         )
         # packet root
-        pak = Packet.get()
-        all = pak
-        ry = len(all)*30
+        all = [Packet,ScenePacket,Message]
         p1 = bui.containerwidget(
             parent=p0,
             color=Theme.TINT,
-            size=(fx,ry),
             background=False
         )
         # packet list
-        def add_data(_):
+        def add_data(what,_):
             bui.textwidget(
                 s.buffer,
                 text=bui.textwidget(
                     query=s.buffer
-                ) + (
-                    _ in pak and
-                    getattr(Packet,_).to_bytes().hex()
-                    or '??'
-                )
+                ) + getattr(what,_).to_bytes().hex()
             )
             _snd('deek')
-        for i,_ in enumerate(all):
-            bui.textwidget(
-                parent=p1,
-                size=(fx,30),
-                text=_,
-                maxwidth=fx-20,
-                v_align='center',
-                color=Theme.TEXT,
-                position=(0,ry-30-30*i),
-                selectable=True,
-                glow_type='uniform',
-                click_activate=True,
-                on_activate_call=bui.CallPartial(add_data,_)
-            )
+        i = 0
+        for what in all:
+            pak = what.get()
+            for _ in pak:
+                bui.textwidget(
+                    parent=p1,
+                    size=(fx,30),
+                    text=_,
+                    maxwidth=fx-20,
+                    v_align='center',
+                    color=Theme.TEXT,
+                    position=(0,30*i),
+                    selectable=True,
+                    glow_type='uniform',
+                    click_activate=True,
+                    on_activate_call=bui.CallPartial(add_data,what,_)
+                )
+                i += 1
+        ry = i*30
+        bui.containerwidget(p1,size=(fx,ry))
         # separator
         bui.imagewidget(
             parent=s.root,
@@ -1304,6 +1303,20 @@ class Proto:
             ba.pushcall(ba.CallPartial(_snd,'dingSmall'),from_other_thread=True)
         else: ba.pushcall(ba.CallPartial(_snd,'dingSmallHigh'),from_other_thread=True)
         _info['busy'] = False
+    def pack_timer(s,n,*a,**kw):
+        _info[n] = bui.AppTimer(*a,**kw)
+    def cleanup(s):
+        global _sock, _thrd, _incr
+        # stop services
+        _info['keepalive'] = None
+        _info['listen'] = None
+        # reset
+        _info.pop('disconnect',lambda:0)()
+        _sock.close()
+        _sock = None
+        _thrd.join()
+        _thrd = None
+        _incr = 0x20
     def connect(s,spec,auth):
         _log = lambda t,c=2: (
             ba.pushcall(
@@ -1320,7 +1333,6 @@ class Proto:
             _log(d,Log.HIM)
         ) and d
         _hex = lambda t: bytes.fromhex(t)
-        _pak = lambda t: getattr(Packet,t).to_bytes()
         addr = _info['addr']
         port = int(_info['port'])
         global _sock
@@ -1331,11 +1343,11 @@ class Proto:
         # ping first
         _log('Pinging')
         ping_start = time()
-        _com(_pak('P_SIMPLE_PING'))
+        _com(Packet.P_SIMPLE_PING.to_bytes())
         data, recv_addr = _sock.recvfrom(10)
 
         if (
-            data != _pak('P_SIMPLE_PONG')
+            data != Packet.P_SIMPLE_PONG.to_bytes()
             or recv_addr[0] != addr
         ): _log('Ping failed!',Log.ERROR); return
 
@@ -1345,7 +1357,7 @@ class Proto:
         _info['me'] = me = f'{(71 + randint(0, 150)):02x}'
         _log(f"Trying '{me}'")
         _com(
-            _pak('P_CLIENT_REQUEST') +
+            Packet.P_CLIENT_REQUEST.to_bytes() +
             _hex('21') + #TODO define these
             _hex('00') +
             _hex(me) +
@@ -1353,18 +1365,23 @@ class Proto:
         )
         # handle
         _tmp = None
-        while not (shake:=_get(1024)).startswith(_pak('P_CLIENT_ACCEPT')):
+        while not (shake:=_get(1024)).startswith(
+            Packet.P_CLIENT_ACCEPT.to_bytes()
+        ):
             if _tmp == shake: continue
-            elif shake.startswith(_pak('P_CLIENT_DENY_PARTY_FULL')):
-                raise Exception('Party is full')
-            elif shake.startswith(_pak('P_CLIENT_DENY_ALREADY_IN_PARTY')):
-                raise Exception('Already in party somehow')
-            elif shake.startswith(_pak('P_CLIENT_DENY')):
-                raise Exception('Server says no')
-            elif shake.startswith(_pak('P_CLIENT_DENY_VERSION_MISMATCH')):
-                raise Exception('Version mismatch')
-            else:
-                raise Exception('Unexpected response: '+shake.hex(' '))
+            elif shake.startswith(
+                Packet.P_CLIENT_DENY_PARTY_FULL.to_bytes()
+            ): raise Exception('Party is full')
+            elif shake.startswith(
+                Packet.P_CLIENT_DENY_ALREADY_IN_PARTY.to_bytes()
+            ): raise Exception('Already in party somehow')
+            elif shake.startswith(
+                Packet.P_CLIENT_DENY.to_bytes()
+            ): raise Exception('Server says no')
+            elif shake.startswith(
+                Packet.P_CLIENT_DENY_VERSION_MISMATCH.to_bytes()
+            ): raise Exception('Version mismatch')
+            else: raise Exception('Unexpected response: '+shake.hex(' '))
             _tmp = shake
             sleep(1)
         del _tmp
@@ -1377,7 +1394,7 @@ class Proto:
         # send spec
         _log('Sending spec')
         _com(
-            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+            Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
             _hex('10') +
             _hex('21') +
@@ -1387,7 +1404,7 @@ class Proto:
         # send auth
         _log('Sending auth')
         _com(
-            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+            Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
             _hex('11') +
             _hex('f0') +
@@ -1401,7 +1418,7 @@ class Proto:
         # send empty packet
         _log('Sending empty packet')
         _com(
-            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+            Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
             _hex('11') +
             _hex('f1') +
@@ -1415,7 +1432,7 @@ class Proto:
         # final shake
         _log('Sending final shake')
         _com(
-            _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+            Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
             _hex('11') +
             _hex('f2') +
@@ -1427,7 +1444,7 @@ class Proto:
         )
         # flush stuff
         _log('Flushing party info')
-        if _get(1024)[2] == Packet.SP_DISCONNECT.value:
+        if _get(1024)[2] == ScenePacket.SP_DISCONNECT.value:
             # server returned BA_SCENEPACKET_DISCONNECT
             raise Exception('Server changed its mind')
         _get(9)
@@ -1437,9 +1454,9 @@ class Proto:
             global _incr
             _incr = (_incr+32) & 0xFFFFFF
             _sock.sendto(
-                _pak('P_CLIENT_GAMEPACKET_COMPRESSED') +
+                Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
                 _hex(him) +
-                _pak('SP_KEEPALIVE') +
+                ScenePacket.SP_KEEPALIVE.to_bytes() +
                 _incr.to_bytes(3,'little'),
                 (addr, port)
             )
@@ -1450,24 +1467,43 @@ class Proto:
             keepalive,
             repeat=True
         ),from_other_thread=True)
+        # register disconnect
+        def disconnect():
+            _sock.sendto(
+                Packet.P_DISCONNECT_FROM_CLIENT_REQUEST.to_bytes() +
+                _hex(him),
+                (addr, port)
+            )
+            s.log('Disconnecting')
+        _info['disconnect'] = disconnect
         # listener
         _log('Starting listener')
         def safe_listen():
             try: listen()
+#            except: print(format_exc())
             except: pass
         def listen():
-            # define
-            chat = Packet.M_CHAT.value
+            _huff = HuffmanCodec()
+            # what we need
+            M_CHAT = Message.M_CHAT.value
+            P_HOST_GAMEPACKET_COMPRESSED = Packet.P_HOST_GAMEPACKET_COMPRESSED.value
+            SP_MESSAGE = ScenePacket.SP_MESSAGE.value
+            M_SESSION_COMMANDS = Message.M_SESSION_COMMANDS.value
+            M_PARTY_ROSTER = Message.M_PARTY_ROSTER.value
+            TAB = ' '*4
+            MY_SPEC = loads(loads(_info['last_spec'])['s'])
             # check
             while True:
                 resp = _sock.recvfrom(1024)[0]
-                if len(resp) > 8 and resp[8] == chat:
+                # chat
+                if len(resp) > 8 and resp[8] == M_CHAT:
                     spec_size = resp[9]
                     spc, msg = loads(resp[10:10+spec_size]), resp[10+spec_size:].decode()
                     _log([
                         f"{spc['n']}: {msg}",
                         f"BA_MESSAGE_CHAT\nSPEC={spc}\nMESSAGE='{msg}'"
                     ],Log.INFO)
+                    # antikick
                     if (
                         spc == {'n':'<HOST>','sn':'','a':''}
                         and
@@ -1476,40 +1512,63 @@ class Proto:
                         _log(['ANTIKICK',f"Someone tried to kick '{_info['spec_n']}'\nwhich is basically me, based on spec name.\nTo evade the kick, I will rejoin."],Log.INFO)
                         s.cleanup()
                         s.do_connect()
+                # gamepacket
+                elif len(resp) > 2 and resp[0] == P_HOST_GAMEPACKET_COMPRESSED:
+                    data = _huff.d(resp[2:])
+                    if len(data) > 8 and data[0] == SP_MESSAGE:
+                        what = data[6]
+                        # trash
+                        if what in [
+                            M_SESSION_COMMANDS
+                        ]: continue
+                        rest = data[7:]
+                        # roster
+                        if what == M_PARTY_ROSTER:
+                            rost = loads(rest[:-1])
+                            _log([
+                                f"ROSTER",
+                                'BA_MESSAGE_PARTY_ROSTER\n' +
+                                '\n'.join([
+                                    (
+                                        (spec:=loads(i['spec'])) and (
+                                           f"ID {i['i']}:\n{TAB}SPEC:\n{TAB*2}" +
+                                            f'\n{TAB*2}'.join([
+                                                f"{j}={k!a}"
+                                                for j,k in spec.items()
+                                            ])
+                                        ) or f'\n{TAB}SPEC: N/A (how?)'
+                                    ) +
+                                    (
+                                        (pls:=i['p']) and (
+                                            f'\n{TAB}PLAYERS:\n{TAB*2}'+(
+                                                '\n{TAB*2}'.join(
+                                                    str(p)
+                                                    for p in pls
+                                                )
+                                            )
+                                        ) or f'\n{TAB}NOTE: '+(
+                                            spec == MY_SPEC
+                                            and 'is this me?'
+                                            or 'not playing'
+                                        )
+                                    )
+                                    for i in rost
+                                ])
+                            ],Log.INFO)
+#                        print(Message(what).name,rest)
         Thread(target=safe_listen).start()
-        # register disconnect
-        def disconnect():
-            _sock.sendto(
-                _pak('P_DISCONNECT_FROM_CLIENT_REQUEST') +
-                _hex(him),
-                (addr, port)
-            )
-            s.log('Disconnecting')
-        _info['disconnect'] = disconnect
         # finally
         ba.pushcall(s.update,from_other_thread=True)
         _log('Connected!',Log.GOOD)
-    def pack_timer(s,n,*a,**kw):
-        _info[n] = bui.AppTimer(*a,**kw)
-    def cleanup(s):
-        global _sock, _thrd, _incr
-        # stop services
-        _info['keepalive'] = None
-        _info['listen'] = None
-        # reset
-        _info.pop('disconnect',lambda:0)()
-        _sock.close()
-        _sock = None
-        _thrd.join()
-        _thrd = None
-        _incr = 0x20
 
-class Packet(IntEnum):
+class PackEnum(IntEnum):
     @classmethod
     def get(cls):
         return [p for p in cls.__members__]
     def to_bytes(self):
         return bytes([self.value])
+
+class Packet(PackEnum):
     P_REMOTE_PING = 0
     P_REMOTE_PONG = 1
     P_REMOTE_ID_REQUEST = 2
@@ -1540,12 +1599,16 @@ class Packet(IntEnum):
     P_DISCONNECT_FROM_HOST_ACK = 35
     P_CLIENT_GAMEPACKET_COMPRESSED = 36
     P_HOST_GAMEPACKET_COMPRESSED = 37
+
+class ScenePacket(PackEnum):
     SP_HANDSHAKE = 15
     SP_HANDSHAKE_RESPONSE = 16
     SP_MESSAGE = 17
     SP_MESSAGE_UNRELIABLE = 18
     SP_DISCONNECT = 19
     SP_KEEPALIVE = 20
+
+class Message(PackEnum):
     M_SESSION_RESET = 0
     M_SESSION_COMMANDS = 1
     M_SESSION_DYNAMICS_CORRECTION = 2
@@ -1568,6 +1631,85 @@ class Packet(IntEnum):
     M_KICK_VOTE = 19
     M_JMESSAGE = 20
     M_CLIENT_PLAYER_PROFILES_JSON = 21
+
+# huffman-bs minimal
+# for docs, full version and more,
+# see https://github.com/BroBordd/huffman-bs
+Z = lambda _:[0]*_
+GF = lambda:[101342,9667,3497,1072,0,3793,0,0,2815,5235,*Z(3),3570,*Z(3),1383,*Z(3),2970,0,0,2857,*Z(8),1199,*Z(29),1494,1974,*Z(12),1351,*Z(113),1475,*Z(64)]
+class N:
+    def __init__(s):s.l=s.r=-1;s.p=s.b=s.v=s.f=0
+class HuffmanCodec:
+    def __init__(s):
+        f = GF()
+        s.n=[N()for _ in range(511)];
+        for i in range(256):s.n[i].f=f[i]
+        c=256
+        while c<511:
+            i=0
+            while s.n[i].p!=0:i+=1
+            m1=i;i+=1
+            while s.n[i].p!=0:i+=1
+            m2=i;i+=1
+            while i<c:
+                if s.n[i].p==0:
+                    if s.n[m1].f>s.n[m2].f:
+                        if s.n[i].f<s.n[m1].f:m1=i
+                    else:
+                        if s.n[i].f<s.n[m2].f:m2=i
+                i+=1
+            s.n[c].f=s.n[m1].f+s.n[m2].f;s.n[m1].p=c-255;s.n[m2].p=c-255;s.n[c].r=m1;s.n[c].l=m2;c+=1
+        for i in range(256):
+            s.n[i].v=s.n[i].b=0;j=i
+            while s.n[j].p!=0:
+                p=s.n[j].p+255;s.n[i].v=(s.n[i].v<<1)|(0x01 if s.n[p].r==j else 0);s.n[i].b+=1;j=p
+            if s.n[i].b>=8:s.n[i].b=8;s.n[i].v=i<<1
+            else:s.n[i].v=(s.n[i].v<<1)|0x01
+            s.n[i].b+=1
+    def w(s,o,p,v,b):
+        i=0
+        while i<b:
+            j=p//8;k=p%8
+            while len(o)<=j:o.append(0)
+            if(v>>i)&1:o[j]|=(1<<k)
+            p+=1;i+=1
+        return p
+    def c(s,d):
+        if not d:return bytes()
+        if d[0]&0x80:raise ValueError("First byte high bit set")
+        t=sum(s.n[b].b for b in d);l=(t+7)//8+1;r=t%8
+        if l>=len(d):return d
+        o=[0];p=8
+        for b in d:p=s.w(o,p,s.n[b].v,s.n[b].b)
+        o[0]=((8-r%8)if r else 0)|0x80
+        return bytes(o)
+    def d(s,d):
+        if not d:raise ValueError("Empty")
+        r=d[0]&0x0F;z=(d[0]>>7)&1
+        if not z:return d
+        l=(len(d)-1)*8
+        if r>l:raise ValueError("Invalid")
+        l-=r;o=[];b=0;f=1
+        while b<l:
+            v=(d[f+b//8]>>(b%8))&1;b+=1
+            if v:
+                n=510
+                while True:
+                    v=(d[f+b//8]>>(b%8))&1
+                    if v==0:
+                        if s.n[n].l==-1:a=n;break
+                        else:n=s.n[n].l;b+=1
+                    else:
+                        if s.n[n].r==-1:a=n;break
+                        else:n=s.n[n].r;b+=1
+                    if s.n[n].l==-1 and s.n[n].r==-1:a=n;break
+                    if b>l:raise ValueError("Overflow")
+                o.append(a&0xFF)
+            else:
+                a=(d[f+b//8]>>(b%8))|(d[f+b//8+1]<<(8-b%8))if b%8!=0 else d[f+b//8];o.append(a&0xFF);b+=8
+                if b>l:raise ValueError("Overflow")
+        return bytes(o)
+    def e(s,d,i=0x7c):return bytes([36,i])+s.c(d)
 
 # brobord collide grass
 # ba_meta require api 9
