@@ -25,7 +25,7 @@ from re import match
 
 # static
 __version__ = "1.0"
-__counter__ = 1
+__counter__ = 2
 
 # tools
 _snd = lambda s,t=0: (s:=bui.getsound(s)) and s.play() and t and bui.apptimer(t,s.stop)
@@ -1480,8 +1480,8 @@ class Proto:
         _log('Starting listener')
         def safe_listen():
             try: listen()
-#            except: print(format_exc())
-            except: pass
+            except: print(format_exc())
+#            except: pass
         def listen():
             _huff = HuffmanCodec()
             # what we need
@@ -1492,6 +1492,7 @@ class Proto:
             M_PARTY_ROSTER = Message.M_PARTY_ROSTER.value
             TAB = ' '*4
             MY_SPEC = loads(loads(_info['last_spec'])['s'])
+            FMT = lambda t: t.isprintable() and f"{t!r}" or f"{t!a}"
             # check
             while True:
                 resp = _sock.recvfrom(1024)[0]
@@ -1525,36 +1526,49 @@ class Proto:
                         # roster
                         if what == M_PARTY_ROSTER:
                             rost = loads(rest[:-1])
-                            _log([
-                                f"ROSTER",
-                                'BA_MESSAGE_PARTY_ROSTER\n' +
-                                '\n'.join([
-                                    (
-                                        (spec:=loads(i['spec'])) and (
-                                           f"ID {i['i']}:\n{TAB}SPEC:\n{TAB*2}" +
-                                            f'\n{TAB*2}'.join([
-                                                f"{j}={k!a}"
-                                                for j,k in spec.items()
-                                            ])
-                                        ) or f'\n{TAB}SPEC: N/A (how?)'
-                                    ) +
-                                    (
-                                        (pls:=i['p']) and (
-                                            f'\n{TAB}PLAYERS:\n{TAB*2}'+(
-                                                '\n{TAB*2}'.join(
-                                                    str(p)
-                                                    for p in pls
-                                                )
-                                            )
-                                        ) or f'\n{TAB}NOTE: '+(
-                                            spec == MY_SPEC
-                                            and 'is this me?'
-                                            or 'not playing'
-                                        )
-                                    )
-                                    for i in rost
-                                ])
-                            ],Log.INFO)
+                            out = ['BA_MESSAGE_PARTY_ROSTER']
+
+                            for i_idx, i in enumerate(rost):
+                                # id
+                                is_last_id = (i_idx == len(rost) - 1)
+                                pre_id = Draw.CORNER if is_last_id else Draw.PIPE
+                                out.append(f"{pre_id}{Draw.H_LINE} ID {i['i']}:")
+                                indent_id = "    " if is_last_id else f"{Draw.V_LINE}   "
+
+                                branches = []
+                                # spec
+                                if spec := loads(i['spec']):
+                                    # Tuple format: (Header, [List of Children Items])
+                                    spec_items = [f"{k}={FMT(v)}" for k, v in spec.items()]
+                                    branches.append(("SPEC:", spec_items))
+                                else:
+                                    branches.append(("SPEC: N/A (how?)", []))
+
+                                # players
+                                if pls := i['p']:
+                                    for p in pls:
+                                        p_items = [f"n={FMT(p['n'])}", f"nf={FMT(p['nf'])}"]
+                                        branches.append((f"PLAYER ID {p['i']}:", p_items))
+                                else:
+                                    note = 'is this me?' if spec == MY_SPEC else 'not playing'
+                                    branches.append((f"NOTE: {note}", []))
+
+                                # branches
+                                for b_idx, (header, items) in enumerate(branches):
+                                    is_last_branch = (b_idx == len(branches) - 1)
+                                    pre_branch = Draw.CORNER if is_last_branch else Draw.PIPE
+                                    # header
+                                    out.append(f"{indent_id}{pre_branch}{Draw.H_LINE} {header}")
+                                    # items
+                                    if items:
+                                        # indent
+                                        indent_item = indent_id + ("    " if is_last_branch else f"{Draw.V_LINE}   ")
+                                        for item_idx, item_text in enumerate(items):
+                                            is_last_item = (item_idx == len(items) - 1)
+                                            pre_item = Draw.CORNER if is_last_item else Draw.PIPE
+                                            out.append(f"{indent_item}{pre_item}{Draw.H_LINE} {item_text}")
+
+                            _log(["ROSTER", '\n'.join(out)], Log.INFO)
 #                        print(Message(what).name,rest)
         Thread(target=safe_listen).start()
         # finally
@@ -1631,6 +1645,12 @@ class Message(PackEnum):
     M_KICK_VOTE = 19
     M_JMESSAGE = 20
     M_CLIENT_PLAYER_PROFILES_JSON = 21
+
+class Draw:
+    V_LINE = '\u2502'
+    H_LINE = '\u2500'
+    PIPE = '\u251C'
+    CORNER = '\u2514'
 
 # huffman-bs minimal
 # for docs, full version and more,
