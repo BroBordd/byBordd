@@ -29,7 +29,7 @@ __counter__ = 2
 
 # config
 class Config:
-    THEME = LightTheme
+    THEME = 0
     AUTOSTART = True
     ANTIKICK = True
     UI_DEBUG = False
@@ -1675,7 +1675,10 @@ class Draw:
     CORNER = '\u2514'
 
 # link
-Theme = Config.THEME
+Theme = [
+    LightTheme,
+    DarkTheme
+][Config.THEME]
 
 # huffman-bs minimal
 # for docs, full version and more,
