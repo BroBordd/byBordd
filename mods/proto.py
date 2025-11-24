@@ -27,65 +27,12 @@ from re import match
 __version__ = "1.0"
 __counter__ = 2
 
-# tools
-_snd = lambda s,t=0: (s:=bui.getsound(s)) and s.play() and t and bui.apptimer(t,s.stop)
-_say = lambda t: bui.screenmessage(t,color=Theme.TEXT)
-_dum = lambda t: dumps(t).encode('utf-8')
-_mrf = lambda o,n: (lambda s,r:([None for i in range(len(s))if i<len(s)and s[i]not in n and(s.pop(i),r.append("".join(s)))],[[s.__setitem__(k,c),r.append("".join(s))]if k<len(s)and s[k]!=c else[s.append(c),r.append("".join(s))]if k>=len(s)else None for k,c in enumerate(n)],[(s.pop(),r.append("".join(s)))for _ in range(len(s)-len(n))],r)[-1])(list(o),[o])
-_var = lambda s,v=None: (cfg:=bui.app.config) and (s:='proto_'+s) and v is None and cfg.get(s,v) or (cfg.__setitem__(s,v) or cfg.commit())
-
-# global
-_incr = 0x20
-_inst = None
-_info = {}
-_logs = []
-_sock = None
-_thrd = None
-_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph','buffer','buffer2','delay']
-
-# visual
-class DarkTheme:
-    MAIN = (0,0,0)
-    TINT = (0.1,0.1,0.1)
-    TEXT = (0.8,0.8,0.8)
-    BAD = (1,0,0)
-    GOOD = (0,1,0)
-    INFO = (1,1,0)
-    SHADOW = (0,0,0)
-    OPACITY = 0.7
-
-class LightTheme:
-    MAIN = (1,1,1)
-    TINT = (0.7,0.7,0.7)
-    TEXT = (0.2,0.2,0.2)
-    BAD = (1,0.3,0.3)
-    GOOD = (0.3,1,0.3)
-    INFO = (1,1,0.3)
-    SHADOW = (0.2,0.2,0.2)
-    OPACITY = 0.7
-
-Theme = LightTheme
-
-class Log:
-    @classmethod
-    def text(c,z):
-        return Theme.TEXT if z else Theme.MAIN
-    @classmethod
-    def bg(c,z):
-        return [
-            Theme.TEXT,
-            Theme.MAIN,
-            Theme.TINT,
-            Theme.BAD,
-            Theme.GOOD,
-            Theme.INFO
-        ][z]
-    ME = 0
-    HIM = 1
-    BASIC = 2
-    BAD = 3
-    GOOD = 4
-    INFO = 5
+# config
+class Config:
+    THEME = LightTheme
+    AUTOSTART = True
+    ANTIKICK = True
+    UI_DEBUG = False
 
 class Proto:
     def __init__(s):
@@ -773,7 +720,7 @@ class Proto:
             s.gather()
         # debug
         def debug():
-            if 0:
+            if 1:
                 # animation
                 global _sock
                 _sock = 1
@@ -787,7 +734,7 @@ class Proto:
                     (10*('BrotherBoard should touch grass!'*5+'\n'))
                 ).encode(),Log.ME)
                 s.log('Utterly amazing! Very nice!',Log.GOOD)
-        0 and bui.apptimer(2,debug)
+        Config.UI_DEBUG and bui.apptimer(2,debug)
     def catch_up(s):
         # list logs
         for z,t in _logs: s.log(t,z,dry=True)
@@ -1484,6 +1431,7 @@ class Proto:
 #            except: pass
         def listen():
             _huff = HuffmanCodec()
+            _buff = b''
             # what we need
             M_CHAT = Message.M_CHAT.value
             P_HOST_GAMEPACKET_COMPRESSED = Packet.P_HOST_GAMEPACKET_COMPRESSED.value
@@ -1493,19 +1441,37 @@ class Proto:
             TAB = ' '*4
             MY_SPEC = loads(loads(_info['last_spec'])['s'])
             FMT = lambda t: t.isprintable() and f"{t!r}" or f"{t!a}"
-            # check
-            while True:
-                resp = _sock.recvfrom(1024)[0]
+            M_MULTIPART = Message.M_MULTIPART.value
+            M_MULTIPART_END = Message.M_MULTIPART_END.value
+            # handler
+            def handle(m):
+                what,rest = m[0],m[1:]
+                # trash
+                if what in [
+                    M_SESSION_COMMANDS
+                ]: return
+                # redirect multipart
+                nonlocal _buff
+                if what == M_MULTIPART:
+                    _buff += rest
+                    return
+                if what == M_MULTIPART_END:
+                    final = _buff+rest
+                    _buff = b''
+                    handle(final)
+                    return
                 # chat
-                if len(resp) > 8 and resp[8] == M_CHAT:
-                    spec_size = resp[9]
-                    spc, msg = loads(resp[10:10+spec_size]), resp[10+spec_size:].decode()
+                if what == M_CHAT:
+                    # log message
+                    spec_size = rest[0]
+                    spc, msg = loads(rest[1:1+spec_size]), rest[1+spec_size:].decode()
                     _log([
                         f"{spc['n']}: {msg}",
                         f"BA_MESSAGE_CHAT\nSPEC={spc}\nMESSAGE='{msg}'"
                     ],Log.INFO)
                     # antikick
                     if (
+                        Config.ANTIKICK and
                         spc == {'n':'<HOST>','sn':'','a':''}
                         and
                         msg == f"A kick vote has been started for {_info['spec_n']}."
@@ -1513,68 +1479,66 @@ class Proto:
                         _log(['ANTIKICK',f"Someone tried to kick '{_info['spec_n']}'\nwhich is basically me, based on spec name.\nTo evade the kick, I will rejoin."],Log.INFO)
                         s.cleanup()
                         s.do_connect()
-                # gamepacket
-                elif len(resp) > 2 and resp[0] == P_HOST_GAMEPACKET_COMPRESSED:
+                # roster
+                if what == M_PARTY_ROSTER:
+                    rost = loads(rest[:-1])
+                    out = ['BA_MESSAGE_PARTY_ROSTER']
+
+                    for i_idx, i in enumerate(rost):
+                        # id
+                        is_last_id = (i_idx == len(rost) - 1)
+                        pre_id = Draw.CORNER if is_last_id else Draw.PIPE
+                        out.append(f"{pre_id}{Draw.H_LINE} CLIENT ID {i['i']}:")
+                        indent_id = "    " if is_last_id else f"{Draw.V_LINE}   "
+
+                        branches = []
+                        # spec
+                        if spec := loads(i['spec']):
+                            spec_items = [f"{k}={FMT(v)}" for k, v in spec.items()]
+                            branches.append(("SPEC:", spec_items))
+                        else:
+                            branches.append(("SPEC: N/A (how?)", []))
+
+                        # players
+                        if pls := i['p']:
+                            for p in pls:
+                                p_items = [f"n={FMT(p['n'])}", f"nf={FMT(p['nf'])}"]
+                                branches.append((f"PLAYER ID {p['i']}:", p_items))
+                        else:
+                            note = 'is this me?' if spec == MY_SPEC else 'not playing'
+                            branches.append((f"NOTE: {note}", []))
+
+                        # branches
+                        for b_idx, (header, items) in enumerate(branches):
+                            is_last_branch = (b_idx == len(branches) - 1)
+                            pre_branch = Draw.CORNER if is_last_branch else Draw.PIPE
+                            # header
+                            out.append(f"{indent_id}{pre_branch}{Draw.H_LINE} {header}")
+                            # items
+                            if items:
+                                # indent
+                                indent_item = indent_id + ("    " if is_last_branch else f"{Draw.V_LINE}   ")
+                                for item_idx, item_text in enumerate(items):
+                                    is_last_item = (item_idx == len(items) - 1)
+                                    pre_item = Draw.CORNER if is_last_item else Draw.PIPE
+                                    out.append(f"{indent_item}{pre_item}{Draw.H_LINE} {item_text}")
+                    _log(["ROSTER", '\n'.join(out)], Log.INFO)
+            # check
+            while True:
+                resp = _sock.recvfrom(1024)[0]
+                if (
+                    len(resp) > 8 and
+                    resp[0] == P_HOST_GAMEPACKET_COMPRESSED
+                ):
                     data = _huff.d(resp[2:])
-                    if len(data) > 8 and data[0] == SP_MESSAGE:
-                        what = data[6]
-                        # trash
-                        if what in [
-                            M_SESSION_COMMANDS
-                        ]: continue
-                        rest = data[7:]
-                        # roster
-                        if what == M_PARTY_ROSTER:
-                            rost = loads(rest[:-1])
-                            out = ['BA_MESSAGE_PARTY_ROSTER']
-
-                            for i_idx, i in enumerate(rost):
-                                # id
-                                is_last_id = (i_idx == len(rost) - 1)
-                                pre_id = Draw.CORNER if is_last_id else Draw.PIPE
-                                out.append(f"{pre_id}{Draw.H_LINE} ID {i['i']}:")
-                                indent_id = "    " if is_last_id else f"{Draw.V_LINE}   "
-
-                                branches = []
-                                # spec
-                                if spec := loads(i['spec']):
-                                    # Tuple format: (Header, [List of Children Items])
-                                    spec_items = [f"{k}={FMT(v)}" for k, v in spec.items()]
-                                    branches.append(("SPEC:", spec_items))
-                                else:
-                                    branches.append(("SPEC: N/A (how?)", []))
-
-                                # players
-                                if pls := i['p']:
-                                    for p in pls:
-                                        p_items = [f"n={FMT(p['n'])}", f"nf={FMT(p['nf'])}"]
-                                        branches.append((f"PLAYER ID {p['i']}:", p_items))
-                                else:
-                                    note = 'is this me?' if spec == MY_SPEC else 'not playing'
-                                    branches.append((f"NOTE: {note}", []))
-
-                                # branches
-                                for b_idx, (header, items) in enumerate(branches):
-                                    is_last_branch = (b_idx == len(branches) - 1)
-                                    pre_branch = Draw.CORNER if is_last_branch else Draw.PIPE
-                                    # header
-                                    out.append(f"{indent_id}{pre_branch}{Draw.H_LINE} {header}")
-                                    # items
-                                    if items:
-                                        # indent
-                                        indent_item = indent_id + ("    " if is_last_branch else f"{Draw.V_LINE}   ")
-                                        for item_idx, item_text in enumerate(items):
-                                            is_last_item = (item_idx == len(items) - 1)
-                                            pre_item = Draw.CORNER if is_last_item else Draw.PIPE
-                                            out.append(f"{indent_item}{pre_item}{Draw.H_LINE} {item_text}")
-
-                            _log(["ROSTER", '\n'.join(out)], Log.INFO)
-#                        print(Message(what).name,rest)
+                    if data[0] == SP_MESSAGE:
+                        handle(data[6:])
         Thread(target=safe_listen).start()
         # finally
         ba.pushcall(s.update,from_other_thread=True)
         _log('Connected!',Log.GOOD)
 
+# enums
 class PackEnum(IntEnum):
     @classmethod
     def get(cls):
@@ -1646,11 +1610,72 @@ class Message(PackEnum):
     M_JMESSAGE = 20
     M_CLIENT_PLAYER_PROFILES_JSON = 21
 
+class Log:
+    @classmethod
+    def text(c,z):
+        return Theme.TEXT if z else Theme.MAIN
+    @classmethod
+    def bg(c,z):
+        return [
+            Theme.TEXT,
+            Theme.MAIN,
+            Theme.TINT,
+            Theme.BAD,
+            Theme.GOOD,
+            Theme.INFO
+        ][z]
+    ME = 0
+    HIM = 1
+    BASIC = 2
+    BAD = 3
+    GOOD = 4
+    INFO = 5
+
+# tools
+_snd = lambda s,t=0: (s:=bui.getsound(s)) and s.play() and t and bui.apptimer(t,s.stop)
+_say = lambda t: bui.screenmessage(t,color=Theme.TEXT)
+_dum = lambda t: dumps(t).encode('utf-8')
+_mrf = lambda o,n: (lambda s,r:([None for i in range(len(s))if i<len(s)and s[i]not in n and(s.pop(i),r.append("".join(s)))],[[s.__setitem__(k,c),r.append("".join(s))]if k<len(s)and s[k]!=c else[s.append(c),r.append("".join(s))]if k>=len(s)else None for k,c in enumerate(n)],[(s.pop(),r.append("".join(s)))for _ in range(len(s)-len(n))],r)[-1])(list(o),[o])
+_var = lambda s,v=None: (cfg:=bui.app.config) and (s:='proto_'+s) and v is None and cfg.get(s,v) or (cfg.__setitem__(s,v) or cfg.commit())
+
+# global
+_incr = 0x20
+_inst = None
+_info = {}
+_logs = []
+_sock = None
+_thrd = None
+_attr = ['addr','port','spec_n','spec_sn','spec_a','spec_d','auth_b','auth_tk','auth_ph','buffer','buffer2','delay']
+
+# visual
+class DarkTheme:
+    MAIN = (0,0,0)
+    TINT = (0.1,0.1,0.1)
+    TEXT = (0.8,0.8,0.8)
+    BAD = (1,0,0)
+    GOOD = (0,1,0)
+    INFO = (1,1,0)
+    SHADOW = (0,0,0)
+    OPACITY = 0.7
+
+class LightTheme:
+    MAIN = (1,1,1)
+    TINT = (0.7,0.7,0.7)
+    TEXT = (0.2,0.2,0.2)
+    BAD = (1,0.3,0.3)
+    GOOD = (0.3,1,0.3)
+    INFO = (1,1,0.3)
+    SHADOW = (0.2,0.2,0.2)
+    OPACITY = 0.7
+
 class Draw:
     V_LINE = '\u2502'
     H_LINE = '\u2500'
     PIPE = '\u251C'
     CORNER = '\u2514'
+
+# link
+Theme = Config.THEME
 
 # huffman-bs minimal
 # for docs, full version and more,
@@ -1757,5 +1782,5 @@ class byBordd(ba.Plugin):
         p = getattr(A,a)
         setattr(A,a,lambda z,t: (p(z,t),pipe(t)))
         print(f'Proto v{__version__} ({__counter__}) - Start by writing Proto() here or via settings ui')
-        # debug
-        bui.apptimer(1,Proto)
+        # autostart
+        Config.AUTOSTART and bui.apptimer(1,Proto)
