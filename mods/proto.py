@@ -1427,8 +1427,7 @@ class Proto:
         _log('Starting listener')
         def safe_listen():
             try: listen()
-            except: print(format_exc())
-#            except: pass
+            except OSError: pass
         def listen():
             _huff = HuffmanCodec()
             _buff = b''
