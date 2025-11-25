@@ -1225,7 +1225,7 @@ class Proto:
             daemon=True
         )
         _thrd.start()
-    def build_spec(s):
+    def _build_spec(s):
         _info['spec'] = r = _dum({
             's':dumps({
                 'n':_info['spec_n'],
@@ -1234,6 +1234,12 @@ class Proto:
             }),
             'd':_info['spec_d']
         })
+        return r
+    def build_spec(s):
+        _info['spec'] = r = dumps({
+            's': dumps({'n':_info['spec_n'], 'a':_info['spec_a'], 'sn':_info['spec_sn']}, separators=(',',':')),
+            'd': _info['spec_d']
+        }, separators=(',',':')).encode('utf-8')
         return r
     def build_auth(s):
         _info['auth'] = r = _dum({
@@ -1305,8 +1311,8 @@ class Proto:
         _log(f"Trying '{me}'")
         _com(
             Packet.P_CLIENT_REQUEST.to_bytes() +
-            _hex('21') + #TODO define these
-            _hex('00') +
+            Extra.PROTOCOL_VERSION_LOW.to_bytes() +
+            Extra.PROTOCOL_VERSION_HIGH.to_bytes() +
             _hex(me) +
             str(uuid4()).encode()
         )
@@ -1343,9 +1349,9 @@ class Proto:
         _com(
             Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
-            _hex('10') +
-            _hex('21') +
-            _hex('00') +
+            ScenePacket.SP_HANDSHAKE_RESPONSE.to_bytes() +
+            Extra.PROTOCOL_VERSION_LOW.to_bytes() +
+            Extra.PROTOCOL_VERSION_HIGH.to_bytes() +
             spec
         )
         # send auth
@@ -1353,27 +1359,27 @@ class Proto:
         _com(
             Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
-            _hex('11') +
-            _hex('f0') +
-            _hex('ff') +
-            _hex('f0') +
-            _hex('ff') +
-            _hex('00') +
-            _hex('12') +
+            ScenePacket.SP_MESSAGE.to_bytes() +
+            Extra.DUMMY_MN_LOW.to_bytes() +
+            Extra.DUMMY_MN_HIGH.to_bytes() +
+            Extra.DUMMY_ACK_LOW.to_bytes() +
+            Extra.DUMMY_ACK_HIGH.to_bytes() +
+            Extra.ACK_EXTRA.to_bytes() +
+            Message.M_CLIENT_INFO.to_bytes() +
             auth
         )
-        # send empty packet
-        _log('Sending empty packet')
+        # send empty profiles
+        _log('Sending empty profiles')
         _com(
             Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
-            _hex('11') +
-            _hex('f1') +
-            _hex('ff') +
-            _hex('f0') +
-            _hex('ff') +
-            _hex('00') +
-            _hex('15') +
+            ScenePacket.SP_MESSAGE.to_bytes() +
+            Extra.DUMMY_MN_LOW.to_bytes() +
+            Extra.DUMMY_MN_HIGH.to_bytes() +
+            Extra.DUMMY_ACK_LOW.to_bytes() +
+            Extra.DUMMY_ACK_HIGH.to_bytes() +
+            Extra.ACK_EXTRA.to_bytes() +
+            Message.M_CLIENT_PLAYER_PROFILES_JSON.to_bytes() +
             _dum({})
         )
         # final shake
@@ -1381,13 +1387,13 @@ class Proto:
         _com(
             Packet.P_CLIENT_GAMEPACKET_COMPRESSED.to_bytes() +
             _hex(him) +
-            _hex('11') +
-            _hex('f2') +
-            _hex('ff') +
-            _hex('f0') +
-            _hex('ff') +
-            _hex('00') +
-            _hex('03')
+            ScenePacket.SP_MESSAGE.to_bytes() +
+            Extra.DUMMY_MN_LOW.to_bytes() +
+            Extra.DUMMY_MN_HIGH.to_bytes() +
+            Extra.DUMMY_ACK_LOW.to_bytes() +
+            Extra.DUMMY_ACK_HIGH.to_bytes() +
+            Extra.ACK_EXTRA.to_bytes() +
+            Message.M_NULL.to_bytes()
         )
         # flush stuff
         _log('Flushing party info')
@@ -1608,6 +1614,15 @@ class Message(PackEnum):
     M_KICK_VOTE = 19
     M_JMESSAGE = 20
     M_CLIENT_PLAYER_PROFILES_JSON = 21
+
+class Extra(PackEnum):
+    PROTOCOL_VERSION_LOW = 33
+    PROTOCOL_VERSION_HIGH = 0
+    ACK_EXTRA = 0
+    DUMMY_MN_LOW = 240
+    DUMMY_MN_HIGH = 255
+    DUMMY_ACK_LOW = 240
+    DUMMY_ACK_HIGH = 255
 
 class Log:
     @classmethod
