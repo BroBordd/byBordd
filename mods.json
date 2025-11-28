@@ -304,6 +304,14 @@
         "mod_filename_base": "modcast"
     },
     {
+        "mod_name": "Movi",
+        "mod_fancy_name": "Movie Maker",
+        "mod_version": "1.0",
+        "mod_description": "Basic keyframe-based movie maker.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "movi"
+    },
+    {
         "mod_name": "NaviBot",
         "mod_fancy_name": "Intelligent Pathfinding",
         "mod_version": "2.0",
