@@ -307,7 +307,7 @@
         "mod_name": "Movi",
         "mod_fancy_name": "Movie Maker",
         "mod_version": "1.0",
-        "mod_description": "Basic keyframe-based movie maker.\nExperimental.",
+        "mod_description": "Basic keyframe-based movie maker with dynamic animation system.\nExperimental.",
         "api_version": 9,
         "mod_filename_base": "movi"
     },
