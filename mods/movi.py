@@ -12,7 +12,9 @@ Experimental.
 import babase as ba
 import bauiv1 as bui
 import bascenev1 as bs
+
 from time import perf_counter
+from weakref import WeakMethod
 
 # global
 __version__ = '1.0'
@@ -20,12 +22,13 @@ __version__ = '1.0'
 class Theme:
     MAIN = (0,0,0)
     TINT = (0.5,0.5,0.5)
-    TEXT = (1,1,1)
+    TEXT = (2,2,2)
     OPACITY = 0.4
     TEXTURE = 'white'
 
 class Animate:
-    def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, delay=0, condition=None):
+    REVERSE = 0
+    def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None):
         """
         Dynamic animation system.
 
@@ -47,7 +50,11 @@ class Animate:
         s.widget = widget
         s.func = func
         s.on_start = on_start
-        s.on_finish = on_finish
+        s.on_finish = (
+            on_finish == Animate.REVERSE
+            and s.reverse or on_finish
+        )
+        s.on_cancel = on_cancel
         s.cancelled = False
         s.finished = False
         s.delay = delay
@@ -144,6 +151,8 @@ class Animate:
         s.timer = None
         if s.delay_timer:
             s.delay_timer = None
+        if callable(s.on_cancel):
+            s.on_cancel()
 
     def get_state(s):
         """Returns current animation state for all attributes."""
@@ -194,8 +203,35 @@ class Animate:
         )
 
 class Editor:
+    _shared = {'callbacks':[]}
+
+    @staticmethod
+    def _call(sig):
+        for callback_ref in Editor._shared['callbacks']:
+            callback = callback_ref()
+            callback(sig)
+
+    @staticmethod
+    def _register(obj,attr,sig):
+        old = getattr(obj,attr)
+        setattr(obj,attr,lambda *a,**k:(
+            Editor._call(sig),
+            old(*a,**k)
+        ))
+
+    # register callers
+    _register(ba.AppHealthSubsystem,'on_screen_size_change','on_resize')
+    _register(ba.AppHealthSubsystem,'on_ui_scale_change','on_rescale')
+
+    # listener
+    def callback(s,cb):
+        bui.apptimer(0.01,getattr(s,cb))
+
     def __init__(s):
-        s.animations = {}
+        # register
+        s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
+        # toast
+        s.toast_zoom = None
         # menu
         s.menu_root = None
         s.menu_on = False
@@ -204,18 +240,141 @@ class Editor:
         s.event_root = None
         s.event_on = False
         s.event_kids = []
+        # window
+        s.window_on = None
         # entries
         s.entry_xs = 50
         s.entry_ys = 50
+        # memory
+        s.animations = {}
+        s.window_animations = {}
 
     def ui_safe(s):
         return s.root.exists() and not s.root.transitioning_out
 
-    def make(s):
+    def universal_back(s):
+        if s.window_on or s.event_on:
+            s.event_button.activate()
+        else: s.square.activate()
+
+    def on_resize(s):
+        pass
+
+    def on_rescale(s):
+        pass
+
+    def toast(s,inp=None):
+        b = s.toast_bg
+        t,desc = inp or ('','')
+        # update
+        bui.buttonwidget(b,label=t)
+        desc and bui.buttonwidget(
+            b,on_activate_call=bui.CallPartial(
+                s.toast,
+                (desc,Strings.NOTHING_ELSE)
+            )
+        )
+        # default
+        key = id(b)
+        text_width = t and bui.get_string_width(
+            t,suppress_warning=True
+        ) or 0
+        duration = 0.45
+        end_size = dx,dy = (text_width+(t and 20 or 0),30)
+        start_size = (0,dy)
+        start_opacity = 0
+        start_textcolor = Extra.INVISIBLE
+        x,y = ox,oy = s.toast_position
+        end_pos = epx,epy = (ox-dx/2,oy)
+        rush = False
+        # override
+        if (anim:=s.animations.pop(key,None)):
+            start_size = stx,sty = anim.attrs_current['size']
+            if (
+                (int(stx) == int(dx)) and
+                (int(sty) == int(dy))
+            ): rush = True
+            x,y = anim.attrs_current['position']
+            start_opacity = anim.attrs_current['opacity']
+            start_textcolor = anim.attrs_current['textcolor']
+            anim.cancel()
+        # zoom
+        zoom = lambda:(
+            s.toast_zoom and s.toast_zoom.cancel(),
+            setattr(s,'toast_zoom',Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                attrs={
+                    'size':(
+                        end_size,
+                        (dx*1.1,dy*1.1)
+                    ),
+                    'position':(
+                        end_pos,
+                        (epx-dx*0.1/2,epy-dy*0.1/2)
+                    )
+                },
+                duration=0.1,
+                on_finish=Animate.REVERSE
+            ))
+        )
+        # animate
+        s.animations[key] = Animate(
+            widget=b,
+            func=bui.buttonwidget,
+            attrs={
+                'size':(start_size,end_size),
+                'opacity':(
+                    start_opacity,
+                    t and Theme.OPACITY or 0
+                ),
+                'position':(
+                    (x,y),
+                    end_pos
+                ),
+                'textcolor':(
+                    start_textcolor,
+                    (*Theme.TEXT,Theme.OPACITY)
+                )
+            },
+            duration=0.0001 if rush else duration,
+            on_finish=zoom
+        )
+        s.toast_timer = bui.AppTimer(
+            max(len(t)*0.05,3),
+            s.toast
+        )
+
+    def make(s,master):
         # root
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
             background=False
+        )
+        # toast
+        s.toast_bg = bui.buttonwidget(
+            parent=s.root,
+            label='',
+            enable_sound=False,
+            selectable=False,
+            size=(0,0),
+            texture=bui.gettexture(Theme.TEXTURE),
+            color=Theme.MAIN
+        )
+        # trap
+        bui.containerwidget(
+            s.root,
+            cancel_button=(
+                bui.buttonwidget(
+                    parent=s.root,
+                    size=(0,0),
+                    label='',
+                    selectable=False,
+                    enable_sound=False,
+                    on_activate_call=s.universal_back,
+                    texture=bui.gettexture(Extra.EMPTY)
+                )
+            )
         )
         # stamp background
         s.stamp_bg = bui.imagewidget(
@@ -234,7 +393,6 @@ class Editor:
             enable_sound=False,
             on_activate_call=s.on_square
         )
-        bui.containerwidget(s.root,cancel_button=s.square)
         # triangle
         s.triangle = bui.buttonwidget(
             parent=s.root,
@@ -283,7 +441,7 @@ class Editor:
             )
             s.stamp_timeline.append(t)
         # event button background
-        s.event_button_bg = bui.imagewidget(
+        s.event_root = bui.imagewidget(
             parent=s.root,
             texture=bui.gettexture(Theme.TEXTURE),
             color=Theme.MAIN,
@@ -301,6 +459,7 @@ class Editor:
         )
         # finally
         s.wrap()
+        s.toast(Strings.WELCOME(master.sessionplayer.getname()))
 
     def wrap(s):
         rx,ry = s.real = bui.get_virtual_screen_size()
@@ -310,6 +469,12 @@ class Editor:
             s.root,
             size=s.stamp_size,
             stack_offset=(-rx/2+sx/2,-ry/2+sy/2),
+        )
+        # toast
+        s.toast_position = (sx/2,sy+10)
+        bui.buttonwidget(
+            s.toast_bg,
+            position=s.toast_position
         )
         # stamp background
         bui.imagewidget(s.stamp_bg,size=s.stamp_size)
@@ -365,8 +530,8 @@ class Editor:
             )
         # event button background
         dx,dy = s.event_button_size = 100,40
-        s.event_root = bui.imagewidget(
-            s.event_button_bg,
+        bui.imagewidget(
+            s.event_root,
             size=(dx,dy),
             position=(0,sy+5)
         )
@@ -448,6 +613,9 @@ class Editor:
         )
 
     def toggle_event(s):
+        if s.window_on:
+            s.window_back()
+            return
         bui.getsound('deek').play()
         key = id(s.event_button)
 
@@ -461,6 +629,7 @@ class Editor:
                     kid.delete()
             s.event_kids.clear()
 
+        events = Strings.EVENTS
         if s.event_on:
             # collapse = reverse all
             anim = s.animations.get(key)
@@ -472,9 +641,11 @@ class Editor:
             s.animations[key] = anim.reverse(duration=0.4, on_finish=cleanup)
 
             # reverse child button animations
-            for btn_id in [id(s.node_button), id(s.camera_button), id(s.sound_button),
-                           id(s.fx_button), id(s.map_button), id(s.custom_button)]:
-                if (anim := s.animations.get(btn_id, None)):
+            for i in range(len(events)):
+                k = id(getattr(s,f'event_kid_{i}'))
+                if (anim := s.window_animations.pop(k,None)):
+                    anim.cancel()
+                if (anim := s.animations.pop(k,None)):
                     anim.reverse(duration=0.1)
             return
 
@@ -500,76 +671,10 @@ class Editor:
 
         # button max
         mx = sx - 40
+        s.event_kid_size = (mx,dy)
+        px,py = (x+20,y+sy)
 
-        # make buttons
-        s.node_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off)),
-            label=Strings.NODE_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        s.camera_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off) * 2),
-            label=Strings.CAMERA_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        s.sound_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off) * 3),
-            label=Strings.SOUND_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        s.fx_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off) * 4),
-            label=Strings.FX_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        s.map_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off) * 5),
-            label=Strings.MAP_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        s.custom_button = bui.buttonwidget(
-            parent=s.root,
-            position=(x + 20, y + sy - (dy + off) * 6),
-            label=Strings.CUSTOM_BUTTON,
-            color=Theme.MAIN,
-            textcolor=(0, 0, 0, 0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            opacity=0
-        )
-        buttons_config = [
-            (s.node_button, 1),
-            (s.camera_button, 2),
-            (s.sound_button, 3),
-            (s.fx_button, 4),
-            (s.map_button, 5),
-            (s.custom_button, 6),
-        ]
-
-        # all buttons are kids
-        for btn, _ in buttons_config:
-            s.event_kids.append(btn)
-
-        # animate parent (event root)
+        # animate parent first (event root)
         s.animations[key] = Animate(
             widget=s.event_root,
             func=bui.imagewidget,
@@ -581,19 +686,32 @@ class Editor:
             duration=parent_duration
         )
 
-        # animate kids
-        # start based on expanision
+        # make and animate kids
+        num = len(events)
         parent_width_progress = dx + (sx - dx) * child_start_progress
-        # proportional size
-        start_width_ratio = (parent_width_progress - 40) / mx  # 40 is margin
+        start_width_ratio = (parent_width_progress - 40) / mx
 
-        num_buttons = len(buttons_config)
-        for btn, idx in buttons_config:
-            # stagger delay
-            stagger = 0.02 * (num_buttons - idx)
-
-            s.animations[id(btn)] = Animate(
-                widget=btn,
+        for i,n in enumerate(events):
+            # make
+            pos = (px,py-(dy+off)*(i+1))
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=pos,
+                label=n,
+                color=Theme.MAIN,
+                textcolor=Extra.INVISIBLE,
+                texture=bui.gettexture(Theme.TEXTURE),
+                opacity=0,
+                enable_sound=False
+            )
+            call = bui.CallPartial(s.window,b,i,pos)
+            bui.buttonwidget(b,on_activate_call=call)
+            setattr(s,f'event_kid_{i}',b)
+            s.event_kids.append(b)
+            # animate
+            stagger = 0.02 * (num-i)
+            s.animations[id(b)] = Animate(
+                widget=b,
                 func=bui.buttonwidget,
                 attrs={
                     'opacity': (0, Theme.OPACITY),
@@ -607,19 +725,413 @@ class Editor:
                 delay=child_delay + stagger
             )
 
+    def window(s,b,i,pos):
+        if s.window_on: s.window_back()
+        else: bui.getsound('deek').play()
+        # disable
+        call = bui.CallPartial(s.window,b,i,pos)
+        s.window_on = (b,call)
+        bui.buttonwidget(b,on_activate_call=lambda:False)
+        # math
+        r = s.real
+        sx,sy= 450,300
+        dx,dy = s.event_kid_size
+        y_off = 70
+        pos2 = (r[0]/2-sx/2, r[1]/2-sy/2+y_off)
+        # animate
+        s.window_animations[id(b)] = Animate(
+            widget=b,
+            func=bui.buttonwidget,
+            duration=0.5,
+            attrs={
+                'position':(pos,pos2),
+                'size':((dx,dy),(sx,sy)),
+                'textcolor':(
+                    (*Theme.TEXT, Theme.OPACITY),
+                    (*Theme.TEXT, 0)
+                )
+            }
+        )
+        # make universal UI
+        x,y = pos2
+        def bye():
+            s.window_clean()
+            s.window_back()
+        s.window_kids = []
+        marg = 5
+        fix = 8
+        dx,dy = 35,35
+
+        pos = (x+marg-fix,y+sy-dy-marg)
+        b = bui.buttonwidget(
+            parent=s.root,
+            position=pos,
+            size=(dx,dy),
+            enable_sound=False,
+            label=bui.charstr(bui.SpecialChar.BACK),
+            on_activate_call=bye,
+            texture=bui.gettexture(Theme.TEXTURE),
+            color=Theme.MAIN,
+            textcolor=Extra.INVISIBLE,
+            opacity=0
+        )
+        s.window_kids.append((b,pos,50,bui.buttonwidget))
+
+        descs = Strings.EVENT_DESCS
+        pos = (x+sx/2,y+sy-marg-32.5)
+        w = bui.textwidget(
+            parent=s.root,
+            text=descs[i],
+            color=Extra.INVISIBLE,
+            position=pos,
+            h_align='center',
+            v_align='center',
+            maxwidth=sx-marg*3-dx
+        )
+        s.window_kids.append((w,pos,50,bui.textwidget))
+        # make conditional UI
+        if i == 0:
+            # universal
+            text_push = 15
+            # type text
+            pos = (x+marg-fix,y+sy-88)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                text=Strings.NODE_TYPE_TEXT,
+                color=Extra.INVISIBLE
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget))
+            # type input
+            pos = (x+marg+80-fix,y+sy-95)
+            size = (150,40)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                size=(0,0),
+                description=Strings.NODE_TYPE_DESC,
+                color=Extra.INVISIBLE,
+                v_align='center',
+                glow_type='uniform'
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget,
+                ('size',((0,size[1]),size))
+            ))
+            # name text
+            pos = (x+marg-fix,y+sy-133)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                text=Strings.NODE_NAME_TEXT,
+                color=Extra.INVISIBLE
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget))
+            # name input
+            pos = (x+marg+80-fix,y+sy-140)
+            size = (150,40)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                size=(0,0),
+                description=Strings.NODE_NAME_DESC,
+                color=Extra.INVISIBLE,
+                v_align='center',
+                glow_type='uniform'
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget,
+                ('size',((0,size[1]),size))
+            ))
+            # separator
+            pos = (x+marg-fix,y+sy-150)
+            size = (229,2)
+            w = bui.imagewidget(
+                parent=s.root,
+                position=pos,
+                texture=bui.gettexture(Theme.TEXTURE),
+                size=(0,0),
+                opacity=0
+            )
+            s.window_kids.append((w,pos,text_push,bui.imagewidget,
+                ('size',((0,size[1]),size))
+            ))
+            # attr text
+            pos = (x+marg-fix,y+sy-193)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                text=Strings.NODE_ATTR_TEXT,
+                color=Extra.INVISIBLE
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget))
+            # attr input
+            pos = (x+marg+80-fix,y+sy-200)
+            size = (150,40)
+            attr = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                size=(0,0),
+                description=Strings.NODE_ATTR_DESC,
+                color=Extra.INVISIBLE,
+                v_align='center',
+                glow_type='uniform'
+            )
+            s.window_kids.append((attr,pos,text_push,bui.textwidget,
+                ('size',((0,size[1]),size))
+            ))
+            # eval text
+            pos = (x+marg-fix,y+sy-238)
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                text=Strings.NODE_EVAL_TEXT,
+                color=Extra.INVISIBLE
+            )
+            s.window_kids.append((w,pos,text_push,bui.textwidget))
+            # eval input
+            pos = (x+marg+80-fix,y+sy-245)
+            size = (150,40)
+            val = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                size=(0,0),
+                description=Strings.NODE_EVAL_DESC,
+                color=Extra.INVISIBLE,
+                v_align='center',
+                glow_type='uniform'
+            )
+            s.window_kids.append((val,pos,text_push,bui.textwidget,
+                ('size',((0,size[1]),size))
+            ))
+            # attr stuff
+            so_far = {}
+            bx,by = (215,40)
+            # attr scroll
+            size = dx,dy = (sx/2-marg*3,sy-marg*4-51-by)
+            pos = px,py = (x+sx-dx+5,y+marg*2+by+5)
+            w = bui.scrollwidget(
+                parent=s.root,
+                position=pos,
+                color=Theme.TINT,
+                size=(dx/2,0),
+                border_opacity=0
+            )
+            s.window_kids.append((w,pos,20,bui.scrollwidget,
+                ('size',((dx/2,size[1]),size)),
+                ('border_opacity',(0,Theme.OPACITY))
+            ))
+            # attr root
+            attr_root = bui.containerwidget(
+                parent=w,
+                background=False
+            )
+            # set func
+            def do_set():
+                bui.getsound('deek').play()
+                a = bui.textwidget(query=attr)
+                v = bui.textwidget(query=val)
+                if not a:
+                    s.toast(Strings.ERROR_EMPTY(
+                        Strings.NODE_ATTR_TEXT
+                    ))
+                    return
+                if not v:
+                    s.toast(Strings.ERROR_EMPTY(
+                        Strings.NODE_EVAL_TEXT
+                    ))
+                    return
+                try: v = eval(v)
+                except Exception as e:
+                    s.toast(Strings.ERROR_EVAL(e))
+                w = bui.textwidget(
+                    parent=attr_root,
+                    size=(dx,30),
+                    maxwidth=dx,
+                    selectable=True,
+                    glow_type='uniform',
+                    click_activate=True,
+                    on_activate_call=lambda:0,
+                    text=a,
+                    color=Extra.INVISIBLE
+                )
+                px,py = (0,len(so_far)*30)
+                Animate(
+                    widget=w,
+                    func=bui.textwidget,
+                    attrs={
+                        'color':(
+                            Extra.INVISIBLE,
+                            (*Theme.TEXT,Theme.OPACITY)
+                        ),
+                        'position':(
+                            (px+50,py),
+                            (px,py)
+                        )
+                    },
+                    duration=0.5
+                )
+                bui.containerwidget(
+                    attr_root,
+                    size=(dx,max(py,dy-15))
+                )
+            # set button
+            pos = (x+marg+7-fix,y+marg)
+            size = bx,by
+            w = bui.buttonwidget(
+                parent=s.root,
+                size=(0,0),
+                position=pos,
+                texture=bui.gettexture(Theme.TEXTURE),
+                color=Theme.MAIN,
+                enable_sound=False,
+                label=Strings.NODE_SET_BUTTON,
+                textcolor=Extra.INVISIBLE,
+                on_activate_call=do_set
+            )
+            s.window_kids.append((w,pos,50,bui.buttonwidget,
+                ('size',((0,size[1]),size))
+            ))
+            # done func
+            def do_done():
+                bui.getsound('deek').play()
+            # done button
+            pos = (px+8,y+marg)
+            size = bx,by = (dx-15,40)
+            w = bui.buttonwidget(
+                parent=s.root,
+                size=(0,0),
+                position=pos,
+                texture=bui.gettexture(Theme.TEXTURE),
+                color=Theme.MAIN,
+                enable_sound=False,
+                label=Strings.NODE_DONE_BUTTON,
+                textcolor=Extra.INVISIBLE,
+                on_activate_call=do_done
+            )
+            s.window_kids.append((w,pos,50,bui.buttonwidget,
+                ('size',((0,size[1]),size))
+            ))
+        # animate all
+        for _,g in enumerate(s.window_kids):
+            w,pos,off,func,*extra = g
+            extra = dict(extra)
+            # default
+            attrs = {
+                'position':(
+                    (pos[0]-off,pos[1]),
+                    pos
+                ),
+                **extra
+            }
+            # widget based
+            ty = w.get_widget_type()
+            if ty == 'button':
+                attrs.update({
+                    'opacity':(0,Theme.OPACITY),
+                    'textcolor':(
+                        Extra.INVISIBLE,
+                        (*Theme.TEXT,Theme.OPACITY)
+                    )
+                })
+            elif ty == 'text':
+                attrs.update({
+                    'color':(
+                        Extra.INVISIBLE,
+                        (*Theme.TEXT,Theme.OPACITY)
+                    )
+                })
+            elif ty == 'image':
+                attrs.update({
+                    'opacity':(0,Theme.OPACITY)
+                })
+            # finally
+            s.window_animations[id(w)] = Animate(
+                widget=w,
+                func=func,
+                attrs=attrs,
+                duration=0.18,
+                delay=0.4+_*0.04
+            )
+
+    def window_clean(s):
+        for w,*_ in s.window_kids:
+            s.window_animations[id(w)].reverse(
+                duration=0.1,
+                on_finish=w.delete,
+                on_cancel=w.delete
+            )
+        s.window_kids.clear()
+
+    def window_back(s):
+        b,call = s.window_on
+        bui.getsound('deek').play()
+        s.window_clean()
+        # restore button
+        bui.buttonwidget(b,on_activate_call=call)
+        anim = s.window_animations[id(b)].reverse(
+            duration=0.5
+        )
+        # finally
+        s.window_on = None
+        s.window_animations = {id(b): anim}
+
 class Strings:
-    EVENT_BUTTON_OFF = 'Event'
-    EVENT_BUTTON_ON = 'Back'
+    # map
     NAME = 'Movi'
     DESCRIPTION = 'Movie Maker'
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
-    NODE_BUTTON = 'Node'
-    CAMERA_BUTTON = 'Camera'
-    SOUND_BUTTON = 'Sound'
-    FX_BUTTON = 'FX'
-    MAP_BUTTON = 'Map'
-    CUSTOM_BUTTON = 'Custom'
+    # UI
+    EVENT_BUTTON_OFF = 'Event'
+    EVENT_BUTTON_ON = 'Back'
+    EVENTS = ['Node','Camera','Sound','FX','Map','Custom']
+    EVENT_DESCS = [
+        'Add a scene node',
+        'Move the camera around',
+        'Play a sound',
+        'Emit an effect',
+        'Control the map',
+        'Custom action'
+    ]
+    # node event
+    NODE_TYPE_TEXT = 'Type'
+    NODE_TYPE_DESC = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
+    NODE_NAME_TEXT = 'Name'
+    NODE_NAME_DESC = 'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
+    NODE_ATTR_TEXT = 'Attr'
+    NODE_ATTR_DESC = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
+    NODE_EVAL_TEXT = 'Eval'
+    NODE_EVAL_DESC = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
+    NODE_SET_BUTTON = 'Eval & Set'
+    NODE_DONE_BUTTON = 'Done'
+    # errors
+    ERROR_EMPTY = lambda e: (
+        f'Empty {e}!',
+        'Stop leaving empty text boxes around'
+    )
+    ERROR_EVAL = lambda e: (
+        str(e) and f'Eval: {e}' or 'Error evaluating!',
+        'defined' in str(e) and
+        'Are you using quotes for str?' or
+        'You\'re on your own pal'
+    )
+    # extra
+    WELCOME = lambda n: (
+        f'Welcome, {n}! Press for more',
+        'Movi is still experimental. Feedback is appreciated!'
+    )
+    NOTHING_ELSE = 'I have nothing else to say'
+
+class Extra:
+    INVISIBLE = (0,0,0,0)
+    EMPTY = 'empty'
 
 # ba_meta require api 9
 # ba_meta export bascenev1.GameActivity
@@ -654,7 +1166,10 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
             s.kill_ui()
 
     def make_ui(s):
-        ba.pushcall(s.editor.make,raw=True)
+        ba.pushcall(ba.CallPartial(
+            s.editor.make,
+            master=s.master
+        ),raw=True)
 
     def kill_ui(s):
         ba.pushcall(s.editor.kill,raw=True)
