@@ -81,14 +81,14 @@ class Polish:
     INS = None
     KEY = 'CACHE'
     PRF = 'POLISH'
-    INC = 2
+    INC = 3
     width = 200
     @classmethod
     def resize(c):
         s = c.INS
         if s is None: return
         s.setup()
-        s.nuke()
+#        s.nuke()
     def __init__(
         s,
         *,
