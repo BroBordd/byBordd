@@ -17,15 +17,23 @@ from random import choice
 from time import perf_counter
 from weakref import WeakMethod
 
-# global
+# static
 __version__ = '1.0'
+__counter__ = '1'
 
-class Theme:
+class DarkTheme:
     MAIN = (0,0,0)
     TINT = (0.5,0.5,0.5)
     TEXT = (2,2,2)
     OPACITY = 0.4
     TEXTURE = 'white'
+
+class Config:
+    THEME = DarkTheme
+    DEBUG = True
+
+# global
+Theme = Config.THEME
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -58,6 +66,8 @@ class Editor:
         # entries
         s.entry_xs = 40
         s.entry_ys = 40
+        s.entry_xs_real = s.entry_xs * 0.9
+        s.entry_ys_real = s.entry_ys * 0.9
         # stamp
         s.stamp_animations = {}
         s.stamp_kids = []
@@ -68,6 +78,8 @@ class Editor:
         s.memory = []
         s.animations = {}
         s.window_animations = {}
+        # extra
+        s.cancel_on_scroll = []
 
     def ui_safe(s):
         return s.root.exists() and not s.root.transitioning_out
@@ -84,8 +96,12 @@ class Editor:
         pass
 
     def on_scroll(s):
-        for anim in s.stamp_animations.values():
+        for anim in s.stamp_animations.copy().values():
             anim.cancel()
+        s.stamp_animations.clear()
+        for anim in s.cancel_on_scroll:
+            anim.cancel()
+        s.cancel_on_scroll.clear()
 
     def toast(s,inp=None):
         b = s.toast_bg
@@ -231,7 +247,7 @@ class Editor:
         s.stamp_scroll = bui.scrollwidget(
             parent=s.root,
             border_opacity=0,
-            color=Theme.TINT,
+            color=Theme.MAIN,
             on_select_call=s.on_scroll
         )
         # stamp scroll root
@@ -243,7 +259,7 @@ class Editor:
         s.stamp_hscroll = bui.hscrollwidget(
             parent=s.stamp_scroll_root,
             border_opacity=0,
-            color=Theme.TINT
+            color=Theme.MAIN
         )
         # stamp hscroll root
         s.stamp_hscroll_root = bui.containerwidget(
@@ -263,9 +279,29 @@ class Editor:
                 ),
                 h_align='center',
                 v_align='center',
+                size=(10,5),
                 scale=0.5
             )
             s.stamp_timeline.append(t)
+        # top left h
+        s.top_left_h = bui.textwidget(
+            parent=s.stamp_hscroll_root
+        )
+        # top left v
+        s.top_left_v = bui.textwidget(
+            parent=s.stamp_scroll_root
+        )
+        # bottom left h
+        s.bottom_left_h = bui.textwidget(
+            parent=s.stamp_hscroll_root,
+            position=(0,0),
+            size=(10,10)
+        )
+        # bottom left v
+        s.bottom_left_v = bui.textwidget(
+            parent=s.stamp_scroll_root,
+            position=(0,0)
+        )
         # event button background
         s.event_root = bui.imagewidget(
             parent=s.root,
@@ -285,98 +321,135 @@ class Editor:
         )
         # finally
         s.wrap()
+        s.top_left()
         s.toast(Strings.WELCOME(master.sessionplayer.getname()))
 
-    def wrap(s):
+    def wrap(s,what=0):
+        # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
         sx,sy = s.stamp_size = (rx,150)
-        # root
-        bui.containerwidget(
-            s.root,
-            size=s.stamp_size,
-            stack_offset=(-rx/2+sx/2,-ry/2+sy/2),
-        )
-        # toast
-        s.toast_position = (sx/2,sy+10)
-        bui.buttonwidget(
-            s.toast_bg,
-            position=s.toast_position
-        )
-        # stamp background
-        bui.imagewidget(s.stamp_bg,size=s.stamp_size)
-        # square
-        bx = 55
-        px,py = rx-bx,ry-bx
-        bui.buttonwidget(
-            s.square,
-            position=(px,py),
-            size=(bx,bx)
-        )
-        # triangle
-        px -= bx+5
-        bui.buttonwidget(
-            s.triangle,
-            position=(px,py),
-            size=(bx,bx)
-        )
-        # stamp scroll
-        bui.scrollwidget(s.stamp_scroll,size=s.stamp_size)
-        # stamp scroll root
-        deep_y = max(s.entry_ys*len(s.memory),sy-14)
-        bui.containerwidget(
-            s.stamp_scroll_root,
-            size=(sx,deep_y)
-        )
-        # stamp hscroll
-        bui.hscrollwidget(
-            s.stamp_hscroll,
-            size=(sx,deep_y)
-        )
-        # stamp hscroll root
+        s.stamp_deep_y = max(s.entry_ys*(len(s.memory)+1),sy-14)
         deep_x = s.entry_xs*(s.max_time*s.entries_per_sec+1)
-        bui.containerwidget(
-            s.stamp_hscroll_root,
-            size=(deep_x,deep_y)
-        )
-        # top left
-        bui.containerwidget(
-            s.stamp_hscroll_root,
-            visible_child=(
-                (top_left:=bui.textwidget(
-                    parent=s.stamp_hscroll_root,
-                    position=(0,deep_y)
-                ))
+        # main stuff
+        if what in [0,1]:
+            # root
+            bui.containerwidget(
+                s.root,
+                size=s.stamp_size,
+                stack_offset=(-rx/2+sx/2,-ry/2+sy/2),
             )
-        ) or 1 and top_left.delete()
-        # bottom left h
-        s.bottom_left_h = bui.textwidget(
-            parent=s.stamp_hscroll_root,
-            position=(0,0)
-        )
-        # bottom left v
-        s.bottom_left_v = bui.textwidget(
-            parent=s.stamp_scroll_root,
-            position=(0,0)
-        )
-        # stamp timeline
-        for i,t in enumerate(s.stamp_timeline):
+            # toast
+            s.toast_position = (sx/2,sy+10)
+            bui.buttonwidget(
+                s.toast_bg,
+                position=s.toast_position
+            )
+            # stamp background
+            bui.imagewidget(s.stamp_bg,size=s.stamp_size)
+            # square
+            bx = 55
+            px,py = rx-bx,ry-bx
+            bui.buttonwidget(
+                s.square,
+                position=(px,py),
+                size=(bx,bx)
+            )
+            # triangle
+            px -= bx+5
+            bui.buttonwidget(
+                s.triangle,
+                position=(px,py),
+                size=(bx,bx)
+            )
+            # top left h
             bui.textwidget(
-                t,
-                position=(i*s.entry_xs,deep_y-30)
+                s.top_left_h,
+                position=(0,s.stamp_deep_y)
             )
-        # event button background
-        dx,dy = s.event_button_size = 100,40
-        bui.imagewidget(
-            s.event_root,
-            size=(dx,dy),
-            position=(0,sy+5)
-        )
-        # event button
-        bui.buttonwidget(
-            s.event_button,
-            size=(dx,dy),
-            position=(0,sy+5)
-        )
+            # top left v
+            bui.textwidget(
+                s.top_left_v,
+                position=(0,s.stamp_deep_y)
+            )
+        # resize
+        if what in [0,2]:
+            # stamp scroll
+            bui.scrollwidget(
+                s.stamp_scroll,
+                size=s.stamp_size
+            )
+            # stamp scroll root
+            bui.containerwidget(
+                s.stamp_scroll_root,
+                size=(sx,s.stamp_deep_y)
+            )
+            # stamp hscroll
+            bui.hscrollwidget(
+                s.stamp_hscroll,
+                size=(sx,s.stamp_deep_y)
+            )
+            # stamp hscroll root
+            bui.containerwidget(
+                s.stamp_hscroll_root,
+                size=(deep_x,s.stamp_deep_y)
+            )
+        # stamp
+        if what in [0,3]:
+            # stamp entries
+            for _ in s.stamp_kids: _.delete()
+            s.stamp_kids.clear()
+            mem = s.memory.copy()
+            mem.reverse()
+            for i,g in enumerate(mem):
+                j,at = g
+                pos = (
+                    0,s.entry_ys*i
+                )
+                size = (
+                    s.entry_xs_real * (
+                        s.object_duration *
+                        s.entries_per_sec
+                    ),
+                    s.entry_ys_real
+                )
+                b = bui.buttonwidget(
+                    parent=s.stamp_hscroll_root,
+                    size=size,
+                    position=pos,
+                    texture=bui.gettexture(Theme.TEXTURE),
+                    label=at['name'],
+                    textcolor=(
+                        *Theme.TEXT,
+                        Theme.OPACITY
+                    ),
+                    color=Theme.MAIN,
+                    opacity=Theme.OPACITY
+                )
+                s.stamp_kids.append(b)
+            # wrap stamp timeline
+            for i,t in enumerate(s.stamp_timeline):
+                bui.textwidget(
+                    t,
+                    position=(
+                        i*s.entry_xs_real,
+                        s.stamp_deep_y-20
+                    )
+                )
+        # event
+        if what in [0,4]:
+            # event button background
+            dx,dy = s.event_button_size = 100,40
+            bui.imagewidget(
+                s.event_root,
+                size=(dx,dy),
+                position=(0,sy+5)
+            )
+            # event button
+            bui.buttonwidget(
+                s.event_button,
+                size=(dx,dy),
+                position=(0,sy+5)
+            )
 
     def bottom_left(s):
         # scroll left
@@ -388,6 +461,25 @@ class Editor:
         bui.containerwidget(
             s.stamp_scroll_root,
             visible_child=s.bottom_left_v
+        )
+        # return corner
+        cx,cy = s.bottom_left_h.get_screen_space_center()
+        rx,ry = s.real
+        return (
+            cx+rx/2-5,
+            cy+ry/2-5
+        )
+
+    def top_left(s):
+        # scroll left
+        bui.containerwidget(
+            s.stamp_hscroll_root,
+            visible_child=s.top_left_h
+        )
+        # scroll up
+        bui.containerwidget(
+            s.stamp_scroll_root,
+            visible_child=s.top_left_v
         )
 
     def on_square(s):
@@ -589,6 +681,9 @@ class Editor:
         dx,dy = s.event_kid_size
         y_off = 70
         pos2 = s.window_pos = (r[0]/2-sx/2, r[1]/2-sy/2+y_off)
+        # kill
+        if (anim:=s.window_animations.get(id(b),None)):
+            anim.cancel()
         # animate
         s.window_animations[id(b)] = Animate(
             widget=b,
@@ -666,7 +761,8 @@ class Editor:
                 description=Strings.NODE_TYPE_DESC,
                 color=Extra.INVISIBLE,
                 v_align='center',
-                glow_type='uniform'
+                glow_type='uniform',
+                text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
             )
             s.window_kids.append((type_text,pos,text_push,bui.textwidget,delay+0,
                 ('size',((0,size[1]),size))
@@ -692,7 +788,8 @@ class Editor:
                 description=Strings.NODE_NAME_DESC,
                 color=Extra.INVISIBLE,
                 v_align='center',
-                glow_type='uniform'
+                glow_type='uniform',
+                text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
             )
             s.window_kids.append((name_text,pos,text_push,bui.textwidget,delay+0.05,
                 ('size',((0,size[1]),size))
@@ -773,7 +870,7 @@ class Editor:
             w = bui.scrollwidget(
                 parent=s.root,
                 position=pos,
-                color=Theme.TINT,
+                color=Theme.MAIN,
                 size=(dx/2,0),
                 border_opacity=0
             )
@@ -891,39 +988,80 @@ class Editor:
                     ))
                     return
                 # setup
-                s.window_clean()
-                s.bottom_left()
                 eps = s.entries_per_sec
-                end_pos = (s.entry_xs*1.1,s.entry_ys+13)
                 end_size = (
-                    s.entry_xs*(s.object_duration*eps)*0.95,
-                    s.entry_ys
-                )
-                # animate
-                b = s.window_back({
-                    'position':(
-                        s.window_pos,
-                        end_pos
+                    s.entry_xs_real * (
+                        s.entries_per_sec *
+                        s.object_duration
                     ),
-                    'size':(
-                        s.window_size,
-                        end_size
-                    ),
-                    'textcolor':(
-                        Extra.INVISIBLE,
-                        (*Theme.TEXT,Theme.OPACITY)
-                    )
-                }, on_fix=s.update)
-                bui.buttonwidget(
-                    b, label=nam
+                    s.entry_ys_real
                 )
-                # finally
+                # update memory
                 final = {
                     'type':typ,
                     'name':nam,
                     'attrs':so_far
                 }
                 s.memory.append((i,final))
+                # appear
+                s.wrap(3)
+                def appear():
+                    bui.buttonwidget(
+                        s.stamp_kids[0],
+                        textcolor=(
+                            *Theme.TEXT,
+                            Theme.OPACITY
+                        ),
+                        opacity=Theme.OPACITY
+                    )
+                # disappear
+                bui.buttonwidget(
+                    s.stamp_kids[0],
+                    textcolor=Extra.INVISIBLE,
+                    opacity=0
+                )
+                # scroll
+                s.wrap(1)
+                s.wrap(2)
+                s.bottom_left()
+                # math
+                wsx,wsy = s.window_size
+                half_size = (wsx/2,wsy/2)
+                pox,poy = s.window_size
+                half_pos = (pox+wsx/2,poy+wsy/4)
+                wait = 0.4
+                # animate
+                s.window_back(
+                    to=lambda:{
+                        'position':(
+                            s.window_pos,
+                            s.bottom_left()
+                        ),
+                        'size':(
+                            half_size,
+                            end_size
+                        )
+                    },
+                    on_fix=appear,
+                    wait=wait,
+                    instant={
+                        'label':nam
+                    },
+                    extra={
+                        'textcolor':(
+                            Extra.INVISIBLE,
+                            (*Theme.TEXT,Theme.OPACITY)
+                        ),
+                        'size':(
+                            s.window_size,
+                            half_size
+                        ),
+                        'position':(
+                            s.window_pos,
+                            half_pos
+                        )
+                    }
+                )
             # done button
             pos = (px+8,y+marg)
             size = bx,by = (dx-15,40)
@@ -992,13 +1130,11 @@ class Editor:
             )
         s.window_kids.clear()
 
-    def window_back(s,to=None,on_fix=None):
+    def window_back(s,to=None,on_fix=None,wait=0,extra={},instant={}):
         b,call = s.window_on
+        anim = s.window_animations.pop(id(b))
         bui.getsound('deek').play()
         s.window_clean()
-        # restore button
-        bui.buttonwidget(b,on_activate_call=call)
-        anim = s.window_animations.pop(id(b))
         if to:
             def fix():
                 ox,oy = s.event_kid_pos
@@ -1027,50 +1163,47 @@ class Editor:
                     label=Strings.EVENTS[s.last_window_i]
                 )
                 if callable(on_fix): on_fix()
-            anim = Animate(
-                widget=b,
-                attrs=to,
-                func=bui.buttonwidget,
-                duration=0.5,
-                on_finish=fix,
-                on_cancel=fix
+                s.stamp_animations.clear()
+                s.cancel_on_scroll.clear()
+                bui.buttonwidget(b,on_activate_call=call)
+            def do_anim():
+                anim = Animate(
+                    widget=b,
+                    attrs=to(),
+                    func=bui.buttonwidget,
+                    duration=0.5,
+                    on_finish=fix,
+                    on_cancel=fix
+                )
+                s.stamp_animations[id(b)] = anim
+                s.cancel_on_scroll.append(anim)
+            if wait:
+                s.after_scroll_t = bui.AppTimer(wait,do_anim)
+            else: do_anim()
+            if extra:
+                def nevermind():
+                    s.after_scroll_t = None
+                    fix()
+                s.cancel_on_scroll.append(
+                    Animate(
+                        widget=b,
+                        func=bui.buttonwidget,
+                        duration=wait,
+                        attrs=extra,
+                        on_cancel=nevermind
+                    )
+                )
+            instant and bui.buttonwidget(
+                b, **instant
             )
-            s.stamp_animations[id(b)] = anim
-        else: anim.reverse(duration=0.5)
+        else:
+            anim = anim.reverse(
+                duration=0.5
+            )
+            bui.buttonwidget(b,on_activate_call=call)
         # finally
         s.window_on = None
-        s.window_animations = {id(b): anim}
-        return b
-
-    def update(s):
-        mem = s.memory
-        l = len(mem)
-        for i,at in mem:
-            pos = (
-                s.entry_xs*0.78,
-                s.entry_ys
-            )
-            size = (
-                s.entry_xs * (
-                    s.object_duration *
-                    s.entries_per_sec
-                ) * 0.9,
-                s.entry_ys
-            )
-            b = bui.buttonwidget(
-                parent=s.stamp_hscroll_root,
-                size=size,
-                position=pos,
-                texture=bui.gettexture(Theme.TEXTURE),
-                label=at['name'],
-                textcolor=(
-                    *Theme.TEXT,
-                    Theme.OPACITY
-                ),
-                color=Theme.MAIN,
-                opacity=Theme.OPACITY
-            )
-            s.stamp_kids.append(b)
+        s.window_animations[id(b)] = anim
 
 class Animate:
     REVERSE = 0
@@ -1330,9 +1463,30 @@ class Strings:
         'Okay there might be one. Keep going.',
         'Kidding. There isn\'t. Or is there?',
         'You\'ve got commitment issues, huh?',
-        'My shift ends in 5 minutes',
+        'What do you expect',
         'This feels like a cry for help',
-        'Alright, I\'m logging off. Bye.'
+        'Did you just click again',
+        'Nothing more to be said'
+    ]
+    # debug
+    DEBUG_FOO = [
+       'baz',
+       'qux',
+       'zap',
+       'mork',
+       'glub',
+       'thud',
+       'wump',
+       'splat',
+       'bonk',
+       'zork',
+       'grok',
+       'narf',
+       'plink',
+       'flonk',
+       'yak',
+       'foo',
+       'blarg'
     ]
 
 class Extra:
