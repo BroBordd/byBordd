@@ -71,6 +71,7 @@ class Editor:
         s.max_time = 10
         s.entries_per_sec = 5
         s.object_duration = 1
+        s.animating_to_stamp = False
         # memory
         s.memory = {}
         s.animations = {}
@@ -596,6 +597,9 @@ class Editor:
             s.window_back()
             return
         bui.getsound(Assets.OK_SOUND).play()
+        if s.animating_to_stamp:
+            s.on_scroll()
+            return
         key = id(s.event_button)
 
         # cancel
@@ -1238,9 +1242,13 @@ class Editor:
         anim = s.window_anims.pop(id(b))
         bui.getsound(Assets.OK_SOUND).play()
         s.window_clean()
+        # capture
         if to:
+            s.animating_to_stamp = True
+            last_i = s.last_window_i
+            last_pos = s.event_kid_pos
             def fix():
-                ox,oy = s.event_kid_pos
+                ox,oy = last_pos
                 anim = Animate(
                     widget=b,
                     func=bui.buttonwidget,
@@ -1257,18 +1265,19 @@ class Editor:
                         )
                     }
                 )
-                s.window_anims = {id(b): anim}
+                s.window_anims[id(b)] = anim
                 bui.buttonwidget(
                     b,
                     size=s.event_kid_size,
                     opacity=0,
                     textcolor=Color.INVISIBLE,
-                    label=Strings.EVENTS[s.last_window_i]
+                    label=Strings.EVENTS[last_i]
                 )
                 if callable(on_fix): on_fix()
                 s.stamp_anims.clear()
                 s.cancel_on_scroll.clear()
                 bui.buttonwidget(b,on_activate_call=call)
+                s.animating_to_stamp = False
             def do_anim():
                 anim = Animate(
                     widget=b,
@@ -1334,7 +1343,9 @@ class Editor:
     def show_tools(s):
         if s.tools_shown: return
         s.tools_shown = True
-        delay = 0.05
+        base_delay = 0.05
+        base_duration = 0.15
+        duration_increment = 0.08
         for anim in s.tool_anims:
             anim.cancel()
         s.tool_anims.clear()
@@ -1343,10 +1354,10 @@ class Editor:
             anim = Animate(
                 widget=b,
                 func=bui.buttonwidget,
-                duration=s.global_butter,
+                duration=base_duration + (duration_increment * i),
                 attrs={
                     'size':(
-                        (xs,ys/2),
+                        (xs,ys/4),
                         s.tool_size
                     ),
                     'textcolor':(
@@ -1355,7 +1366,7 @@ class Editor:
                     ),
                     'opacity':(0,Color.OPACITY)
                 },
-                delay=delay*i
+                delay=base_delay*i
             )
             s.tool_anims.append(anim)
 
@@ -1764,9 +1775,16 @@ class Animate:
         return a + (b - a) * t
 
     def tick(s):
-        if s.cancelled or not s.widget.exists():
+        if s.cancelled:
             s.timer = None
             return s.finish()
+
+        # no thanks
+        if not s.widget.exists():
+            s.timer = None
+            s.delay_timer = None
+            s.cancelled = True
+            return
 
         # progress
         elapsed = perf_counter() - s.start_time
