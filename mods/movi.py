@@ -21,19 +21,19 @@ from weakref import WeakMethod
 __version__ = '1.0'
 __counter__ = '1'
 
-class DarkTheme:
+class DarkColor:
     MAIN = (0,0,0)
     TINT = (0.5,0.5,0.5)
     TEXT = (2,2,2)
+    INVISIBLE = (0,0,0,0)
     OPACITY = 0.4
-    TEXTURE = 'white'
 
 class Config:
-    THEME = DarkTheme
+    COLOR = DarkColor
     DEBUG = True
 
 # global
-Theme = Config.THEME
+Color = Config.COLOR
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -65,10 +65,10 @@ class Editor:
         # window
         s.window_on = None
         # entries
-        s.magic_x = 6.9
+        s.magic_x = 5.5
         s.magic_y = 5
         s.magic_fix = 0.925
-        s.position_fix = 1.3
+        s.position_fix = 1.4
         s.entry_xs = 40
         s.entry_ys = 40
         s.entry_xs_real = s.entry_xs * s.magic_fix
@@ -118,7 +118,7 @@ class Editor:
         s.cancel_on_scroll.clear()
 
     def toast(s,inp=None,shut=1):
-        shut or bui.getsound('deek').play()
+        shut or bui.getsound(Assets.OK_SOUND).play()
         if not s.can_toast and shut: return
         s.can_toast = False
         b = s.toast_bg
@@ -141,7 +141,7 @@ class Editor:
         end_size = dx,dy = (text_width+(t and 20 or 0),30)
         start_size = (0,dy)
         start_opacity = 0
-        start_textcolor = Extra.INVISIBLE
+        start_textcolor = Color.INVISIBLE
         x,y = ox,oy = s.toast_position
         end_pos = epx,epy = (ox-dx/2,oy)
         rush = False
@@ -185,7 +185,7 @@ class Editor:
                 'size':(start_size,end_size),
                 'opacity':(
                     start_opacity,
-                    t and Theme.OPACITY or 0
+                    t and Color.OPACITY or 0
                 ),
                 'position':(
                     (x,y),
@@ -193,7 +193,7 @@ class Editor:
                 ),
                 'textcolor':(
                     start_textcolor,
-                    (*Theme.TEXT,Theme.OPACITY)
+                    (*Color.TEXT,Color.OPACITY)
                 )
             },
             duration=0.0001 if rush else duration,
@@ -217,8 +217,8 @@ class Editor:
             enable_sound=False,
             selectable=False,
             size=(0,0),
-            texture=bui.gettexture(Theme.TEXTURE),
-            color=Theme.MAIN
+            texture=bui.gettexture(Assets.SKIN),
+            color=Color.MAIN
         )
         # trap
         bui.containerwidget(
@@ -231,34 +231,34 @@ class Editor:
                     selectable=False,
                     enable_sound=False,
                     on_activate_call=s.universal_back,
-                    texture=bui.gettexture(Extra.EMPTY)
+                    texture=bui.gettexture(Assets.EMPTY)
                 )
             )
         )
         # stamp background
         s.stamp_bg = bui.imagewidget(
             parent=s.root,
-            texture=bui.gettexture(Theme.TEXTURE),
-            color=Theme.MAIN,
-            opacity=Theme.OPACITY
+            texture=bui.gettexture(Assets.SKIN),
+            color=Color.MAIN,
+            opacity=Color.OPACITY
         )
         # square
         s.square = bui.buttonwidget(
             parent=s.root,
-            texture=bui.gettexture(Theme.TEXTURE),
+            texture=bui.gettexture(Assets.SKIN),
             label=bui.charstr(bui.SpecialChar.PLAY_STATION_SQUARE_BUTTON),
-            color=Theme.MAIN,
-            textcolor=(*Theme.TEXT,Theme.OPACITY),
+            color=Color.MAIN,
+            textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
             on_activate_call=s.on_square
         )
         # triangle
         s.triangle = bui.buttonwidget(
             parent=s.root,
-            texture=bui.gettexture(Theme.TEXTURE),
+            texture=bui.gettexture(Assets.SKIN),
             label=bui.charstr(bui.SpecialChar.PLAY_STATION_TRIANGLE_BUTTON),
-            color=Theme.MAIN,
-            textcolor=(*Theme.TEXT,Theme.OPACITY),
+            color=Color.MAIN,
+            textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
             on_activate_call=s.on_triangle
         )
@@ -266,7 +266,7 @@ class Editor:
         s.stamp_scroll = bui.scrollwidget(
             parent=s.root,
             border_opacity=0,
-            color=Theme.MAIN,
+            color=Color.MAIN,
             on_select_call=s.on_scroll
         )
         # stamp scroll root
@@ -278,7 +278,7 @@ class Editor:
         s.stamp_hscroll = bui.hscrollwidget(
             parent=s.stamp_scroll_root,
             border_opacity=0,
-            color=Theme.MAIN
+            color=Color.MAIN
         )
         # stamp hscroll root
         s.stamp_hscroll_root = bui.containerwidget(
@@ -300,14 +300,14 @@ class Editor:
                 v_align='center',
                 size=(10,5),
                 scale=0.5,
-                color=(*Theme.TEXT,Theme.OPACITY)
+                color=(*Color.TEXT,Color.OPACITY)
             )
             l = bui.imagewidget(
                 parent=s.stamp_hscroll_root,
-                texture=bui.gettexture(Theme.TEXTURE),
-                opacity=Theme.OPACITY/10,
+                texture=bui.gettexture(Assets.SKIN),
+                opacity=Color.OPACITY/10,
                 size=(2,s.long_line_y),
-                color=Theme.TEXT
+                color=Color.TEXT
             )
             s.stamp_timeline.append((t,l))
         # top left h
@@ -332,9 +332,9 @@ class Editor:
         # event button background
         s.event_root = bui.imagewidget(
             parent=s.root,
-            texture=bui.gettexture(Theme.TEXTURE),
-            color=Theme.MAIN,
-            opacity=Theme.OPACITY
+            texture=bui.gettexture(Assets.SKIN),
+            color=Color.MAIN,
+            opacity=Color.OPACITY
         )
         # event button
         s.event_button = bui.buttonwidget(
@@ -342,23 +342,23 @@ class Editor:
             label=Strings.EVENT_BUTTON_OFF,
             on_activate_call=s.toggle_event,
             texture=bui.gettexture('empty'),
-            opacity=Theme.OPACITY,
-            textcolor=(*Theme.TEXT,Theme.OPACITY),
+            opacity=Color.OPACITY,
+            textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False
         )
         # tools
         for i in range(4):
             b = bui.buttonwidget(
                 parent=s.root,
-                color=Theme.MAIN,
+                color=Color.MAIN,
                 opacity=0,
-                textcolor=Extra.INVISIBLE,
+                textcolor=Color.INVISIBLE,
                 enable_sound=False,
-                texture=bui.gettexture(Theme.TEXTURE),
+                texture=bui.gettexture(Assets.SKIN),
                 label=bui.charstr(
                     getattr(
                         bui.SpecialChar,
-                        Strings.TOOLS[i]
+                        Assets.TOOLS[i]
                     )
                 ),
                 on_activate_call=bui.CallPartial(
@@ -540,7 +540,7 @@ class Editor:
         s.root.delete()
 
     def toggle_menu(s):
-        bui.getsound('deek').play()
+        bui.getsound(Assets.OK_SOUND).play()
         key = 'menu'
 
         # cancel
@@ -582,8 +582,8 @@ class Editor:
         # background
         s.menu_root = bui.imagewidget(
             parent=s.root,
-            texture=bui.gettexture(Theme.TEXTURE),
-            color=Theme.MAIN,
+            texture=bui.gettexture(Assets.SKIN),
+            color=Color.MAIN,
             opacity=0
         )
         s.menu_kids.append(s.menu_root)
@@ -594,7 +594,7 @@ class Editor:
             attrs={
                 'position': ((x+sx, y+sy), (x, y)),
                 'size': ((0, 0), (sx, sy)),
-                'opacity': (0, Theme.OPACITY)
+                'opacity': (0, Color.OPACITY)
             },
             duration=0.4
         )
@@ -603,7 +603,7 @@ class Editor:
         if s.window_on:
             s.window_back()
             return
-        bui.getsound('deek').play()
+        bui.getsound(Assets.OK_SOUND).play()
         key = id(s.event_button)
 
         # cancel
@@ -668,7 +668,7 @@ class Editor:
             attrs={
                 'position': ((x, y), (x, y)),
                 'size': ((dx, dy), (sx, sy)),
-                'opacity': (Theme.OPACITY, Theme.OPACITY)
+                'opacity': (Color.OPACITY, Color.OPACITY)
             },
             duration=parent_duration
         )
@@ -685,9 +685,9 @@ class Editor:
                 parent=s.root,
                 position=pos,
                 label=n,
-                color=Theme.MAIN,
-                textcolor=Extra.INVISIBLE,
-                texture=bui.gettexture(Theme.TEXTURE),
+                color=Color.MAIN,
+                textcolor=Color.INVISIBLE,
+                texture=bui.gettexture(Assets.SKIN),
                 opacity=0,
                 enable_sound=False
             )
@@ -701,10 +701,10 @@ class Editor:
                 widget=b,
                 func=bui.buttonwidget,
                 attrs={
-                    'opacity': (0, Theme.OPACITY),
+                    'opacity': (0, Color.OPACITY),
                     'textcolor': (
-                        (*Theme.TEXT, 0),
-                        (*Theme.TEXT, Theme.OPACITY)
+                        (*Color.TEXT, 0),
+                        (*Color.TEXT, Color.OPACITY)
                     ),
                     'size': ((mx * start_width_ratio, dy), (mx, dy))
                 },
@@ -714,7 +714,7 @@ class Editor:
 
     def window(s,b,i,pos):
         if s.window_on: s.window_back()
-        else: bui.getsound('deek').play()
+        else: bui.getsound(Assets.OK_SOUND).play()
         # disable
         call = bui.CallPartial(s.window,b,i,pos)
         s.window_on = (b,call)
@@ -740,8 +740,8 @@ class Editor:
                 'position':(pos,pos2),
                 'size':((dx,dy),(sx,sy)),
                 'textcolor':(
-                    (*Theme.TEXT, Theme.OPACITY),
-                    (*Theme.TEXT, 0)
+                    (*Color.TEXT, Color.OPACITY),
+                    (*Color.TEXT, 0)
                 )
             }
         )
@@ -763,9 +763,9 @@ class Editor:
             enable_sound=False,
             label=bui.charstr(bui.SpecialChar.BACK),
             on_activate_call=bye,
-            texture=bui.gettexture(Theme.TEXTURE),
-            color=Theme.MAIN,
-            textcolor=Extra.INVISIBLE,
+            texture=bui.gettexture(Assets.SKIN),
+            color=Color.MAIN,
+            textcolor=Color.INVISIBLE,
             opacity=0
         )
         s.window_kids.append((back,pos,50,bui.buttonwidget,0.35))
@@ -775,7 +775,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             text=descs[i],
-            color=Extra.INVISIBLE,
+            color=Color.INVISIBLE,
             position=pos,
             h_align='center',
             v_align='center',
@@ -793,7 +793,7 @@ class Editor:
                 parent=s.root,
                 position=pos,
                 text=Strings.NODE_TYPE_TEXT,
-                color=Extra.INVISIBLE
+                color=Color.INVISIBLE
             )
             s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0))
             # type input
@@ -806,7 +806,7 @@ class Editor:
                 allow_clear_button=False,
                 size=(0,0),
                 description=Strings.NODE_TYPE_DESC,
-                color=Extra.INVISIBLE,
+                color=Color.INVISIBLE,
                 v_align='center',
                 glow_type='uniform',
                 text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
@@ -820,7 +820,7 @@ class Editor:
                 parent=s.root,
                 position=pos,
                 text=Strings.NODE_NAME_TEXT,
-                color=Extra.INVISIBLE
+                color=Color.INVISIBLE
             )
             s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.05))
             # name input
@@ -833,7 +833,7 @@ class Editor:
                 allow_clear_button=False,
                 size=(0,0),
                 description=Strings.NODE_NAME_DESC,
-                color=Extra.INVISIBLE,
+                color=Color.INVISIBLE,
                 v_align='center',
                 glow_type='uniform',
                 text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
@@ -847,7 +847,7 @@ class Editor:
             w = bui.imagewidget(
                 parent=s.root,
                 position=pos,
-                texture=bui.gettexture(Theme.TEXTURE),
+                texture=bui.gettexture(Assets.SKIN),
                 size=(0,0),
                 opacity=0
             )
@@ -860,7 +860,7 @@ class Editor:
                 parent=s.root,
                 position=pos,
                 text=Strings.NODE_ATTR_TEXT,
-                color=Extra.INVISIBLE
+                color=Color.INVISIBLE
             )
             s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.15))
             # attr input
@@ -873,7 +873,7 @@ class Editor:
                 allow_clear_button=False,
                 size=(0,0),
                 description=Strings.NODE_ATTR_DESC,
-                color=Extra.INVISIBLE,
+                color=Color.INVISIBLE,
                 v_align='center',
                 glow_type='uniform'
             )
@@ -886,7 +886,7 @@ class Editor:
                 parent=s.root,
                 position=pos,
                 text=Strings.NODE_EVAL_TEXT,
-                color=Extra.INVISIBLE
+                color=Color.INVISIBLE
             )
             s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.2))
             # eval input
@@ -899,7 +899,7 @@ class Editor:
                 allow_clear_button=False,
                 size=(0,0),
                 description=Strings.NODE_EVAL_DESC,
-                color=Extra.INVISIBLE,
+                color=Color.INVISIBLE,
                 v_align='center',
                 glow_type='uniform'
             )
@@ -917,13 +917,13 @@ class Editor:
             w = bui.scrollwidget(
                 parent=s.root,
                 position=pos,
-                color=Theme.MAIN,
+                color=Color.MAIN,
                 size=(dx/2,0),
                 border_opacity=0
             )
             s.window_kids.append((w,pos,20,bui.scrollwidget,delay+0,
                 ('size',((dx/2,size[1]),size)),
-                ('border_opacity',(0,Theme.OPACITY))
+                ('border_opacity',(0,Color.OPACITY))
             ))
             # attr root
             attr_root = bui.containerwidget(
@@ -932,7 +932,7 @@ class Editor:
             )
             # set func
             def do_set():
-                bui.getsound('deek').play()
+                bui.getsound(Assets.OK_SOUND).play()
                 # collect
                 a = bui.textwidget(query=attr)
                 v = bui.textwidget(query=val)
@@ -970,7 +970,7 @@ class Editor:
                         click_activate=True,
                         on_activate_call=lambda:0,
                         text=a,
-                        color=Extra.INVISIBLE,
+                        color=Color.INVISIBLE,
                         v_align='center'
                     )
                     # fit
@@ -990,8 +990,8 @@ class Editor:
                     func=bui.textwidget,
                     attrs={
                         'color':(
-                            Extra.INVISIBLE,
-                            (*Theme.TEXT,Theme.OPACITY)
+                            Color.INVISIBLE,
+                            (*Color.TEXT,Color.OPACITY)
                         ),
                         'position':(
                             (px+50,py),
@@ -1007,11 +1007,11 @@ class Editor:
                 parent=s.root,
                 size=(0,0),
                 position=pos,
-                texture=bui.gettexture(Theme.TEXTURE),
-                color=Theme.MAIN,
+                texture=bui.gettexture(Assets.SKIN),
+                color=Color.MAIN,
                 enable_sound=False,
                 label=Strings.NODE_SET_BUTTON,
-                textcolor=Extra.INVISIBLE,
+                textcolor=Color.INVISIBLE,
                 on_activate_call=do_set
             )
             s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.08,
@@ -1019,7 +1019,7 @@ class Editor:
             ))
             # done func
             def do_done():
-                bui.getsound('deek').play()
+                bui.getsound(Assets.OK_SOUND).play()
                 # collect
                 typ = bui.textwidget(query=type_text)
                 nam = bui.textwidget(query=name_text)
@@ -1058,10 +1058,10 @@ class Editor:
                 )
                 btn = bui.buttonwidget(
                     parent=s.stamp_hscroll_root,
-                    texture=bui.gettexture(Theme.TEXTURE),
+                    texture=bui.gettexture(Assets.SKIN),
                     label=nam,
-                    textcolor=Extra.INVISIBLE,
-                    color=Theme.MAIN,
+                    textcolor=Color.INVISIBLE,
+                    color=Color.MAIN,
                     opacity=0,
                     enable_sound=False,
                     size=size,
@@ -1123,10 +1123,10 @@ class Editor:
                     bui.buttonwidget(
                         btn,
                         textcolor=(
-                            *Theme.TEXT,
-                            Theme.OPACITY
+                            *Color.TEXT,
+                            Color.OPACITY
                         ),
-                        opacity=Theme.OPACITY
+                        opacity=Color.OPACITY
                     )
                 # math
                 wsx,wsy = s.window_size
@@ -1157,8 +1157,8 @@ class Editor:
                     },
                     extra={
                         'textcolor':(
-                            Extra.INVISIBLE,
-                            (*Theme.TEXT,Theme.OPACITY)
+                            Color.INVISIBLE,
+                            (*Color.TEXT,Color.OPACITY)
                         ),
                         'size':(
                             s.window_size,
@@ -1177,11 +1177,11 @@ class Editor:
                 parent=s.root,
                 size=(0,0),
                 position=pos,
-                texture=bui.gettexture(Theme.TEXTURE),
-                color=Theme.MAIN,
+                texture=bui.gettexture(Assets.SKIN),
+                color=Color.MAIN,
                 enable_sound=False,
                 label=Strings.NODE_DONE_BUTTON,
-                textcolor=Extra.INVISIBLE,
+                textcolor=Color.INVISIBLE,
                 on_activate_call=do_done
             )
             s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.1,
@@ -1203,22 +1203,22 @@ class Editor:
             ty = w.get_widget_type()
             if ty == 'button':
                 attrs.update({
-                    'opacity':(0,Theme.OPACITY),
+                    'opacity':(0,Color.OPACITY),
                     'textcolor':(
-                        Extra.INVISIBLE,
-                        (*Theme.TEXT,Theme.OPACITY)
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
                     )
                 })
             elif ty == 'text':
                 attrs.update({
                     'color':(
-                        Extra.INVISIBLE,
-                        (*Theme.TEXT,Theme.OPACITY)
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
                     )
                 })
             elif ty == 'image':
                 attrs.update({
-                    'opacity':(0,Theme.OPACITY)
+                    'opacity':(0,Color.OPACITY)
                 })
             # finally
             s.window_anims[id(w)] = Animate(
@@ -1241,7 +1241,7 @@ class Editor:
     def window_back(s,to=None,on_fix=None,wait=0,extra={},instant={}):
         b,call = s.window_on
         anim = s.window_anims.pop(id(b))
-        bui.getsound('deek').play()
+        bui.getsound(Assets.OK_SOUND).play()
         s.window_clean()
         if to:
             def fix():
@@ -1255,10 +1255,10 @@ class Editor:
                             (ox-50,oy),
                             (ox,oy)
                         ),
-                        'opacity':(0,Theme.OPACITY),
+                        'opacity':(0,Color.OPACITY),
                         'textcolor':(
-                            Extra.INVISIBLE,
-                            (*Theme.TEXT,Theme.OPACITY)
+                            Color.INVISIBLE,
+                            (*Color.TEXT,Color.OPACITY)
                         )
                     }
                 )
@@ -1267,7 +1267,7 @@ class Editor:
                     b,
                     size=s.event_kid_size,
                     opacity=0,
-                    textcolor=Extra.INVISIBLE,
+                    textcolor=Color.INVISIBLE,
                     label=Strings.EVENTS[s.last_window_i]
                 )
                 if callable(on_fix): on_fix()
@@ -1314,15 +1314,15 @@ class Editor:
         s.window_anims[id(b)] = anim
 
     def select(s,b,i,ev):
-        bui.getsound('deek').play()
+        bui.getsound(Assets.OK_SOUND).play()
         sl = (b,i,ev)
         # yes
         yes = lambda: bui.buttonwidget(
-            b,color=Theme.TINT
+            b,color=Color.TINT
         )
         # no
         no = lambda: bui.buttonwidget(
-            s.sl[0],color=Theme.MAIN
+            s.sl[0],color=Color.MAIN
         )
         # deselect
         if s.sl == sl:
@@ -1355,10 +1355,10 @@ class Editor:
                         s.tool_size
                     ),
                     'textcolor':(
-                        Extra.INVISIBLE,
-                        (*Theme.TEXT,Theme.OPACITY)
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
                     ),
-                    'opacity':(0,Theme.OPACITY)
+                    'opacity':(0,Color.OPACITY)
                 },
                 delay=delay*i
             )
@@ -1403,7 +1403,7 @@ class Editor:
         # move left
         if which == 1:
             if mem['start']<=0:
-                bui.getsound('block').play()
+                bui.getsound(Assets.BAD_SOUND).play()
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
@@ -1454,7 +1454,7 @@ class Editor:
             # Check in "ticks" (integer units) to avoid float precision issues
             current_ticks = round(mem['duration'] * s.entries_per_sec)
             if current_ticks <= 1:
-                bui.getsound('block').play()
+                bui.getsound(Assets.BAD_SOUND).play()
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
@@ -1492,7 +1492,7 @@ class Editor:
             attrs=new,
             on_finish=lambda:s.expand_anims.pop(id(b))
         )
-        bui.getsound('deek').play()
+        bui.getsound(Assets.OK_SOUND).play()
         bui.containerwidget(s.stamp_hscroll_root,visible_child=b)
 
 class Animate:
@@ -1701,13 +1701,6 @@ class Strings:
     NODE_EVAL_DESC = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
     NODE_SET_BUTTON = 'Eval & Set'
     NODE_DONE_BUTTON = 'Done'
-    # tools
-    TOOLS = [
-        'RIGHT_ARROW',
-        'LEFT_ARROW',
-        'FAST_FORWARD_BUTTON',
-        'REWIND_BUTTON'
-    ]
     # errors
     ERROR_EMPTY = lambda e: (
         f'Empty {e}!',
@@ -1787,9 +1780,20 @@ class Strings:
        'blarg'
     ]
 
-class Extra:
-    INVISIBLE = (0,0,0,0)
+class Assets:
+    # visual
+    SKIN = 'white'
     EMPTY = 'empty'
+    # tool charstr
+    TOOLS = [
+        'RIGHT_ARROW',
+        'LEFT_ARROW',
+        'FAST_FORWARD_BUTTON',
+        'REWIND_BUTTON'
+    ]
+    # sounds
+    OK_SOUND = 'deek'
+    BAD_SOUND = 'block'
 
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
