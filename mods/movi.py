@@ -21,19 +21,9 @@ from weakref import WeakMethod
 __version__ = '1.0'
 __counter__ = '1'
 
-class DarkColor:
-    MAIN = (0,0,0)
-    TINT = (0.5,0.5,0.5)
-    TEXT = (2,2,2)
-    INVISIBLE = (0,0,0,0)
-    OPACITY = 0.4
-
 class Config:
-    COLOR = DarkColor
+    COLOR = 'DarkColor'
     DEBUG = True
-
-# global
-Color = Config.COLOR
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -64,15 +54,16 @@ class Editor:
         s.event_kids = []
         # window
         s.window_on = None
-        # entries
+        # magic
         s.magic_x = 5.5
         s.magic_y = 5
-        s.magic_fix = 0.925
-        s.position_fix = 1.4
+        s.magic_right = 0.925
+        s.magic_left = 1.4
+        # entried
         s.entry_xs = 40
         s.entry_ys = 40
-        s.entry_xs_real = s.entry_xs * s.magic_fix
-        s.entry_ys_real = s.entry_ys * s.magic_fix
+        s.entry_xs_real = s.entry_xs * s.magic_right
+        s.entry_ys_real = s.entry_ys * s.magic_right
         # stamp
         s.stamp_anims = {}
         s.stamp_kids = []
@@ -119,7 +110,8 @@ class Editor:
 
     def toast(s,inp=None,shut=1):
         shut or bui.getsound(Assets.OK_SOUND).play()
-        if not s.can_toast and shut: return
+        if not s.can_toast and not shut: return
+        if s.toast_zoom: s.toast_zoom.cancel()
         s.can_toast = False
         b = s.toast_bg
         t,desc = inp or ('','')
@@ -160,7 +152,6 @@ class Editor:
         # zoom
         zoom_time = 0.2
         def zoom():
-            if s.toast_zoom: s.toast_zoom.cancel()
             s.toast_zoom = Animate(
                 widget=b,
                 func=bui.buttonwidget,
@@ -347,7 +338,8 @@ class Editor:
             enable_sound=False
         )
         # tools
-        for i in range(4):
+        tools_str = Assets.TOOLS
+        for i in range(len(tools_str)):
             b = bui.buttonwidget(
                 parent=s.root,
                 color=Color.MAIN,
@@ -358,7 +350,7 @@ class Editor:
                 label=bui.charstr(
                     getattr(
                         bui.SpecialChar,
-                        Assets.TOOLS[i]
+                        tools_str[i]
                     )
                 ),
                 on_activate_call=bui.CallPartial(
@@ -1039,7 +1031,7 @@ class Editor:
                     s.entry_xs_real * (
                         s.entries_per_sec *
                         s.object_duration
-                    )*s.magic_fix,
+                    )*s.magic_right,
                     s.entry_ys_real-s.magic_y
                 )
                 # construct
@@ -1053,7 +1045,7 @@ class Editor:
                     s.entry_xs_real * (
                         s.object_duration *
                         s.entries_per_sec
-                    )*s.magic_fix,
+                    )*s.magic_right,
                     s.entry_ys_real-s.magic_y
                 )
                 btn = bui.buttonwidget(
@@ -1098,7 +1090,7 @@ class Editor:
                     ):
                         mem = s.memory[id(kid)]
                         width_in_steps = mem['duration'] * s.entries_per_sec
-                        old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.position_fix)  # ← Add position_fix
+                        old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
                         end_pos = (
                             old_x,
                             s.entry_ys_real*i
@@ -1136,14 +1128,17 @@ class Editor:
                 wait = 0.4
                 # animate
                 width_in_steps = s.object_duration * s.entries_per_sec
-                final_x = s.bottom_left(dry=True)[0] + (width_in_steps * s.position_fix)
-                final_y = s.bottom_left(dry=True)[1]
 
                 s.window_back(
                     to=lambda:{
                         'position':(
                             s.window_pos,
-                            (final_x, final_y)
+                            (bl:=s.bottom_left(dry=True)) and (
+                                bl[0]+(
+                                    width_in_steps *
+                                    s.magic_left
+                                ), bl[1]
+                            )
                         ),
                         'size':(
                             half_size,
@@ -1387,7 +1382,7 @@ class Editor:
         if which == 0:
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
-            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
             if (anim:=s.expand_anims.get(id(b),0)):
                 start_pos = anim.attrs_current['position']
@@ -1395,7 +1390,7 @@ class Editor:
             else: start_pos = (ox,oy)
             mem['start'] += 1
             # new
-            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             new['position'] = (
                 start_pos,
                 (new_x,oy)
@@ -1404,10 +1399,11 @@ class Editor:
         if which == 1:
             if mem['start']<=0:
                 bui.getsound(Assets.BAD_SOUND).play()
+                s.toast(Strings.ERROR_REACHED_ZERO)
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
-            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
             if (anim:=s.expand_anims.get(id(b),0)):
                 start_pos = anim.attrs_current['position']
@@ -1415,7 +1411,7 @@ class Editor:
             else: start_pos = (ox,oy)
             mem['start'] -= 1
             # new
-            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             new['position'] = (
                 start_pos,
                 (new_x,oy)
@@ -1424,7 +1420,7 @@ class Editor:
         if which == 2:
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
-            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
             if (anim:=s.expand_anims.get(id(b),0)):
                 start_size = anim.attrs_current['size']
@@ -1435,7 +1431,7 @@ class Editor:
                     s.entry_xs_real * (
                         mem['duration'] *
                         s.entries_per_sec
-                    ) * s.magic_fix,
+                    ) * s.magic_right,
                     s.entry_ys_real - s.magic_y
                 )
                 start_pos = (ox, oy)
@@ -1443,10 +1439,10 @@ class Editor:
             # new
             new_width_in_steps = mem['duration'] * s.entries_per_sec
             end_size = (
-                s.entry_xs_real * new_width_in_steps * s.magic_fix,
+                s.entry_xs_real * new_width_in_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.position_fix)
+            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.magic_left)
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, (new_x, oy))
         # shrink (decrease duration)
@@ -1455,10 +1451,11 @@ class Editor:
             current_ticks = round(mem['duration'] * s.entries_per_sec)
             if current_ticks <= 1:
                 bui.getsound(Assets.BAD_SOUND).play()
+                s.toast(Strings.ERROR_SMALLEST)
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
-            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
             if (anim:=s.expand_anims.get(id(b),0)):
                 start_size = anim.attrs_current['size']
@@ -1469,7 +1466,7 @@ class Editor:
                     s.entry_xs_real * (
                         mem['duration'] *
                         s.entries_per_sec
-                    ) * s.magic_fix,
+                    ) * s.magic_right,
                     s.entry_ys_real - s.magic_y
                 )
                 start_pos = (ox, oy)
@@ -1477,13 +1474,190 @@ class Editor:
             # new
             new_width_in_steps = mem['duration'] * s.entries_per_sec
             end_size = (
-                s.entry_xs_real * new_width_in_steps * s.magic_fix,
+                s.entry_xs_real * new_width_in_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.position_fix)
+            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.magic_left)
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, (new_x, oy))
+
+        # move up
+        if which == 4:
+            # index
+            current_list_index = s.stamp_kids.index(b)
+
+            if current_list_index == 0:
+                bui.getsound(Assets.BAD_SOUND).play()
+                s.toast(Strings.ERROR_AT_TOP)
+                return
+
+            # neighbor
+            target_list_index = current_list_index - 1
+            other_btn = s.stamp_kids[target_list_index]
+            other_mem = s.memory[id(other_btn)]
+
+            bui.getsound(Assets.OK_SOUND).play()
+
+            # swap
+            # order
+            current_order = mem['order']
+            target_order = other_mem['order']
+
+            # memory
+            mem['order'] = target_order
+            other_mem['order'] = current_order
+
+            # visual
+            s.stamp_kids[current_list_index], s.stamp_kids[target_list_index] = \
+                s.stamp_kids[target_list_index], s.stamp_kids[current_list_index]
+
+            # position
+            new_y_up = s.entry_ys_real * (len(s.memory) - target_order - 1)
+            new_y_down = s.entry_ys_real * (len(s.memory) - current_order - 1)
+
+            # animation
+            # button
+            anim_key_b = id(b)
+            width_in_steps_b = mem['duration'] * s.entries_per_sec
+
+            # start
+            if (anim:=s.expand_anims.get(anim_key_b)):
+                start_pos_b = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                # current
+                current_x_b = step*mem['start']+s.magic_x + (width_in_steps_b * s.magic_left)
+                current_y_b = s.entry_ys_real * (len(s.memory)-current_order-1)
+                start_pos_b = (current_x_b, current_y_b)
+
+            end_pos_b = (start_pos_b[0], new_y_up)
+
+            s.expand_anims[anim_key_b] = Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                duration=s.global_butter,
+                attrs={'position': (start_pos_b, end_pos_b)},
+                on_finish=lambda k=anim_key_b:s.expand_anims.pop(k, None)
+            )
+
+            # other
+            anim_key_other = id(other_btn)
+            width_in_steps_other = other_mem['duration'] * s.entries_per_sec
+
+            # start
+            if (anim:=s.expand_anims.get(anim_key_other)):
+                start_pos_other = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                # current
+                current_x_other = step*other_mem['start']+s.magic_x + (width_in_steps_other * s.magic_left)
+                # old
+                current_y_other = s.entry_ys_real * (len(s.memory)-target_order-1)
+                start_pos_other = (current_x_other, current_y_other)
+
+            end_pos_other = (start_pos_other[0], new_y_down)
+
+            s.expand_anims[anim_key_other] = Animate(
+                widget=other_btn,
+                func=bui.buttonwidget,
+                duration=s.global_butter,
+                attrs={'position': (start_pos_other, end_pos_other)},
+                on_finish=lambda k=anim_key_other:s.expand_anims.pop(k, None)
+            )
+
+            s.wrap(2)
+
+        # move down
+        if which == 5:
+            # index
+            current_list_index = s.stamp_kids.index(b)
+            max_list_index = len(s.stamp_kids) - 1
+
+            if current_list_index == max_list_index:
+                bui.getsound(Assets.BAD_SOUND).play()
+                s.toast(Strings.ERROR_AT_BOTTOM)
+                return
+
+            # neighbor
+            target_list_index = current_list_index + 1
+            other_btn = s.stamp_kids[target_list_index]
+            other_mem = s.memory[id(other_btn)]
+
+            bui.getsound(Assets.OK_SOUND).play()
+
+            # swap
+            # order
+            current_order = mem['order']
+            target_order = other_mem['order']
+
+            # memory
+            mem['order'] = target_order
+            other_mem['order'] = current_order
+
+            # visual
+            s.stamp_kids[current_list_index], s.stamp_kids[target_list_index] = \
+                s.stamp_kids[target_list_index], s.stamp_kids[current_list_index]
+
+            # position
+            new_y_down = s.entry_ys_real * (len(s.memory) - target_order - 1)
+            new_y_up = s.entry_ys_real * (len(s.memory) - current_order - 1)
+
+            # animation
+            # button
+            anim_key_b = id(b)
+            width_in_steps_b = mem['duration'] * s.entries_per_sec
+
+            # start
+            if (anim:=s.expand_anims.get(anim_key_b)):
+                start_pos_b = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                # current
+                current_x_b = step*mem['start']+s.magic_x + (width_in_steps_b * s.magic_left)
+                current_y_b = s.entry_ys_real * (len(s.memory)-current_order-1)
+                start_pos_b = (current_x_b, current_y_b)
+
+            end_pos_b = (start_pos_b[0], new_y_down)
+
+            s.expand_anims[anim_key_b] = Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                duration=s.global_butter,
+                attrs={'position': (start_pos_b, end_pos_b)},
+                on_finish=lambda k=anim_key_b:s.expand_anims.pop(k, None)
+            )
+
+            # other
+            anim_key_other = id(other_btn)
+            width_in_steps_other = other_mem['duration'] * s.entries_per_sec
+
+            # start
+            if (anim:=s.expand_anims.get(anim_key_other)):
+                start_pos_other = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                # current
+                current_x_other = step*other_mem['start']+s.magic_x + (width_in_steps_other * s.magic_left)
+                current_y_other = s.entry_ys_real * (len(s.memory)-target_order-1)
+                start_pos_other = (current_x_other, current_y_other)
+
+            end_pos_other = (start_pos_other[0], new_y_up)
+
+            s.expand_anims[anim_key_other] = Animate(
+                widget=other_btn,
+                func=bui.buttonwidget,
+                duration=s.global_butter,
+                attrs={'position': (start_pos_other, end_pos_other)},
+                on_finish=lambda k=anim_key_other:s.expand_anims.pop(k, None)
+            )
+
+            s.wrap(2)
+
         # finally
+        s.scroll_to_timer = bui.AppTimer(
+            s.global_butter/2,
+            bui.CallPartial(s.scroll_to,b)
+        )
         if not new: return
         s.expand_anims[id(b)] = Animate(
             widget=b,
@@ -1493,7 +1667,27 @@ class Editor:
             on_finish=lambda:s.expand_anims.pop(id(b))
         )
         bui.getsound(Assets.OK_SOUND).play()
-        bui.containerwidget(s.stamp_hscroll_root,visible_child=b)
+
+    def scroll_to(s,b):
+        # horizontal
+        bui.containerwidget(
+            s.stamp_hscroll_root,
+            visible_child=b
+        )
+        # vertical
+        rx,ry = s.real
+        cx,cy = b.get_screen_space_center()
+        to = (cx+rx/2,cy+ry/2)
+        temp = bui.textwidget(
+            parent=s.stamp_scroll_root,
+            position=to
+        )
+        bui.containerwidget(
+            s.stamp_scroll_root,
+            visible_child=temp
+        )
+        temp.delete()
+        s.on_scroll()
 
 class Animate:
     def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None):
@@ -1712,6 +1906,22 @@ class Strings:
         'Are you using quotes for str?' or
         'You\'re on your own pal'
     )
+    ERROR_REACHED_ZERO = [
+        'Reached zero!',
+        'Yeah I can\'t move it past that'
+    ]
+    ERROR_AT_TOP = [
+        'Already at the top!',
+        'No entries above to swap'
+    ]
+    ERROR_AT_BOTTOM = [
+        'Hit the bottom!',
+        'No entries below to swap'
+    ]
+    ERROR_SMALLEST = [
+        'Already at smallest size!',
+        'Yeah it can\'t be smaller'
+    ]
     # info
     INFO_ASSIGNED = lambda a: (
         f'Assigned new attribute {a}',
@@ -1789,11 +1999,24 @@ class Assets:
         'RIGHT_ARROW',
         'LEFT_ARROW',
         'FAST_FORWARD_BUTTON',
-        'REWIND_BUTTON'
+        'REWIND_BUTTON',
+        'UP_ARROW',
+        'DOWN_ARROW',
+        'PLAY_STATION_CROSS_BUTTON'
     ]
     # sounds
     OK_SOUND = 'deek'
     BAD_SOUND = 'block'
+
+class DarkColor:
+    MAIN = (0,0,0)
+    TINT = (0.5,0.5,0.5)
+    TEXT = (2,2,2)
+    INVISIBLE = (0,0,0,0)
+    OPACITY = 0.4
+
+# global
+Color = globals()[Config.COLOR]
 
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
