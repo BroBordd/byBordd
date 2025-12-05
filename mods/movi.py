@@ -65,18 +65,23 @@ class Editor:
         # window
         s.window_on = None
         # entries
+        s.magic_x = 6.9
+        s.magic_y = 5
+        s.magic_fix = 0.925
+        s.position_fix = 1.3
         s.entry_xs = 40
         s.entry_ys = 40
-        s.entry_xs_real = s.entry_xs * 0.9
-        s.entry_ys_real = s.entry_ys * 0.9
+        s.entry_xs_real = s.entry_xs * s.magic_fix
+        s.entry_ys_real = s.entry_ys * s.magic_fix
         # stamp
         s.stamp_anims = {}
         s.stamp_kids = []
+        s.stamp_y_hack = 14
         s.max_time = 10
         s.entries_per_sec = 5
         s.object_duration = 1
         # memory
-        s.memory = []
+        s.memory = {}
         s.animations = {}
         s.window_anims = {}
         # tools
@@ -87,6 +92,8 @@ class Editor:
         s.cancel_on_scroll = []
         s.sl = None
         s.global_butter = 0.3
+        s.expand_anims = {}
+        s.long_line_y = 1000
 
     def ui_safe(s):
         return s.root.exists() and not s.root.transitioning_out
@@ -112,7 +119,7 @@ class Editor:
 
     def toast(s,inp=None,shut=1):
         shut or bui.getsound('deek').play()
-        if not s.can_toast: return
+        if not s.can_toast and shut: return
         s.can_toast = False
         b = s.toast_bg
         t,desc = inp or ('','')
@@ -292,9 +299,17 @@ class Editor:
                 h_align='center',
                 v_align='center',
                 size=(10,5),
-                scale=0.5
+                scale=0.5,
+                color=(*Theme.TEXT,Theme.OPACITY)
             )
-            s.stamp_timeline.append(t)
+            l = bui.imagewidget(
+                parent=s.stamp_hscroll_root,
+                texture=bui.gettexture(Theme.TEXTURE),
+                opacity=Theme.OPACITY/10,
+                size=(2,s.long_line_y),
+                color=Theme.TEXT
+            )
+            s.stamp_timeline.append((t,l))
         # top left h
         s.top_left_h = bui.textwidget(
             parent=s.stamp_hscroll_root
@@ -345,7 +360,11 @@ class Editor:
                         bui.SpecialChar,
                         Strings.TOOLS[i]
                     )
-                )
+                ),
+                on_activate_call=bui.CallPartial(
+                    s.tool, i
+                ),
+                repeat=True
             )
             s.tools.append(b)
         # finally
@@ -357,10 +376,10 @@ class Editor:
         # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
         sx,sy = s.stamp_size = (rx,150)
-        smol = sy-14
+        smol = sy-s.stamp_y_hack
         old_deep_y = getattr(s,'stamp_deep_y',smol)
         big = old_deep_y != smol
-        s.stamp_deep_y = max(s.entry_ys*(len(s.memory)+1),smol)
+        s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smol)
         deep_x = s.entry_xs_real*(s.max_time*s.entries_per_sec+1)
         # main stuff
         if what in [0,1]:
@@ -437,35 +456,18 @@ class Editor:
                 )
         # stamp
         if what in [0,3]:
-            # stamp entries
-            for i,kid in enumerate(
-                reversed(
-                    s.stamp_kids
-                )
-            ):
-                end_pos = (0,s.entry_ys*i)
-                big and bui.buttonwidget(
-                    kid,
-                    position=end_pos
-                ) or Animate(
-                    widget=kid,
-                    func=bui.buttonwidget,
-                    attrs={
-                        'position':(
-                            (0,s.entry_ys*(i-1)),
-                            end_pos
-                        )
-                    },
-                    duration=s.global_butter
-                )
             # wrap stamp timeline
-            for i,t in enumerate(s.stamp_timeline):
+            for i,g in enumerate(s.stamp_timeline):
+                t,l = g
+                px = i*s.entry_xs_real
+                py = s.stamp_deep_y-20
                 bui.textwidget(
                     t,
-                    position=(
-                        i*s.entry_xs_real,
-                        s.stamp_deep_y-20
-                    )
+                    position=(px,py)
+                )
+                bui.imagewidget(
+                    l,
+                    position=(px+4,-s.long_line_y/2)
                 )
         # event
         if what in [0,4]:
@@ -511,7 +513,7 @@ class Editor:
         cx,cy = s.bottom_left_h.get_screen_space_center()
         rx,ry = s.real
         return (
-            cx+rx/2-5,
+            cx+rx/2-5+s.magic_x,
             cy+ry/2-5
         )
 
@@ -1033,32 +1035,27 @@ class Editor:
                     ))
                     return
                 # setup
-                eps = s.entries_per_sec
                 end_size = (
                     s.entry_xs_real * (
                         s.entries_per_sec *
                         s.object_duration
-                    ),
-                    s.entry_ys_real
+                    )*s.magic_fix,
+                    s.entry_ys_real-s.magic_y
                 )
-                # update memory
+                # construct
                 final = {
                     'type':typ,
                     'name':nam,
                     'attrs':so_far
                 }
-                s.memory.append({
-                    'order':len(s.memory),
-                    'event':i,
-                    'data':final,
-                    'duration':s.object_duration,
-                    'start':0
-                })
-                # scroll
-                s.wrap(1)
-                s.wrap(2)
-                s.bottom_left()
                 # make
+                size = (
+                    s.entry_xs_real * (
+                        s.object_duration *
+                        s.entries_per_sec
+                    )*s.magic_fix,
+                    s.entry_ys_real-s.magic_y
+                )
                 btn = bui.buttonwidget(
                     parent=s.stamp_hscroll_root,
                     texture=bui.gettexture(Theme.TEXTURE),
@@ -1067,13 +1064,8 @@ class Editor:
                     color=Theme.MAIN,
                     opacity=0,
                     enable_sound=False,
-                    size=(
-                        s.entry_xs_real * (
-                            s.object_duration *
-                            s.entries_per_sec
-                        ),
-                        s.entry_ys_real
-                    )
+                    size=size,
+                    button_type='square'
                 )
                 bui.buttonwidget(
                     btn,
@@ -1082,8 +1074,51 @@ class Editor:
                     )
                 )
                 s.stamp_kids.append(btn)
-                # repos and appear
+                # memory
+                s.memory[id(btn)] = {
+                    'order':len(s.memory),
+                    'event':i,
+                    'data':final,
+                    'duration':s.object_duration,
+                    'start':0
+                }
+                # capture
+                smol = s.stamp_size[1]-s.stamp_y_hack
+                old_deep_y = getattr(s,'stamp_deep_y',smol)
+                # scroll
+                s.wrap(1)
+                s.wrap(2)
                 s.wrap(3)
+                s.bottom_left()
+                # push
+                def push():
+                    big = old_deep_y != smol
+                    for i,kid in enumerate(
+                        reversed(s.stamp_kids)
+                    ):
+                        mem = s.memory[id(kid)]
+                        width_in_steps = mem['duration'] * s.entries_per_sec
+                        old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.position_fix)  # ← Add position_fix
+                        end_pos = (
+                            old_x,
+                            s.entry_ys_real*i
+                        )
+                        big and bui.buttonwidget(
+                            kid,
+                            position=end_pos
+                        ) or Animate(
+                            widget=kid,
+                            func=bui.buttonwidget,
+                            attrs={
+                                'position':(
+                                    (old_x,s.entry_ys_real*(i-1)),
+                                    end_pos
+                                )
+                            },
+                            duration=s.global_butter
+                        )
+                push()
+                # appear
                 def appear():
                     bui.buttonwidget(
                         btn,
@@ -1100,11 +1135,15 @@ class Editor:
                 half_pos = (pox+wsx/2,poy+wsy/4)
                 wait = 0.4
                 # animate
+                width_in_steps = s.object_duration * s.entries_per_sec
+                final_x = s.bottom_left(dry=True)[0] + (width_in_steps * s.position_fix)
+                final_y = s.bottom_left(dry=True)[1]
+
                 s.window_back(
                     to=lambda:{
                         'position':(
                             s.window_pos,
-                            s.bottom_left(dry=True)
+                            (final_x, final_y)
                         ),
                         'size':(
                             half_size,
@@ -1337,6 +1376,124 @@ class Editor:
                 duration=s.global_butter
             )
             s.tool_anims.append(a)
+
+    def tool(s,which):
+        if not (s.sl and s.tools_shown): return
+        b,i,ev = s.sl
+        mem = s.memory[id(b)]
+        new = {}
+        step = s.entry_xs_real
+        # move right
+        if which == 0:
+            # math
+            width_in_steps = mem['duration'] * s.entries_per_sec
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
+            if (anim:=s.expand_anims.get(id(b),0)):
+                start_pos = anim.attrs_current['position']
+                anim.cancel()
+            else: start_pos = (ox,oy)
+            mem['start'] += 1
+            # new
+            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            new['position'] = (
+                start_pos,
+                (new_x,oy)
+            )
+        # move left
+        if which == 1:
+            if mem['start']<=0:
+                bui.getsound('block').play()
+                return
+            # math
+            width_in_steps = mem['duration'] * s.entries_per_sec
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
+            if (anim:=s.expand_anims.get(id(b),0)):
+                start_pos = anim.attrs_current['position']
+                anim.cancel()
+            else: start_pos = (ox,oy)
+            mem['start'] -= 1
+            # new
+            new_x = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            new['position'] = (
+                start_pos,
+                (new_x,oy)
+            )
+        # expand (increase duration)
+        if which == 2:
+            # math
+            width_in_steps = mem['duration'] * s.entries_per_sec
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
+            if (anim:=s.expand_anims.get(id(b),0)):
+                start_size = anim.attrs_current['size']
+                start_pos = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                start_size = (
+                    s.entry_xs_real * (
+                        mem['duration'] *
+                        s.entries_per_sec
+                    ) * s.magic_fix,
+                    s.entry_ys_real - s.magic_y
+                )
+                start_pos = (ox, oy)
+            mem['duration'] += 1/s.entries_per_sec  # Increase by one tick (0.2 seconds)
+            # new
+            new_width_in_steps = mem['duration'] * s.entries_per_sec
+            end_size = (
+                s.entry_xs_real * new_width_in_steps * s.magic_fix,
+                s.entry_ys_real - s.magic_y
+            )
+            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.position_fix)
+            new['size'] = (start_size, end_size)
+            new['position'] = (start_pos, (new_x, oy))
+        # shrink (decrease duration)
+        if which == 3:
+            # Check in "ticks" (integer units) to avoid float precision issues
+            current_ticks = round(mem['duration'] * s.entries_per_sec)
+            if current_ticks <= 1:
+                bui.getsound('block').play()
+                return
+            # math
+            width_in_steps = mem['duration'] * s.entries_per_sec
+            ox = step*mem['start']+s.magic_x + (width_in_steps * s.position_fix)
+            oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
+            if (anim:=s.expand_anims.get(id(b),0)):
+                start_size = anim.attrs_current['size']
+                start_pos = anim.attrs_current['position']
+                anim.cancel()
+            else:
+                start_size = (
+                    s.entry_xs_real * (
+                        mem['duration'] *
+                        s.entries_per_sec
+                    ) * s.magic_fix,
+                    s.entry_ys_real - s.magic_y
+                )
+                start_pos = (ox, oy)
+            mem['duration'] -= 1/s.entries_per_sec  # Decrease by one tick (0.2 seconds)
+            # new
+            new_width_in_steps = mem['duration'] * s.entries_per_sec
+            end_size = (
+                s.entry_xs_real * new_width_in_steps * s.magic_fix,
+                s.entry_ys_real - s.magic_y
+            )
+            new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.position_fix)
+            new['size'] = (start_size, end_size)
+            new['position'] = (start_pos, (new_x, oy))
+        # finally
+        if not new: return
+        s.expand_anims[id(b)] = Animate(
+            widget=b,
+            func=bui.buttonwidget,
+            duration=s.global_butter,
+            attrs=new,
+            on_finish=lambda:s.expand_anims.pop(id(b))
+        )
+        bui.getsound('deek').play()
+        bui.containerwidget(s.stamp_hscroll_root,visible_child=b)
 
 class Animate:
     def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None):
