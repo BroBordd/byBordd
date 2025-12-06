@@ -804,8 +804,7 @@ class Editor:
                 description=Strings.NODE_TYPE_DESC,
                 color=Color.INVISIBLE,
                 v_align='center',
-                glow_type='uniform',
-                text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
+                glow_type='uniform'
             )
             s.window_kids.append((type_text,pos,text_push,bui.textwidget,delay+0,
                 ('size',((0,size[1]),size))
@@ -832,7 +831,7 @@ class Editor:
                 color=Color.INVISIBLE,
                 v_align='center',
                 glow_type='uniform',
-                text=Config.DEBUG and choice(Strings.DEBUG_FOO) or ''
+                text=Strings.PLACEHOLDER()
             )
             s.window_kids.append((name_text,pos,text_push,bui.textwidget,delay+0.05,
                 ('size',((0,size[1]),size))
@@ -1343,42 +1342,40 @@ class Editor:
     def show_tools(s):
         if s.tools_shown: return
         s.tools_shown = True
-        base_delay = 0.05
-        base_duration = 0.15
-        duration_increment = 0.08
-        for anim in s.tool_anims:
+        xs,ys = s.tool_size
+        for anim in reversed(s.tool_anims):
             anim.cancel()
         s.tool_anims.clear()
-        xs,ys = s.tool_size
+        # math
+        start_size = (xs,ys/4)
+        start_tc = Color.INVISIBLE
+        start_op = 0
         for i,b in enumerate(s.tools):
             anim = Animate(
                 widget=b,
                 func=bui.buttonwidget,
-                duration=base_duration + (duration_increment * i),
+                duration=s.global_butter,
                 attrs={
                     'size':(
-                        (xs,ys/4),
+                        start_size,
                         s.tool_size
                     ),
                     'textcolor':(
-                        Color.INVISIBLE,
+                        start_tc,
                         (*Color.TEXT,Color.OPACITY)
                     ),
-                    'opacity':(0,Color.OPACITY)
-                },
-                delay=base_delay*i
+                    'opacity':(start_op,Color.OPACITY)
+                }
             )
             s.tool_anims.append(anim)
 
     def hide_tools(s):
         if not s.tools_shown: return
         s.tools_shown = False
-        delay = 0.05
         arr = list(reversed(s.tool_anims))
         s.tool_anims.clear()
-        for i,anim in enumerate(arr):
+        for anim in arr:
             a = anim.reverse(
-                delay=delay*i,
                 duration=s.global_butter
             )
             s.tool_anims.append(a)
@@ -1663,6 +1660,228 @@ class Editor:
             )
 
             s.wrap(2)
+
+        # duplicate
+        if which == 6:
+            bui.getsound(Assets.OK_SOUND).play()
+
+            # copy the memory data
+            original_data = mem.copy()
+            original_event = original_data['event']
+            original_duration = original_data['duration']
+            original_start = original_data['start']
+            node_data = original_data['data'].copy()
+
+            # create new button
+            size = (
+                s.entry_xs_real * (
+                    original_duration *
+                    s.entries_per_sec
+                )*s.magic_right,
+                s.entry_ys_real-s.magic_y
+            )
+            btn = bui.buttonwidget(
+                parent=s.stamp_hscroll_root,
+                texture=bui.gettexture(Assets.SKIN),
+                label=node_data['name'],
+                textcolor=Color.INVISIBLE,
+                color=Color.MAIN,
+                opacity=0,
+                enable_sound=False,
+                size=size,
+                button_type='square'
+            )
+            bui.buttonwidget(
+                btn,
+                on_activate_call=bui.CallPartial(
+                    s.select,btn,len(s.memory),original_event
+                )
+            )
+            s.stamp_kids.append(btn)
+
+            # add to memory
+            s.memory[id(btn)] = {
+                'order':len(s.memory),
+                'event':original_event,
+                'data':node_data,
+                'duration':original_duration,
+                'start':original_start
+            }
+
+            # capture old state
+            smol = s.stamp_size[1]-s.stamp_y_hack
+            old_deep_y = getattr(s,'stamp_deep_y',smol)
+
+            # update layout
+            s.wrap(1)
+            s.wrap(2)
+            s.wrap(3)
+            s.bottom_left()
+
+            # animate all items into new positions
+            big = old_deep_y != smol
+            for idx,kid in enumerate(reversed(s.stamp_kids)):
+                kid_mem = s.memory[id(kid)]
+                width_in_steps = kid_mem['duration'] * s.entries_per_sec
+                old_x = s.magic_x + s.entry_xs_real*kid_mem['start'] + (width_in_steps * s.magic_left)
+                end_pos = (
+                    old_x,
+                    s.entry_ys_real*idx
+                )
+
+                # catch up to current animation if exists
+                anim_key = id(kid)
+                if (anim := s.expand_anims.get(anim_key)):
+                    start_pos = anim.attrs_current['position']
+                    start_opacity = anim.attrs_current.get('opacity', Color.OPACITY)
+                    start_textcolor = anim.attrs_current.get('textcolor', (*Color.TEXT, Color.OPACITY))
+                    anim.cancel()
+                elif kid == btn:
+                    # new button appears from original position
+                    orig_y = s.entry_ys_real*(len(s.memory)-mem['order']-2)
+                    start_pos = (old_x, orig_y)
+                    start_opacity = 0
+                    start_textcolor = Color.INVISIBLE
+                elif big:
+                    start_pos = end_pos
+                    start_opacity = Color.OPACITY
+                    start_textcolor = (*Color.TEXT, Color.OPACITY)
+                else:
+                    start_pos = (old_x, s.entry_ys_real*(idx-1))
+                    start_opacity = Color.OPACITY
+                    start_textcolor = (*Color.TEXT, Color.OPACITY)
+
+                # animate to new position
+                if kid == btn:
+                    s.expand_anims[anim_key] = Animate(
+                        widget=kid,
+                        func=bui.buttonwidget,
+                        attrs={
+                            'position':(start_pos, end_pos),
+                            'opacity':(start_opacity, Color.OPACITY),
+                            'textcolor':(
+                                start_textcolor,
+                                (*Color.TEXT, Color.OPACITY)
+                            )
+                        },
+                        duration=s.global_butter,
+                        on_finish=lambda k=anim_key: s.expand_anims.pop(k, None)
+                    )
+                elif start_pos != end_pos:
+                    s.expand_anims[anim_key] = Animate(
+                        widget=kid,
+                        func=bui.buttonwidget,
+                        attrs={
+                            'position': (start_pos, end_pos),
+                            'opacity': (start_opacity, Color.OPACITY),
+                            'textcolor': (start_textcolor, (*Color.TEXT, Color.OPACITY))
+                        },
+                        duration=s.global_butter,
+                        on_finish=lambda k=anim_key: s.expand_anims.pop(k, None)
+                    )
+                else:
+                    bui.buttonwidget(kid, position=end_pos, opacity=Color.OPACITY, textcolor=(*Color.TEXT, Color.OPACITY))
+
+            # toast notification
+            s.toast(Strings.INFO_DUPLICATED(
+                node_data["name"]
+            ))
+
+            return
+
+        # delete
+        if which == 7:
+            bui.getsound(Assets.OK_SOUND).play()
+
+            # get the name for toast
+            node_name = mem['data']['name']
+            deleted_order = mem['order']
+
+            # find list index
+            list_index = s.stamp_kids.index(b)
+
+            # animate fade out
+            def cleanup():
+                # remove from memory
+                del s.memory[id(b)]
+
+                # remove from kids list
+                s.stamp_kids.remove(b)
+
+                # delete widget
+                if b.exists():
+                    b.delete()
+
+                # update orders for remaining items
+                for kid in s.stamp_kids:
+                    kid_mem = s.memory[id(kid)]
+                    if kid_mem['order'] > deleted_order:
+                        kid_mem['order'] -= 1
+
+                # capture old state
+                smol = s.stamp_size[1]-s.stamp_y_hack
+                old_deep_y = getattr(s,'stamp_deep_y',smol)
+
+                # update layout
+                s.wrap(1)
+                s.wrap(2)
+                s.wrap(3)
+
+                # animate remaining items into new positions
+                big = old_deep_y != smol
+                for idx, kid in enumerate(reversed(s.stamp_kids)):
+                    kid_mem = s.memory[id(kid)]
+                    width_in_steps = kid_mem['duration'] * s.entries_per_sec
+                    old_x = s.magic_x + s.entry_xs_real*kid_mem['start'] + (width_in_steps * s.magic_left)
+
+                    # current position
+                    current_y = s.entry_ys_real*idx if big else s.entry_ys_real*(idx+1)
+
+                    end_pos = (
+                        old_x,
+                        s.entry_ys_real*idx
+                    )
+
+                    if big:
+                        bui.buttonwidget(kid, position=end_pos)
+                    else:
+                        Animate(
+                            widget=kid,
+                            func=bui.buttonwidget,
+                            attrs={
+                                'position':(
+                                    (old_x, current_y),
+                                    end_pos
+                                )
+                            },
+                            duration=s.global_butter
+                        )
+
+                # deselect
+                s.sl = None
+                s.hide_tools()
+
+                # toast
+                s.toast(Strings.INFO_DELETED(
+                    node_name
+                ))
+
+            # fade out animation
+            Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                attrs={
+                    'opacity':(Color.OPACITY, 0),
+                    'textcolor':(
+                        (*Color.TEXT, Color.OPACITY),
+                        Color.INVISIBLE
+                    )
+                },
+                duration=s.global_butter/2,
+                on_finish=cleanup
+            )
+
+            return
 
         # finally
         s.scroll_to_timer = bui.AppTimer(
@@ -1949,10 +2168,18 @@ class Strings:
         f'Updated existing attribute {a}',
         'Since you used the same attr name'
     )
+    INFO_DELETED = lambda n:(
+        f'Deleted "{n}"',
+        'Now it\'s gone forever'
+    )
+    INFO_DUPLICATED = lambda n:(
+        f'Duplicated "{n}"',
+        'Now there\'s two of them. This is getting out of hand.'
+    )
     # extra
     WELCOME = lambda n: (
-        f'Welcome, {n}! Press for more',
-        'Movi is still experimental. Feedback is appreciated!'
+        f'{n} joined the studio! Press for more',
+         'Experimental. Buggy. Fun. Pick two. Or all three.'
     )
     NOTHING_ELSE = [
         'I have nothing else to say',
@@ -1973,7 +2200,7 @@ class Strings:
         'This is your hobby now, isn\'t it?',
         'I\'m not mad, just disappointed',
         'Fine. You win. Happy?',
-        'Achievement Unlocked: Button Masher',
+        'Why are you clicking again?',
         'The real movie was the clicks we made along the way',
         'Bro just make the movie already',
         'Is this some kind of test?',
@@ -1987,26 +2214,24 @@ class Strings:
         'Did you just click again',
         'Nothing more to be said'
     ]
-    # debug
-    DEBUG_FOO = [
-       'baz',
-       'qux',
-       'zap',
-       'mork',
-       'glub',
-       'thud',
-       'wump',
-       'splat',
-       'bonk',
-       'zork',
-       'grok',
-       'narf',
-       'plink',
-       'flonk',
-       'yak',
-       'foo',
-       'blarg'
-    ]
+    PLACEHOLDER = lambda: (
+        choice([
+            'Bomb', 'Blast', 'TNT', 'Flag', 'Punch',
+            'Ice', 'Fire', 'Shield', 'Jump', 'Spaz',
+            'Kronk', 'Mel', 'Zoom', 'Spark', 'Glow',
+            'Sticky', 'Impact', 'Pixel', 'Ninja', 'Pirate',
+            'Cyborg', 'Agent', 'Bunny', 'Santa', 'Frosty',
+            'Power', 'Turbo', 'Mega', 'Ultra', 'Speed'
+        ]) + ' ' +
+        choice([
+            'Bot', 'Zone', 'Spawn', 'Node', 'Box',
+            'Ball', 'Peak', 'Rock', 'Guy', 'Stand',
+            'Pad', 'Light', 'Wall', 'Prop', 'Flash',
+            'Cube', 'Orb', 'Ring', 'Core', 'Base',
+            'Point', 'Mark', 'Spot', 'Area', 'Field',
+            'Cloud', 'Burst', 'Wave', 'Beam', 'Trail'
+        ])
+    )
 
 class Assets:
     # visual
@@ -2020,6 +2245,7 @@ class Assets:
         'REWIND_BUTTON',
         'UP_ARROW',
         'DOWN_ARROW',
+        'DPAD_CENTER_BUTTON',
         'PLAY_STATION_CROSS_BUTTON'
     ]
     # sounds
