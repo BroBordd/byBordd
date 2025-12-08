@@ -451,12 +451,28 @@ class Finder:
         for _ in c.MEM:
             for r in _.get('roster', []):
                 try:
-                    spec = loads(r['spec'])
-                    if spec['n'] == p:
+                    # Safely decode spec with error handling for control characters
+                    spec_raw = r.get('spec', '')
+                    if isinstance(spec_raw, bytes):
+                        # Decode bytes, replacing invalid characters
+                        spec_str = spec_raw.decode('utf-8', errors='replace')
+                    else:
+                        spec_str = str(spec_raw)
+                    
+                    # Remove control characters before parsing
+                    import re
+                    # Remove all control characters except newline, carriage return, tab
+                    spec_str = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', spec_str)
+                    
+                    # Parse the cleaned JSON
+                    spec = loads(spec_str)
+                    
+                    if spec.get('n') == p:
                         i = _
                         pz = r['p']
                         break
-                except:
+                except (ValueError, KeyError, TypeError) as e:
+                    # Skip malformed entries
                     continue
         
         if i is None:
@@ -510,26 +526,50 @@ class Finder:
             if (r := _.get('roster', {})):
                 for p in r:
                     try:
-                        ds = loads(p['spec'])['n']
-                    except:
+                        # Safely decode spec
+                        spec_raw = p.get('spec', '')
+                        if isinstance(spec_raw, bytes):
+                            spec_str = spec_raw.decode('utf-8', errors='replace')
+                        else:
+                            spec_str = str(spec_raw)
+                        
+                        # Remove control characters
+                        import re
+                        spec_str = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', spec_str)
+                        
+                        ds = loads(spec_str)['n']
+                    except (ValueError, KeyError, TypeError):
                         continue
+                        
                     0 if (ds == 'Finder' or (c.FLT and not s.chk(r))) else z.append((ds, a))
         return sorted(z, key=lambda _: _[0].startswith('Server'))
-    
+
     def chk(s, r):
         t = s.__class__.FLT.lower()
         for _ in r:
             try:
-                n = loads(_['spec'])['n']
+                # Safely decode spec
+                spec_raw = _.get('spec', '')
+                if isinstance(spec_raw, bytes):
+                    spec_str = spec_raw.decode('utf-8', errors='replace')
+                else:
+                    spec_str = str(spec_raw)
+                
+                # Remove control characters
+                import re
+                spec_str = re.sub(r'[\x00-\x08\x0b-\x0c\x0e-\x1f\x7f]', '', spec_str)
+                
+                n = loads(spec_str)['n']
                 if n != 'Finder' and t in n.lower():
                     return True
-            except:
+            except (ValueError, KeyError, TypeError):
                 continue
+                
             try:
-                for p in _['p']:
-                    if t in p['nf'].lower():
+                for p in _.get('p', []):
+                    if t in p.get('nf', '').lower():
                         return True
-            except:
+            except (AttributeError, TypeError):
                 continue
         return False
     
