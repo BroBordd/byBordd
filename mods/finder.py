@@ -450,11 +450,14 @@ class Finder:
         i = None
         for _ in c.MEM:
             for r in _.get('roster', []):
-                spec = loads(r['spec'])
-                if spec['n'] == p:
-                    i = _
-                    pz = r['p']
-                    break
+                try:
+                    spec = loads(r['spec'])
+                    if spec['n'] == p:
+                        i = _
+                        pz = r['p']
+                        break
+                except:
+                    continue
         
         if i is None:
             c.SL = None
@@ -516,12 +519,18 @@ class Finder:
     def chk(s, r):
         t = s.__class__.FLT.lower()
         for _ in r:
-            n = loads(_['spec'])['n']
-            if n != 'Finder' and t in n.lower():
-                return True
-            for p in _['p']:
-                if t in p['nf'].lower():
+            try:
+                n = loads(_['spec'])['n']
+                if n != 'Finder' and t in n.lower():
                     return True
+            except:
+                continue
+            try:
+                for p in _['p']:
+                    if t in p['nf'].lower():
+                        return True
+            except:
+                continue
         return False
     
     def snd(s, t):
