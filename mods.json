@@ -72,14 +72,6 @@
         "mod_filename_base": "fileman"
     },
     {
-        "mod_name": "Finder",
-        "mod_fancy_name": "Find anyone",
-        "mod_version": "3.0",
-        "mod_description": "Experimental. Feedback is appreciated.\nUseful if you are looking for someone, or just messing around.\n\nFeatures:\n- High-Concurrency Scanning via ThreadPoolExecutor for speed.\n- Targets all reachable public servers just like gather window.\n- Sniffs out players (roster) without joining servers.\n- Progress reports handled asynchronously to prevent UI freezing.\n\nCombine with Power plugin for better control.",
-        "api_version": 9,
-        "mod_filename_base": "finder"
-    },
-    {
         "mod_name": "FontMan",
         "mod_fancy_name": "Font Manager",
         "mod_version": "1.0",
@@ -246,6 +238,14 @@
         "mod_description": "Deprecated. The code is a pile of trash.",
         "api_version": 8,
         "mod_filename_base": "easycmd"
+    },
+    {
+        "mod_name": "Finder",
+        "mod_fancy_name": "Find anyone",
+        "mod_version": "4.0",
+        "mod_description": "Refactored with proper packet structure and optimized for high-concurrency scanning.\nUses the same elegant enum system as Proto for maintainability and correctness.\n\nFeatures:\n- Proper packet structure using enums (readable and maintainable)\n- Optimized lightweight join/roster/leave flow\n- High-concurrency scanning via ThreadPoolExecutor\n- Correct disconnect packets\n- Sniffs out players without actually joining servers",
+        "api_version": 9,
+        "mod_filename_base": "finder"
     },
     {
         "mod_name": "Flashback",
