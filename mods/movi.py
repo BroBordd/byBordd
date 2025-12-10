@@ -16,6 +16,7 @@ import bascenev1 as bs
 from random import choice
 from time import perf_counter
 from weakref import WeakMethod
+from collections import defaultdict
 
 # static
 __version__ = '1.0'
@@ -41,6 +42,7 @@ class Editor:
     def __init__(s):
         # register
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
+        s.ui_on = False
         # toast
         s.can_toast = True
         s.toast_zoom = None
@@ -52,6 +54,9 @@ class Editor:
         s.event_root = None
         s.event_on = False
         s.event_kids = []
+        s.event_top = None
+        # edit
+        s.edit_on = False
         # window
         s.window_on = None
         # magic
@@ -65,27 +70,28 @@ class Editor:
         s.entry_xs_real = s.entry_xs * s.magic_right
         s.entry_ys_real = s.entry_ys * s.magic_right
         # stamp
-        s.stamp_anims = {}
         s.stamp_kids = []
         s.stamp_y_hack = 14
         s.max_time = 10
         s.entries_per_sec = 5
         s.object_duration = 1
-        s.animating_to_stamp = False
         # memory
         s.memory = {}
-        s.animations = {}
-        s.window_anims = {}
+        s.anims = defaultdict(dict)
         # tools
         s.tools = []
         s.tools_shown = False
-        s.tool_anims = []
         # extra
-        s.cancel_on_scroll = []
         s.sl = None
         s.global_butter = 0.3
-        s.expand_anims = {}
         s.long_line_y = 1000
+        s.can_delete = False
+        s.pending = []
+        s.blame = None
+
+    def run_on_ui(s,f):
+        if s.ui_on: f()
+        else: s.pending.append(f)
 
     def ui_safe(s):
         return s.root.exists() and not s.root.transitioning_out
@@ -96,37 +102,44 @@ class Editor:
         else: s.square.activate()
 
     def on_resize(s):
-        pass
+        s.on_scroll()
 
     def on_rescale(s):
-        pass
+        s.on_scroll()
 
     def on_scroll(s):
-        for anim in s.stamp_anims.copy().values():
-            anim.cancel()
-        s.stamp_anims.clear()
-        for anim in s.cancel_on_scroll:
-            anim.cancel()
-        s.cancel_on_scroll.clear()
+        if s.event_on:
+            # you're not going anywhere
+            for kid in s.event_kids:
+                an = s.anims[id(kid)]
+                for _ in ['extra','to']:
+                    (a:=an.get(_,None)) and a.cancel()
 
-    def toast(s,inp=None,shut=1):
-        shut or bui.getsound(Assets.OK_SOUND).play()
+    def toast(s,inp=None,shut=1,extra=0):
+        shut or bui.getsound(Const.OK_SOUND).play()
+        # on toast
         if not s.can_toast and not shut: return
+        if s.can_delete and extra<1: s.can_delete = False
         if s.toast_zoom: s.toast_zoom.cancel()
         s.can_toast = False
         b = s.toast_bg
         t,desc = inp or ('','')
         # update
+        if not s.blame:
+            s.blame = Eval.BLAME(
+                Strings.BLAME,
+                Const.BLAME
+            )
         bui.buttonwidget(b,label=t)
         desc and bui.buttonwidget(
             b,on_activate_call=bui.CallPartial(
                 s.toast,
-                (desc,choice(Strings.NOTHING_ELSE)),
-                shut=0
+                (desc,choice(s.blame)),
+                shut=0,
+                extra=extra-1
             )
         )
         # default
-        key = id(b)
         text_width = t and bui.get_string_width(
             t,suppress_warning=True
         ) or 0
@@ -139,7 +152,7 @@ class Editor:
         end_pos = epx,epy = (ox-dx/2,oy)
         rush = False
         # override
-        if (anim:=s.animations.pop(key,None)):
+        if (anim:=s.anims.get(id(b),None)):
             start_size = stx,sty = anim.attrs_current['size']
             if (
                 (int(stx) == int(dx)) and
@@ -170,7 +183,7 @@ class Editor:
                 on_finish=(enable,)
             )
         # animate
-        s.animations[key] = Animate(
+        s.anims[id(b)] = Animate(
             widget=b,
             func=bui.buttonwidget,
             attrs={
@@ -191,12 +204,12 @@ class Editor:
             duration=0.0001 if rush else duration,
             on_finish=zoom
         )
-        s.toast_timer = bui.AppTimer(
-            max(len(t)*0.05,3),
+        s.toast_timer = inp and bui.AppTimer(
+            max(len(t)*0.06,3),
             s.toast
         )
 
-    def make(s,master):
+    def make(s):
         # root
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
@@ -209,7 +222,7 @@ class Editor:
             enable_sound=False,
             selectable=False,
             size=(0,0),
-            texture=bui.gettexture(Assets.SKIN),
+            texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN
         )
         # trap
@@ -223,22 +236,22 @@ class Editor:
                     selectable=False,
                     enable_sound=False,
                     on_activate_call=s.universal_back,
-                    texture=bui.gettexture(Assets.EMPTY)
+                    texture=Eval.TEXTURE(Const.EMPTY)
                 )
             )
         )
         # stamp background
         s.stamp_bg = bui.imagewidget(
             parent=s.root,
-            texture=bui.gettexture(Assets.SKIN),
+            texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
             opacity=Color.OPACITY
         )
         # square
         s.square = bui.buttonwidget(
             parent=s.root,
-            texture=bui.gettexture(Assets.SKIN),
-            label=bui.charstr(bui.SpecialChar.PLAY_STATION_SQUARE_BUTTON),
+            texture=Eval.TEXTURE(Const.SKIN),
+            label=Eval.CHAR(Const.SQUARE),
             color=Color.MAIN,
             textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
@@ -247,8 +260,8 @@ class Editor:
         # triangle
         s.triangle = bui.buttonwidget(
             parent=s.root,
-            texture=bui.gettexture(Assets.SKIN),
-            label=bui.charstr(bui.SpecialChar.PLAY_STATION_TRIANGLE_BUTTON),
+            texture=Eval.TEXTURE(Const.SKIN),
+            label=Eval.CHAR(Const.TRIANGLE),
             color=Color.MAIN,
             textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
@@ -296,7 +309,7 @@ class Editor:
             )
             l = bui.imagewidget(
                 parent=s.stamp_hscroll_root,
-                texture=bui.gettexture(Assets.SKIN),
+                texture=Eval.TEXTURE(Const.SKIN),
                 opacity=Color.OPACITY/10,
                 size=(2,s.long_line_y),
                 color=Color.TEXT
@@ -324,7 +337,7 @@ class Editor:
         # event button background
         s.event_root = bui.imagewidget(
             parent=s.root,
-            texture=bui.gettexture(Assets.SKIN),
+            texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
             opacity=Color.OPACITY
         )
@@ -333,13 +346,38 @@ class Editor:
             parent=s.root,
             label=Strings.EVENT_BUTTON_OFF,
             on_activate_call=s.toggle_event,
-            texture=bui.gettexture('empty'),
+            texture=Eval.TEXTURE(Const.EMPTY),
             opacity=Color.OPACITY,
             textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False
         )
+        # event kids
+        for i,n in enumerate(Strings.EVENTS):
+            # make
+            b = bui.buttonwidget(
+                parent=s.root,
+                label=n,
+                color=Color.MAIN,
+                textcolor=Color.INVISIBLE,
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                enable_sound=False,
+                selectable=False
+            )
+            s.event_kids.append(b)
+        # edit button
+        s.edit_button = bui.buttonwidget(
+            parent=s.root,
+            label=Strings.EDIT_BUTTON,
+            on_activate_call=s.edit_window,
+            texture=Eval.TEXTURE(Const.SKIN),
+            opacity=Color.OPACITY,
+            textcolor=(*Color.TEXT,Color.OPACITY),
+            enable_sound=False,
+            color=Color.MAIN
+        )
         # tools
-        tools_str = Assets.TOOLS
+        tools_str = Const.TOOLS
         for i in range(len(tools_str)):
             b = bui.buttonwidget(
                 parent=s.root,
@@ -347,13 +385,8 @@ class Editor:
                 opacity=0,
                 textcolor=Color.INVISIBLE,
                 enable_sound=False,
-                texture=bui.gettexture(Assets.SKIN),
-                label=bui.charstr(
-                    getattr(
-                        bui.SpecialChar,
-                        tools_str[i]
-                    )
-                ),
+                texture=Eval.TEXTURE(Const.SKIN),
+                label=Eval.CHAR(tools_str[i]),
                 on_activate_call=bui.CallPartial(
                     s.tool, i
                 ),
@@ -363,7 +396,44 @@ class Editor:
         # finally
         s.wrap()
         s.top_left()
-        s.toast(Strings.WELCOME(master.sessionplayer.getname()))
+        s.ui_on = True
+        for call in s.pending: call()
+        s.pending.clear()
+
+    def edit_window(s):
+        if not s.sl: return
+        w = s.edit_button
+        call = bui.CallPartial(s.edit_window)
+        bui.buttonwidget(
+            w,
+            on_activate_call=lambda:0,
+            selectable=False
+        )
+        s.edit_on = True
+        ev = s.sl[2]
+        # on finish
+        def on_finish():
+            s.decide_ui(ev)
+            s.window_on = (w,call)
+        # math
+        start_pos = s.event_on and s.edit_button_pos2 or s.edit_button_pos
+        end_pos = s.window_pos
+        start_size = s.edit_button_size
+        end_size = s.window_size
+        s.anims[id(w)] = Animate(
+            w,
+            duration=s.global_butter,
+            func=bui.buttonwidget,
+            attrs={
+                'position':(start_pos,end_pos),
+                'size':(start_size,end_size)
+            },
+            on_finish=on_finish
+        )
+        # instant
+        bui.buttonwidget(
+            w, label=''
+        )
 
     def wrap(s,what=0):
         # global math
@@ -374,6 +444,10 @@ class Editor:
         big = old_deep_y != smol
         s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smol)
         deep_x = s.entry_xs_real*(s.max_time*s.entries_per_sec+1)
+        y_off = 70
+        s.window_size = wx,wy = 450,300
+        s.window_pos = (rx/2-wx/2, ry/2-wy/2+y_off)
+        ex,ey = s.event_menu_size = 300, 350
         # main stuff
         if what in [0,1]:
             # root
@@ -477,8 +551,26 @@ class Editor:
                 size=(dx,dy),
                 position=(0,sy+5)
             )
-        # tools
+            # event kids
+            s.event_top = sy+ey+5
+            s.ev_mult = (dy+10)
+            s.ev_x = 20
+            for i,kid in enumerate(s.event_kids):
+                pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
+                bui.buttonwidget(kid,position=pos)
+        # event
         if what in [0,5]:
+            s.edit_button_pos = pos = (dx+10,sy+6.5)
+            s.edit_button_pos2 = (pos[0]+200,pos[1])
+            s.edit_button_size = (dx-4,dy-3)
+            # edit button
+            bui.buttonwidget(
+                s.edit_button,
+                size=s.edit_button_size,
+                position=pos
+            )
+        # tools
+        if what in [0,6]:
             dx,dy = s.tool_size = (50,50)
             for i,b in enumerate(s.tools):
                 bui.buttonwidget(
@@ -489,7 +581,6 @@ class Editor:
                        sy+5
                     )
                 )
-
     def bottom_left(s,dry=False):
         if not dry:
             # scroll left
@@ -533,107 +624,66 @@ class Editor:
         s.root.delete()
 
     def toggle_menu(s):
-        bui.getsound(Assets.OK_SOUND).play()
-        key = 'menu'
-
-        # cancel
-        if key in s.animations:
-            s.animations[key].cancel()
-
-        def cleanup():
-            if s.menu_root and s.menu_root.exists():
-                s.menu_root.delete()
-            for kid in s.menu_kids:
-                if kid.exists():
-                    kid.delete()
-            s.menu_kids.clear()
-            s.menu_root = None
-
-        if s.menu_on:
-            # collapse
-            anim = s.animations.get(key)
-            if not anim: return
-
-            # toggle
-            s.menu_on = False
-
-            s.animations[key] = anim.reverse(
-                duration=0.4,
-                on_finish=cleanup
-            )
-            return
-
-        # cleanup
-        cleanup()
-
-        # expand
-        s.menu_on = True
-        rx,ry = s.real
-        sx,sy = 300,200
-        x,y = rx-sx,ry-sy-60
-
-        # background
-        s.menu_root = bui.imagewidget(
-            parent=s.root,
-            texture=bui.gettexture(Assets.SKIN),
-            color=Color.MAIN,
-            opacity=0
-        )
-        s.menu_kids.append(s.menu_root)
-
-        s.animations[key] = Animate(
-            widget=s.menu_root,
-            func=bui.imagewidget,
-            attrs={
-                'position': ((x+sx, y+sy), (x, y)),
-                'size': ((0, 0), (sx, sy)),
-                'opacity': (0, Color.OPACITY)
-            },
-            duration=0.4
-        )
+        pass
 
     def toggle_event(s):
         if s.window_on:
             s.window_back()
             return
-        bui.getsound(Assets.OK_SOUND).play()
-        if s.animating_to_stamp:
-            s.on_scroll()
-            return
-        key = id(s.event_button)
+        bui.getsound(Const.OK_SOUND).play()
 
-        # cancel
-        if key in s.animations:
-            s.animations[key].cancel()
-
-        def cleanup():
-            for kid in s.event_kids:
-                if kid.exists():
-                    kid.delete()
-            s.event_kids.clear()
-
+        # move edit button
+        def push_edit():
+            w = s.edit_button
+            ex,ey = s.edit_button_pos
+            start,end = s.edit_button_pos, s.edit_button_pos2
+            if (anim:=s.anims.get(id(w),None)):
+                anim.cancel()
+                start_pos = s.anims[id(w)].attrs_current['position']
+            else: start_pos = s.event_on and end or start
+            end_pos = s.event_on and start or end
+            if (anim:=s.anims.get(id(w),None)):
+                anim.cancel()
+            s.anims[id(w)] = Animate(
+                widget=w,
+                func=bui.buttonwidget,
+                attrs={
+                    'position':(start_pos,end_pos)
+                },
+                duration=s.global_butter,
+                delay=s.event_on and 0.07 or 0
+            )
+        push_edit()
         events = Strings.EVENTS
+        dur = s.global_butter*1.5
+        old_anim = s.anims.get(id(s.event_button),None)
         if s.event_on:
-            # collapse = reverse all
-            anim = s.animations.get(key)
-            if not anim: return
-
             s.event_on = False
             bui.buttonwidget(s.event_button, label=Strings.EVENT_BUTTON_OFF)
 
-            s.animations[key] = anim.reverse(duration=0.4, on_finish=cleanup)
-
-            # reverse child button animations
-            for i in range(len(events)):
-                k = id(getattr(s,f'event_kid_{i}'))
-                if (anim := s.window_anims.pop(k,None)):
+            s.anims[id(s.event_button)] = old_anim.reverse(
+                duration=dur
+            )
+            # reverse
+            ind = 0
+            for kid in s.event_kids:
+                an = s.anims[id(kid)]
+                if (anim:=an.pop('window',None)):
                     anim.cancel()
-                if (anim := s.animations.pop(k,None)):
-                    anim.reverse(duration=0.1)
+                if (anim:=an.pop('extra',None)):
+                    anim.cancel()
+                old = an.get('main',None)
+                if old:
+                    old.cancel()
+                    s.anims[id(kid)]['main'] = old.reverse(
+                        duration=dur/4
+                    )
+                bui.buttonwidget(
+                    kid,
+                    on_activate_call=lambda:0,
+                    selectable=False
+                )
             return
-
-        # cleanup
-        cleanup()
 
         # expand
         s.event_on = True
@@ -641,16 +691,14 @@ class Editor:
 
         # define parent stuff
         rx, ry = s.real
-        sx, sy = 300, 350
+        sx, sy = s.event_menu_size
         x, y = 0, s.stamp_size[1] + 5
         dx, dy = s.event_button_size
-        off = 10
-        parent_duration = 0.4
 
         # conditional params
         child_start_progress = 0.2
-        child_delay = parent_duration * child_start_progress
-        child_duration = parent_duration * (1 - child_start_progress)
+        child_delay = dur * child_start_progress
+        child_duration = dur * (1 - child_start_progress)
 
         # button max
         mx = sx - 40
@@ -658,15 +706,14 @@ class Editor:
         px,py = (x+20,y+sy)
 
         # animate parent first (event root)
-        s.animations[key] = Animate(
+        if old_anim: old_anim.cancel()
+        s.anims[id(s.event_button)] = Animate(
             widget=s.event_root,
             func=bui.imagewidget,
             attrs={
-                'position': ((x, y), (x, y)),
-                'size': ((dx, dy), (sx, sy)),
-                'opacity': (Color.OPACITY, Color.OPACITY)
+                'size': ((dx, dy), (sx, sy))
             },
-            duration=parent_duration
+            duration=dur
         )
 
         # make and animate kids
@@ -674,72 +721,70 @@ class Editor:
         parent_width_progress = dx + (sx - dx) * child_start_progress
         start_width_ratio = (parent_width_progress - 40) / mx
 
-        for i,n in enumerate(events):
-            # make
-            pos = (px,py-(dy+off)*(i+1))
-            b = bui.buttonwidget(
-                parent=s.root,
-                position=pos,
-                label=n,
-                color=Color.MAIN,
-                textcolor=Color.INVISIBLE,
-                texture=bui.gettexture(Assets.SKIN),
-                opacity=0,
-                enable_sound=False
-            )
-            call = bui.CallPartial(s.window,b,i,pos)
-            bui.buttonwidget(b,on_activate_call=call)
-            setattr(s,f'event_kid_{i}',b)
-            s.event_kids.append(b)
+        for i,b in enumerate(s.event_kids):
             # animate
             stagger = 0.02 * (num-i)
-            s.animations[id(b)] = Animate(
-                widget=b,
-                func=bui.buttonwidget,
-                attrs={
-                    'opacity': (0, Color.OPACITY),
-                    'textcolor': (
-                        (*Color.TEXT, 0),
-                        (*Color.TEXT, Color.OPACITY)
-                    ),
-                    'size': ((mx * start_width_ratio, dy), (mx, dy))
-                },
-                duration=child_duration,
-                delay=child_delay + stagger
+            s.anims[id(b)]['main'] = (
+                Animate(
+                    widget=b,
+                    func=bui.buttonwidget,
+                    attrs={
+                        'opacity': (0, Color.OPACITY),
+                        'textcolor': (
+                            Color.INVISIBLE,
+                            (*Color.TEXT, Color.OPACITY)
+                        ),
+                        'size': ((mx * start_width_ratio, dy), (mx, dy))
+                    },
+                    duration=child_duration,
+                    delay=child_delay + stagger
+                )
+            )
+            bui.buttonwidget(
+                b,
+                on_activate_call=bui.CallPartial(
+                    s.window,b,i
+                ),
+                position=(
+                    s.ev_x,
+                    s.event_top-s.ev_mult*(i+1)
+                )
             )
 
-    def window(s,b,i,pos):
+    def window(s,b,i):
         if s.window_on: s.window_back()
-        else: bui.getsound(Assets.OK_SOUND).play()
+        else: bui.getsound(Const.OK_SOUND).play()
         # disable
-        call = bui.CallPartial(s.window,b,i,pos)
+        call = bui.CallPartial(s.window,b,i)
         s.window_on = (b,call)
-        bui.buttonwidget(b,on_activate_call=lambda:False)
+        bui.buttonwidget(
+            b,
+            on_activate_call=lambda:0,
+            selectable=False
+        )
         # backup
-        s.event_kid_pos = pos
+        s.event_kid_pos = pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
         s.last_window_i = i
         # math
         r = s.real
-        sx,sy = s.window_size = 450,300
+        sx,sy = s.window_size
         dx,dy = s.event_kid_size
-        y_off = 70
-        pos2 = s.window_pos = (r[0]/2-sx/2, r[1]/2-sy/2+y_off)
-        # kill
-        if (anim:=s.window_anims.get(id(b),None)):
-            anim.cancel()
+        pos2 = s.window_pos
         # animate
-        s.window_anims[id(b)] = Animate(
-            widget=b,
-            func=bui.buttonwidget,
-            duration=0.5,
-            attrs={
-                'position':(pos,pos2),
-                'size':((dx,dy),(sx,sy)),
-                'textcolor':(
-                    (*Color.TEXT, Color.OPACITY),
-                    (*Color.TEXT, 0)
-                )
-            }
+        s.anims[id(b)]['window'] = (
+            Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                duration=0.5,
+                attrs={
+                    'position':(pos,pos2),
+                    'size':((dx,dy),(sx,sy)),
+                    'textcolor':(
+                        (*Color.TEXT, Color.OPACITY),
+                        (*Color.TEXT, 0)
+                    )
+                }
+            )
         )
         # make universal UI
         x,y = pos2
@@ -747,19 +792,19 @@ class Editor:
             s.window_clean()
             s.window_back()
         s.window_kids = []
-        marg = 5
-        fix = 8
+        s.window_marg = 5
+        s.window_fix = 8
         dx,dy = 35,35
 
-        pos = (x+marg-fix,y+sy-dy-marg)
+        pos = (x+s.window_marg-s.window_fix,y+sy-dy-s.window_marg)
         back = bui.buttonwidget(
             parent=s.root,
             position=pos,
             size=(dx,dy),
             enable_sound=False,
-            label=bui.charstr(bui.SpecialChar.BACK),
+            label=Eval.CHAR(Const.BACK),
             on_activate_call=bye,
-            texture=bui.gettexture(Assets.SKIN),
+            texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
             textcolor=Color.INVISIBLE,
             opacity=0
@@ -767,7 +812,7 @@ class Editor:
         s.window_kids.append((back,pos,50,bui.buttonwidget,0.35))
 
         descs = Strings.EVENT_DESCS
-        pos = (x+sx/2,y+sy-marg-32.5)
+        pos = (x+sx/2,y+sy-s.window_marg-32.5)
         w = bui.textwidget(
             parent=s.root,
             text=descs[i],
@@ -775,416 +820,11 @@ class Editor:
             position=pos,
             h_align='center',
             v_align='center',
-            maxwidth=sx-marg*3-dx
+            maxwidth=sx-s.window_marg*3-dx
         )
         s.window_kids.append((w,pos,50,bui.textwidget,0.35))
         # make conditional UI
-        if i == 0:
-            # universal
-            text_push = 15
-            delay = 0.35
-            # type text
-            pos = (x+marg-fix,y+sy-88)
-            w = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                text=Strings.NODE_TYPE_TEXT,
-                color=Color.INVISIBLE
-            )
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0))
-            # type input
-            pos = (x+marg+80-fix,y+sy-95)
-            size = (150,40)
-            type_text = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                editable=True,
-                allow_clear_button=False,
-                size=(0,0),
-                description=Strings.NODE_TYPE_DESC,
-                color=Color.INVISIBLE,
-                v_align='center',
-                glow_type='uniform'
-            )
-            s.window_kids.append((type_text,pos,text_push,bui.textwidget,delay+0,
-                ('size',((0,size[1]),size))
-            ))
-            # name text
-            pos = (x+marg-fix,y+sy-133)
-            w = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                text=Strings.NODE_NAME_TEXT,
-                color=Color.INVISIBLE
-            )
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.05))
-            # name input
-            pos = (x+marg+80-fix,y+sy-140)
-            size = (150,40)
-            name_text = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                editable=True,
-                allow_clear_button=False,
-                size=(0,0),
-                description=Strings.NODE_NAME_DESC,
-                color=Color.INVISIBLE,
-                v_align='center',
-                glow_type='uniform',
-                text=Strings.PLACEHOLDER()
-            )
-            s.window_kids.append((name_text,pos,text_push,bui.textwidget,delay+0.05,
-                ('size',((0,size[1]),size))
-            ))
-            # separator
-            pos = (x+marg-fix,y+sy-150)
-            size = (229,2)
-            w = bui.imagewidget(
-                parent=s.root,
-                position=pos,
-                texture=bui.gettexture(Assets.SKIN),
-                size=(0,0),
-                opacity=0
-            )
-            s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
-                ('size',((0,size[1]),size))
-            ))
-            # attr text
-            pos = (x+marg-fix,y+sy-193)
-            w = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                text=Strings.NODE_ATTR_TEXT,
-                color=Color.INVISIBLE
-            )
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.15))
-            # attr input
-            pos = (x+marg+80-fix,y+sy-200)
-            size = (150,40)
-            attr = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                editable=True,
-                allow_clear_button=False,
-                size=(0,0),
-                description=Strings.NODE_ATTR_DESC,
-                color=Color.INVISIBLE,
-                v_align='center',
-                glow_type='uniform'
-            )
-            s.window_kids.append((attr,pos,text_push,bui.textwidget,delay+0.15,
-                ('size',((0,size[1]),size))
-            ))
-            # eval text
-            pos = (x+marg-fix,y+sy-238)
-            w = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                text=Strings.NODE_EVAL_TEXT,
-                color=Color.INVISIBLE
-            )
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.2))
-            # eval input
-            pos = (x+marg+80-fix,y+sy-245)
-            size = (150,40)
-            val = bui.textwidget(
-                parent=s.root,
-                position=pos,
-                editable=True,
-                allow_clear_button=False,
-                size=(0,0),
-                description=Strings.NODE_EVAL_DESC,
-                color=Color.INVISIBLE,
-                v_align='center',
-                glow_type='uniform'
-            )
-            s.window_kids.append((val,pos,text_push,bui.textwidget,delay+0.2,
-                ('size',((0,size[1]),size))
-            ))
-            # attr stuff
-            so_far = {}
-            attr_texts = {}
-            attr_anims = {}
-            bx,by = (215,40)
-            # attr scroll
-            size = dx,dy = (sx/2-marg*3,sy-marg*4-51-by)
-            pos = px,py = (x+sx-dx+5,y+marg*2+by+5)
-            w = bui.scrollwidget(
-                parent=s.root,
-                position=pos,
-                color=Color.MAIN,
-                size=(dx/2,0),
-                border_opacity=0
-            )
-            s.window_kids.append((w,pos,20,bui.scrollwidget,delay+0,
-                ('size',((dx/2,size[1]),size)),
-                ('border_opacity',(0,Color.OPACITY))
-            ))
-            # attr root
-            attr_root = bui.containerwidget(
-                parent=w,
-                background=False
-            )
-            # set func
-            def do_set():
-                bui.getsound(Assets.OK_SOUND).play()
-                # collect
-                a = bui.textwidget(query=attr)
-                v = bui.textwidget(query=val)
-                # verify
-                if not a:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_ATTR_TEXT
-                    ))
-                    return
-                if not v:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_EVAL_TEXT
-                    ))
-                    return
-                # evaluate
-                try: v = eval(v)
-                except Exception as e:
-                    s.toast(Strings.ERROR_EVAL(e))
-                    return
-                # check
-                if a in so_far:
-                    w = attr_texts[a]
-                    px,py = (0,list(so_far).index(a)*30)
-                    # finally
-                    s.toast(Strings.INFO_UPDATED(a))
-                else:
-                    px,py = (0,len(so_far)*30)
-                    # attr text
-                    w = attr_texts[a] = bui.textwidget(
-                        parent=attr_root,
-                        size=(dx,30),
-                        maxwidth=dx-15,
-                        selectable=True,
-                        glow_type='uniform',
-                        click_activate=True,
-                        on_activate_call=lambda:0,
-                        text=a,
-                        color=Color.INVISIBLE,
-                        v_align='center'
-                    )
-                    # fit
-                    bui.containerwidget(
-                        attr_root,
-                        size=(dx,max(py,dy-15))
-                    )
-                    # finally
-                    s.toast(Strings.INFO_ASSIGNED(a))
-                # whatever
-                so_far.update({a:v})
-                # animate
-                if (anim:=attr_anims.get(w,None)):
-                    anim.cancel()
-                attr_anims[w] = Animate(
-                    widget=w,
-                    func=bui.textwidget,
-                    attrs={
-                        'color':(
-                            Color.INVISIBLE,
-                            (*Color.TEXT,Color.OPACITY)
-                        ),
-                        'position':(
-                            (px+50,py),
-                            (px,py)
-                        )
-                    },
-                    duration=0.5
-                )
-            # set button
-            pos = (x+marg+7-fix,y+marg)
-            size = bx,by
-            w = bui.buttonwidget(
-                parent=s.root,
-                size=(0,0),
-                position=pos,
-                texture=bui.gettexture(Assets.SKIN),
-                color=Color.MAIN,
-                enable_sound=False,
-                label=Strings.NODE_SET_BUTTON,
-                textcolor=Color.INVISIBLE,
-                on_activate_call=do_set
-            )
-            s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.08,
-                ('size',((0,size[1]),size))
-            ))
-            # done func
-            def do_done():
-                bui.getsound(Assets.OK_SOUND).play()
-                # collect
-                typ = bui.textwidget(query=type_text)
-                nam = bui.textwidget(query=name_text)
-                # verify
-                if not typ:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_TYPE_TEXT
-                    ))
-                    return
-                if not nam:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_NAME_TEXT
-                    ))
-                    return
-                # setup
-                end_size = (
-                    s.entry_xs_real * (
-                        s.entries_per_sec *
-                        s.object_duration
-                    )*s.magic_right,
-                    s.entry_ys_real-s.magic_y
-                )
-                # construct
-                final = {
-                    'type':typ,
-                    'name':nam,
-                    'attrs':so_far
-                }
-                # make
-                size = (
-                    s.entry_xs_real * (
-                        s.object_duration *
-                        s.entries_per_sec
-                    )*s.magic_right,
-                    s.entry_ys_real-s.magic_y
-                )
-                btn = bui.buttonwidget(
-                    parent=s.stamp_hscroll_root,
-                    texture=bui.gettexture(Assets.SKIN),
-                    label=nam,
-                    textcolor=Color.INVISIBLE,
-                    color=Color.MAIN,
-                    opacity=0,
-                    enable_sound=False,
-                    size=size,
-                    button_type='square'
-                )
-                bui.buttonwidget(
-                    btn,
-                    on_activate_call=bui.CallPartial(
-                        s.select,btn,len(s.memory),0
-                    )
-                )
-                s.stamp_kids.append(btn)
-                # memory
-                s.memory[id(btn)] = {
-                    'order':len(s.memory),
-                    'event':i,
-                    'data':final,
-                    'duration':s.object_duration,
-                    'start':0
-                }
-                # capture
-                smol = s.stamp_size[1]-s.stamp_y_hack
-                old_deep_y = getattr(s,'stamp_deep_y',smol)
-                # scroll
-                s.wrap(1)
-                s.wrap(2)
-                s.wrap(3)
-                s.bottom_left()
-                # push
-                def push():
-                    big = old_deep_y != smol
-                    for i,kid in enumerate(
-                        reversed(s.stamp_kids)
-                    ):
-                        mem = s.memory[id(kid)]
-                        width_in_steps = mem['duration'] * s.entries_per_sec
-                        old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
-                        end_pos = (
-                            old_x,
-                            s.entry_ys_real*i
-                        )
-                        big and bui.buttonwidget(
-                            kid,
-                            position=end_pos
-                        ) or Animate(
-                            widget=kid,
-                            func=bui.buttonwidget,
-                            attrs={
-                                'position':(
-                                    (old_x,s.entry_ys_real*(i-1)),
-                                    end_pos
-                                )
-                            },
-                            duration=s.global_butter
-                        )
-                push()
-                # appear
-                def appear():
-                    bui.buttonwidget(
-                        btn,
-                        textcolor=(
-                            *Color.TEXT,
-                            Color.OPACITY
-                        ),
-                        opacity=Color.OPACITY
-                    )
-                # math
-                wsx,wsy = s.window_size
-                half_size = (wsx/2,wsy/2)
-                pox,poy = s.window_size
-                half_pos = (pox+wsx/2,poy+wsy/4)
-                wait = 0.4
-                # animate
-                width_in_steps = s.object_duration * s.entries_per_sec
-
-                s.window_back(
-                    to=lambda:{
-                        'position':(
-                            s.window_pos,
-                            (bl:=s.bottom_left(dry=True)) and (
-                                bl[0]+(
-                                    width_in_steps *
-                                    s.magic_left
-                                ), bl[1]
-                            )
-                        ),
-                        'size':(
-                            half_size,
-                            end_size
-                        )
-                    },
-                    on_fix=appear,
-                    wait=wait,
-                    instant={
-                        'label':nam
-                    },
-                    extra={
-                        'textcolor':(
-                            Color.INVISIBLE,
-                            (*Color.TEXT,Color.OPACITY)
-                        ),
-                        'size':(
-                            s.window_size,
-                            half_size
-                        ),
-                        'position':(
-                            s.window_pos,
-                            half_pos
-                        )
-                    }
-                )
-            # done button
-            pos = (px+8,y+marg)
-            size = bx,by = (dx-15,40)
-            w = bui.buttonwidget(
-                parent=s.root,
-                size=(0,0),
-                position=pos,
-                texture=bui.gettexture(Assets.SKIN),
-                color=Color.MAIN,
-                enable_sound=False,
-                label=Strings.NODE_DONE_BUTTON,
-                textcolor=Color.INVISIBLE,
-                on_activate_call=do_done
-            )
-            s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.1,
-                ('size',((0,size[1]),size))
-            ))
+        s.decide_ui(i)
         # animate all
         for _,g in enumerate(s.window_kids):
             w,pos,off,func,delay,*extra = g
@@ -1219,7 +859,7 @@ class Editor:
                     'opacity':(0,Color.OPACITY)
                 })
             # finally
-            s.window_anims[id(w)] = Animate(
+            s.anims[id(w)] = Animate(
                 widget=w,
                 func=func,
                 attrs=attrs,
@@ -1227,9 +867,421 @@ class Editor:
                 delay=delay
             )
 
+    def decide_ui(s,i):
+        if i == 0: s.make_node_window()
+
+    def make_node_window(s):
+        # math
+        x,y = s.window_pos
+        sx,sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        # type text
+        pos = (x+s.window_marg-s.window_fix,y+sy-88)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.NODE_TYPE_TEXT,
+            color=Color.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0))
+        # type input
+        pos = (x+s.window_marg+80-s.window_fix,y+sy-95)
+        size = (150,40)
+        type_text = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            description=Strings.NODE_TYPE_DESC,
+            color=Color.INVISIBLE,
+            v_align='center',
+            glow_type='uniform',
+            text=Config.DEBUG and Strings.PLACEHOLDER() or ''
+        )
+        s.window_kids.append((type_text,pos,text_push,bui.textwidget,delay+0,
+            ('size',((0,size[1]),size))
+        ))
+        # name text
+        pos = (x+s.window_marg-s.window_fix,y+sy-133)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.NODE_NAME_TEXT,
+            color=Color.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.05))
+        # name input
+        pos = (x+s.window_marg+80-s.window_fix,y+sy-140)
+        size = (150,40)
+        name_text = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            description=Strings.NODE_NAME_DESC,
+            color=Color.INVISIBLE,
+            v_align='center',
+            glow_type='uniform',
+            text=Strings.PLACEHOLDER()
+        )
+        s.window_kids.append((name_text,pos,text_push,bui.textwidget,delay+0.05,
+            ('size',((0,size[1]),size))
+        ))
+        # separator
+        pos = (x+s.window_marg-s.window_fix,y+sy-150)
+        size = (229,2)
+        w = bui.imagewidget(
+            parent=s.root,
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            size=(0,0),
+            opacity=0
+        )
+        s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+        # attr text
+        pos = (x+s.window_marg-s.window_fix,y+sy-193)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.NODE_ATTR_TEXT,
+            color=Color.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.15))
+        # attr input
+        pos = (x+s.window_marg+80-s.window_fix,y+sy-200)
+        size = (150,40)
+        attr = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            description=Strings.NODE_ATTR_DESC,
+            color=Color.INVISIBLE,
+            v_align='center',
+            glow_type='uniform'
+        )
+        s.window_kids.append((attr,pos,text_push,bui.textwidget,delay+0.15,
+            ('size',((0,size[1]),size))
+        ))
+        # eval text
+        pos = (x+s.window_marg-s.window_fix,y+sy-238)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.NODE_EVAL_TEXT,
+            color=Color.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.2))
+        # eval input
+        pos = (x+s.window_marg+80-s.window_fix,y+sy-245)
+        size = (150,40)
+        val = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            description=Strings.NODE_EVAL_DESC,
+            color=Color.INVISIBLE,
+            v_align='center',
+            glow_type='uniform'
+        )
+        s.window_kids.append((val,pos,text_push,bui.textwidget,delay+0.2,
+            ('size',((0,size[1]),size))
+        ))
+        # attr stuff
+        so_far = {}
+        attr_texts = {}
+        bx,by = (215,40)
+        # attr scroll
+        size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
+        pos = px,py = (x+sx-dx+5,y+s.window_marg*2+by+5)
+        w = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.MAIN,
+            size=(dx/2,0),
+            border_opacity=0
+        )
+        s.window_kids.append((w,pos,20,bui.scrollwidget,delay+0,
+            ('size',((dx/2,size[1]),size)),
+            ('border_opacity',(0,Color.OPACITY))
+        ))
+        # attr root
+        attr_root = bui.containerwidget(
+            parent=w,
+            background=False
+        )
+        # set func
+        def do_set():
+            bui.getsound(Const.OK_SOUND).play()
+            # collect
+            a = bui.textwidget(query=attr)
+            v = bui.textwidget(query=val)
+            # verify
+            if not a:
+                s.toast(Strings.ERROR_EMPTY(
+                    Strings.NODE_ATTR_TEXT
+                ))
+                return
+            if not v:
+                s.toast(Strings.ERROR_EMPTY(
+                    Strings.NODE_EVAL_TEXT
+                ))
+                return
+            # evaluate
+            try: v = eval(v)
+            except Exception as e:
+                s.toast(Strings.ERROR_EVAL(e))
+                return
+            # check
+            if a in so_far:
+                w = attr_texts[a]
+                px,py = (0,list(so_far).index(a)*30)
+                # finally
+                s.toast(Strings.INFO_UPDATED(a))
+            else:
+                px,py = (0,len(so_far)*30)
+                # attr text
+                w = attr_texts[a] = bui.textwidget(
+                    parent=attr_root,
+                    size=(dx,30),
+                    maxwidth=dx-15,
+                    selectable=True,
+                    glow_type='uniform',
+                    click_activate=True,
+                    on_activate_call=lambda:0,
+                    text=a,
+                    color=Color.INVISIBLE,
+                    v_align='center'
+                )
+                # fit
+                bui.containerwidget(
+                    attr_root,
+                    size=(dx,max(py,dy-15))
+                )
+                # finally
+                s.toast(Strings.INFO_ASSIGNED(a))
+            # whatever
+            so_far.update({a:v})
+            # animate
+            if (anim:=s.anims.get(id(w),None)):
+                anim.cancel()
+            s.anims[id(w)] = Animate(
+                widget=w,
+                func=bui.textwidget,
+                attrs={
+                    'color':(
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
+                    ),
+                    'position':(
+                        (px+50,py),
+                        (px,py)
+                    )
+                },
+                duration=0.5
+            )
+        # set button
+        pos = (x+s.window_marg+7-s.window_fix,y+s.window_marg)
+        size = bx,by
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.MAIN,
+            enable_sound=False,
+            label=Strings.NODE_SET_BUTTON,
+            textcolor=Color.INVISIBLE,
+            on_activate_call=do_set
+        )
+        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.08,
+            ('size',((0,size[1]),size))
+        ))
+        # done func
+        def do_done():
+            bui.getsound(Const.OK_SOUND).play()
+            # collect
+            typ = bui.textwidget(query=type_text)
+            nam = bui.textwidget(query=name_text)
+            # verify
+            if not typ:
+                s.toast(Strings.ERROR_EMPTY(
+                    Strings.NODE_TYPE_TEXT
+                ))
+                return
+            if not nam:
+                s.toast(Strings.ERROR_EMPTY(
+                    Strings.NODE_NAME_TEXT
+                ))
+                return
+            # setup
+            end_size = (
+                s.entry_xs_real * (
+                    s.entries_per_sec *
+                    s.object_duration
+                )*s.magic_right,
+                s.entry_ys_real-s.magic_y
+            )
+            # construct
+            final = {
+                'type':typ,
+                'name':nam,
+                'attrs':so_far
+            }
+            # make
+            size = (
+                s.entry_xs_real * (
+                    s.object_duration *
+                    s.entries_per_sec
+                )*s.magic_right,
+                s.entry_ys_real-s.magic_y
+            )
+            btn = bui.buttonwidget(
+                parent=s.stamp_hscroll_root,
+                texture=Eval.TEXTURE(Const.SKIN),
+                label=nam,
+                textcolor=Color.INVISIBLE,
+                color=Color.MAIN,
+                opacity=0,
+                enable_sound=False,
+                size=size,
+                button_type='square'
+            )
+            bui.buttonwidget(
+                btn,
+                on_activate_call=bui.CallPartial(
+                    s.select,btn,len(s.memory),0
+                )
+            )
+            s.stamp_kids.append(btn)
+            # memory
+            s.memory[id(btn)] = {
+                'order':len(s.memory),
+                'event':s.last_window_i,
+                'data':final,
+                'duration':s.object_duration,
+                'start':0
+            }
+            # capture
+            smol = s.stamp_size[1]-s.stamp_y_hack
+            old_deep_y = getattr(s,'stamp_deep_y',smol)
+            # scroll
+            s.wrap(1)
+            s.wrap(2)
+            s.wrap(3)
+            s.bottom_left()
+            # push
+            def push():
+                big = old_deep_y != smol
+                for i,kid in enumerate(
+                    reversed(s.stamp_kids)
+                ):
+                    mem = s.memory[id(kid)]
+                    width_in_steps = mem['duration'] * s.entries_per_sec
+                    old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
+                    end_pos = (
+                        old_x,
+                        s.entry_ys_real*i
+                    )
+                    big and bui.buttonwidget(
+                        kid,
+                        position=end_pos
+                    ) or Animate(
+                        widget=kid,
+                        func=bui.buttonwidget,
+                        attrs={
+                            'position':(
+                                (old_x,s.entry_ys_real*(i-1)),
+                                end_pos
+                            )
+                        },
+                        duration=s.global_butter
+                    )
+            push()
+            # appear
+            def appear():
+                bui.buttonwidget(
+                    btn,
+                    textcolor=(
+                        *Color.TEXT,
+                        Color.OPACITY
+                    ),
+                    opacity=Color.OPACITY
+                )
+            # math
+            wsx,wsy = s.window_size
+            half_size = (wsx/2,wsy/2)
+            pox,poy = s.window_size
+            half_pos = (pox+wsx/2,poy+wsy/4)
+            wait = 0.4
+            # animate
+            width_in_steps = s.object_duration * s.entries_per_sec
+
+            s.window_back(
+                to=lambda:{
+                    'position':(
+                        s.window_pos,
+                        (bl:=s.bottom_left(dry=True)) and (
+                            bl[0]+(
+                                width_in_steps *
+                                s.magic_left
+                            ), bl[1]
+                        )
+                    ),
+                    'size':(
+                        half_size,
+                        end_size
+                    )
+                },
+                on_fix=appear,
+                wait=wait,
+                instant={
+                    'label':nam
+                },
+                extra={
+                    'textcolor':(
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
+                    ),
+                    'size':(
+                        s.window_size,
+                        half_size
+                    ),
+                    'position':(
+                        s.window_pos,
+                        half_pos
+                    )
+                }
+            )
+        # done button
+        pos = (px+8,y+s.window_marg)
+        size = bx,by = (dx-15,40)
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.MAIN,
+            enable_sound=False,
+            label=Strings.NODE_DONE_BUTTON,
+            textcolor=Color.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+
     def window_clean(s):
         for w,*_ in s.window_kids:
-            s.window_anims[id(w)].reverse(
+            s.anims[id(w)].reverse(
                 duration=0.1,
                 on_finish=w.delete,
                 on_cancel=w.delete
@@ -1238,33 +1290,43 @@ class Editor:
 
     def window_back(s,to=None,on_fix=None,wait=0,extra={},instant={}):
         b,call = s.window_on
-        anim = s.window_anims.pop(id(b))
-        bui.getsound(Assets.OK_SOUND).play()
+        anim = s.anims[id(b)]['window']
+        bui.getsound(Const.OK_SOUND).play()
         s.window_clean()
         # capture
         if to:
-            s.animating_to_stamp = True
             last_i = s.last_window_i
             last_pos = s.event_kid_pos
             def fix():
-                ox,oy = last_pos
-                anim = Animate(
-                    widget=b,
-                    func=bui.buttonwidget,
-                    duration=s.global_butter,
-                    attrs={
+                for _ in ['extra','to']:
+                    anim = s.anims[id(b)].pop(_,None)
+                    if not anim: continue
+                    anim.cancel()
+                if s.event_on:
+                    ox,oy = last_pos
+                    attrs = {
+                        'textcolor':(
+                            Color.INVISIBLE,
+                            (*Color.TEXT,Color.OPACITY)
+                        ),
+                        'opacity':(0,Color.OPACITY),
                         'position':(
                             (ox-50,oy),
                             (ox,oy)
                         ),
-                        'opacity':(0,Color.OPACITY),
-                        'textcolor':(
-                            Color.INVISIBLE,
-                            (*Color.TEXT,Color.OPACITY)
-                        )
                     }
-                )
-                s.window_anims[id(b)] = anim
+                    anim = Animate(
+                        widget=b,
+                        func=bui.buttonwidget,
+                        duration=s.global_butter,
+                        attrs=attrs
+                    )
+                    s.anims[id(b)]['fix'] = anim
+                    bui.buttonwidget(
+                        b,
+                        on_activate_call=call,
+                        selectable=True
+                    )
                 bui.buttonwidget(
                     b,
                     size=s.event_kid_size,
@@ -1273,10 +1335,6 @@ class Editor:
                     label=Strings.EVENTS[last_i]
                 )
                 if callable(on_fix): on_fix()
-                s.stamp_anims.clear()
-                s.cancel_on_scroll.clear()
-                bui.buttonwidget(b,on_activate_call=call)
-                s.animating_to_stamp = False
             def do_anim():
                 anim = Animate(
                     widget=b,
@@ -1286,38 +1344,39 @@ class Editor:
                     on_finish=fix,
                     on_cancel=fix
                 )
-                s.stamp_anims[id(b)] = anim
-                s.cancel_on_scroll.append(anim)
+                s.anims[id(b)]['to'] = anim
             if wait:
                 s.after_scroll_t = bui.AppTimer(wait,do_anim)
             else: do_anim()
             if extra:
                 def nevermind():
                     s.after_scroll_t = None
+                    anim.cancel()
                     fix()
-                s.cancel_on_scroll.append(
-                    Animate(
-                        widget=b,
-                        func=bui.buttonwidget,
-                        duration=wait,
-                        attrs=extra,
-                        on_cancel=nevermind
-                    )
+                s.anims[id(b)]['extra'] = Animate(
+                    widget=b,
+                    func=bui.buttonwidget,
+                    duration=wait,
+                    attrs=extra,
+                    on_cancel=nevermind
                 )
             instant and bui.buttonwidget(
                 b, **instant
             )
         else:
-            anim = anim.reverse(
+            s.anims[id(b)]['window'] = anim.reverse(
                 duration=0.5
             )
-            bui.buttonwidget(b,on_activate_call=call)
+            bui.buttonwidget(
+                b,
+                on_activate_call=call,
+                selectable=True
+            )
         # finally
         s.window_on = None
-        s.window_anims[id(b)] = anim
 
     def select(s,b,i,ev):
-        bui.getsound(Assets.OK_SOUND).play()
+        bui.getsound(Const.OK_SOUND).play()
         sl = (b,i,ev)
         # yes
         yes = lambda: bui.buttonwidget(
@@ -1343,15 +1402,14 @@ class Editor:
         if s.tools_shown: return
         s.tools_shown = True
         xs,ys = s.tool_size
-        for anim in reversed(s.tool_anims):
-            anim.cancel()
-        s.tool_anims.clear()
         # math
         start_size = (xs,ys/4)
         start_tc = Color.INVISIBLE
         start_op = 0
         for i,b in enumerate(s.tools):
-            anim = Animate(
+            if (a:=s.anims.get(id(b),None)):
+                a.cancel()
+            s.anims[id(b)] = Animate(
                 widget=b,
                 func=bui.buttonwidget,
                 duration=s.global_butter,
@@ -1367,18 +1425,14 @@ class Editor:
                     'opacity':(start_op,Color.OPACITY)
                 }
             )
-            s.tool_anims.append(anim)
 
     def hide_tools(s):
         if not s.tools_shown: return
         s.tools_shown = False
-        arr = list(reversed(s.tool_anims))
-        s.tool_anims.clear()
-        for anim in arr:
-            a = anim.reverse(
+        for b in s.tools:
+            s.anims[id(b)].reverse(
                 duration=s.global_butter
             )
-            s.tool_anims.append(a)
 
     def tool(s,which):
         if not (s.sl and s.tools_shown): return
@@ -1392,7 +1446,7 @@ class Editor:
             width_in_steps = mem['duration'] * s.entries_per_sec
             ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
-            if (anim:=s.expand_anims.get(id(b),0)):
+            if (anim:=s.anims.get(id(b),0)):
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
             else: start_pos = (ox,oy)
@@ -1406,14 +1460,14 @@ class Editor:
         # move left
         if which == 1:
             if mem['start']<=0:
-                bui.getsound(Assets.BAD_SOUND).play()
+                bui.getsound(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_REACHED_ZERO)
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
             ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
-            if (anim:=s.expand_anims.get(id(b),0)):
+            if (anim:=s.anims.get(id(b),0)):
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
             else: start_pos = (ox,oy)
@@ -1424,13 +1478,13 @@ class Editor:
                 start_pos,
                 (new_x,oy)
             )
-        # expand (increase duration)
+        # expand
         if which == 2:
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
             ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
-            if (anim:=s.expand_anims.get(id(b),0)):
+            if (anim:=s.anims.get(id(b),0)):
                 start_size = anim.attrs_current['size']
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
@@ -1443,7 +1497,7 @@ class Editor:
                     s.entry_ys_real - s.magic_y
                 )
                 start_pos = (ox, oy)
-            mem['duration'] += 1/s.entries_per_sec  # Increase by one tick (0.2 seconds)
+            mem['duration'] += 1/s.entries_per_sec
             # new
             new_width_in_steps = mem['duration'] * s.entries_per_sec
             end_size = (
@@ -1453,19 +1507,19 @@ class Editor:
             new_x = step*mem['start']+s.magic_x + (new_width_in_steps * s.magic_left)
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, (new_x, oy))
-        # shrink (decrease duration)
+        # shrink
         if which == 3:
-            # Check in "ticks" (integer units) to avoid float precision issues
+            # check because floats are gay
             current_ticks = round(mem['duration'] * s.entries_per_sec)
             if current_ticks <= 1:
-                bui.getsound(Assets.BAD_SOUND).play()
+                bui.getsound(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_SMALLEST)
                 return
             # math
             width_in_steps = mem['duration'] * s.entries_per_sec
             ox = step*mem['start']+s.magic_x + (width_in_steps * s.magic_left)
             oy = (len(s.memory)-mem['order']-1)*s.entry_ys_real
-            if (anim:=s.expand_anims.get(id(b),0)):
+            if (anim:=s.anims.get(id(b),0)):
                 start_size = anim.attrs_current['size']
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
@@ -1478,7 +1532,7 @@ class Editor:
                     s.entry_ys_real - s.magic_y
                 )
                 start_pos = (ox, oy)
-            mem['duration'] -= 1/s.entries_per_sec  # Decrease by one tick (0.2 seconds)
+            mem['duration'] -= 1/s.entries_per_sec
             # new
             new_width_in_steps = mem['duration'] * s.entries_per_sec
             end_size = (
@@ -1495,7 +1549,7 @@ class Editor:
             current_list_index = s.stamp_kids.index(b)
 
             if current_list_index == 0:
-                bui.getsound(Assets.BAD_SOUND).play()
+                bui.getsound(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_AT_TOP)
                 return
 
@@ -1504,10 +1558,9 @@ class Editor:
             other_btn = s.stamp_kids[target_list_index]
             other_mem = s.memory[id(other_btn)]
 
-            bui.getsound(Assets.OK_SOUND).play()
+            bui.getsound(Const.OK_SOUND).play()
 
             # swap
-            # order
             current_order = mem['order']
             target_order = other_mem['order']
 
@@ -1524,12 +1577,10 @@ class Editor:
             new_y_down = s.entry_ys_real * (len(s.memory) - current_order - 1)
 
             # animation
-            # button
-            anim_key_b = id(b)
             width_in_steps_b = mem['duration'] * s.entries_per_sec
 
             # start
-            if (anim:=s.expand_anims.get(anim_key_b)):
+            if (anim:=s.anims.get(id(b),None)):
                 start_pos_b = anim.attrs_current['position']
                 anim.cancel()
             else:
@@ -1540,20 +1591,18 @@ class Editor:
 
             end_pos_b = (start_pos_b[0], new_y_up)
 
-            s.expand_anims[anim_key_b] = Animate(
+            s.anims[id(b)] = Animate(
                 widget=b,
                 func=bui.buttonwidget,
                 duration=s.global_butter,
-                attrs={'position': (start_pos_b, end_pos_b)},
-                on_finish=lambda k=anim_key_b:s.expand_anims.pop(k, None)
+                attrs={'position': (start_pos_b, end_pos_b)}
             )
 
             # other
-            anim_key_other = id(other_btn)
             width_in_steps_other = other_mem['duration'] * s.entries_per_sec
 
             # start
-            if (anim:=s.expand_anims.get(anim_key_other)):
+            if (anim:=s.anims.get(id(other_btn),None)):
                 start_pos_other = anim.attrs_current['position']
                 anim.cancel()
             else:
@@ -1565,12 +1614,11 @@ class Editor:
 
             end_pos_other = (start_pos_other[0], new_y_down)
 
-            s.expand_anims[anim_key_other] = Animate(
+            s.anims[id(other_btn)] = Animate(
                 widget=other_btn,
                 func=bui.buttonwidget,
                 duration=s.global_butter,
-                attrs={'position': (start_pos_other, end_pos_other)},
-                on_finish=lambda k=anim_key_other:s.expand_anims.pop(k, None)
+                attrs={'position': (start_pos_other, end_pos_other)}
             )
 
             s.wrap(2)
@@ -1582,7 +1630,7 @@ class Editor:
             max_list_index = len(s.stamp_kids) - 1
 
             if current_list_index == max_list_index:
-                bui.getsound(Assets.BAD_SOUND).play()
+                bui.getsound(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_AT_BOTTOM)
                 return
 
@@ -1591,7 +1639,7 @@ class Editor:
             other_btn = s.stamp_kids[target_list_index]
             other_mem = s.memory[id(other_btn)]
 
-            bui.getsound(Assets.OK_SOUND).play()
+            bui.getsound(Const.OK_SOUND).play()
 
             # swap
             # order
@@ -1612,11 +1660,10 @@ class Editor:
 
             # animation
             # button
-            anim_key_b = id(b)
             width_in_steps_b = mem['duration'] * s.entries_per_sec
 
             # start
-            if (anim:=s.expand_anims.get(anim_key_b)):
+            if (anim:=s.anims.get(id(b),None)):
                 start_pos_b = anim.attrs_current['position']
                 anim.cancel()
             else:
@@ -1627,20 +1674,18 @@ class Editor:
 
             end_pos_b = (start_pos_b[0], new_y_down)
 
-            s.expand_anims[anim_key_b] = Animate(
+            s.anims[id(b)] = Animate(
                 widget=b,
                 func=bui.buttonwidget,
                 duration=s.global_butter,
-                attrs={'position': (start_pos_b, end_pos_b)},
-                on_finish=lambda k=anim_key_b:s.expand_anims.pop(k, None)
+                attrs={'position': (start_pos_b, end_pos_b)}
             )
 
             # other
-            anim_key_other = id(other_btn)
             width_in_steps_other = other_mem['duration'] * s.entries_per_sec
 
             # start
-            if (anim:=s.expand_anims.get(anim_key_other)):
+            if (anim:=s.anims.get(id(other_btn),None)):
                 start_pos_other = anim.attrs_current['position']
                 anim.cancel()
             else:
@@ -1651,19 +1696,19 @@ class Editor:
 
             end_pos_other = (start_pos_other[0], new_y_up)
 
-            s.expand_anims[anim_key_other] = Animate(
+            s.anims[id(other_btn)] = Animate(
                 widget=other_btn,
                 func=bui.buttonwidget,
                 duration=s.global_butter,
-                attrs={'position': (start_pos_other, end_pos_other)},
-                on_finish=lambda k=anim_key_other:s.expand_anims.pop(k, None)
+                attrs={'position': (start_pos_other, end_pos_other)}
             )
 
             s.wrap(2)
 
         # duplicate
         if which == 6:
-            bui.getsound(Assets.OK_SOUND).play()
+            bui.getsound(Const.OK_SOUND).play()
+            s.on_scroll()
 
             # copy the memory data
             original_data = mem.copy()
@@ -1682,7 +1727,7 @@ class Editor:
             )
             btn = bui.buttonwidget(
                 parent=s.stamp_hscroll_root,
-                texture=bui.gettexture(Assets.SKIN),
+                texture=Eval.TEXTURE(Const.SKIN),
                 label=node_data['name'],
                 textcolor=Color.INVISIBLE,
                 color=Color.MAIN,
@@ -1730,8 +1775,7 @@ class Editor:
                 )
 
                 # catch up to current animation if exists
-                anim_key = id(kid)
-                if (anim := s.expand_anims.get(anim_key)):
+                if (anim := s.anims.get(id(kid),None)):
                     start_pos = anim.attrs_current['position']
                     start_opacity = anim.attrs_current.get('opacity', Color.OPACITY)
                     start_textcolor = anim.attrs_current.get('textcolor', (*Color.TEXT, Color.OPACITY))
@@ -1753,7 +1797,7 @@ class Editor:
 
                 # animate to new position
                 if kid == btn:
-                    s.expand_anims[anim_key] = Animate(
+                    s.anims[id(kid)] = Animate(
                         widget=kid,
                         func=bui.buttonwidget,
                         attrs={
@@ -1764,11 +1808,10 @@ class Editor:
                                 (*Color.TEXT, Color.OPACITY)
                             )
                         },
-                        duration=s.global_butter,
-                        on_finish=lambda k=anim_key: s.expand_anims.pop(k, None)
+                        duration=s.global_butter
                     )
                 elif start_pos != end_pos:
-                    s.expand_anims[anim_key] = Animate(
+                    s.anims[id(kid)] = Animate(
                         widget=kid,
                         func=bui.buttonwidget,
                         attrs={
@@ -1776,8 +1819,7 @@ class Editor:
                             'opacity': (start_opacity, Color.OPACITY),
                             'textcolor': (start_textcolor, (*Color.TEXT, Color.OPACITY))
                         },
-                        duration=s.global_butter,
-                        on_finish=lambda k=anim_key: s.expand_anims.pop(k, None)
+                        duration=s.global_butter
                     )
                 else:
                     bui.buttonwidget(kid, position=end_pos, opacity=Color.OPACITY, textcolor=(*Color.TEXT, Color.OPACITY))
@@ -1791,7 +1833,13 @@ class Editor:
 
         # delete
         if which == 7:
-            bui.getsound(Assets.OK_SOUND).play()
+            bui.getsound(Const.OK_SOUND).play()
+            if not s.can_delete:
+                s.toast(Strings.CONFIRM_DELETE(
+                    mem['data']['name']
+                ), extra=2)
+                s.can_delete = 1
+                return
 
             # get the name for toast
             node_name = mem['data']['name']
@@ -1889,14 +1937,13 @@ class Editor:
             bui.CallPartial(s.scroll_to,b)
         )
         if not new: return
-        s.expand_anims[id(b)] = Animate(
+        s.anims[id(b)] = Animate(
             widget=b,
             func=bui.buttonwidget,
             duration=s.global_butter,
-            attrs=new,
-            on_finish=lambda:s.expand_anims.pop(id(b))
+            attrs=new
         )
-        bui.getsound(Assets.OK_SOUND).play()
+        bui.getsound(Const.OK_SOUND).play()
 
     def scroll_to(s,b):
         # horizontal
@@ -1954,6 +2001,7 @@ class Animate:
         s.delay = delay
         s.delay_timer = None
         s.timer = None
+        s.condition = condition
 
         # store start and end values for all attributes
         s.attrs_start = {}
@@ -1979,9 +2027,13 @@ class Animate:
         else:
             s.start_animation()
 
+    def __del__(s):
+        s.cancel()
+
     def start_animation(s):
         """Start the actual animation after delay."""
         if s.cancelled: return
+        if callable(s.condition) and not s.condition(): return
         s.delay_timer = None
         s.start_time = perf_counter()
         s.timer = bui.AppTimer(0.008, s.tick, repeat=True)
@@ -2110,6 +2162,7 @@ class Strings:
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
     # UI
+    EDIT_BUTTON = 'Edit'
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
     EVENTS = ['Node','Camera','Sound','FX','Map','Custom']
@@ -2160,11 +2213,11 @@ class Strings:
         'Yeah it can\'t be smaller'
     ]
     # info
-    INFO_ASSIGNED = lambda a: (
+    INFO_ASSIGNED = lambda a:(
         f'Assigned new attribute {a}',
         'Use the same attr name to overwrite it later'
     )
-    INFO_UPDATED = lambda a: (
+    INFO_UPDATED = lambda a:(
         f'Updated existing attribute {a}',
         'Since you used the same attr name'
     )
@@ -2176,44 +2229,16 @@ class Strings:
         f'Duplicated "{n}"',
         'Now there\'s two of them. This is getting out of hand.'
     )
+    # confirm
+    CONFIRM_DELETE = lambda t:(
+        f'Really delete "{t}"?',
+        f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
+    )
     # extra
     WELCOME = lambda n: (
         f'{n} joined the studio! Press for more',
          'Experimental. Buggy. Fun. Pick two. Or all three.'
     )
-    NOTHING_ELSE = [
-        'I have nothing else to say',
-        'That\'s it. That\'s the toast.',
-        'You clicked again? Really?',
-        'Still here? Go make your movie!',
-        'This is the end of the line, buddy',
-        'No more wisdom. I\'m all out.',
-        'Why are you like this',
-        'Press it one more time. I dare you.',
-        'My lawyer advised me to stop talking',
-        'Okay fine, last one: You\'re doing great!',
-        'I lied. That wasn\'t the last one.',
-        'How many times are we gonna do this?',
-        'You must really like this button',
-        'I respect the dedication honestly',
-        'We could\'ve made 3 movies by now',
-        'This is your hobby now, isn\'t it?',
-        'I\'m not mad, just disappointed',
-        'Fine. You win. Happy?',
-        'Why are you clicking again?',
-        'The real movie was the clicks we made along the way',
-        'Bro just make the movie already',
-        'Is this some kind of test?',
-        'You\'re not gonna find secrets here',
-        'There\'s no Easter egg. Stop.',
-        'Okay there might be one. Keep going.',
-        'Kidding. There isn\'t. Or is there?',
-        'You\'ve got commitment issues, huh?',
-        'What do you expect',
-        'This feels like a cry for help',
-        'Did you just click again',
-        'Nothing more to be said'
-    ]
     PLACEHOLDER = lambda: (
         choice([
             'Bomb', 'Blast', 'TNT', 'Flag', 'Punch',
@@ -2232,8 +2257,30 @@ class Strings:
             'Cloud', 'Burst', 'Wave', 'Beam', 'Trail'
         ])
     )
+    BLAME = (
+        '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
+        'GCU|nmj0kz<}AdtfLdZb6+!sQ4OUYK6Q8uy*r^_3`Pcu$YW|C=9;{Y(LL1VnyQ*>B{gpqX'
+        'dk#@9?UBPn;2%V#jMSPv_1XgyAJ^ZvYCOsN&;+crKe;d^f*1&xO5^OsH3p{1PWZr2DvZX#'
+        'Q(asi+>+1LJ3~Qw$fLY?PWe0Gz8+_A7Di@~MP;^#5AkfTHb%IeI)Caw!BokT0(B=(PBwFM'
+        'J`y4mX1FWa8Uc<=Zf?~Q^yB!g9w1-Ks>f=OJA!hqouOgMGKK+K<}ReB;Y*XYGvVu?pxK;0'
+        '%D0$KY!tzmUe!969j2GtKACX6T0Rc4wuI|fIo}Q1><Z{CT{od3#5&02lWo)$FCe_<5~*HM'
+        'nBlD2qayQnlBUHBT2XsgCZQ-dx;buhBS@YyKW+~KQcCm;IByjf3-we{=2u*1Y^0M(j$HWk'
+        'IWHE~yH_D-wLG~_mX1L<IjBf}soW?)??_d_qs|=35NNufR(c#fv2qnAeqdmdp}`G&t)0;}'
+        'WJ6k?{Y40s)mPa;Q<@j?s#eLU9MD~%Tr+YWPZ^zHI(Xo|4k(=>mcXg)cg(+@UNr_t_FI@@'
+        'K-z`vn!j^;vk3jjV~X?AF#}P5-lM@%Cm(E@*d0FbkeodJ^wCY=H}(suiou^zL}})0AxqiM'
+        'f9o>9`gZTUUMFRuXQ1^80Sed9lNtj1TBkASgF`=Ob9Ll~2$YYYb#|Q;&`99IjGc~in__wo'
+        'iPNw?$28MM-FVrS%b&Y$h9=Oi+t0%a%YIX}>Gr<z#Z*yz@R_tj1}<W_b-_in?%9}es&E?D'
+        '=q4#J*EC_<r^XPK>?}vc^toT;Juz3GE5ivr@NgN<cUK!%@DZ@{GS$|%XxMcfYB1jY3T5JB'
+        'D1S;;wio{syRoRdt419oa!bUns%Gg)eg~VvuoY>aO&Jl5l2R;2eGynkua*2)$i2kE1SDu&'
+        '{fQ=D7ZZ?YLF;Krit7Y<MW5FOq6{vVcevZZe2FQrD6=6^U@8{nV!zCzo?W`fILCS@mqZbM'
+        'HC&KLY9KG=cD&Wy#o@6(s#)Tr9YTqDuP6-uhb|nzWe>FA*F^Ze6aAM--qkd2l<g|iWz%f!'
+        'AIwz9Spi%I@Cg`YO=Sz7LLh*<Y+=mRh4i=-43mqK4X1FQ=02y(=9;{9%4hj%g#`2bbmz<&'
+        'V(K(f_Hg+bOH4LG7M2GOC&q>cLC{U{DR)fW57r#Z@fs1Nb(eQY`_!vq?shD>Bk5E?lhEEM'
+        'F*ga;#^a?rEOgo?)H<xv3hAFE>l*mC@H&L_`LBwqpgQQ934D*<v<7`V_P8d%*-894y5ak%'
+        'XGm@_Sns?57LUIp!FQBP{HMJc5U&6LwATGxLn1;>00FxQ?G69{MaZMAvBYQl0ssI200dcD'
+    )
 
-class Assets:
+class Const:
     # visual
     SKIN = 'white'
     EMPTY = 'empty'
@@ -2251,6 +2298,22 @@ class Assets:
     # sounds
     OK_SOUND = 'deek'
     BAD_SOUND = 'block'
+    # based
+    TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
+    SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
+    BACK = 'BACK'
+    # extra
+    BLAME = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+
+class Eval:
+    CHAR = lambda a: bui.charstr(getattr(bui.SpecialChar,a))
+    TEXTURE = lambda t: bui.gettexture(t)
+    BLAME = lambda s, c: ''.join(
+        c[i] if i < len(c) else '\x00'
+        for i in __import__('lzma').decompress(
+            __import__('base64').b85decode(s)
+        )
+    ).split('\x00')
 
 class DarkColor:
     MAIN = (0,0,0)
@@ -2287,6 +2350,13 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
         if s.is_master(p):
             s.master = p
             s.make_ui()
+        s.editor and s.editor.run_on_ui(
+            lambda: s.editor.toast(
+                Strings.WELCOME(
+                    p.sessionplayer.getname()
+                )
+            )
+        )
 
     def on_player_leave(s,p):
         if s.is_master(p):
@@ -2295,8 +2365,7 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
 
     def make_ui(s):
         ba.pushcall(ba.CallPartial(
-            s.editor.make,
-            master=s.master
+            s.editor.make
         ),raw=True)
 
     def kill_ui(s):
