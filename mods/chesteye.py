@@ -5,8 +5,7 @@
 """
 ChestEye v1.0 - Auto claim/open chests
 
-Experimental. Checks for any chests to claim/open on startup.
-Read code to know more.
+Deprecated. Use Unlocker plugin.
 """
 
 from babase import Plugin
