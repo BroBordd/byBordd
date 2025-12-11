@@ -1,6 +1,6 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Feedback is appreciated - Telegram >> @BroBordd
 
 """
 Core v1.0 - Advanced action recorder bot

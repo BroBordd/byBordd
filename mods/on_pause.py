@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Feedback is appreciated - Telegram >> @BroBordd
 
 """
 OnPause v1.0 - Call an action on pause

@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Feedback is appreciated - Telegram >> @BroBordd
 
 """
 PPMify v1.0 - Bring your images to the scene
