@@ -187,7 +187,7 @@
         "mod_name": "ChestEye",
         "mod_fancy_name": "Auto claim/open chests",
         "mod_version": "1.0",
-        "mod_description": "Experimental. Checks for any chests to claim/open on startup.\nRead code to know more.",
+        "mod_description": "Deprecated. Use Unlocker plugin.",
         "api_version": 9,
         "mod_filename_base": "chesteye"
     },
