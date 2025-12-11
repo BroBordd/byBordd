@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Telegram >> GalaxyA14user
+# Telegram >> BroBordd
 
 """
 Bubble v3.0 - Let out your Spaz thoughts that come in mind.

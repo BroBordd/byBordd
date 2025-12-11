@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard - Feel free to utilize/modify this for personal use
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Modcast v1.0 - Test it there

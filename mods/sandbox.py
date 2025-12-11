@@ -1,6 +1,6 @@
 # Copyright 2025 - Solely by BrotherBoard
 # Intended for personal use only
-# Feedback is appreciated - Telegram >> @GalaxyA14user
+# Feedback is appreciated - Telegram >> @BroBordd
 
 """
 Sandbox v3.0 - Turn the scene into your very own sandbox

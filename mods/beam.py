@@ -1,5 +1,5 @@
 # Copyright 2025 - Solely by BrotherBoard
-# Bug? Feedback? Telegram >> @GalaxyA14user
+# Bug? Feedback? Telegram >> @BroBordd
 
 """
 Beam v1.0 - UI, right there.
