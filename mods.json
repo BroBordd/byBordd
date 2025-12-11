@@ -432,6 +432,14 @@
         "mod_filename_base": "topmsg"
     },
     {
+        "mod_name": "Unlocker",
+        "mod_fancy_name": "Chest unlocker",
+        "mod_version": "1.0",
+        "mod_description": "Autorun on startup:\n- Calim pending chests from inbox\n- Skip wait time for each chest\n- Unlock all pending chests in slots\n\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "unlocker"
+    },
+    {
         "mod_name": "UpDown",
         "mod_fancy_name": "The arrows",
         "mod_version": "3.0",
