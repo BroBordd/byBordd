@@ -23,9 +23,19 @@ plus = bui.app.plus
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     def __init__(s):
+        s.patch()
         s.wait_timer = bui.AppTimer(
             0.113, s.wait, repeat=True
         )
+    def patch(s):
+        from baclassic import ClassicAppMode as c
+        f = '_on_classic_account_data_change'
+        o = getattr(c,f)
+        n = lambda z,v: s.check(v) or o(z,v)
+        setattr(c,f,n)
+    def check(s,v):
+        if v.inbox_contains_prize:
+            s.fetch()
     def wait(s):
         if plus.cloud.connected:
             s.wait_timer = None
@@ -52,7 +62,7 @@ class byBordd(Plugin):
     def scan(s):
         for i in range(4):
             s.query(i)
-    def query(s,i):
+    def query(s,i,r=0):
         with plus.accounts.primary:
             plus.cloud.send_message_cb(
                 bc.bs.ChestInfoMessage(
@@ -74,7 +84,7 @@ class byBordd(Plugin):
                     action=cl.ChestActionMessage.Action.AD,
                     token_payment=0
                 ),
-                on_response=lambda r:bui.CallPartial(s.query,i)
+                on_response=bui.CallPartial(s.query,i)
             )
     def unlock(s,i):
         cl = bc.cloud
