@@ -5,12 +5,12 @@
 """
 Movi v1.0 - Movie Maker
 
-Basic keyframe-based movie maker with dynamic animation system.
 Experimental.
 """
 
 import babase as ba
 import bauiv1 as bui
+import _babase as _ba
 import bascenev1 as bs
 
 from random import choice
@@ -86,7 +86,6 @@ class Editor:
         s.can_delete = False
         s.pending = []
         s.blame = None
-        s.on_discard = None
 
     def run_on_ui(s,f):
         if s.ui_on: f()
@@ -204,7 +203,7 @@ class Editor:
             on_finish=zoom
         )
         s.toast_timer = inp and bui.AppTimer(
-            max(len(t)*0.06,3),
+            max(len(t)*0.07,3),
             s.toast
         )
 
@@ -469,10 +468,8 @@ class Editor:
             s.sl[2],
             edit=s.memory[id(s.sl[0])]
         )
-        s.window_on = (s.edit_button,s.edit_window)
-        s.on_discard = lambda:s.toast(
-            Strings.INFO_DISCARDED
-        )
+        on_back = lambda: s.toast(Strings.INFO_DISCARDED)
+        s.window_on = (s.edit_button,s.edit_window,on_back)
 
     def wrap(s,what=0,on_finish=None):
         # global math
@@ -829,7 +826,7 @@ class Editor:
         else: Eval.SOUND(Const.OK_SOUND).play()
         # disable
         call = bui.CallPartial(s.event_window,b,i)
-        s.window_on = (b,call)
+        s.window_on = (b,call,None)
         bui.buttonwidget(
             b,
             on_activate_call=lambda:0,
@@ -896,6 +893,7 @@ class Editor:
         )
         func = (
             i == 0 and s.make_node_window or
+            i == 1 and s.make_camera_window or
             (lambda _:s.toast(Strings.COMING_SOON))
         )
         func(edit)
@@ -916,26 +914,25 @@ class Editor:
             }
             # widget based
             ty = w.get_widget_type()
-            if ty == 'button':
+            if ty in ['button','checkbox']:
                 attrs.update({
-                    'opacity':(0,Color.OPACITY),
                     'textcolor':(
                         Color.INVISIBLE,
                         (*Color.TEXT,Color.OPACITY)
                     )
                 })
-            elif ty == 'text':
+            if ty in ['text']:
                 attrs.update({
                     'color':(
                         Color.INVISIBLE,
                         (*Color.TEXT,Color.OPACITY)
                     )
                 })
-            elif ty == 'image':
+            if ty in ['image','button']:
                 attrs.update({
                     'opacity':(0,Color.OPACITY)
                 })
-            # finally
+            # animate
             s.anims[id(w)] = Animate(
                 widget=w,
                 func=func,
@@ -970,7 +967,7 @@ class Editor:
         )
         s.window_kids.append((back,pos,50,bui.buttonwidget,0.35))
 
-        pos = (x+sx/2-s.window_marg,y+sy-s.window_marg-32.5)
+        pos = (x+sx/2-s.window_marg*2,y+sy-s.window_marg-32.5)
         w = bui.textwidget(
             parent=s.root,
             text=title,
@@ -981,6 +978,172 @@ class Editor:
             maxwidth=sx-s.window_marg*3-dx
         )
         s.window_kids.append((w,pos,50,bui.textwidget,0.35))
+
+    def add_entry(s,final):
+        # setup
+        nam = final['name']
+        end_size = (
+            s.entry_xs_real * (
+                s.entries_per_sec *
+                s.object_duration
+            )*s.magic_right,
+            s.entry_ys_real-s.magic_y
+        )
+        # make
+        size = (
+            s.entry_xs_real * (
+                s.object_duration *
+                s.entries_per_sec
+            )*s.magic_right,
+            s.entry_ys_real-s.magic_y
+        )
+        btn = bui.buttonwidget(
+            parent=s.stamp_hscroll_root,
+            texture=Eval.TEXTURE(Const.SKIN),
+            label=nam,
+            textcolor=Color.INVISIBLE,
+            color=Color.MAIN,
+            opacity=0,
+            enable_sound=False,
+            size=size,
+            button_type='square'
+        )
+        bui.buttonwidget(
+            btn,
+            on_activate_call=bui.CallPartial(
+                s.select,btn,len(s.memory),0
+            )
+        )
+        s.stamp_kids.append(btn)
+        # memory
+        s.memory[id(btn)] = {
+            'order':len(s.memory),
+            'event':s.last_window_i,
+            'data':final,
+            'duration':s.object_duration,
+            'start':0
+        }
+        # capture
+        smol = s.stamp_size[1]-s.stamp_y_hack
+        old_deep_y = getattr(s,'stamp_deep_y',smol)
+        # push
+        def push():
+            big = old_deep_y != smol
+            for i,kid in enumerate(
+                reversed(s.stamp_kids)
+            ):
+                mem = s.memory[id(kid)]
+                width_in_steps = mem['duration'] * s.entries_per_sec
+                old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
+                end_pos = (
+                    old_x,
+                    s.entry_ys_real*i
+                )
+                s.anims[kid]['push'] = Animate(
+                    widget=kid,
+                    func=bui.buttonwidget,
+                    attrs={
+                        'position':(
+                            (old_x,s.entry_ys_real*(i-1)),
+                            end_pos
+                        )
+                    },
+                    duration=s.global_butter
+                )
+        push()
+        # wrap
+        s.wrap([1,2,3],on_finish=s.bottom_left)
+        # appear
+        def appear():
+            bui.buttonwidget(
+                btn,
+                textcolor=(
+                    *Color.TEXT,
+                    Color.OPACITY
+                ),
+                opacity=Color.OPACITY
+            )
+        # math
+        half_size = hx,hy = tuple(_/2 for _ in s.window_size)
+        half_pos = (hx*3,hy*2.5)
+        (
+            half_shadow_pos,
+            half_shadow_size
+        ) = Eval.SHADOW(
+            *half_pos,
+            *half_size,
+            d=0.18
+        )
+        opacity = Color.OPACITY
+        half_opacity = opacity/2
+        wait = 0.4
+        # animate
+        width_in_steps = s.object_duration * s.entries_per_sec
+
+        where_to = lambda: (
+            (bl:=s.bottom_left(dry=True)) and (
+                bl[0]+(
+                    width_in_steps *
+                    s.magic_left
+                ), bl[1]
+            )
+        )
+        s.window_back(
+            to=lambda:{
+                'position':(
+                    half_pos,
+                    where_to()
+                ),
+                'size':(
+                    half_size,
+                    end_size
+                )
+            },
+            shadow_to=lambda:{
+                'opacity':(half_opacity,0),
+                'position':(
+                    half_shadow_pos,
+                    where_to()
+                ),
+                'size':(
+                    half_shadow_size,
+                    end_size
+                )
+            },
+            on_fix=appear,
+            wait=wait,
+            instant={
+                'label':nam
+            },
+            extra={
+                'textcolor':(
+                    Color.INVISIBLE,
+                    (*Color.TEXT,Color.OPACITY)
+                ),
+                'size':(
+                    s.window_size,
+                    half_size
+                ),
+                'position':(
+                    s.window_pos,
+                    half_pos
+                )
+            },
+            shadow_extra={
+                'size':(
+                    s.window_shadow_size,
+                    half_shadow_size
+                ),
+                'position':(
+                    s.window_shadow_pos,
+                    half_shadow_pos
+                ),
+                'opacity':(
+                    opacity,
+                    half_opacity
+                )
+            }
+        )
 
     def make_node_window(s,edit=None):
         # math
@@ -1007,6 +1170,7 @@ class Editor:
             editable=True,
             allow_clear_button=False,
             size=(0,0),
+            maxwidth=size[0],
             description=Strings.NODE_TYPE_DESC,
             color=Color.INVISIBLE,
             v_align='center',
@@ -1036,6 +1200,7 @@ class Editor:
             editable=True,
             allow_clear_button=False,
             size=(0,0),
+            maxwidth=size[0],
             description=Strings.NODE_NAME_DESC,
             color=Color.INVISIBLE,
             v_align='center',
@@ -1056,7 +1221,8 @@ class Editor:
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
             size=(0,0),
-            opacity=0
+            opacity=0,
+            color=Color.TINT
         )
         s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
             ('size',((0,size[1]),size))
@@ -1079,6 +1245,7 @@ class Editor:
             editable=True,
             allow_clear_button=False,
             size=(0,0),
+            maxwidth=size[0],
             description=Strings.NODE_ATTR_DESC,
             color=Color.INVISIBLE,
             v_align='center',
@@ -1109,6 +1276,7 @@ class Editor:
             description=Strings.NODE_EVAL_DESC,
             color=Color.INVISIBLE,
             v_align='center',
+            maxwidth=size[0],
             glow_type='uniform',
             text=Config.DEBUG and '1' or ''
         )
@@ -1170,11 +1338,12 @@ class Editor:
             if not (g:=valid()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            Eval.SOUND(Const.OK_SOUND).play()
             a = g[0]
             if not a in so_far:
                 s.toast(Strings.ERROR_NOT_FOUND(a))
+                Eval.SOUND(Const.BAD_SOUND).play()
                 return
+            Eval.SOUND(Const.OK_SOUND).play()
             so_far.pop(a)
             _i = list(attr_texts).index(a)
             _w = attr_texts.pop(a)
@@ -1354,7 +1523,6 @@ class Editor:
                 s.stamp_kids[edit['order']],
                 label=nam
             )
-            s.on_discard = None
             s.window_back()
             s.toast(Strings.INFO_SAVED)
         # done func
@@ -1364,175 +1532,13 @@ class Editor:
                 return
             Eval.SOUND(Const.OK_SOUND).play()
             typ,nam = g
-            # setup
-            end_size = (
-                s.entry_xs_real * (
-                    s.entries_per_sec *
-                    s.object_duration
-                )*s.magic_right,
-                s.entry_ys_real-s.magic_y
-            )
             # construct
             final = {
                 'type':typ,
                 'name':nam,
                 'attrs':so_far
             }
-            # make
-            size = (
-                s.entry_xs_real * (
-                    s.object_duration *
-                    s.entries_per_sec
-                )*s.magic_right,
-                s.entry_ys_real-s.magic_y
-            )
-            btn = bui.buttonwidget(
-                parent=s.stamp_hscroll_root,
-                texture=Eval.TEXTURE(Const.SKIN),
-                label=nam,
-                textcolor=Color.INVISIBLE,
-                color=Color.MAIN,
-                opacity=0,
-                enable_sound=False,
-                size=size,
-                button_type='square'
-            )
-            bui.buttonwidget(
-                btn,
-                on_activate_call=bui.CallPartial(
-                    s.select,btn,len(s.memory),0
-                )
-            )
-            s.stamp_kids.append(btn)
-            # memory
-            s.memory[id(btn)] = {
-                'order':len(s.memory),
-                'event':s.last_window_i,
-                'data':final,
-                'duration':s.object_duration,
-                'start':0
-            }
-            # capture
-            smol = s.stamp_size[1]-s.stamp_y_hack
-            old_deep_y = getattr(s,'stamp_deep_y',smol)
-            # push
-            def push():
-                big = old_deep_y != smol
-                for i,kid in enumerate(
-                    reversed(s.stamp_kids)
-                ):
-                    mem = s.memory[id(kid)]
-                    width_in_steps = mem['duration'] * s.entries_per_sec
-                    old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
-                    end_pos = (
-                        old_x,
-                        s.entry_ys_real*i
-                    )
-                    s.anims[kid]['push'] = Animate(
-                        widget=kid,
-                        func=bui.buttonwidget,
-                        attrs={
-                            'position':(
-                                (old_x,s.entry_ys_real*(i-1)),
-                                end_pos
-                            )
-                        },
-                        duration=s.global_butter
-                    )
-            push()
-            # wrap
-            s.wrap([1,2,3],on_finish=s.bottom_left)
-            # appear
-            def appear():
-                bui.buttonwidget(
-                    btn,
-                    textcolor=(
-                        *Color.TEXT,
-                        Color.OPACITY
-                    ),
-                    opacity=Color.OPACITY
-                )
-            # math
-            half_size = hx,hy = tuple(_/2 for _ in s.window_size)
-            half_pos = (hx*3,hy*2.5)
-            (
-                half_shadow_pos,
-                half_shadow_size
-            ) = Eval.SHADOW(
-                *half_pos,
-                *half_size,
-                d=0.18
-            )
-            opacity = Color.OPACITY
-            half_opacity = opacity/2
-            wait = 0.4
-            # animate
-            width_in_steps = s.object_duration * s.entries_per_sec
-
-            where_to = lambda: (
-                (bl:=s.bottom_left(dry=True)) and (
-                    bl[0]+(
-                        width_in_steps *
-                        s.magic_left
-                    ), bl[1]
-                )
-            )
-            s.window_back(
-                to=lambda:{
-                    'position':(
-                        half_pos,
-                        where_to()
-                    ),
-                    'size':(
-                        half_size,
-                        end_size
-                    )
-                },
-                shadow_to=lambda:{
-                    'opacity':(half_opacity,0),
-                    'position':(
-                        half_shadow_pos,
-                        where_to()
-                    ),
-                    'size':(
-                        half_shadow_size,
-                        end_size
-                    )
-                },
-                on_fix=appear,
-                wait=wait,
-                instant={
-                    'label':nam
-                },
-                extra={
-                    'textcolor':(
-                        Color.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
-                    ),
-                    'size':(
-                        s.window_size,
-                        half_size
-                    ),
-                    'position':(
-                        s.window_pos,
-                        half_pos
-                    )
-                },
-                shadow_extra={
-                    'size':(
-                        s.window_shadow_size,
-                        half_shadow_size
-                    ),
-                    'position':(
-                        s.window_shadow_pos,
-                        half_shadow_pos
-                    ),
-                    'opacity':(
-                        opacity,
-                        half_opacity
-                    )
-                }
-            )
+            s.add_entry(final)
         # done button
         pos = (px+8,y+s.window_marg)
         size = bx,by = (dx-15,40)
@@ -1543,7 +1549,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
             enable_sound=False,
-            label=Strings.NODE_DONE_BUTTON,
+            label=Strings.DONE_BUTTON,
             textcolor=Color.INVISIBLE,
             on_activate_call=data and do_apply or do_done
         )
@@ -1560,6 +1566,330 @@ class Editor:
                     anim_kid(w,*pos)
                 sync(0)
 
+    def make_camera_window(s,edit=None):
+        # math
+        x,y = s.window_pos
+        x += 1
+        sx,sy = s.window_size
+        bx,by = sx/3-s.window_marg*4,40
+        text_push = 15
+        delay = 0.35
+        off = s.window_marg*5+bx
+        yoff = by+s.window_marg
+        data = edit and edit['data']
+        pre = '0.0'
+        # data
+        prv_on = False
+        chks = [True,True,False]
+        last_pos = None
+        last_tar = None
+        # manage chks
+        def do_chk(i,v):
+            chks[i] = v
+            i == 2 and prv_on and see()
+        # position check
+        pos = (x+s.window_marg-3,y+by+s.window_marg*5)
+        w = bui.checkboxwidget(
+            parent=s.root,
+            text=Strings.CAMERA_POSITION_CHECK,
+            position=pos,
+            color=Color.MAIN,
+            textcolor=Color.INVISIBLE,
+            scale=0,
+            maxwidth=bx-s.window_marg,
+            value=chks[0],
+            on_value_change_call=bui.CallPartial(
+                do_chk, 0
+            )
+        )
+        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+            ('size',((bx/2,by),(bx,by))),
+            ('scale',(0,1))
+        ))
+        # position input
+        pos_texts = []
+        top = yoff*4.5
+        for i in range(3):
+            pos = (
+                x+s.window_marg-3,
+                y+top-yoff*i
+            )
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                color=Color.INVISIBLE,
+                size=(0,0),
+                text=pre
+            )
+            pos_texts.append(w)
+            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+(0.24-0.06*i),
+                ('size',((bx/2,by),(bx,by)))
+            ))
+        # target check
+        pos = (x+off+s.window_marg*2-2,y+by+s.window_marg*5)
+        w = bui.checkboxwidget(
+            parent=s.root,
+            text=Strings.CAMERA_TARGET_CHECK,
+            position=pos,
+            color=Color.MAIN,
+            textcolor=Color.INVISIBLE,
+            scale=0,
+            maxwidth=bx-s.window_marg,
+            value=chks[1],
+            on_value_change_call=bui.CallPartial(
+                do_chk, 1
+            )
+        )
+        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+            ('size',((bx/2,by),(bx,by))),
+            ('scale',(0,1))
+        ))
+        # target input
+        target_texts = []
+        for i in range(3):
+            pos = (
+                x+off+s.window_marg-3,
+                y+top-yoff*i
+            )
+            w = bui.textwidget(
+                parent=s.root,
+                position=pos,
+                editable=True,
+                allow_clear_button=False,
+                color=Color.INVISIBLE,
+                size=(0,0),
+                text=pre
+            )
+            target_texts.append(w)
+            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+(0.24-0.06*i),
+                ('size',((bx/2,by),(bx,by)))
+            ))
+        # manual check
+        pos = (x+off*2+s.window_marg*2-2,y+by+s.window_marg*5)
+        w = bui.checkboxwidget(
+            parent=s.root,
+            text=Strings.CAMERA_MANUAL_CHECK,
+            position=pos,
+            color=Color.MAIN,
+            textcolor=Color.INVISIBLE,
+            scale=0,
+            maxwidth=bx-s.window_marg,
+            value=chks[2],
+            on_value_change_call=bui.CallPartial(
+                do_chk, 2
+            )
+        )
+        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+            ('size',((bx/2,by),(bx,by))),
+            ('scale',(0,1))
+        ))
+        # actually see
+        def do_see():
+            if chks[0] and last_pos:
+                _ba.set_camera_position(*last_pos)
+            if chks[1] and last_tar:
+                _ba.set_camera_target(*last_tar)
+        # see func
+        see_timer = None
+        def see():
+            nonlocal see_timer
+            see_timer = bui.AppTimer(
+                0.02, bui.CallPartial(
+                    do_see
+                ), repeat=True
+            )
+            _ba.set_camera_manual(chks[2])
+        # collect vals
+        def collect():
+            nonlocal last_pos,last_tar
+            last_pos,last_tar = [
+                [
+                    float(
+                        bui.textwidget(
+                            query=w
+                        ) or '0'
+                    ) for w in l
+                ] for l in (pos_texts,target_texts)
+            ]
+        # XZ action
+        mod = 0
+        stp = 1
+        def add(*d):
+            for i,w in enumerate(mod and target_texts or pos_texts):
+                old = bui.textwidget(query=w) or '0'
+                z = float(old)+d[i]*stp
+                bui.textwidget(
+                    w, text=f'{z}'
+                )
+            collect()
+        def action(n):
+            nonlocal mod
+            # zoom in
+            if n == 0: add(0,0,1)
+            # left
+            if n == 1: add(-1,0,0)
+            # pos mode
+            if n == 2:
+                mod = 0
+                s.toast(Strings.INFO_POSITION_MODE)
+            # down
+            if n == 3: add(0,-1,0)
+            # center
+            if n == 4: pass
+            # up
+            if n == 5: add(0,1,0)
+            # zoom out
+            if n == 6: add(0,0,-1)
+            # right
+            if n == 7: add(1,0,0)
+            # target mode
+            if n == 8:
+                mod = 1
+                s.toast(Strings.INFO_TARGET_MODE)
+            Eval.SOUND(Const.OK_SOUND).play()
+        # XZ arrows
+        for i in range(3):
+            for j in range(3):
+                n = i*3+j
+                pos = (
+                    x+sx-(by+s.window_marg)*(3-i),
+                    y+(by+s.window_marg+1)*(2.5+j)
+                )
+                t = Const.CAMERA_TOOLS[n]
+                t = len(t) > 1 and Eval.CHAR(t) or t
+                w = bui.buttonwidget(
+                    parent=s.root,
+                    position=pos,
+                    size=(0,0),
+                    opacity=0,
+                    label=t,
+                    color=Color.MAIN,
+                    textcolor=Color.INVISIBLE,
+                    texture=Eval.TEXTURE(Const.SKIN),
+                    enable_sound=False,
+                    repeat=True,
+                    on_activate_call=bui.CallPartial(
+                        action, n
+                    )
+                )
+                s.window_kids.append((w,pos,text_push,bui.buttonwidget,delay+0.15+0.02*n,
+                    ('size',((by/2,by),(by,by)))
+                ))
+        # separator
+        pos = (x+s.window_marg-3,y+by+s.window_marg*4)
+        size = (sx-s.window_marg,2)
+        w = bui.imagewidget(
+            parent=s.root,
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            size=(0,0),
+            opacity=0,
+            color=Color.TINT
+        )
+        s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+        # reset func
+        def do_reset(shut=0):
+            _ba.set_camera_manual(False)
+            Eval.SOUND(Const.OK_SOUND).play()
+            shut or s.toast(Strings.INFO_RESETTED)
+            if prv_on: do_preview(1)
+            else:
+                nonlocal see_timer
+                see_timer = None
+        # reset button
+        pos = (
+            x+s.window_marg,
+            y+s.window_marg
+        )
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.MAIN,
+            enable_sound=False,
+            label=Strings.CAMERA_RESET_BUTTON,
+            textcolor=Color.INVISIBLE,
+            on_activate_call=do_reset
+        )
+        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.23,
+            ('size',((bx/2,by),(bx,by)))
+        ))
+        # preview func
+        def do_preview(shut=0):
+            nonlocal prv_on
+            prv_on = not prv_on
+            bui.buttonwidget(
+                prv_button,
+                label=(
+                    prv_on and
+                    Strings.CAMERA_PREVIEW_BUTTON_ON or
+                    Strings.CAMERA_PREVIEW_BUTTON_OFF
+                )
+            )
+            shut or (
+                s.toast(
+                    prv_on and Strings.INFO_PREVIEW_ON or
+                    Strings.INFO_PREVIEW_OFF
+                ) or Eval.SOUND(Const.OK_SOUND).play()
+            )
+            if prv_on: see()
+            else: do_reset(1)
+        # preview button
+        pos = (
+            x+s.window_marg+off,
+            y+s.window_marg
+        )
+        prv_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.MAIN,
+            enable_sound=False,
+            label=Strings.CAMERA_PREVIEW_BUTTON_OFF,
+            textcolor=Color.INVISIBLE,
+            on_activate_call=do_preview
+        )
+        s.window_kids.append((prv_button,pos,50,bui.buttonwidget,delay+0.23,
+            ('size',((bx/2,by),(bx,by)))
+        ))
+        # done func
+        def do_done():
+            collect()
+            nam = Strings.CAMERA_ENTRY
+            final = {
+                'manual':chks[2],
+                'name':nam
+            }
+            if chks[0]: final['position'] = last_pos
+            if chks[1]: final['target'] = last_tar
+            Eval.SOUND(Const.OK_SOUND).play()
+            s.add_entry(final)
+        # done button
+        pos = (
+            x+s.window_marg+off*2,
+            y+s.window_marg
+        )
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.MAIN,
+            enable_sound=False,
+            label=Strings.DONE_BUTTON,
+            textcolor=Color.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.23,
+            ('size',((bx/2,by),(bx,by)))
+        ))
+
     def window_clean(s):
         for w,*_ in s.window_kids:
             s.anims[id(w)].reverse(
@@ -1570,10 +1900,8 @@ class Editor:
         s.window_kids.clear()
 
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={}):
-        if s.on_discard:
-            s.on_discard()
-            s.on_discard = None
-        b,call = s.window_on
+        b,call,on_back = s.window_on
+        callable(on_back) and on_back()
         def enable():
             bui.buttonwidget(
                 b,
@@ -1691,9 +2019,8 @@ class Editor:
     def select(s,b,i,ev):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
-        if s.window_on == (s.edit_button,s.edit_window):
+        if s.window_on and s.window_on[1] == s.edit_window:
             s.window_back()
-            s.toast(Strings.INFO_DISCARDED)
         sl = (b,i,ev)
         # yes
         yes = lambda: bui.buttonwidget(
@@ -2274,6 +2601,10 @@ class Editor:
                 s.can_delete = 1
                 return
 
+            # editing? kill
+            if s.window_on and s.window_on[1] == s.edit_window:
+                s.window_back()
+
             # get the name for toast
             node_name = mem['data']['name']
             deleted_order = mem['order']
@@ -2596,13 +2927,15 @@ class Strings:
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
     EVENTS = {
-        'Node':'Add a scene node',
-        'Camera':'Move the camera around',
+        'Node':'Make a scene node',
+        'Camera':'Tune the camera',
         'Sound':'Play a sound',
         'FX':'Emit an effect',
         'Map':'Control the map',
         'Custom':'Custom action'
     }
+    # global event
+    DONE_BUTTON = 'Done'
     # node event
     NODE_TYPE_TEXT = 'Type'
     NODE_TYPE_DESC = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
@@ -2614,7 +2947,14 @@ class Strings:
     NODE_EVAL_DESC = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
     NODE_SET_BUTTON = 'Set'
     NODE_POP_BUTTON = 'Pop'
-    NODE_DONE_BUTTON = 'Done'
+    # camera event
+    CAMERA_RESET_BUTTON = 'Reset'
+    CAMERA_PREVIEW_BUTTON_OFF = 'Preview'
+    CAMERA_PREVIEW_BUTTON_ON = 'Stop'
+    CAMERA_POSITION_CHECK = 'Position'
+    CAMERA_TARGET_CHECK = 'Target'
+    CAMERA_MANUAL_CHECK = 'Manual'
+    CAMERA_ENTRY = 'Camera'
     # errors
     ERROR_EMPTY = lambda e: (
         f'Empty {e}!',
@@ -2659,14 +2999,6 @@ class Strings:
         'Discarded changes!',
         'Because you changed your mind'
     ]
-    INFO_ASSIGNED = lambda a:(
-        f'Assigned new attribute {a}',
-        'Use the same attr name to overwrite it later'
-    )
-    INFO_UPDATED = lambda a:(
-        f'Updated existing attribute {a}',
-        'Since you used the same attr name'
-    )
     INFO_DELETED = lambda n:(
         f'Deleted "{n}"',
         'Now it\'s gone forever'
@@ -2675,9 +3007,37 @@ class Strings:
         f'Duplicated "{n}"',
         'Now there\'s two of them. This is getting out of hand.'
     )
+    INFO_ASSIGNED = lambda a:(
+        f'Assigned new attribute {a}',
+        'Use the same attr name to overwrite it later'
+    )
+    INFO_UPDATED = lambda a:(
+        f'Updated existing attribute {a}',
+        'Since you used the same attr name'
+    )
     INFO_POPPED = lambda n:(
         f'Popped "{n}"',
         'It\'s in a better place now.'
+    )
+    INFO_TARGET_MODE = (
+        'Target mode',
+        'Now arrows apply to target boxes'
+    )
+    INFO_POSITION_MODE = (
+        'Position mode',
+        'Now arrows apply to position boxes'
+    )
+    INFO_PREVIEW_ON = (
+        'Preview on',
+        'Camera changes are previewed live'
+    )
+    INFO_PREVIEW_OFF = (
+        'Preview off',
+        'Forget I said anything'
+    )
+    INFO_RESETTED = (
+        'Resetted',
+        'Everything is clean once again'
     )
     # confirm
     CONFIRM_DELETE = lambda t:(
@@ -2688,7 +3048,7 @@ class Strings:
     EDIT = lambda t: f'Edit {t}'
     WELCOME = lambda n: (
         f'{n} joined the studio! Press for more',
-         'Experimental. Buggy. Fun. Pick two. Or all three.'
+        f'Unexpected or silly errors may occur! Movi v{__version__} [{__counter__}]'
     )
     COMING_SOON = [
         'Coming soon!',
@@ -2750,6 +3110,18 @@ class Const:
         'DOWN_ARROW',
         'DPAD_CENTER_BUTTON',
         'PLAY_STATION_CROSS_BUTTON'
+    ]
+    # arrows
+    CAMERA_TOOLS = [
+        '-',
+        'LEFT_ARROW',
+        'LEFT_BUTTON',
+        'DOWN_ARROW',
+        'DPAD_CENTER_BUTTON',
+        'UP_ARROW',
+        '+',
+        'RIGHT_ARROW',
+        'RIGHT_BUTTON'
     ]
     # sounds
     OK_SOUND = 'deek'
