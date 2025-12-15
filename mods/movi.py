@@ -464,11 +464,15 @@ class Editor:
             )
         )
         # finally
-        s.make_window_kids(
-            s.sl[2],
-            edit=s.memory[id(s.sl[0])]
+        b = s.sl
+        mem = s.memory[id(b)]
+        ret = s.make_window_kids(
+            mem['event'], edit=mem
         )
-        on_back = lambda: s.toast(Strings.INFO_DISCARDED)
+        on_back = lambda: (
+            callable(ret) and ret(),
+            s.toast(Strings.INFO_DISCARDED)
+        )
         s.window_on = (s.edit_button,s.edit_window,on_back)
 
     def wrap(s,what=0,on_finish=None):
@@ -826,7 +830,7 @@ class Editor:
         else: Eval.SOUND(Const.OK_SOUND).play()
         # disable
         call = bui.CallPartial(s.event_window,b,i)
-        s.window_on = (b,call,None)
+        s.window_on = [b,call,None]
         bui.buttonwidget(
             b,
             on_activate_call=lambda:0,
@@ -880,8 +884,8 @@ class Editor:
                 duration=butter
             )
         )
-        # make conditional UI
-        s.make_window_kids(i)
+        # make ui
+        s.window_on[2] = s.make_window_kids(i)
 
     def make_window_kids(s,i,edit={}):
         s.make_window_default(
@@ -896,8 +900,9 @@ class Editor:
             i == 1 and s.make_camera_window or
             (lambda _:s.toast(Strings.COMING_SOON))
         )
-        func(edit)
+        r = func(edit)
         s.animate_window_kids()
+        return r
 
     def animate_window_kids(s):
         # animate all
@@ -1011,7 +1016,7 @@ class Editor:
         bui.buttonwidget(
             btn,
             on_activate_call=bui.CallPartial(
-                s.select,btn,len(s.memory),0
+                s.select,btn
             )
         )
         s.stamp_kids.append(btn)
@@ -1509,22 +1514,6 @@ class Editor:
                 ))
                 return
             return typ,nam
-        # apply func
-        def do_apply():
-            if not (g:=ready()):
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            typ,nam = g
-            data['type'] = typ
-            data['name'] = nam
-            data['attrs'] = so_far
-            bui.buttonwidget(
-                s.stamp_kids[edit['order']],
-                label=nam
-            )
-            s.window_back()
-            s.toast(Strings.INFO_SAVED)
         # done func
         def do_done():
             if not (g:=ready()):
@@ -1538,7 +1527,15 @@ class Editor:
                 'name':nam,
                 'attrs':so_far
             }
-            s.add_entry(final)
+            if edit:
+                data.update(final)
+                bui.buttonwidget(
+                    s.stamp_kids[edit['order']],
+                    label=nam
+                )
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else: s.add_entry(final)
         # done button
         pos = (px+8,y+s.window_marg)
         size = bx,by = (dx-15,40)
@@ -1551,7 +1548,7 @@ class Editor:
             enable_sound=False,
             label=Strings.DONE_BUTTON,
             textcolor=Color.INVISIBLE,
-            on_activate_call=data and do_apply or do_done
+            on_activate_call=do_done
         )
         s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.1,
             ('size',((0,size[1]),size))
@@ -1581,15 +1578,16 @@ class Editor:
         # data
         prv_on = False
         chks = [True,True,False]
-        last_pos = None
-        last_tar = None
+        last_pos = []
+        last_tar = []
+        virgin = True
         # manage chks
         def do_chk(i,v):
             chks[i] = v
             i == 2 and prv_on and see()
         # position check
         pos = (x+s.window_marg-3,y+by+s.window_marg*5)
-        w = bui.checkboxwidget(
+        pos_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_POSITION_CHECK,
             position=pos,
@@ -1602,7 +1600,7 @@ class Editor:
                 do_chk, 0
             )
         )
-        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((pos_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -1629,7 +1627,7 @@ class Editor:
             ))
         # target check
         pos = (x+off+s.window_marg*2-2,y+by+s.window_marg*5)
-        w = bui.checkboxwidget(
+        tar_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_TARGET_CHECK,
             position=pos,
@@ -1642,7 +1640,7 @@ class Editor:
                 do_chk, 1
             )
         )
-        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((tar_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -1668,7 +1666,7 @@ class Editor:
             ))
         # manual check
         pos = (x+off*2+s.window_marg*2-2,y+by+s.window_marg*5)
-        w = bui.checkboxwidget(
+        man_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_MANUAL_CHECK,
             position=pos,
@@ -1681,7 +1679,7 @@ class Editor:
                 do_chk, 2
             )
         )
-        s.window_kids.append((w,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((man_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -1713,6 +1711,20 @@ class Editor:
                     ) for w in l
                 ] for l in (pos_texts,target_texts)
             ]
+        # enforce vals
+        def enforce():
+            # texts
+            for w,d in zip(pos_texts,last_pos):
+                bui.textwidget(w,text=str(d))
+            for w,d in zip(target_texts,last_tar):
+                bui.textwidget(w,text=str(d))
+            # checks
+            for w,b in zip(
+                (pos_chk,tar_chk,man_chk), chks
+            ):
+                bui.checkboxwidget(
+                    w, value=b
+                )
         # XZ action
         mod = 0
         stp = 1
@@ -1798,8 +1810,9 @@ class Editor:
             shut or s.toast(Strings.INFO_RESETTED)
             if prv_on: do_preview(1)
             else:
-                nonlocal see_timer
+                nonlocal see_timer,virgin
                 see_timer = None
+                virgin = True
         # reset button
         pos = (
             x+s.window_marg,
@@ -1821,7 +1834,7 @@ class Editor:
         ))
         # preview func
         def do_preview(shut=0):
-            nonlocal prv_on
+            nonlocal prv_on, virgin
             prv_on = not prv_on
             bui.buttonwidget(
                 prv_button,
@@ -1837,7 +1850,9 @@ class Editor:
                     Strings.INFO_PREVIEW_OFF
                 ) or Eval.SOUND(Const.OK_SOUND).play()
             )
-            if prv_on: see()
+            if prv_on:
+                see()
+                virgin = False
             else: do_reset(1)
         # preview button
         pos = (
@@ -1863,13 +1878,17 @@ class Editor:
             collect()
             nam = Strings.CAMERA_ENTRY
             final = {
-                'manual':chks[2],
-                'name':nam
+                'chks':chks,
+                'name':nam,
+                'position':last_pos,
+                'target':last_tar
             }
-            if chks[0]: final['position'] = last_pos
-            if chks[1]: final['target'] = last_tar
             Eval.SOUND(Const.OK_SOUND).play()
-            s.add_entry(final)
+            if edit:
+                data.update(final)
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else: s.add_entry(final)
         # done button
         pos = (
             x+s.window_marg+off*2,
@@ -1889,6 +1908,16 @@ class Editor:
         s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.23,
             ('size',((bx/2,by),(bx,by)))
         ))
+        # load
+        if edit:
+            # data
+            last_pos = data['position']
+            last_tar = data['target']
+            chks = data['chks']
+            # ui
+            enforce()
+        # finally
+        return lambda: virgin or do_reset(1)
 
     def window_clean(s):
         for w,*_ in s.window_kids:
@@ -2016,19 +2045,19 @@ class Editor:
         # finally
         s.window_on = None
 
-    def select(s,b,i,ev):
+    def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
         if s.window_on and s.window_on[1] == s.edit_window:
             s.window_back()
-        sl = (b,i,ev)
+        sl = b
         # yes
         yes = lambda: bui.buttonwidget(
             b,color=Color.TINT
         )
         # no
         no = lambda: bui.buttonwidget(
-            s.sl[0],color=Color.MAIN
+            s.sl,color=Color.MAIN
         )
         # deselect
         if s.sl == sl:
@@ -2080,7 +2109,7 @@ class Editor:
 
     def tool(s,which):
         if not (s.sl and s.tools_shown): return
-        b,i,ev = s.sl
+        b = s.sl
         mem = s.memory[id(b)]
         new = {}
         step = s.entry_xs_real
