@@ -43,9 +43,14 @@ class Editor:
         # register
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
+        s.root_fading = False
+        s.in_anims = []
+        s.out_anims = []
         # toast
         s.can_toast = True
         s.toast_zoom = None
+        s.toast_blink = None
+        s.last_toast = None
         # menu
         s.menu_root = None
         s.menu_on = False
@@ -83,7 +88,7 @@ class Editor:
         s.sl = None
         s.global_butter = 0.3
         s.long_line_y = 10**10
-        s.can_delete = False
+        s.can_do = False
         s.pending = []
         s.blame = None
 
@@ -92,7 +97,11 @@ class Editor:
         else: s.pending.append(f)
 
     def ui_safe(s):
-        return s.root.exists() and not s.root.transitioning_out
+        return (
+            s.root.exists() and
+            not s.root_fading and
+            s.ui_on
+        )
 
     def universal_back(s):
         if s.window_on or s.event_on:
@@ -106,6 +115,7 @@ class Editor:
         s.on_scroll()
 
     def on_scroll(s):
+        if not s.ui_safe(): return
         if s.event_on:
             # you're not going anywhere
             for kid in s.event_kids:
@@ -117,7 +127,7 @@ class Editor:
         shut or Eval.SOUND(Const.OK_SOUND).play()
         # on toast
         if not s.can_toast and not shut: return
-        if s.can_delete and extra<1: s.can_delete = False
+        if s.can_do and extra<1: s.can_do = False
         if s.toast_zoom: s.toast_zoom.cancel()
         s.can_toast = False
         b = s.toast_bg
@@ -128,7 +138,6 @@ class Editor:
                 Strings.BLAME,
                 Const.BLAME
             )
-        bui.buttonwidget(b,label=t)
         desc and bui.buttonwidget(
             b,on_activate_call=bui.CallPartial(
                 s.toast,
@@ -145,7 +154,7 @@ class Editor:
         end_size = dx,dy = (text_width+(t and 20 or 0),30)
         start_size = (0,dy)
         start_opacity = 0
-        start_textcolor = Color.INVISIBLE
+        zero = 0.0001
         x,y = ox,oy = s.toast_position
         end_pos = epx,epy = (ox-dx/2,oy)
         rush = False
@@ -158,7 +167,6 @@ class Editor:
             ): rush = True
             x,y = anim.attrs_current['position']
             start_opacity = anim.attrs_current['opacity']
-            start_textcolor = anim.attrs_current['textcolor']
             anim.cancel()
         def enable(): s.can_toast = True
         # zoom
@@ -180,6 +188,32 @@ class Editor:
                 duration=zoom_time,
                 on_finish=(enable,)
             )
+        # blink text
+        start_textcolor = (*Color.TEXT,Color.OPACITY)
+        blink_time = 0.2
+        apply_text = bui.CallPartial(
+            bui.buttonwidget,
+            b, label=t
+        )
+        skip_blink = s.last_toast == t
+        def blink():
+            if (anim:=s.toast_blink):
+                anim.cancel()
+            s.toast_blink = Animate(
+                widget=b,
+                func=bui.buttonwidget,
+                attrs={
+                    'textcolor':(
+                        start_textcolor,
+                        skip_blink and start_textcolor or Color.INVISIBLE
+                    )
+                },
+                duration=skip_blink and zero or blink_time,
+                on_finish=(None,),
+                on_reverse=apply_text,
+                on_cancel=apply_text
+            )
+        blink()
         # animate
         s.anims[id(b)] = Animate(
             widget=b,
@@ -193,21 +227,20 @@ class Editor:
                 'position':(
                     (x,y),
                     end_pos
-                ),
-                'textcolor':(
-                    start_textcolor,
-                    (*Color.TEXT,Color.OPACITY)
                 )
             },
-            duration=0.0001 if rush else duration,
+            duration=rush and zero or duration,
             on_finish=zoom
         )
         s.toast_timer = inp and bui.AppTimer(
             max(len(t)*0.07,3),
             s.toast
         )
+        # finally
+        s.last_toast = t
 
     def make(s):
+        if s.root_fading: return
         # root
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
@@ -243,7 +276,7 @@ class Editor:
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
-            opacity=Color.OPACITY
+            opacity=0
         )
         # square
         s.square = bui.buttonwidget(
@@ -303,12 +336,12 @@ class Editor:
                 v_align='center',
                 size=(10,5),
                 scale=0.5,
-                color=(*Color.TEXT,Color.OPACITY)
+                color=Color.INVISIBLE
             )
             l = bui.imagewidget(
                 parent=s.stamp_hscroll_root,
                 texture=Eval.TEXTURE(Const.SKIN),
-                opacity=Color.OPACITY/10,
+                opacity=0,
                 size=(2,s.long_line_y),
                 color=Color.TEXT
             )
@@ -337,7 +370,7 @@ class Editor:
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.MAIN,
-            opacity=Color.OPACITY
+            opacity=0
         )
         # event button
         s.event_button = bui.buttonwidget(
@@ -345,8 +378,8 @@ class Editor:
             label=Strings.EVENT_BUTTON_OFF,
             on_activate_call=s.toggle_event,
             texture=Eval.TEXTURE(Const.EMPTY),
-            opacity=Color.OPACITY,
-            textcolor=(*Color.TEXT,Color.OPACITY),
+            opacity=0,
+            textcolor=Color.INVISIBLE,
             enable_sound=False
         )
         # event kids
@@ -375,8 +408,8 @@ class Editor:
             label=Strings.EDIT_BUTTON,
             on_activate_call=s.edit_window,
             texture=Eval.TEXTURE(Const.SKIN),
-            opacity=Color.OPACITY,
-            textcolor=(*Color.TEXT,Color.OPACITY),
+            opacity=0,
+            textcolor=Color.INVISIBLE,
             enable_sound=False,
             color=Color.MAIN
         )
@@ -398,19 +431,159 @@ class Editor:
                 texture=Eval.TEXTURE(Const.SKIN),
                 label=Eval.CHAR(tools_str[i]),
                 on_activate_call=bui.CallPartial(
-                    s.tool, i
+                    s.do_tool, i
                 ),
                 repeat=True
             )
             s.tools.append(b)
+        # extra
+        s.make_menu()
         # finally
         s.wrap()
         s.top_left()
         s.ui_on = True
-        for call in s.pending: call()
-        s.pending.clear()
+        def on_finish():
+            for call in s.pending: call()
+            s.pending.clear()
+        bui.apptimer(0.3,bui.CallPartial(
+            s.animate_in, on_finish
+        ))
+
+    def toggle_ui(s):
+        if s.ui_on:
+            s.animate_out()
+            s.ui_on = False
+        else:
+            s.animate_in()
+            s.ui_on = True
+
+    def animate_in(s,on_finish=None):
+        # instant
+        bui.scrollwidget(
+            s.stamp_scroll,
+            size=s.stamp_size
+        )
+        butter = s.global_butter * 2
+        # reversing?
+        for anim in s.out_anims:
+            anim.cancel()
+        s.in_anims.clear()
+        s.out_anims.clear()
+        s.root_fading = True
+        # cancellable
+        def cleanup():
+            s.root_fading = False
+            callable(on_finish) and on_finish()
+        # stamp bg
+        a = Animate(
+            widget=s.stamp_bg,
+            func=bui.imagewidget,
+            duration=butter,
+            attrs={
+                'opacity':(0,Color.OPACITY)
+            },
+            on_finish=cleanup
+        )
+        s.in_anims.append(a)
+        # stamp timeline
+        for t,l in s.stamp_timeline:
+            # text
+            a = Animate(
+                widget=t,
+                func=bui.textwidget,
+                duration=butter,
+                attrs={
+                    'color':(
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
+                    )
+                }
+            )
+            s.in_anims.append(a)
+            # line
+            a = Animate(
+                widget=l,
+                func=bui.imagewidget,
+                duration=butter,
+                attrs={
+                    'opacity':(0,Color.OPACITY/10)
+                }
+            )
+            s.in_anims.append(a)
+        # event button
+        a = Animate(
+            widget=s.event_button,
+            func=bui.buttonwidget,
+            duration=butter,
+            attrs={
+                'textcolor':(
+                    Color.INVISIBLE,
+                    (*Color.TEXT,Color.OPACITY)
+                )
+            }
+        )
+        s.in_anims.append(a)
+        # event button background
+        a = Animate(
+            widget=s.event_root,
+            func=bui.imagewidget,
+            duration=butter,
+            attrs={
+                'opacity':(0,Color.OPACITY)
+            }
+        )
+        s.in_anims.append(a)
+        # edit button
+        a = Animate(
+            widget=s.edit_button,
+            func=bui.buttonwidget,
+            duration=butter,
+            attrs={
+                'opacity':(0,Color.OPACITY),
+                'textcolor':(
+                    Color.INVISIBLE,
+                    (*Color.TEXT,Color.OPACITY)
+                )
+            }
+        )
+        s.in_anims.append(a)
+
+    def animate_out(s,on_finish=None):
+        butter = s.global_butter*2
+        # anything up?
+        if not s.event_on and s.window_on:
+            s.window_back(into_nothing=True)
+        if s.event_on and s.window_on:
+            s.window_back(into_nothing=True,skip=True)
+            s.toggle_event()
+        if s.event_on:
+            s.toggle_event()
+        if s.sl:
+            s.select(s.sl)
+        # instant
+        bui.scrollwidget(
+            s.stamp_scroll,
+            size=(0,0)
+        )
+        s.root_fading = True
+        # on finish
+        def cleanup():
+            s.root_fading = False
+            s.in_anims.clear()
+            callable(on_finish) and on_finish()
+        s.out_anims.clear()
+        # reverse
+        for anim in s.in_anims:
+            a = anim.reverse(
+                duration=butter,
+                on_finish=cleanup
+            )
+            s.out_anims.append(a)
+        # finally
+        s.in_anims.clear()
 
     def edit_window(s):
+        if not s.ui_safe(): return
         if s.window_on:
             s.window_back()
         if not s.sl:
@@ -421,7 +594,7 @@ class Editor:
         # disable
         bui.buttonwidget(
             s.edit_button,
-            on_activate_call=lambda:0,
+            on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
         # math
@@ -698,12 +871,164 @@ class Editor:
 
     def kill(s):
         if not s.ui_safe(): return
-        s.root.delete()
+        s.ui_on = False
+        s.animate_out(
+            on_finish=s.root.delete
+        )
+
+    def make_menu(s):
+        # menu background
+        s.menu_bg = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            color=Color.MAIN,
+            texture=Eval.TEXTURE(Const.SKIN)
+        )
+        # menu kids
+        s.menu_kids = []
+        for t in Strings.MENUS:
+            w = bui.buttonwidget(
+                parent=s.root,
+                enable_sound=False,
+                label=t,
+                size=(0,0),
+                opacity=0,
+                textcolor=Color.INVISIBLE,
+                color=Color.MAIN,
+                texture=Eval.TEXTURE(Const.SKIN)
+            )
+            s.menu_kids.append(w)
+        # finally
+        s.wrap_menu()
+
+    def wrap_menu(s):
+        # math
+        rx,ry = bui.get_virtual_screen_size()
+        sx,sy = s.menu_size = 240,220
+        s.menu_yoff = 62
+        s.menu_marg = 10
+        x,y = s.menu_pos = rx-sx+2,ry-sy-s.menu_yoff
+        bx,by = s.menu_button_size = sx-s.menu_marg*4,40
+        s.menu_button_xp = x+s.menu_marg*2
+        # menu background
+        bui.imagewidget(
+            s.menu_bg,
+            position=s.menu_pos,
+            size=s.menu_size
+        )
+        # menu kids
+        for i,kid in enumerate(s.menu_kids):
+            bui.buttonwidget(
+                kid,
+                size=(bx,by),
+                position=(
+                    s.menu_button_xp,
+                    y+s.menu_marg*1.5+(by+s.menu_marg)*i
+                )
+            )
 
     def toggle_menu(s):
-        pass
+        Eval.SOUND(Const.OK_SOUND).play()
+        delay = 0.1
+        butter = s.global_butter
+        if s.menu_on:
+            s.menu_on = False
+            # menu background
+            anim = s.anims[id(s.menu_bg)]
+            s.anims[id(s.menu_bg)] = anim.reverse(
+                duration=butter
+            )
+            # event kids
+            for i,kid in enumerate(s.menu_kids):
+                anim = s.anims[id(kid)]
+                s.anims[id(kid)] = anim.reverse(
+                    duration=butter*0.7
+                )
+                # disable
+                bui.buttonwidget(
+                    kid, on_activate_call=Const.DO_NOTHING
+                )
+            return
+        s.menu_on = True
+        # math
+        rx,ry = bui.get_virtual_screen_size()
+        sx,sy = s.menu_size
+        bx,by = s.menu_button_size
+        x,y = s.menu_pos
+        # menu background
+        start_size = (sx*0.8,sy*0.8)
+        start_pos = (
+            rx-start_size[0],
+            ry-s.menu_yoff-start_size[1]
+        )
+        if (anim:=s.anims[id(s.menu_bg)]):
+            anim.cancel()
+        s.anims[id(s.menu_bg)] = Animate(
+            widget=s.menu_bg,
+            func=bui.imagewidget,
+            duration=butter,
+            attrs={
+                'opacity':(0,Color.OPACITY),
+                'position':(
+                    start_pos,
+                    (x,y)
+                ),
+                'size':(
+                    start_size,
+                    (sx,sy)
+                )
+            }
+        )
+        # menu action
+        def menu_action(i):
+            Eval.SOUND(Const.OK_SOUND).play()
+            # save & exit
+            if i == 0:
+                pass
+            # load seed
+            if i == 1: pass
+            # save seed
+            if i == 2: pass
+            # toggle editor
+            if i == 3:
+                s.toggle_ui()
+                s.toggle_menu()
+        # menu kids
+        for i,kid in enumerate(s.menu_kids):
+            start_size = (bx/2,by)
+            start_opacity = 0
+            start_textcolor = Color.INVISIBLE
+            yp = y+s.menu_marg*1.5+(by+s.menu_marg)*i
+            start_position = s.menu_button_xp+bx/2,yp
+            if (anim:=s.anims[id(kid)]):
+                anim.cancel()
+            s.anims[id(kid)] = Animate(
+                widget=kid,
+                func=bui.buttonwidget,
+                delay=delay+0.08-0.03*i,
+                duration=butter,
+                attrs={
+                    'size':(start_size,(bx,by)),
+                    'opacity':(start_opacity,Color.OPACITY),
+                    'textcolor':(
+                        start_textcolor,
+                        (*Color.TEXT,Color.OPACITY)
+                    ),
+                    'position':(
+                        start_position,
+                        (s.menu_button_xp,yp)
+                    )
+                }
+            )
+            # enable
+            bui.buttonwidget(
+                kid, on_activate_call=bui.CallPartial(
+                    menu_action, i
+                )
+            )
 
     def toggle_event(s):
+        if not s.ui_safe(): return
         if s.window_on:
             s.window_back()
             return
@@ -730,12 +1055,12 @@ class Editor:
             )
         push_edit()
         dur = s.global_butter*1.5
-        old_anim = s.anims.get(id(s.event_button),None)
+        old_anim = s.anims.get(id(s.event_root),None)
         if s.event_on:
             s.event_on = False
             bui.buttonwidget(s.event_button, label=Strings.EVENT_BUTTON_OFF)
 
-            s.anims[id(s.event_button)] = old_anim.reverse(
+            s.anims[id(s.event_root)] = old_anim.reverse(
                 duration=dur
             )
             # reverse
@@ -755,7 +1080,7 @@ class Editor:
                 # disable
                 bui.buttonwidget(
                     kid,
-                    on_activate_call=lambda:0,
+                    on_activate_call=Const.DO_NOTHING,
                     selectable=False
                 )
             return
@@ -780,7 +1105,7 @@ class Editor:
 
         # animate parent first (event root)
         if old_anim: old_anim.cancel()
-        s.anims[id(s.event_button)] = Animate(
+        s.anims[id(s.event_root)] = Animate(
             widget=s.event_root,
             func=bui.imagewidget,
             attrs={
@@ -833,7 +1158,7 @@ class Editor:
         s.window_on = [b,call,None]
         bui.buttonwidget(
             b,
-            on_activate_call=lambda:0,
+            on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
         # backup
@@ -972,7 +1297,7 @@ class Editor:
         )
         s.window_kids.append((back,pos,50,bui.buttonwidget,0.35))
 
-        pos = (x+sx/2-s.window_marg*2,y+sy-s.window_marg-32.5)
+        pos = (x+sx/2-s.window_marg*4,y+sy-s.window_marg-32.5)
         w = bui.textwidget(
             parent=s.root,
             text=title,
@@ -1686,8 +2011,10 @@ class Editor:
         # actually see
         def do_see():
             if chks[0] and last_pos:
+                collect_pos()
                 _ba.set_camera_position(*last_pos)
             if chks[1] and last_tar:
+                collect_tar()
                 _ba.set_camera_target(*last_tar)
         # see func
         see_timer = None
@@ -1699,18 +2026,30 @@ class Editor:
                 ), repeat=True
             )
             _ba.set_camera_manual(chks[2])
-        # collect vals
-        def collect():
-            nonlocal last_pos,last_tar
-            last_pos,last_tar = [
-                [
-                    float(
-                        bui.textwidget(
-                            query=w
-                        ) or '0'
-                    ) for w in l
-                ] for l in (pos_texts,target_texts)
+        # collect position
+        def collect_pos():
+            nonlocal last_pos
+            last_pos = [
+                float(
+                    bui.textwidget(
+                        query=w
+                    ) or '0'
+                ) for w in pos_texts
             ]
+        # collect target
+        def collect_tar():
+            nonlocal last_tar
+            last_tar = [
+                float(
+                    bui.textwidget(
+                        query=w
+                    ) or '0'
+                ) for w in tar_texts
+            ]
+        # collect all
+        def collect():
+            collect_pos()
+            collect_tar()
         # enforce vals
         def enforce():
             # texts
@@ -1928,7 +2267,7 @@ class Editor:
             )
         s.window_kids.clear()
 
-    def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={}):
+    def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
         b,call,on_back = s.window_on
         callable(on_back) and on_back()
         def enable():
@@ -2031,14 +2370,18 @@ class Editor:
                 b, **instant
             )
         else:
-            # back to event root
+            zero = 0.0001
+            # fading into nothing?
+            if into_nothing:
+                anim.attrs_start['textcolor'] = Color.INVISIBLE
+            # back to place
             s.anims[id(b)]['window'] = anim.reverse(
-                duration=butter
+                duration=skip and zero or butter
             )
-            # fade shadow
+            # shadow too
             anim = s.anims[id(b)]['shadow']
             s.anims[id(b)]['shadow'] = anim.reverse(
-                duration=butter
+                duration=skip and zero or butter
             )
             # enable
             enable()
@@ -2107,7 +2450,8 @@ class Editor:
                 duration=s.global_butter
             )
 
-    def tool(s,which):
+    def do_tool(s,which):
+        if not s.ui_safe(): return
         if not (s.sl and s.tools_shown): return
         b = s.sl
         mem = s.memory[id(b)]
@@ -2462,6 +2806,12 @@ class Editor:
         # duplicate
         if which == 6:
             Eval.SOUND(Const.OK_SOUND).play()
+            if s.can_do != which:
+                s.toast(Strings.CONFIRM_DUPLICATE(
+                    mem['data']['name']
+                ), extra=2)
+                s.can_do = which
+                return
             s.on_scroll()
 
             # cancel all existing duplicate animations and fix their state
@@ -2513,7 +2863,7 @@ class Editor:
 
             # setup callback
             call = bui.CallPartial(
-                s.select, btn, new_order, original_event
+                s.select, btn
             )
             bui.buttonwidget(btn, on_activate_call=call)
 
@@ -2623,11 +2973,11 @@ class Editor:
         # delete
         if which == 7:
             Eval.SOUND(Const.OK_SOUND).play()
-            if not s.can_delete:
+            if s.can_do != which:
                 s.toast(Strings.CONFIRM_DELETE(
                     mem['data']['name']
                 ), extra=2)
-                s.can_delete = 1
+                s.can_do = which
                 return
 
             # editing? kill
@@ -2757,7 +3107,7 @@ class Editor:
         s.on_scroll()
 
 class Animate:
-    def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None):
+    def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
         """
         Dynamic animation system.
 
@@ -2785,6 +3135,7 @@ class Animate:
                 on_finish=on_finish[0]
             ) or on_finish
         )
+        s.on_reverse = on_reverse
         s.on_cancel = on_cancel
         s.cancelled = False
         s.finished = False
@@ -2916,6 +3267,7 @@ class Animate:
         Returns:
             New Animate instance with reversed animation
         """
+        callable(s.on_reverse) and s.on_reverse()
         # cancel current animation
         s.cancel()
 
@@ -2952,6 +3304,12 @@ class Strings:
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
     # UI
+    MENUS = [
+        'Save & Exit',
+        'Load Seed',
+        'Copy Seed',
+        'Toggle Editor'
+    ]
     EDIT_BUTTON = 'Edit'
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
@@ -3069,6 +3427,10 @@ class Strings:
         'Everything is clean once again'
     )
     # confirm
+    CONFIRM_DUPLICATE = lambda t:(
+        f'Make another "{t}"?',
+        f'Press {Eval.CHAR(Const.TOOLS[6])} again to confirm'
+    )
     CONFIRM_DELETE = lambda t:(
         f'Really delete "{t}"?',
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
@@ -3161,6 +3523,7 @@ class Const:
     BACK = 'BACK'
     # extra
     BLAME = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    DO_NOTHING = lambda:None
 
 class Eval:
     CHAR = lambda a: bui.charstr(getattr(bui.SpecialChar,a))
