@@ -32,6 +32,7 @@ class Editor:
     @staticmethod
     def ui_safe(f):
         return lambda s,*a,**k: (
+            hasattr(s,'root') and
             s.root.exists() and
             not s.root_fading and
             s.ui_on and f(s,*a,**k)
@@ -45,7 +46,7 @@ class Editor:
 
     # listener
     def callback(s,cb):
-        bui.apptimer(0.01,getattr(s,cb))
+        bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
     def __init__(s):
         # register
@@ -69,7 +70,7 @@ class Editor:
         s.event_kids = {}
         s.event_top = None
         # window
-        s.window_on = None
+        s.window_on = ()
         # magic
         s.magic_x = 5.5
         s.magic_y = 5
@@ -112,11 +113,15 @@ class Editor:
             s.event_button.activate()
         else: s.square.activate()
 
+    @ui_safe
     def on_resize(s):
         s.on_scroll()
+        s.wrap_all()
 
+    @ui_safe
     def on_rescale(s):
         s.on_scroll()
+        s.wrap_all()
 
     @ui_safe
     def on_scroll(s):
@@ -458,7 +463,7 @@ class Editor:
         # extra
         s.make_menu()
         # finally
-        s.wrap()
+        s.wrap_all(init=True)
         s.top_left()
         s.ui_on = True
         def on_finish():
@@ -673,7 +678,8 @@ class Editor:
         )
         s.window_on = (s.edit_button,s.edit_window,on_back)
 
-    def wrap(s,what=0,on_finish=None):
+    def wrap(s,what=0,on_finish=None,init=False):
+        if not init: s.complete_all()
         # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
         sx,sy = s.stamp_size = (rx,150)
@@ -683,8 +689,11 @@ class Editor:
         s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smol)
         deep_x = s.entry_xs_real*(s.max_time*s.entries_per_sec+1)
         y_off = 70
+        xoff, = Eval.SCALE(25)
+        one, = Eval.SCALE(1)
+        s.event_kid_ts = one
         s.window_size = wx,wy = 450,300
-        s.window_pos = (rx/2-wx/2, ry/2-wy/2+y_off)
+        s.window_pos = Eval.OFFSET(rx,ry,-wx/2,-wy/2,0,-y_off*2)
         (
             s.window_shadow_pos,
             s.window_shadow_size
@@ -692,7 +701,35 @@ class Editor:
             *s.window_pos,
             *s.window_size
         )
-        ex,ey = s.event_menu_size = 300, 350
+        # event math
+        s.event_button_size = dx,dy = Eval.SCALE(100,40)
+        s.event_kid_off, = Eval.SCALE(40)
+        ex,ey = s.event_menu_size = Eval.SCALE(300,350)
+        s.event_kid_size = (ex-s.event_kid_off,dy)
+        # edit math
+        s.edit_button_xoff, = Eval.SCALE(200)
+        s.edit_button_xtra, = Eval.SCALE(10)
+        s.edit_button_pos = pos = (
+            dx+s.edit_button_xtra,
+            sy+6.5
+        )
+        s.edit_button_pos2 = (
+            pos[0]+ex-dx,
+            pos[1]
+        )
+        s.edit_button_size = (dx-4,dy-3)
+        # control math
+        s.control_off, = Eval.SCALE(5)
+        s.control_size = conx,cony = Eval.SCALE(50,50)
+        s.control_pos = lambda i:(
+            sx-conx*(i+1)-s.control_off*i-2,sy+s.control_off
+        )
+        # tool math
+        s.tool_off, = Eval.SCALE(5)
+        s.tool_size = tx,ty = Eval.SCALE(50,50)
+        s.tool_pos = lambda i:(
+            sx-tx*(i+1)-s.tool_off*i-2,sy+s.tool_off
+        )
         # stupid
         if not isinstance(what,list): what = [what]
         yes = 0 in what
@@ -702,26 +739,38 @@ class Editor:
             bui.containerwidget(
                 s.root,
                 size=s.stamp_size,
-                stack_offset=(-rx/2+sx/2,-ry/2+sy/2),
+                stack_offset=Eval.OFFSET(-rx,-ry,sx/2,sy/2)
             )
             # toast (applied on animation)
             s.toast_position = (sx/2,sy+10)
             # stamp background
             bui.imagewidget(s.stamp_bg,size=s.stamp_size)
+            # square math
+            bx, = Eval.SCALE(55)
+            px1,_ = Eval.OFFSET(
+                rx, ry, *bui.get_special_widget(
+                    'menu_button'
+                ).get_screen_space_center(), bx, bx
+            )
+            # triangle math
+            px2,py = Eval.OFFSET(
+                rx, ry, *bui.get_special_widget(
+                    'squad_button'
+                ).get_screen_space_center(), bx, bx
+            )
             # square
-            bx = 55
-            px,py = rx-bx,ry-bx
             bui.buttonwidget(
                 s.square,
-                position=(px,py),
-                size=(bx,bx)
+                position=(px1,py),
+                size=(bx,bx),
+                text_scale=one
             )
             # triangle
-            px -= bx+5
             bui.buttonwidget(
                 s.triangle,
-                position=(px,py),
-                size=(bx,bx)
+                position=(px2,py),
+                size=(bx,bx),
+                text_scale=one
             )
             # top left h
             bui.textwidget(
@@ -814,60 +863,105 @@ class Editor:
         # event
         if yes or 4 in what:
             # event button background
-            dx,dy = s.event_button_size = 100,40
+            dx,dy = (
+                s.event_on and
+                s.event_menu_size or
+                s.event_button_size
+            )
             bui.imagewidget(
                 s.event_root,
                 size=(dx,dy),
                 position=(0,sy+5)
             )
+            if s.event_on:
+                a = s.anims[id(s.event_root)].attrs_end
+                a['size'] = s.event_menu_size
+                a = s.anims[id(s.event_root)].attrs_start
+                a['size'] = s.event_button_size
+                a = s.anims[id(s.event_root)].attrs_current
+                a['size'] = s.event_menu_size
             # event button
             bui.buttonwidget(
                 s.event_button,
-                size=(dx,dy),
-                position=(0,sy+5)
+                size=s.event_button_size,
+                position=(0,sy+5),
+                text_scale=one
             )
             # event kids
             s.event_top = sy+ey+5
-            s.ev_mult = (dy+10)
-            s.ev_x = 20
-            for i,kid in enumerate(s.event_kids):
-                pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
-                bui.buttonwidget(kid,position=pos)
-        # event
+            s.ev_mult = s.event_button_size[1]+Eval.SCALE(10)[0]
+            s.ev_x, = Eval.SCALE(20)
+            for i,kid in enumerate(s.event_kids,start=1):
+                win = kid in s.window_on
+                pos = (s.ev_x,s.event_top-s.ev_mult*i)
+                size = s.event_kid_size
+                bui.buttonwidget(
+                    kid,
+                    position=(
+                        win and s.window_pos
+                        or pos
+                    ),
+                    size=(
+                        win and s.window_size
+                        or size
+                    ),
+                    text_scale=one
+                )
+                if win:
+                    a = s.anims[id(kid)]['window'].attrs_start
+                    a['position'] = pos
+                    a['size'] = size
+                    a = s.anims[id(kid)]['shadow'].attrs_start
+                    a['position'] = pos
+                    a['size'] = size
+        # edit
         if yes or 5 in what:
-            s.edit_button_pos = pos = (dx+10,sy+6.5)
-            s.edit_button_pos2 = (pos[0]+200,pos[1])
-            s.edit_button_size = (dx-4,dy-3)
             # edit button
+            win = s.edit_button in s.window_on
+            pos = (
+                s.event_on and
+                s.edit_button_pos2 or
+                s.edit_button_pos
+            )
+            size = s.edit_button_size
             bui.buttonwidget(
                 s.edit_button,
-                size=s.edit_button_size,
-                position=pos
+                size=(
+                    win and s.window_size or
+                    s.edit_button_size
+                ),
+                position=(
+                    win and s.window_pos
+                    or pos
+                ),
+                text_scale=one
             )
+            if win:
+                a = s.anims[id(s.edit_button)]['window'].attrs_start
+                a['position'] = pos
+                a['size'] = size
+                a = s.anims[id(s.edit_button)]['shadow'].attrs_start
+                a['position'] = pos
+                a['size'] = size
         # controls
         if yes or 6 in what:
-            dx,dy = s.control_size = (50,50)
-            s.control_pos = lambda i:(
-                sx-dx*(i+1)-5*i-2,sy+5
-            )
             for i,b in enumerate(s.controls):
                 bui.buttonwidget(
                     b,
-                    size=(0,0),
-                    position=s.control_pos(i)
+                    size=init and (0,0) or s.control_size,
+                    position=s.control_pos(i),
+                    text_scale=one
                 )
         # tools
         if yes or 7 in what:
-            dx,dy = s.tool_size = (50,50)
-            s.tool_pos = lambda i:(
-                sx-dx*(i+1)-5*i-2,sy+5
-            )
             for i,b in enumerate(s.tools):
                 bui.buttonwidget(
                     b,
-                    size=(0,0),
-                    position=s.tool_pos(i)
+                    size=init and (0,0) or s.tool_size,
+                    position=s.tool_pos(i),
+                    text_scale=one
                 )
+
     def bottom_left(s,dry=False):
         if not dry:
             # scroll left
@@ -935,24 +1029,68 @@ class Editor:
                 texture=Eval.TEXTURE(Const.SKIN)
             )
             s.menu_kids.append(w)
-        # finally
+
+    def complete_all(s):
+        for widget_id, anim_dict in s.anims.items():
+            if isinstance(anim_dict,dict):
+                for anim in list(anim_dict.values()):
+                    anim.complete()
+            else: anim_dict.complete()
+
+    def wrap_all(s,autofix=True,init=False):
+        s.wrap(init=init)
         s.wrap_menu()
+        # ballistica bug
+        autofix and bui.apptimer(
+            Const.BA_LAG, bui.CallPartial(
+            s.wrap_all, autofix=False
+        ))
 
     def wrap_menu(s):
         # math
         rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size = 240,220
-        s.menu_yoff = 62
-        s.menu_marg = 10
+        sx,sy = s.menu_size = Eval.SCALE(240,220)
+        s.menu_start_size = (sx*0.8,sy*0.8)
+        s.menu_yoff, = Eval.SCALE(62)
+        s.menu_marg, = Eval.SCALE(10)
         x,y = s.menu_pos = rx-sx+2,ry-sy-s.menu_yoff
-        bx,by = s.menu_button_size = sx-s.menu_marg*4,40
+        s.menu_start_pos = (
+            rx-s.menu_start_size[0],
+            ry-s.menu_yoff-s.menu_start_size[1]
+        )
+        bx = sx-s.menu_marg*4
+        by, = Eval.SCALE(40)
+        one, = Eval.SCALE(1)
+        s.menu_kid_size = bx,by
+        s.menu_kid_start_size = (bx/2,by)
         s.menu_button_xp = x+s.menu_marg*2
+        s.menu_kid_yp = lambda i: (
+            y+s.menu_marg*1.5+(by+s.menu_marg)*i
+        )
+        s.menu_kid_start_pos = lambda i:(
+            s.menu_button_xp+bx/2,
+            s.menu_kid_yp(i)
+        )
+        s.menu_kid_pos = lambda i:(
+            s.menu_button_xp,
+            s.menu_kid_yp(i)
+        )
         # menu background
         bui.imagewidget(
             s.menu_bg,
             position=s.menu_pos,
             size=s.menu_size
         )
+        if s.menu_on:
+            a = s.anims[id(s.menu_bg)].attrs_start
+            a['size'] = s.menu_start_size
+            a['position'] = s.menu_start_pos
+            a = s.anims[id(s.menu_bg)].attrs_end
+            a['size'] = s.menu_size
+            a['position'] = s.menu_pos
+            a = s.anims[id(s.menu_bg)].attrs_current
+            a['size'] = s.menu_size
+            a['position'] = s.menu_pos
         # menu kids
         for i,kid in enumerate(s.menu_kids):
             bui.buttonwidget(
@@ -961,13 +1099,24 @@ class Editor:
                 position=(
                     s.menu_button_xp,
                     y+s.menu_marg*1.5+(by+s.menu_marg)*i
-                )
+                ),
+                text_scale=one
             )
+            if s.menu_on:
+                a = s.anims[id(kid)].attrs_start
+                a['size'] = s.menu_kid_start_size
+                a['position'] = s.menu_kid_start_pos(i)
+                a = s.anims[id(kid)].attrs_current
+                a['size'] = s.menu_kid_size
+                a['position'] = s.menu_kid_pos(i)
+                a = s.anims[id(kid)].attrs_end
+                a['size'] = s.menu_kid_size
+                a['position'] = s.menu_kid_pos(i)
 
     def toggle_menu(s):
         Eval.SOUND(Const.OK_SOUND).play()
         delay = 0.1
-        butter = s.global_butter
+        butter = s.global_butter*0.7
         if s.menu_on:
             s.menu_on = False
             # menu background
@@ -987,17 +1136,7 @@ class Editor:
                 )
             return
         s.menu_on = True
-        # math
-        rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size
-        bx,by = s.menu_button_size
-        x,y = s.menu_pos
         # menu background
-        start_size = (sx*0.8,sy*0.8)
-        start_pos = (
-            rx-start_size[0],
-            ry-s.menu_yoff-start_size[1]
-        )
         if (anim:=s.anims[id(s.menu_bg)]):
             anim.cancel()
         s.anims[id(s.menu_bg)] = Animate(
@@ -1007,12 +1146,12 @@ class Editor:
             attrs={
                 'opacity':(0,Color.OPACITY),
                 'position':(
-                    start_pos,
-                    (x,y)
+                    s.menu_start_pos,
+                    s.menu_pos
                 ),
                 'size':(
-                    start_size,
-                    (sx,sy)
+                    s.menu_start_size,
+                    s.menu_size
                 )
             }
         )
@@ -1032,11 +1171,6 @@ class Editor:
                 s.toggle_menu()
         # menu kids
         for i,kid in enumerate(s.menu_kids):
-            start_size = (bx/2,by)
-            start_opacity = 0
-            start_textcolor = Color.INVISIBLE
-            yp = y+s.menu_marg*1.5+(by+s.menu_marg)*i
-            start_position = s.menu_button_xp+bx/2,yp
             if (anim:=s.anims[id(kid)]):
                 anim.cancel()
             s.anims[id(kid)] = Animate(
@@ -1045,15 +1179,18 @@ class Editor:
                 delay=delay+0.08-0.03*i,
                 duration=butter,
                 attrs={
-                    'size':(start_size,(bx,by)),
-                    'opacity':(start_opacity,Color.OPACITY),
+                    'size':(
+                        s.menu_kid_start_size,
+                        s.menu_kid_size
+                    ),
+                    'opacity':(0,Color.OPACITY),
                     'textcolor':(
-                        start_textcolor,
+                        Color.INVISIBLE,
                         (*Color.TEXT,Color.OPACITY)
                     ),
                     'position':(
-                        start_position,
-                        (s.menu_button_xp,yp)
+                        s.menu_kid_start_pos(i),
+                        s.menu_kid_pos(i)
                     )
                 }
             )
@@ -1138,7 +1275,6 @@ class Editor:
 
         # button max
         mx = sx - 40
-        s.event_kid_size = (mx,dy)
 
         # animate parent first (event root)
         if old_anim: old_anim.cancel()
@@ -1169,7 +1305,7 @@ class Editor:
                             Color.INVISIBLE,
                             (*Color.TEXT, Color.OPACITY)
                         ),
-                        'size': ((mx * start_width_ratio, dy), (mx, dy))
+                        'size': ((mx * start_width_ratio, dy), s.event_kid_size)
                     },
                     duration=child_duration,
                     delay=child_delay + stagger
@@ -1199,7 +1335,7 @@ class Editor:
             selectable=False
         )
         # backup
-        s.event_kid_pos = pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
+        s.event_kid_pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
         s.last_window_i = i
         # math
         sx,sy = s.window_size
@@ -1390,12 +1526,8 @@ class Editor:
             'duration':s.object_duration,
             'start':0
         }
-        # capture
-        smol = s.stamp_size[1]-s.stamp_y_hack
-        old_deep_y = getattr(s,'stamp_deep_y',smol)
         # push
         def push():
-            big = old_deep_y != smol
             for i,kid in enumerate(
                 reversed(s.stamp_kids)
             ):
@@ -1466,7 +1598,8 @@ class Editor:
                 'size':(
                     half_size,
                     end_size
-                )
+                ),
+                'text_scale':(s.event_kid_ts,1)
             },
             shadow_to=lambda:{
                 'opacity':(half_opacity,0),
@@ -2083,7 +2216,7 @@ class Editor:
                     bui.textwidget(
                         query=w
                     ) or '0'
-                ) for w in tar_texts
+                ) for w in target_texts
             ]
         # collect all
         def collect():
@@ -2322,14 +2455,13 @@ class Editor:
         # capture
         if to:
             last_i = s.last_window_i
-            last_pos = s.event_kid_pos
             def fix():
                 for _ in ['extra','to','shadow']:
                     anim = s.anims[id(b)].pop(_,None)
                     if not anim: continue
                     anim.cancel()
                 if s.event_on:
-                    ox,oy = last_pos
+                    ox,oy = (s.ev_x, s.event_top - s.ev_mult * (last_i+1))
                     anim = Animate(
                         widget=b,
                         func=bui.buttonwidget,
@@ -2355,7 +2487,8 @@ class Editor:
                     size=s.event_kid_size,
                     opacity=0,
                     textcolor=Color.INVISIBLE,
-                    label=list(Strings.EVENTS)[last_i]
+                    label=list(Strings.EVENTS)[last_i],
+                    text_scale=s.event_kid_ts
                 )
                 # instant shadow
                 bui.imagewidget(
@@ -2388,6 +2521,7 @@ class Editor:
                 def nevermind():
                     s.after_scroll_t = None
                     anim.cancel()
+                    fix()
                 # button
                 s.anims[id(b)]['extra'] = Animate(
                     widget=b,
@@ -2424,7 +2558,7 @@ class Editor:
             # enable
             enable()
         # finally
-        s.window_on = None
+        s.window_on = ()
 
     def show_controls(s,up=False):
         if s.controls_shown: return
@@ -2573,7 +2707,6 @@ class Editor:
         b = s.sl
         mem = s.memory[id(b)]
         new = {}
-        step = s.entry_xs_real
         scroll_butter = s.global_butter/2
 
         # move right
@@ -3123,10 +3256,6 @@ class Editor:
                     if kid_mem['order'] > deleted_order:
                         kid_mem['order'] -= 1
 
-                # capture old state
-                smol = s.stamp_size[1]-s.stamp_y_hack
-                old_deep_y = getattr(s,'stamp_deep_y',smol)
-
                 # update layout
                 s.wrap([1,2,3])
 
@@ -3357,6 +3486,31 @@ class Animate:
     def finish(s):
         s.finished = True
         if callable(s.on_finish) and not s.cancelled:
+            s.on_finish()
+
+    def complete(s):
+        """Immediately complete the animation by applying final values."""
+        if s.cancelled or s.finished:
+            return
+
+        s.cancel()  # Stop the timer
+
+        # Apply final state
+        if s.widget.exists():
+            kwargs = {}
+            for attr_name, end_val in s.attrs_end.items():
+                # Convert lists to tuples for widget functions
+                if isinstance(end_val, list):
+                    end_val = tuple(end_val)
+                kwargs[attr_name] = end_val
+                # Update current state to match end
+                s.attrs_current[attr_name] = end_val
+
+            s.func(s.widget, **kwargs)
+
+        # Mark as finished and call callback
+        s.finished = True
+        if callable(s.on_finish):
             s.on_finish()
 
     def cancel(s):
@@ -3606,6 +3760,14 @@ class Strings:
     )
 
 class Const:
+    # scaling
+    BA_LAG = 0.04
+    BA_LAG_SMALL = 0.01
+    SCALE = {
+        bui.UIScale.SMALL: 1.275,
+        bui.UIScale.MEDIUM: 1,
+        bui.UIScale.LARGE: 0.764
+    }
     # visual
     SKIN = 'white'
     EMPTY = 'empty'
@@ -3667,7 +3829,14 @@ class Eval:
         (bx+hx)-(dx+hx),
         (by+hy)-(dy+hy)
     )
-
+    OFFSET = lambda rx,ry,cx,cy,dx=0,dy=0:(
+        (rx/2+cx-dx/2,ry/2+cy-dy/2)
+    )
+    SCALE = lambda *a: (
+        (m:=Const.SCALE[
+            bui.app.ui_v1.uiscale
+        ]) and tuple(m*n for n in a)
+    )
 
 class DarkColor:
     MAIN = (0,0,0)
