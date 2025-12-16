@@ -30,6 +30,14 @@ class Editor:
     _shared = {'callbacks':[]}
 
     @staticmethod
+    def ui_safe(f):
+        return lambda s,*a,**k: (
+            s.root.exists() and
+            not s.root_fading and
+            s.ui_on and f(s,*a,**k)
+        )
+
+    @staticmethod
     def _call(sig):
         for callback_ref in Editor._shared['callbacks']:
             callback = callback_ref()
@@ -81,6 +89,9 @@ class Editor:
         # memory
         s.memory = {}
         s.anims = defaultdict(dict)
+        # controls
+        s.controls = []
+        s.controls_shown = False
         # tools
         s.tools = []
         s.tools_shown = False
@@ -96,13 +107,6 @@ class Editor:
         if s.ui_on: f()
         else: s.pending.append(f)
 
-    def ui_safe(s):
-        return (
-            s.root.exists() and
-            not s.root_fading and
-            s.ui_on
-        )
-
     def universal_back(s):
         if s.window_on or s.event_on:
             s.event_button.activate()
@@ -114,8 +118,8 @@ class Editor:
     def on_rescale(s):
         s.on_scroll()
 
+    @ui_safe
     def on_scroll(s):
-        if not s.ui_safe(): return
         if s.event_on:
             # you're not going anywhere
             for kid in s.event_kids:
@@ -419,9 +423,8 @@ class Editor:
             texture=Eval.TEXTURE(Const.SHADOW),
             color=Color.MAIN
         )
-        # tools
-        tools_str = Const.TOOLS
-        for i in range(len(tools_str)):
+        # controls
+        for i,t in enumerate(Const.CONTROLS):
             b = bui.buttonwidget(
                 parent=s.root,
                 color=Color.MAIN,
@@ -429,7 +432,23 @@ class Editor:
                 textcolor=Color.INVISIBLE,
                 enable_sound=False,
                 texture=Eval.TEXTURE(Const.SKIN),
-                label=Eval.CHAR(tools_str[i]),
+                label=Eval.CHAR(t),
+                on_activate_call=bui.CallPartial(
+                    s.do_tool, i
+                ),
+                repeat=True
+            )
+            s.controls.append(b)
+        # tools
+        for i,t in enumerate(Const.TOOLS):
+            b = bui.buttonwidget(
+                parent=s.root,
+                color=Color.MAIN,
+                opacity=0,
+                textcolor=Color.INVISIBLE,
+                enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN),
+                label=Eval.CHAR(t),
                 on_activate_call=bui.CallPartial(
                     s.do_tool, i
                 ),
@@ -547,6 +566,10 @@ class Editor:
             }
         )
         s.in_anims.append(a)
+        # finally
+        if len(s.memory):
+            if s.sl: s.show_tools()
+            else: s.show_controls()
 
     def animate_out(s,on_finish=None):
         butter = s.global_butter*2
@@ -558,8 +581,10 @@ class Editor:
             s.toggle_event()
         if s.event_on:
             s.toggle_event()
-        if s.sl:
-            s.select(s.sl)
+        if s.controls_shown:
+            s.hide_controls()
+        if s.tools_shown:
+            s.hide_tools()
         # instant
         bui.scrollwidget(
             s.stamp_scroll,
@@ -582,8 +607,8 @@ class Editor:
         # finally
         s.in_anims.clear()
 
+    @ui_safe
     def edit_window(s):
-        if not s.ui_safe(): return
         if s.window_on:
             s.window_back()
         if not s.sl:
@@ -819,17 +844,29 @@ class Editor:
                 size=s.edit_button_size,
                 position=pos
             )
-        # tools
+        # controls
         if yes or 6 in what:
+            dx,dy = s.control_size = (50,50)
+            s.control_pos = lambda i:(
+                sx-dx*(i+1)-5*i-2,sy+5
+            )
+            for i,b in enumerate(s.controls):
+                bui.buttonwidget(
+                    b,
+                    size=(0,0),
+                    position=s.control_pos(i)
+                )
+        # tools
+        if yes or 7 in what:
             dx,dy = s.tool_size = (50,50)
+            s.tool_pos = lambda i:(
+                sx-dx*(i+1)-5*i-2,sy+5
+            )
             for i,b in enumerate(s.tools):
                 bui.buttonwidget(
                     b,
-                    size=(dx-2,dy),
-                    position=(
-                       sx-dx*(i+1)-5*i,
-                       sy+5
-                    )
+                    size=(0,0),
+                    position=s.tool_pos(i)
                 )
     def bottom_left(s,dry=False):
         if not dry:
@@ -869,8 +906,8 @@ class Editor:
     def on_triangle(s):
         bui.get_special_widget('squad_button').activate()
 
+    @ui_safe
     def kill(s):
-        if not s.ui_safe(): return
         s.ui_on = False
         s.animate_out(
             on_finish=s.root.delete
@@ -1027,8 +1064,8 @@ class Editor:
                 )
             )
 
+    @ui_safe
     def toggle_event(s):
-        if not s.ui_safe(): return
         if s.window_on:
             s.window_back()
             return
@@ -1393,6 +1430,8 @@ class Editor:
                 ),
                 opacity=Color.OPACITY
             )
+            if not s.tools_shown:
+                s.show_controls()
         # math
         half_size = hx,hy = tuple(_/2 for _ in s.window_size)
         half_pos = (hx*3,hy*2.5)
@@ -2349,7 +2388,6 @@ class Editor:
                 def nevermind():
                     s.after_scroll_t = None
                     anim.cancel()
-                    fix()
                 # button
                 s.anims[id(b)]['extra'] = Animate(
                     widget=b,
@@ -2388,6 +2426,78 @@ class Editor:
         # finally
         s.window_on = None
 
+    def show_controls(s,up=False):
+        if s.controls_shown: return
+        s.controls_shown = True
+        if up:
+            for b in s.controls:
+                s.anims[id(b)][up].reverse()
+        else:
+            dx,dy = s.control_size
+            sx,sy = s.stamp_size
+            start_size = (dx,dy/4)
+            for i,b in enumerate(s.controls):
+                # instant
+                bui.buttonwidget(
+                    b, position=s.control_pos(i)
+                )
+                if (a:=s.anims[id(b)].get(up,None)):
+                    a.cancel()
+                attrs = {
+                    'size':(
+                        start_size,
+                        s.control_size
+                    ),
+                    'textcolor':(
+                        Color.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
+                    ),
+                    'opacity':(0,Color.OPACITY)
+                }
+                s.anims[id(b)][up] = Animate(
+                    widget=b,
+                    func=bui.buttonwidget,
+                    duration=s.global_butter,
+                    attrs=attrs
+                )
+
+    @ui_safe
+    def hide_controls(s,up=False):
+        if not s.controls_shown: return
+        s.controls_shown = False
+        if up:
+            dx,dy = s.control_size
+            sx,sy = s.stamp_size
+            end_size = (dx,0)
+            for i,b in enumerate(s.controls):
+                if (a:=s.anims[id(b)].get(up,None)):
+                    a.cancel()
+                px,py = s.control_pos(i)
+                attrs = {
+                    'size':(
+                        s.control_size,
+                        end_size
+                    ),
+                    'textcolor':(
+                        (*Color.TEXT,Color.OPACITY),
+                        Color.INVISIBLE
+                    ),
+                    'opacity':(Color.OPACITY,0),
+                    'position':(
+                        (px,py),
+                        (px,py+dy)
+                    )
+                }
+                s.anims[id(b)][up] = Animate(
+                    widget=b,
+                    func=bui.buttonwidget,
+                    duration=s.global_butter,
+                    attrs=attrs
+                )
+        else:
+            for b in s.controls:
+                s.anims[id(b)][up].reverse()
+
     def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
@@ -2406,10 +2516,12 @@ class Editor:
         if s.sl == sl:
             no()
             s.hide_tools()
+            s.show_controls(up=True)
             s.sl = None
             return
         # clear previous
         if s.sl: no()
+        s.hide_controls(up=True)
         s.show_tools()
         s.sl = sl
         yes()
@@ -2442,17 +2554,22 @@ class Editor:
                 }
             )
 
+    @ui_safe
     def hide_tools(s):
         if not s.tools_shown: return
         s.tools_shown = False
         for b in s.tools:
             s.anims[id(b)].reverse(
-                duration=s.global_butter
+                duration=s.global_butter,
+                on_finish=bui.CallPartial(
+                    bui.buttonwidget,
+                    b, size=(0,0)
+                )
             )
 
+    @ui_safe
     def do_tool(s,which):
-        if not s.ui_safe(): return
-        if not (s.sl and s.tools_shown): return
+        if not s.sl: return
         b = s.sl
         mem = s.memory[id(b)]
         new = {}
@@ -3043,6 +3160,8 @@ class Editor:
                 # deselect
                 s.sl = None
                 s.hide_tools()
+                if len(s.memory):
+                    s.show_controls(up=True)
 
                 # toast
                 s.toast(Strings.INFO_DELETED(
@@ -3236,16 +3355,16 @@ class Animate:
         return 1 - (1 - t) ** 3
 
     def finish(s):
+        s.finished = True
         if callable(s.on_finish) and not s.cancelled:
             s.on_finish()
-        s.finished = True
 
     def cancel(s):
         s.cancelled = True
         s.timer = None
         if s.delay_timer:
             s.delay_timer = None
-        if callable(s.on_cancel):
+        if callable(s.on_cancel) and not s.finished:
             s.on_cancel()
 
     def get_state(s):
@@ -3491,6 +3610,11 @@ class Const:
     SKIN = 'white'
     EMPTY = 'empty'
     SHADOW = 'softRect'
+    # control charstr
+    CONTROLS = [
+        'PLAY_BUTTON',
+        'BACK'
+    ]
     # tool charstr
     TOOLS = [
         'RIGHT_ARROW',
