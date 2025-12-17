@@ -20,7 +20,7 @@ from collections import defaultdict
 
 # static
 __version__ = '1.0'
-__counter__ = '1'
+__release__ = '1'
 
 class Config:
     COLOR = 'DARK'
@@ -71,6 +71,7 @@ class Editor:
         s.event_top = None
         # window
         s.window_on = ()
+        s.window_kids = []
         # magic
         s.magic_x = 5.5
         s.magic_y = 5
@@ -183,7 +184,6 @@ class Editor:
         def zoom():
             s.toast_zoom = Animate(
                 widget=b,
-                func=bui.buttonwidget,
                 attrs={
                     'size':(
                         end_size,
@@ -210,7 +210,6 @@ class Editor:
                 anim.cancel()
             s.toast_blink = Animate(
                 widget=b,
-                func=bui.buttonwidget,
                 attrs={
                     'textcolor':(
                         start_textcolor,
@@ -226,7 +225,6 @@ class Editor:
         # animate
         s.anims[id(b)] = Animate(
             widget=b,
-            func=bui.buttonwidget,
             attrs={
                 'size':(start_size,end_size),
                 'opacity':(
@@ -501,7 +499,6 @@ class Editor:
         # stamp bg
         a = Animate(
             widget=s.stamp_bg,
-            func=bui.imagewidget,
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY)
@@ -514,7 +511,6 @@ class Editor:
             # text
             a = Animate(
                 widget=t,
-                func=bui.textwidget,
                 duration=butter,
                 attrs={
                     'color':(
@@ -527,7 +523,6 @@ class Editor:
             # line
             a = Animate(
                 widget=l,
-                func=bui.imagewidget,
                 duration=butter,
                 attrs={
                     'opacity':(0,Color.OPACITY/10)
@@ -537,7 +532,6 @@ class Editor:
         # event button
         a = Animate(
             widget=s.event_button,
-            func=bui.buttonwidget,
             duration=butter,
             attrs={
                 'textcolor':(
@@ -550,7 +544,7 @@ class Editor:
         # event button background
         a = Animate(
             widget=s.event_root,
-            func=bui.imagewidget,
+
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY)
@@ -560,7 +554,7 @@ class Editor:
         # edit button
         a = Animate(
             widget=s.edit_button,
-            func=bui.buttonwidget,
+
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY),
@@ -637,7 +631,7 @@ class Editor:
         s.anims[id(s.edit_button)]['window'] = Animate(
             s.edit_button,
             duration=butter,
-            func=bui.buttonwidget,
+
             attrs={
                 'position':(start_pos,end_pos),
                 'size':(start_size,end_size),
@@ -651,7 +645,7 @@ class Editor:
         s.anims[id(s.edit_button)]['shadow'] = (
             Animate(
                 widget=s.edit_button_shadow,
-                func=bui.imagewidget,
+
                 attrs={
                     'opacity':(0,Color.OPACITY),
                     'position':(
@@ -794,7 +788,7 @@ class Editor:
                 # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
                     widget=s.stamp_scroll_root,
-                    func=bui.containerwidget,
+
                     attrs={
                         'size':(
                             (sx,old_deep_y),
@@ -806,7 +800,7 @@ class Editor:
                 # stamp hscroll
                 s.anims[id(s.stamp_hscroll)] = Animate(
                     widget=s.stamp_hscroll,
-                    func=bui.hscrollwidget,
+
                     attrs={
                         'size':(
                             (sx,old_deep_y),
@@ -818,7 +812,7 @@ class Editor:
                 # stamp hscroll root
                 s.anims[id(s.stamp_hscroll_root)] = Animate(
                     widget=s.stamp_hscroll_root,
-                    func=bui.containerwidget,
+
                     attrs={
                         'size':(
                             (deep_x,old_deep_y),
@@ -891,7 +885,8 @@ class Editor:
             s.event_top = sy+ey+5
             s.ev_mult = s.event_button_size[1]+Eval.SCALE(10)[0]
             s.ev_x, = Eval.SCALE(20)
-            for i,kid in enumerate(s.event_kids,start=1):
+            for i,g in enumerate(s.event_kids.items(),start=1):
+                kid,dat = g
                 win = kid in s.window_on
                 pos = (s.ev_x,s.event_top-s.ev_mult*i)
                 size = s.event_kid_size
@@ -907,13 +902,36 @@ class Editor:
                     ),
                     text_scale=one
                 )
+                bui.imagewidget(
+                    dat['shadow'],
+                    position=(
+                        win and s.window_shadow_pos
+                        or pos
+                    ),
+                    size=(
+                        win and s.window_shadow_size
+                        or size
+                    )
+                )
                 if win:
+                    a = s.anims[id(kid)]['window'].attrs_end
+                    a['position'] = s.window_pos
+                    a['size'] = s.window_size
                     a = s.anims[id(kid)]['window'].attrs_start
                     a['position'] = pos
                     a['size'] = size
+                    a = s.anims[id(kid)]['window'].attrs_current
+                    a['position'] = s.window_pos
+                    a['size'] = s.window_size
+                    a = s.anims[id(kid)]['shadow'].attrs_end
+                    a['position'] = s.window_shadow_pos
+                    a['size'] = s.window_shadow_size
                     a = s.anims[id(kid)]['shadow'].attrs_start
                     a['position'] = pos
                     a['size'] = size
+                    a = s.anims[id(kid)]['shadow'].attrs_current
+                    a['position'] = s.window_shadow_pos
+                    a['size'] = s.window_shadow_size
         # edit
         if yes or 5 in what:
             # edit button
@@ -1040,6 +1058,7 @@ class Editor:
     def wrap_all(s,autofix=True,init=False):
         s.wrap(init=init)
         s.wrap_menu()
+        s.wrap_window_kids()
         # ballistica bug
         autofix and bui.apptimer(
             Const.BA_LAG, bui.CallPartial(
@@ -1141,7 +1160,7 @@ class Editor:
             anim.cancel()
         s.anims[id(s.menu_bg)] = Animate(
             widget=s.menu_bg,
-            func=bui.imagewidget,
+
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY),
@@ -1175,7 +1194,7 @@ class Editor:
                 anim.cancel()
             s.anims[id(kid)] = Animate(
                 widget=kid,
-                func=bui.buttonwidget,
+
                 delay=delay+0.08-0.03*i,
                 duration=butter,
                 attrs={
@@ -1220,7 +1239,7 @@ class Editor:
             end_pos = s.event_on and start or end
             s.anims[id(w)]['push'] = Animate(
                 widget=w,
-                func=bui.buttonwidget,
+
                 attrs={
                     'position':(start_pos,end_pos)
                 },
@@ -1280,7 +1299,7 @@ class Editor:
         if old_anim: old_anim.cancel()
         s.anims[id(s.event_root)] = Animate(
             widget=s.event_root,
-            func=bui.imagewidget,
+
             attrs={
                 'size': ((dx, dy), (sx, sy))
             },
@@ -1298,7 +1317,7 @@ class Editor:
             s.anims[id(b)]['main'] = (
                 Animate(
                     widget=b,
-                    func=bui.buttonwidget,
+
                     attrs={
                         'opacity': (0, Color.OPACITY),
                         'textcolor': (
@@ -1345,7 +1364,7 @@ class Editor:
         s.anims[id(b)]['window'] = (
             Animate(
                 widget=b,
-                func=bui.buttonwidget,
+
                 duration=butter,
                 attrs={
                     'position':(
@@ -1367,7 +1386,7 @@ class Editor:
         s.anims[id(b)]['shadow'] = (
             Animate(
                 widget=s.event_kids[b]['shadow'],
-                func=bui.imagewidget,
+
                 attrs={
                     'opacity':(0,Color.OPACITY),
                     'position':(
@@ -1399,19 +1418,22 @@ class Editor:
             (lambda _:s.toast(Strings.COMING_SOON))
         )
         r = func(edit)
+        s.wrap_window_kids()
         s.animate_window_kids()
         return r
 
     def animate_window_kids(s):
+        x,y = s.window_pos
         # animate all
         for _,g in enumerate(s.window_kids):
-            w,pos,off,func,delay,*extra = g
+            w,pos,off,delay,*extra = g
+            px,py = pos
             extra = dict(extra)
             # default
             attrs = {
                 'position':(
-                    (pos[0]-off,pos[1]),
-                    pos
+                    (x+px-off,y+py),
+                    (x+px,y+py)
                 ),
                 **extra
             }
@@ -1438,11 +1460,17 @@ class Editor:
             # animate
             s.anims[id(w)] = Animate(
                 widget=w,
-                func=func,
                 attrs=attrs,
                 duration=0.18,
                 delay=delay
             )
+
+    def wrap_window_kids(s):
+        x,y = s.window_pos
+        for kid in s.window_kids:
+            w,p = kid[0:2]
+            px,py = p
+            Eval.WIDGET(w)(w,position=(x+px,y+py))
 
     def make_window_default(s,title):
         x,y = s.window_pos
@@ -1450,15 +1478,13 @@ class Editor:
         def bye():
             s.window_clean()
             s.window_back()
-        s.window_kids = []
         s.window_marg = 5
         s.window_fix = 8
         dx,dy = 35,35
 
-        pos = (x+s.window_marg-s.window_fix,y+sy-dy-s.window_marg)
+        pos = (s.window_marg-s.window_fix,sy-dy-s.window_marg)
         back = bui.buttonwidget(
             parent=s.root,
-            position=pos,
             size=(dx,dy),
             enable_sound=False,
             label=Eval.CHAR(Const.BACK),
@@ -1468,19 +1494,18 @@ class Editor:
             textcolor=Color.INVISIBLE,
             opacity=0
         )
-        s.window_kids.append((back,pos,50,bui.buttonwidget,0.35))
+        s.window_kids.append((back,pos,50,0.35))
 
-        pos = (x+sx/2-s.window_marg*4,y+sy-s.window_marg-32.5)
+        pos = (sx/2-s.window_marg*4,sy-s.window_marg-32.5)
         w = bui.textwidget(
             parent=s.root,
             text=title,
             color=Color.INVISIBLE,
-            position=pos,
             h_align='center',
             v_align='center',
             maxwidth=sx-s.window_marg*3-dx
         )
-        s.window_kids.append((w,pos,50,bui.textwidget,0.35))
+        s.window_kids.append((w,pos,50,0.35))
 
     def add_entry(s,final):
         # setup
@@ -1540,7 +1565,7 @@ class Editor:
                 )
                 s.anims[kid]['push'] = Animate(
                     widget=kid,
-                    func=bui.buttonwidget,
+
                     attrs={
                         'position':(
                             (old_x,s.entry_ys_real*(i-1)),
@@ -1655,16 +1680,16 @@ class Editor:
         delay = 0.35
         data = edit and edit['data']
         # type text
-        pos = (x+s.window_marg-s.window_fix,y+sy-88)
+        pos = (s.window_marg-s.window_fix,sy-88)
         w = bui.textwidget(
             parent=s.root,
             position=pos,
             text=Strings.NODE_TYPE_TEXT,
             color=Color.INVISIBLE
         )
-        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0))
+        s.window_kids.append((w,pos,text_push,delay+0))
         # type input
-        pos = (x+s.window_marg+80-s.window_fix,y+sy-95)
+        pos = (s.window_marg+80-s.window_fix,sy-95)
         size = (150,40)
         type_text = bui.textwidget(
             parent=s.root,
@@ -1681,20 +1706,20 @@ class Editor:
                 Config.DEBUG and Strings.PLACEHOLDER() or ''
             )
         )
-        s.window_kids.append((type_text,pos,text_push,bui.textwidget,delay+0,
+        s.window_kids.append((type_text,pos,text_push,delay+0,
             ('size',((0,size[1]),size))
         ))
         # name text
-        pos = (x+s.window_marg-s.window_fix,y+sy-133)
+        pos = (s.window_marg-s.window_fix,sy-133)
         w = bui.textwidget(
             parent=s.root,
             position=pos,
             text=Strings.NODE_NAME_TEXT,
             color=Color.INVISIBLE
         )
-        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.05))
+        s.window_kids.append((w,pos,text_push,delay+0.05))
         # name input
-        pos = (x+s.window_marg+80-s.window_fix,y+sy-140)
+        pos = (s.window_marg+80-s.window_fix,sy-140)
         size = (150,40)
         name_text = bui.textwidget(
             parent=s.root,
@@ -1712,11 +1737,11 @@ class Editor:
                 or Strings.PLACEHOLDER()
             )
         )
-        s.window_kids.append((name_text,pos,text_push,bui.textwidget,delay+0.05,
+        s.window_kids.append((name_text,pos,text_push,delay+0.05,
             ('size',((0,size[1]),size))
         ))
         # separator
-        pos = (x+s.window_marg-s.window_fix,y+sy-150)
+        pos = (s.window_marg-s.window_fix,sy-150)
         size = (229,2)
         w = bui.imagewidget(
             parent=s.root,
@@ -1726,20 +1751,20 @@ class Editor:
             opacity=0,
             color=Color.TINT
         )
-        s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
+        s.window_kids.append((w,pos,text_push,delay+0.1,
             ('size',((0,size[1]),size))
         ))
         # attr text
-        pos = (x+s.window_marg-s.window_fix,y+sy-193)
+        pos = (s.window_marg-s.window_fix,sy-193)
         w = bui.textwidget(
             parent=s.root,
             position=pos,
             text=Strings.NODE_ATTR_TEXT,
             color=Color.INVISIBLE
         )
-        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.15))
+        s.window_kids.append((w,pos,text_push,delay+0.15))
         # attr input
-        pos = (x+s.window_marg+80-s.window_fix,y+sy-200)
+        pos = (s.window_marg+80-s.window_fix,sy-200)
         size = (150,40)
         attr = bui.textwidget(
             parent=s.root,
@@ -1754,20 +1779,20 @@ class Editor:
             glow_type='uniform',
             text=Config.DEBUG and Strings.PLACEHOLDER() or ''
         )
-        s.window_kids.append((attr,pos,text_push,bui.textwidget,delay+0.15,
+        s.window_kids.append((attr,pos,text_push,delay+0.15,
             ('size',((0,size[1]),size))
         ))
         # eval text
-        pos = (x+s.window_marg-s.window_fix,y+sy-238)
+        pos = (s.window_marg-s.window_fix,sy-238)
         w = bui.textwidget(
             parent=s.root,
             position=pos,
             text=Strings.NODE_EVAL_TEXT,
             color=Color.INVISIBLE
         )
-        s.window_kids.append((w,pos,text_push,bui.textwidget,delay+0.2))
+        s.window_kids.append((w,pos,text_push,delay+0.2))
         # eval input
-        pos = (x+s.window_marg+80-s.window_fix,y+sy-245)
+        pos = (s.window_marg+80-s.window_fix,sy-245)
         size = (150,40)
         val = bui.textwidget(
             parent=s.root,
@@ -1782,7 +1807,7 @@ class Editor:
             glow_type='uniform',
             text=Config.DEBUG and '1' or ''
         )
-        s.window_kids.append((val,pos,text_push,bui.textwidget,delay+0.2,
+        s.window_kids.append((val,pos,text_push,delay+0.2,
             ('size',((0,size[1]),size))
         ))
         # attr stuff
@@ -1793,7 +1818,7 @@ class Editor:
         text_y = 30
         # attr scroll
         size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
-        pos = px,py = (x+sx-dx+5,y+s.window_marg*2+by+5)
+        pos = px,py = (sx-dx+5,s.window_marg*2+by+5)
         w = bui.scrollwidget(
             parent=s.root,
             position=pos,
@@ -1801,7 +1826,7 @@ class Editor:
             size=(dx/2,0),
             border_opacity=0
         )
-        s.window_kids.append((w,pos,20,bui.scrollwidget,delay+0,
+        s.window_kids.append((w,pos,20,delay+0,
             ('size',((dx/2,size[1]),size)),
             ('border_opacity',(0,Color.OPACITY))
         ))
@@ -1853,7 +1878,7 @@ class Editor:
             # fade
             s.anims[id(_w)] = Animate(
                 widget=_w,
-                func=bui.textwidget,
+
                 attrs={
                     'color':(
                         (*Color.TEXT,Color.OPACITY),
@@ -1875,7 +1900,7 @@ class Editor:
                     start_y = anim.attrs_current['position'][1]
                 s.anims[id(w)] = Animate(
                     widget=w,
-                    func=bui.textwidget,
+
                     duration=butter,
                     attrs={
                         'position':(
@@ -1911,7 +1936,7 @@ class Editor:
             if (anim:=s.anims[id(w)]): anim.cancel()
             s.anims[id(w)] = Animate(
                 widget=w,
-                func=bui.textwidget,
+
                 attrs={
                     'color':(
                         Color.INVISIBLE,
@@ -1956,7 +1981,7 @@ class Editor:
             anim_kid(w,px,py)
             so_far.update({a:v})
         # pop button
-        pos = (x+s.window_marg+7-s.window_fix,y+s.window_marg)
+        pos = (s.window_marg+7-s.window_fix,s.window_marg)
         size = bx/2-s.window_marg,by
         w = bui.buttonwidget(
             parent=s.root,
@@ -1969,7 +1994,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_pop
         )
-        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.08,
+        s.window_kids.append((w,pos,50,delay+0.08,
             ('size',((0,size[1]),size))
         ))
         # set button
@@ -1992,7 +2017,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_set
         )
-        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.08,
+        s.window_kids.append((w,pos,50,delay+0.08,
             ('size',((0,size[1]),size))
         ))
         def ready():
@@ -2034,7 +2059,7 @@ class Editor:
                 s.toast(Strings.INFO_SAVED)
             else: s.add_entry(final)
         # done button
-        pos = (px+8,y+s.window_marg)
+        pos = (px+8,s.window_marg)
         size = bx,by = (dx-15,40)
         w = bui.buttonwidget(
             parent=s.root,
@@ -2047,7 +2072,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_done
         )
-        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.1,
+        s.window_kids.append((w,pos,50,delay+0.1,
             ('size',((0,size[1]),size))
         ))
         # finally
@@ -2083,7 +2108,7 @@ class Editor:
             chks[i] = v
             i == 2 and prv_on and see()
         # position check
-        pos = (x+s.window_marg-3,y+by+s.window_marg*5)
+        pos = (s.window_marg-3,by+s.window_marg*5)
         pos_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_POSITION_CHECK,
@@ -2097,7 +2122,7 @@ class Editor:
                 do_chk, 0
             )
         )
-        s.window_kids.append((pos_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((pos_chk,pos,text_push,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -2106,8 +2131,8 @@ class Editor:
         top = yoff*4.5
         for i in range(3):
             pos = (
-                x+s.window_marg-3,
-                y+top-yoff*i
+                s.window_marg-3,
+                top-yoff*i
             )
             w = bui.textwidget(
                 parent=s.root,
@@ -2119,11 +2144,11 @@ class Editor:
                 text=pre
             )
             pos_texts.append(w)
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+(0.24-0.06*i),
+            s.window_kids.append((w,pos,text_push,delay+(0.24-0.06*i),
                 ('size',((bx/2,by),(bx,by)))
             ))
         # target check
-        pos = (x+off+s.window_marg*2-2,y+by+s.window_marg*5)
+        pos = (off+s.window_marg*2-2,by+s.window_marg*5)
         tar_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_TARGET_CHECK,
@@ -2137,7 +2162,7 @@ class Editor:
                 do_chk, 1
             )
         )
-        s.window_kids.append((tar_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((tar_chk,pos,text_push,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -2145,8 +2170,8 @@ class Editor:
         target_texts = []
         for i in range(3):
             pos = (
-                x+off+s.window_marg-3,
-                y+top-yoff*i
+                off+s.window_marg-3,
+                top-yoff*i
             )
             w = bui.textwidget(
                 parent=s.root,
@@ -2158,11 +2183,11 @@ class Editor:
                 text=pre
             )
             target_texts.append(w)
-            s.window_kids.append((w,pos,text_push,bui.textwidget,delay+(0.24-0.06*i),
+            s.window_kids.append((w,pos,text_push,delay+(0.24-0.06*i),
                 ('size',((bx/2,by),(bx,by)))
             ))
         # manual check
-        pos = (x+off*2+s.window_marg*2-2,y+by+s.window_marg*5)
+        pos = (off*2+s.window_marg*2-2,by+s.window_marg*5)
         man_chk = bui.checkboxwidget(
             parent=s.root,
             text=Strings.CAMERA_MANUAL_CHECK,
@@ -2176,7 +2201,7 @@ class Editor:
                 do_chk, 2
             )
         )
-        s.window_kids.append((man_chk,pos,text_push,bui.checkboxwidget,delay+0.12,
+        s.window_kids.append((man_chk,pos,text_push,delay+0.12,
             ('size',((bx/2,by),(bx,by))),
             ('scale',(0,1))
         ))
@@ -2277,8 +2302,8 @@ class Editor:
             for j in range(3):
                 n = i*3+j
                 pos = (
-                    x+sx-(by+s.window_marg)*(3-i),
-                    y+(by+s.window_marg+1)*(2.5+j)
+                    sx-(by+s.window_marg)*(3-i),
+                    (by+s.window_marg+1)*(2.5+j)
                 )
                 t = Const.CAMERA_TOOLS[n]
                 t = len(t) > 1 and Eval.CHAR(t) or t
@@ -2297,11 +2322,11 @@ class Editor:
                         action, n
                     )
                 )
-                s.window_kids.append((w,pos,text_push,bui.buttonwidget,delay+0.15+0.02*n,
+                s.window_kids.append((w,pos,text_push,delay+0.15+0.02*n,
                     ('size',((by/2,by),(by,by)))
                 ))
         # separator
-        pos = (x+s.window_marg-3,y+by+s.window_marg*4)
+        pos = (s.window_marg-3,by+s.window_marg*4)
         size = (sx-s.window_marg,2)
         w = bui.imagewidget(
             parent=s.root,
@@ -2311,7 +2336,7 @@ class Editor:
             opacity=0,
             color=Color.TINT
         )
-        s.window_kids.append((w,pos,text_push,bui.imagewidget,delay+0.1,
+        s.window_kids.append((w,pos,text_push,delay+0.1,
             ('size',((0,size[1]),size))
         ))
         # reset func
@@ -2326,8 +2351,8 @@ class Editor:
                 virgin = True
         # reset button
         pos = (
-            x+s.window_marg,
-            y+s.window_marg
+            s.window_marg,
+            s.window_marg
         )
         w = bui.buttonwidget(
             parent=s.root,
@@ -2340,7 +2365,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_reset
         )
-        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.23,
+        s.window_kids.append((w,pos,50,delay+0.23,
             ('size',((bx/2,by),(bx,by)))
         ))
         # preview func
@@ -2367,8 +2392,8 @@ class Editor:
             else: do_reset(1)
         # preview button
         pos = (
-            x+s.window_marg+off,
-            y+s.window_marg
+            s.window_marg+off,
+            s.window_marg
         )
         prv_button = bui.buttonwidget(
             parent=s.root,
@@ -2381,7 +2406,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_preview
         )
-        s.window_kids.append((prv_button,pos,50,bui.buttonwidget,delay+0.23,
+        s.window_kids.append((prv_button,pos,50,delay+0.23,
             ('size',((bx/2,by),(bx,by)))
         ))
         # done func
@@ -2402,8 +2427,8 @@ class Editor:
             else: s.add_entry(final)
         # done button
         pos = (
-            x+s.window_marg+off*2,
-            y+s.window_marg
+            s.window_marg+off*2,
+            s.window_marg
         )
         w = bui.buttonwidget(
             parent=s.root,
@@ -2416,7 +2441,7 @@ class Editor:
             textcolor=Color.INVISIBLE,
             on_activate_call=do_done
         )
-        s.window_kids.append((w,pos,50,bui.buttonwidget,delay+0.23,
+        s.window_kids.append((w,pos,50,delay+0.23,
             ('size',((bx/2,by),(bx,by)))
         ))
         # load
@@ -2448,7 +2473,7 @@ class Editor:
                 on_activate_call=call,
                 selectable=True
             )
-        butter = 0.5
+        butter = s.global_butter*1.66
         anim = s.anims[id(b)]['window']
         Eval.SOUND(Const.OK_SOUND).play()
         s.window_clean()
@@ -2464,7 +2489,7 @@ class Editor:
                     ox,oy = (s.ev_x, s.event_top - s.ev_mult * (last_i+1))
                     anim = Animate(
                         widget=b,
-                        func=bui.buttonwidget,
+
                         duration=s.global_butter,
                         attrs={
                             'textcolor':(
@@ -2501,7 +2526,7 @@ class Editor:
                 anim = Animate(
                     widget=b,
                     attrs=to(),
-                    func=bui.buttonwidget,
+
                     duration=butter,
                     on_finish=fix,
                     on_cancel=fix
@@ -2510,7 +2535,7 @@ class Editor:
                 # shadow
                 s.anims[id(b)]['shadow'] = Animate(
                     widget=s.event_kids[b]['shadow'],
-                    func=bui.imagewidget,
+
                     attrs=shadow_to(),
                     duration=butter
                 )
@@ -2525,7 +2550,7 @@ class Editor:
                 # button
                 s.anims[id(b)]['extra'] = Animate(
                     widget=b,
-                    func=bui.buttonwidget,
+
                     duration=wait,
                     attrs=extra,
                     on_cancel=nevermind
@@ -2534,7 +2559,7 @@ class Editor:
                 # shadow
                 s.anims[id(b)]['shadow'] = Animate(
                     widget=s.event_kids[b]['shadow'],
-                    func=bui.imagewidget,
+
                     duration=wait,
                     attrs=shadow_extra
                 )
@@ -2590,7 +2615,6 @@ class Editor:
                 }
                 s.anims[id(b)][up] = Animate(
                     widget=b,
-                    func=bui.buttonwidget,
                     duration=s.global_butter,
                     attrs=attrs
                 )
@@ -2624,7 +2648,6 @@ class Editor:
                 }
                 s.anims[id(b)][up] = Animate(
                     widget=b,
-                    func=bui.buttonwidget,
                     duration=s.global_butter,
                     attrs=attrs
                 )
@@ -2673,7 +2696,6 @@ class Editor:
                 a.cancel()
             s.anims[id(b)] = Animate(
                 widget=b,
-                func=bui.buttonwidget,
                 duration=s.global_butter,
                 attrs={
                     'size':(
@@ -2930,7 +2952,7 @@ class Editor:
             end_pos_b = (start_pos_b[0], new_y_up)
             s.anims[id(b)][4] = Animate(
                 widget=b,
-                func=bui.buttonwidget,
+
                 duration=s.global_butter,
                 attrs={'position': (start_pos_b, end_pos_b)}
             )
@@ -2959,7 +2981,6 @@ class Editor:
             end_pos_other = (start_pos_other[0], new_y_down)
             s.anims[id(other_btn)][4] = Animate(
                 widget=other_btn,
-                func=bui.buttonwidget,
                 duration=s.global_butter,
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
@@ -3019,7 +3040,6 @@ class Editor:
             end_pos_b = (start_pos_b[0], new_y_down)
             s.anims[id(b)][5] = Animate(
                 widget=b,
-                func=bui.buttonwidget,
                 duration=s.global_butter,
                 attrs={'position': (start_pos_b, end_pos_b)}
             )
@@ -3048,7 +3068,6 @@ class Editor:
             end_pos_other = (start_pos_other[0], new_y_up)
             s.anims[id(other_btn)][5] = Animate(
                 widget=other_btn,
-                func=bui.buttonwidget,
                 duration=s.global_butter,
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
@@ -3166,7 +3185,7 @@ class Editor:
                 else:
                     s.anims[id(kid)][which] = Animate(
                         widget=kid,
-                        func=bui.buttonwidget,
+
                         attrs={
                             'position': ((kid_x, old_y), (kid_x, new_y))
                         },
@@ -3187,7 +3206,7 @@ class Editor:
                 else:
                     s.anims[id(kid)][which] = Animate(
                         widget=kid,
-                        func=bui.buttonwidget,
+
                         attrs={
                             'position': ((kid_x, old_y), (kid_x, new_y))
                         },
@@ -3197,7 +3216,7 @@ class Editor:
             # animate new button from original to below
             s.anims[id(btn)][which] = Animate(
                 widget=btn,
-                func=bui.buttonwidget,
+
                 attrs={
                     'opacity': (0, Color.OPACITY),
                     'textcolor': (
@@ -3276,7 +3295,7 @@ class Editor:
 
                     s.anims[id(kid)][which] = Animate(
                         widget=kid,
-                        func=bui.buttonwidget,
+
                         attrs={
                             'position':(
                                 (old_x, current_y),
@@ -3300,7 +3319,6 @@ class Editor:
             # fade out animation
             s.anims[id(b)][which] = Animate(
                 widget=b,
-                func=bui.buttonwidget,
                 attrs={
                     'opacity':(Color.OPACITY, 0),
                     'textcolor':(
@@ -3322,7 +3340,7 @@ class Editor:
         if not new: return
         s.anims[id(b)][which] = Animate(
             widget=b,
-            func=bui.buttonwidget,
+
             duration=s.global_butter,
             attrs=new
         )
@@ -3355,7 +3373,7 @@ class Editor:
         s.on_scroll()
 
 class Animate:
-    def __init__(s, widget, func, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
+    def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
         """
         Dynamic animation system.
 
@@ -3375,7 +3393,7 @@ class Animate:
             condition: Optional callable that must return True
         """
         s.widget = widget
-        s.func = func
+        s.func = Eval.WIDGET(widget)
         s.on_start = on_start
         s.on_finish = (
             isinstance(on_finish,tuple) and bui.CallPartial(
@@ -3565,7 +3583,6 @@ class Animate:
         # create new animation
         return Animate(
             widget=s.widget,
-            func=s.func,
             attrs=reversed_attrs,
             **new
         )
@@ -3712,7 +3729,7 @@ class Strings:
     EDIT = lambda t: f'Edit {t}'
     WELCOME = lambda n: (
         f'{n} joined the studio! Press for more',
-        f'Unexpected or silly errors may occur! Movi v{__version__} [{__counter__}]'
+        f'Movi v{__version__}, release {__release__}, what could go wrong?'
     )
     COMING_SOON = [
         'Coming soon!',
@@ -3836,6 +3853,11 @@ class Eval:
         (m:=Const.SCALE[
             bui.app.ui_v1.uiscale
         ]) and tuple(m*n for n in a)
+    )
+    WIDGET = lambda w: (
+        getattr(
+            bui, w.get_widget_type() + 'widget'
+        )
     )
 
 class DarkColor:
