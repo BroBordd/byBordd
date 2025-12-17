@@ -34,7 +34,7 @@ class Editor:
         return lambda s,*a,**k: (
             hasattr(s,'root') and
             s.root.exists() and
-            not s.root_fading and
+            s.ui_clickable and
             s.ui_on and f(s,*a,**k)
         )
 
@@ -52,7 +52,7 @@ class Editor:
         # register
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
-        s.root_fading = False
+        s.ui_clickable = False
         s.in_anims = []
         s.out_anims = []
         # toast
@@ -84,8 +84,8 @@ class Editor:
         s.entry_ys_real = s.entry_ys * s.magic_right
         # stamp
         s.stamp_kids = []
-        s.stamp_y_hack = 14
-        s.max_time = 10
+        s.stamp_timeline = []
+        s.stamp_hack = 14
         s.entries_per_sec = 5
         s.object_duration = 1
         # memory
@@ -247,7 +247,6 @@ class Editor:
         s.last_toast = t
 
     def make(s):
-        if s.root_fading: return
         # root
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
@@ -328,31 +327,6 @@ class Editor:
             parent=s.stamp_hscroll,
             background=False
         )
-        # stamp timeline
-        s.stamp_timeline = []
-        eps = s.entries_per_sec
-        for i in range(s.max_time*eps+1):
-            t = bui.textwidget(
-                parent=s.stamp_hscroll_root,
-                text=(
-                    i%eps == 0
-                    and str(int(i/eps))
-                    or '.'
-                ),
-                h_align='center',
-                v_align='center',
-                size=(10,5),
-                scale=0.5,
-                color=Color.INVISIBLE
-            )
-            l = bui.imagewidget(
-                parent=s.stamp_hscroll_root,
-                texture=Eval.TEXTURE(Const.SKIN),
-                opacity=0,
-                size=(2,s.long_line_y),
-                color=Color.TEXT
-            )
-            s.stamp_timeline.append((t,l))
         # top left h
         s.top_left_h = bui.textwidget(
             parent=s.stamp_hscroll_root
@@ -462,6 +436,8 @@ class Editor:
         s.make_menu()
         # finally
         s.wrap_all(init=True)
+        s.make_timeline(init=True)
+        s.wrap_timeline()
         s.top_left()
         s.ui_on = True
         def on_finish():
@@ -470,6 +446,55 @@ class Editor:
         bui.apptimer(0.3,bui.CallPartial(
             s.animate_in, on_finish
         ))
+
+    def make_timeline(s,init=False):
+        # cleanup
+        for i,j in s.stamp_timeline:
+            i.delete()
+            j.delete()
+        s.stamp_timeline.clear()
+        # stamp timeline
+        eps = s.entries_per_sec
+        num_markers = int(s.stamp_deep_x / s.entry_xs_real) + 5
+        for i in range(num_markers):
+            t = bui.textwidget(
+                parent=s.stamp_hscroll_root,
+                text=(
+                    i%eps == 0
+                    and str(int(i/eps))
+                    or '.'
+                ),
+                h_align='center',
+                v_align='center',
+                size=(10,5),
+                scale=0.5,
+                color=(
+                    Color.INVISIBLE if init else
+                    (*Color.TEXT,Color.OPACITY)
+                )
+            )
+            l = bui.imagewidget(
+                parent=s.stamp_hscroll_root,
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0 if init else Color.OPACITY/10,
+                size=(2,s.long_line_y),
+                color=Color.TEXT
+            )
+            s.stamp_timeline.append((t,l))
+
+    def wrap_timeline(s):
+        for i,g in enumerate(s.stamp_timeline):
+            t,l = g
+            px = i*s.entry_xs_real
+            py = s.stamp_deep_y-20
+            bui.textwidget(
+                t,
+                position=(px,py)
+            )
+            bui.imagewidget(
+                l,
+                position=(px+4,-s.long_line_y/2)
+            )
 
     def toggle_ui(s):
         if s.ui_on:
@@ -480,6 +505,7 @@ class Editor:
             s.ui_on = True
 
     def animate_in(s,on_finish=None):
+        s.ui_clickable = True
         # instant
         bui.scrollwidget(
             s.stamp_scroll,
@@ -491,10 +517,8 @@ class Editor:
             anim.cancel()
         s.in_anims.clear()
         s.out_anims.clear()
-        s.root_fading = True
         # cancellable
         def cleanup():
-            s.root_fading = False
             callable(on_finish) and on_finish()
         # stamp bg
         a = Animate(
@@ -589,10 +613,9 @@ class Editor:
             s.stamp_scroll,
             size=(0,0)
         )
-        s.root_fading = True
+        s.ui_clickable = True
         # on finish
         def cleanup():
-            s.root_fading = False
             s.in_anims.clear()
             callable(on_finish) and on_finish()
         s.out_anims.clear()
@@ -673,15 +696,31 @@ class Editor:
         s.window_on = (s.edit_button,s.edit_window,on_back)
 
     def wrap(s,what=0,on_finish=None,init=False):
-        if not init: s.complete_all()
         # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
         sx,sy = s.stamp_size = (rx,150)
-        smol = sy-s.stamp_y_hack
-        old_deep_y = getattr(s,'stamp_deep_y',smol)
-        big = old_deep_y > sy
-        s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smol)
-        deep_x = s.entry_xs_real*(s.max_time*s.entries_per_sec+1)
+        smoly = sy-s.stamp_hack
+        # deep y
+        old_deep_y = getattr(s,'stamp_deep_y',smoly)
+        bigy = old_deep_y > sy
+        s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smoly)
+        # deep x
+        smolx = sx-s.stamp_hack
+        old_deep_x = getattr(s,'stamp_deep_x',smolx)
+        bigx = old_deep_x > sx
+#        most = max([
+#            _['start']+_['duration']
+#            for _ in s.memory.values()
+#        ] or [0])
+#        smolt = int(sx/s.entry_xs)
+#        s.max_time = max(most,smolt)
+#        s.stamp_deep_x = max(most*s.entries_per_sec*s.entry_xs,smolx)
+        rightmost_edge = max([
+            (_['start'] + _['duration']) * s.entries_per_sec * s.entry_xs_real
+            for _ in s.memory.values()
+        ] or [0])
+        s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 10, smolx)
+        # window math
         y_off = 70
         xoff, = Eval.SCALE(25)
         one, = Eval.SCALE(1)
@@ -783,7 +822,7 @@ class Editor:
                 s.stamp_scroll,
                 size=s.stamp_size
             )
-            if big:
+            if bigy or bigx:
                 butter = s.global_butter/2
                 # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
@@ -812,11 +851,10 @@ class Editor:
                 # stamp hscroll root
                 s.anims[id(s.stamp_hscroll_root)] = Animate(
                     widget=s.stamp_hscroll_root,
-
                     attrs={
                         'size':(
-                            (deep_x,old_deep_y),
-                            (deep_x,s.stamp_deep_y)
+                            (old_deep_x,old_deep_y),
+                            (s.stamp_deep_x,s.stamp_deep_y)
                         )
                     },
                     duration=butter,
@@ -836,24 +874,12 @@ class Editor:
                 # stamp hscroll root
                 bui.containerwidget(
                     s.stamp_hscroll_root,
-                    size=(deep_x,s.stamp_deep_y)
+                    size=(s.stamp_deep_x,s.stamp_deep_y)
                 )
                 if callable(on_finish): on_finish()
         # stamp
         if yes or 3 in what:
-            # wrap stamp timeline
-            for i,g in enumerate(s.stamp_timeline):
-                t,l = g
-                px = i*s.entry_xs_real
-                py = s.stamp_deep_y-20
-                bui.textwidget(
-                    t,
-                    position=(px,py)
-                )
-                bui.imagewidget(
-                    l,
-                    position=(px+4,-s.long_line_y/2)
-                )
+            if not init: s.wrap_timeline()
         # event
         if yes or 4 in what:
             # event button background
@@ -1056,6 +1082,7 @@ class Editor:
             else: anim_dict.complete()
 
     def wrap_all(s,autofix=True,init=False):
+        s.complete_all()
         s.wrap(init=init)
         s.wrap_menu()
         s.wrap_window_kids()
@@ -1549,7 +1576,7 @@ class Editor:
             'event':s.last_window_i,
             'data':final,
             'duration':s.object_duration,
-            'start':0
+            'start':0.0
         }
         # push
         def push():
@@ -1558,7 +1585,7 @@ class Editor:
             ):
                 mem = s.memory[id(kid)]
                 width_in_steps = mem['duration'] * s.entries_per_sec
-                old_x = s.magic_x + s.entry_xs_real*mem['start'] + (width_in_steps * s.magic_left)
+                old_x = s.magic_x + s.entry_xs_real*mem['start']*s.entries_per_sec + (width_in_steps * s.magic_left)
                 end_pos = (
                     old_x,
                     s.entry_ys_real*i
@@ -2600,7 +2627,7 @@ class Editor:
                 bui.buttonwidget(
                     b, position=s.control_pos(i)
                 )
-                if (a:=s.anims[id(b)].get(up,None)):
+                for a in s.anims[id(b)].values():
                     a.cancel()
                 attrs = {
                     'size':(
@@ -2628,7 +2655,7 @@ class Editor:
             sx,sy = s.stamp_size
             end_size = (dx,0)
             for i,b in enumerate(s.controls):
-                if (a:=s.anims[id(b)].get(up,None)):
+                for a in s.anims[id(b)].values():
                     a.cancel()
                 px,py = s.control_pos(i)
                 attrs = {
@@ -2730,6 +2757,11 @@ class Editor:
         mem = s.memory[id(b)]
         new = {}
         scroll_butter = s.global_butter/2
+        restamp = lambda:(
+            s.wrap(2),
+            s.make_timeline(),
+            s.wrap_timeline()
+        )
 
         # move right
         if which == 0:
@@ -2741,7 +2773,7 @@ class Editor:
 
             # capture from memory first
             width_steps = mem['duration'] * s.entries_per_sec
-            start_x = s.magic_x + s.entry_xs_real * mem['start'] + (width_steps * s.magic_left)
+            start_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (width_steps * s.magic_left)
             start_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             start_pos = (start_x, start_y)
 
@@ -2754,21 +2786,23 @@ class Editor:
             s.anims[id(b)].pop(0, None)
 
             # increment start
-            mem['start'] += 1
+            mem['start'] += 1/s.entries_per_sec
 
             # calculate target
             new_width_steps = mem['duration'] * s.entries_per_sec
-            new_x = s.magic_x + s.entry_xs_real * mem['start'] + (new_width_steps * s.magic_left)
+            new_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (new_width_steps * s.magic_left)
             new_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             end_pos = (new_x, new_y)
 
             # assign
             new['position'] = (start_pos, end_pos)
+            # finally
+            restamp()
 
         # move left
         if which == 1:
             # validate minimum
-            if mem['start'] <= 0:
+            if mem['start'] < 0.01:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_REACHED_ZERO)
                 return
@@ -2781,7 +2815,7 @@ class Editor:
 
             # capture from memory first
             width_steps = mem['duration'] * s.entries_per_sec
-            start_x = s.magic_x + s.entry_xs_real * mem['start'] + (width_steps * s.magic_left)
+            start_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (width_steps * s.magic_left)
             start_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             start_pos = (start_x, start_y)
 
@@ -2794,16 +2828,18 @@ class Editor:
             s.anims[id(b)].pop(1, None)
 
             # decrement start
-            mem['start'] -= 1
+            mem['start'] -= 1/s.entries_per_sec
 
             # calculate target
             new_width_steps = mem['duration'] * s.entries_per_sec
-            new_x = s.magic_x + s.entry_xs_real * mem['start'] + (new_width_steps * s.magic_left)
+            new_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (new_width_steps * s.magic_left)
             new_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             end_pos = (new_x, new_y)
 
             # assign
             new['position'] = (start_pos, end_pos)
+            # finally
+            restamp()
 
         # expand
         if which == 2:
@@ -2818,7 +2854,7 @@ class Editor:
                 s.entry_xs_real * current_width_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            start_x = s.magic_x + s.entry_xs_real * mem['start'] + (current_width_steps * s.magic_left)
+            start_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (current_width_steps * s.magic_left)
             start_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             start_pos = (start_x, start_y)
 
@@ -2840,13 +2876,15 @@ class Editor:
                 s.entry_xs_real * new_width_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            end_x = s.magic_x + s.entry_xs_real * mem['start'] + (new_width_steps * s.magic_left)
+            end_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (new_width_steps * s.magic_left)
             end_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             end_pos = (end_x, end_y)
 
             # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
+            # finally
+            restamp()
 
         # shrink
         if which == 3:
@@ -2868,7 +2906,7 @@ class Editor:
                 s.entry_xs_real * current_width_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            start_x = s.magic_x + s.entry_xs_real * mem['start'] + (current_width_steps * s.magic_left)
+            start_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (current_width_steps * s.magic_left)
             start_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             start_pos = (start_x, start_y)
 
@@ -2890,13 +2928,15 @@ class Editor:
                 s.entry_xs_real * new_width_steps * s.magic_right,
                 s.entry_ys_real - s.magic_y
             )
-            end_x = s.magic_x + s.entry_xs_real * mem['start'] + (new_width_steps * s.magic_left)
+            end_x = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (new_width_steps * s.magic_left)
             end_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             end_pos = (end_x, end_y)
 
             # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
+            # finally
+            restamp()
 
         # move up
         if which == 4:
@@ -2936,7 +2976,7 @@ class Editor:
 
             # capture from memory first
             width_steps_b = mem['duration'] * s.entries_per_sec
-            start_x_b = s.magic_x + s.entry_xs_real * mem['start'] + (width_steps_b * s.magic_left)
+            start_x_b = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (width_steps_b * s.magic_left)
             start_y_b = s.entry_ys_real * (len(s.memory) - current_order - 1)
             start_pos_b = (start_x_b, start_y_b)
 
@@ -2965,7 +3005,7 @@ class Editor:
 
             # capture from memory first
             width_steps_other = other_mem['duration'] * s.entries_per_sec
-            start_x_other = s.magic_x + s.entry_xs_real * other_mem['start'] + (width_steps_other * s.magic_left)
+            start_x_other = s.magic_x + s.entry_xs_real * other_mem['start']*s.entries_per_sec + (width_steps_other * s.magic_left)
             start_y_other = s.entry_ys_real * (len(s.memory) - target_order - 1)
             start_pos_other = (start_x_other, start_y_other)
 
@@ -3024,7 +3064,7 @@ class Editor:
 
             # capture from memory first
             width_steps_b = mem['duration'] * s.entries_per_sec
-            start_x_b = s.magic_x + s.entry_xs_real * mem['start'] + (width_steps_b * s.magic_left)
+            start_x_b = s.magic_x + s.entry_xs_real * mem['start']*s.entries_per_sec + (width_steps_b * s.magic_left)
             start_y_b = s.entry_ys_real * (len(s.memory) - current_order - 1)
             start_pos_b = (start_x_b, start_y_b)
 
@@ -3052,7 +3092,7 @@ class Editor:
 
             # capture from memory first
             width_steps_other = other_mem['duration'] * s.entries_per_sec
-            start_x_other = s.magic_x + s.entry_xs_real * other_mem['start'] + (width_steps_other * s.magic_left)
+            start_x_other = s.magic_x + s.entry_xs_real * other_mem['start']*s.entries_per_sec + (width_steps_other * s.magic_left)
             start_y_other = s.entry_ys_real * (len(s.memory) - target_order - 1)
             start_pos_other = (start_x_other, start_y_other)
 
@@ -3150,7 +3190,7 @@ class Editor:
                 s.memory[id(kid)]['order'] += 1
 
             # capture old state
-            smol = s.stamp_size[1] - s.stamp_y_hack
+            smol = s.stamp_size[1] - s.stamp_hack
             old_deep_y = getattr(s, 'stamp_deep_y', smol)
 
             # update layout
@@ -3175,7 +3215,7 @@ class Editor:
             for kid in s.stamp_kids[original_list_index + 2:]:
                 kid_mem = s.memory[id(kid)]
                 kid_width_steps = kid_mem['duration'] * s.entries_per_sec
-                kid_x = s.magic_x + s.entry_xs_real * kid_mem['start'] + (kid_width_steps * s.magic_left)
+                kid_x = s.magic_x + s.entry_xs_real * kid_mem['start']*s.entries_per_sec + (kid_width_steps * s.magic_left)
 
                 old_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'])
                 new_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1)
@@ -3196,7 +3236,7 @@ class Editor:
             for kid in s.stamp_kids[:original_list_index + 1]:
                 kid_mem = s.memory[id(kid)]
                 kid_width_steps = kid_mem['duration'] * s.entries_per_sec
-                kid_x = s.magic_x + s.entry_xs_real * kid_mem['start'] + (kid_width_steps * s.magic_left)
+                kid_x = s.magic_x + s.entry_xs_real * kid_mem['start']*s.entries_per_sec + (kid_width_steps * s.magic_left)
 
                 old_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 2)
                 new_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1)
@@ -3283,7 +3323,7 @@ class Editor:
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] >= deleted_order: continue
                     width_in_steps = kid_mem['duration'] * s.entries_per_sec
-                    old_x = s.magic_x + s.entry_xs_real*kid_mem['start'] + (width_in_steps * s.magic_left)
+                    old_x = s.magic_x + s.entry_xs_real*kid_mem['start']*s.entries_per_sec + (width_in_steps * s.magic_left)
 
                     # current position
                     current_y = s.entry_ys_real*(idx+1)
@@ -3329,7 +3369,8 @@ class Editor:
                 duration=s.global_butter/2,
                 on_finish=cleanup
             )
-
+            # finally
+            s.wrap(2)
             return
 
         # default
