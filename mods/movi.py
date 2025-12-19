@@ -13,6 +13,7 @@ import bauiv1 as bui
 import _babase as _ba
 import bascenev1 as bs
 
+from copy import deepcopy
 from random import choice
 from time import perf_counter
 from weakref import WeakMethod
@@ -60,6 +61,10 @@ class Editor:
         s.ui_clickable = False
         s.in_anims = []
         s.out_anims = []
+        # timeline
+        s.timeline = []
+        s.timeline_index = 0
+        s.active = {}
         # play
         s.play_timer = None
         s.playing = False
@@ -492,6 +497,32 @@ class Editor:
             )
             s.stamp_timeline.append((t,l))
 
+    def build_timeline(s):
+        s.timeline = []
+        for btn_id, mem in s.memory.items():
+            btn = next(
+                (b for b in s.stamp_kids if id(b) == btn_id),
+                None
+            )
+            if not btn: continue
+            s.timeline.append({
+                'time': mem['start'],
+                'type': 'start',
+                'button': btn,
+                'memory': mem,
+                'btn_id': btn_id
+            })
+            s.timeline.append({
+                'time': mem['start'] + mem['duration'],
+                'type': 'end',
+                'button': btn,
+                'memory': mem,
+                'btn_id': btn_id
+            })
+        # sort
+        s.timeline.sort(key=lambda x: x['time'])
+        s.max_time = s.timeline[-1]['time'] if s.timeline else 0
+
     def wrap_timeline(s):
         for i,g in enumerate(s.stamp_timeline):
             t,l = g
@@ -712,15 +743,18 @@ class Editor:
         smolx = sx-s.stamp_hack
         old_deep_x = getattr(s,'stamp_deep_x',smolx)
         bigx = old_deep_x > sx
-        times = [
-            _['start'] + _['duration']
-            for _ in s.memory.values()
-        ] or [0]
-        s.max_time = max(times)
-        rightmost_edge = max([
-            _ * s.entries_per_sec * s.entry_xs_real
-            for _ in times
-        ])
+        if hasattr(s, 'timeline') and s.timeline:
+            s.max_time = s.timeline[-1]['time']
+        else:
+            # first run?
+            times = [
+                _['start'] + _['duration']
+                for _ in s.memory.values()
+            ] or [0]
+            s.max_time = max(times)
+        rightmost_edge = (
+            s.max_time * s.entries_per_sec * s.entry_xs_real
+        )
         s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 1, smolx)
         # window math
         y_off = 70
@@ -1596,6 +1630,7 @@ class Editor:
             'duration':s.object_duration,
             'start':0.0
         }
+        s.build_timeline()
         # push
         def push():
             for i,kid in enumerate(
@@ -2072,12 +2107,12 @@ class Editor:
             # verify
             if not typ:
                 s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_TYPE_TEXT
+                    Strings.NODE_TYPE[0]
                 ))
                 return
             if not nam:
                 s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_NAME_TEXT
+                    Strings.NODE_NAME[0]
                 ))
                 return
             return typ,nam
@@ -2744,6 +2779,8 @@ class Editor:
         s.kill_playhead()
         s.wrap_play()
         s.wrap_controls()
+        for _ in s.active: _.delete()
+        s.active.clear()
         s.toast(Strings.INFO_FINISHED)
 
     def wrap_play(s,init=False):
@@ -2751,6 +2788,7 @@ class Editor:
         s.play_start = perf_counter() if init else None
         s.play_elapsed = 0
         s.paused_time = 0
+        s.timeline_index = 0
 
     def play(s):
         s.playing = True
@@ -2776,10 +2814,34 @@ class Editor:
         ) if s.pause_start else (
             perf_counter() - s.play_start - s.paused_time
         )
+        while (
+            s.timeline_index < len(s.timeline) and
+            s.timeline[s.timeline_index]['time'] <= s.play_elapsed
+        ):
+            event = s.timeline[s.timeline_index]
+            s.execute_event(event)
+            s.timeline_index += 1
         if s.play_elapsed >= s.max_time:
             s.stop()
             return
         s.move_playhead()
+
+    def execute_event(s,e):
+        mem = e['memory']
+        key = e['btn_id']
+        start = e['type'] == 'start'
+        what = mem['event']
+        data = mem['data']
+        # node
+        if what == 0:
+            if start:
+                with bs.get_foreground_host_activity().context:
+                    s.active[key] = bs.newnode(
+                        type=data['type'],
+                        name=data['name'],
+                        attrs=data['attrs']
+                    )
+            else: s.active.pop(key).delete()
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
@@ -2794,6 +2856,10 @@ class Editor:
         bui.imagewidget(
             s.playhead,
             position=s.playhead_pos(s.play_elapsed)
+        )
+        bui.containerwidget(
+            s.stamp_hscroll_root,
+            visible_child=s.playhead
         )
 
     def wrap_playhead(s):
@@ -2814,7 +2880,7 @@ class Editor:
             return
         px,py = s.playhead_pos(s.play_elapsed)
         sx,sy = s.playhead_size
-        end_sx = sx*200
+        end_sx = sx*100
         s.anims[id(s.playhead)] = Animate(
             widget=s.playhead,
             attrs={
@@ -3295,7 +3361,7 @@ class Editor:
             original_duration = original_data['duration']
             original_start = original_data['start']
             original_order = original_data['order']
-            node_data = original_data['data'].copy()
+            node_data = deepcopy(original_data['data'].copy())
 
             # create button
             size = (
@@ -3431,6 +3497,7 @@ class Editor:
             # select and toast
             call()
             s.toast(Strings.INFO_DUPLICATED(node_data["name"]))
+            s.build_timeline()
             return
 
         # delete
@@ -3468,6 +3535,7 @@ class Editor:
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] > deleted_order:
                         kid_mem['order'] -= 1
+
 
                 # update layout
                 s.wrap([1,2,3])
@@ -3509,6 +3577,7 @@ class Editor:
                 s.toast(Strings.INFO_DELETED(
                     node_name
                 ))
+                s.build_timeline()
 
             # fade out animation
             s.anims[id(b)][which] = Animate(
@@ -3528,6 +3597,7 @@ class Editor:
             return
 
         # default
+        s.build_timeline()
         bui.apptimer(
             scroll_butter,
             bui.CallPartial(s.scroll_to,b)
