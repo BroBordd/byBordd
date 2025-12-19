@@ -116,6 +116,8 @@ class Editor:
         s.global_butter = 0.3
         s.can_do = False
         s.pending = []
+        s.camera_data = {}
+        s.camera_timer = None
         s.blame = None
 
     def run_on_ui(s,f):
@@ -2037,7 +2039,9 @@ class Editor:
             Eval.SOUND(Const.OK_SOUND).play()
             a,v = g
             # evaluate
-            try: v = eval(v)
+            try:
+                with bs.get_foreground_host_activity().context:
+                    v = eval(v)
             except Exception as e:
                 s.toast(Strings.ERROR_EVAL(e))
                 return
@@ -2842,6 +2846,41 @@ class Editor:
                         attrs=data['attrs']
                     )
             else: s.active.pop(key).delete()
+        # camera
+        if what == 1:
+            if start:
+                has_pos,has_tar,man = data['chks']
+                s.camera_data[key] = (
+                    has_pos and data['position'],
+                    has_tar and data['target'],
+                    man
+                )
+                # wake up
+                if not s.camera_timer:
+                    def apply():
+                        pos,tar,man = next(
+                            reversed(
+                                s.camera_data.values()
+                            )
+                        )
+                        pos and _ba.set_camera_position(
+                            *pos
+                        )
+                        pos and _ba.set_camera_target(
+                            *tar
+                        )
+                        if apply.last_man != man:
+                            apply.last_man = man
+                            _ba.set_camera_manual(man)
+                    apply.last_man = False
+                    s.camera_timer = bui.AppTimer(
+                        0.02, apply, repeat=True
+                    )
+            else:
+                man = s.camera_data.pop(key)[2]
+                if not s.camera_data:
+                    s.camera_timer = None
+                    man and _ba.set_camera_manual(False)
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
