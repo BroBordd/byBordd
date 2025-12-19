@@ -13,7 +13,6 @@ import bauiv1 as bui
 import _babase as _ba
 import bascenev1 as bs
 
-from copy import deepcopy
 from random import choice
 from time import perf_counter
 from weakref import WeakMethod
@@ -24,7 +23,7 @@ __release__ = '1'
 
 class Config:
     COLOR = 'DARK'
-    DEBUG = True
+    DEBUG = False
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -775,8 +774,13 @@ class Editor:
         # event math
         s.event_button_size = dx,dy = Eval.SCALE(100,40)
         s.event_kid_off, = Eval.SCALE(40)
-        ex,ey = s.event_menu_size = Eval.SCALE(300,350)
+        num_events = len(Strings.EVENTS)
+        button_height = 40
+        spacing = 10
+        menu_height = button_height * (num_events + 1) + spacing * (num_events + 2)
+        ex,ey = s.event_menu_size = Eval.SCALE(300, menu_height)
         s.event_kid_size = (ex-s.event_kid_off,dy)
+
         # edit math
         s.edit_button_xoff, = Eval.SCALE(200)
         s.edit_button_xtra, = Eval.SCALE(10)
@@ -2772,6 +2776,10 @@ class Editor:
     def pause(s):
         s.playing = False
         s.pause_start = perf_counter()
+        s.freeze_scene()
+
+    def freeze_scene(s,b=True):
+        bs.get_foreground_host_activity().globalsnode.paused = b
 
     def stop(s):
         if not s.play_timer:
@@ -2783,9 +2791,10 @@ class Editor:
         s.kill_playhead()
         s.wrap_play()
         s.wrap_controls()
-        for _ in s.active: _.delete()
+        for _ in s.active.values(): _.delete()
         s.active.clear()
         s.toast(Strings.INFO_FINISHED)
+        s.freeze_scene(False)
 
     def wrap_play(s,init=False):
         s.pause_start = None
@@ -2795,6 +2804,7 @@ class Editor:
         s.timeline_index = 0
 
     def play(s):
+        s.freeze_scene(False)
         s.playing = True
         if s.play_timer:
             s.paused_time += perf_counter() - s.pause_start
@@ -3400,7 +3410,8 @@ class Editor:
             original_duration = original_data['duration']
             original_start = original_data['start']
             original_order = original_data['order']
-            node_data = deepcopy(original_data['data'].copy())
+            node_data = original_data['data'].copy()
+            node_data['attrs'] = node_data['attrs'].copy()
 
             # create button
             size = (
@@ -3913,6 +3924,7 @@ class Strings:
         'Sound':'Play a sound',
         'FX':'Emit an effect',
         'Map':'Control the map',
+        'Preset':'Load a preset',
         'Custom':'Custom action'
     }
     # global event
