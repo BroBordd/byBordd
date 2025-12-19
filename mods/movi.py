@@ -159,7 +159,7 @@ class Editor:
         # update
         if not s.blame:
             s.blame = Eval.BLAME(
-                Strings.BLAME,
+                Strings.BLAME(),
                 Const.BLAME
             )
         desc and bui.buttonwidget(
@@ -414,6 +414,23 @@ class Editor:
             texture=Eval.TEXTURE(Const.SHADOW),
             color=Color.BASE
         )
+        # action button
+        s.action_button = bui.buttonwidget(
+            parent=s.root,
+            label=Strings.ACTION_BUTTON,
+            on_activate_call=s.action_window,
+            texture=Eval.TEXTURE(Const.SKIN),
+            opacity=0,
+            textcolor=Color.INVISIBLE,
+            enable_sound=False,
+            color=Color.BASE
+        )
+        s.action_button_shadow = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            texture=Eval.TEXTURE(Const.SHADOW),
+            color=Color.BASE
+        )
         # tools
         for i,t in enumerate(Const.TOOLS):
             b = bui.buttonwidget(
@@ -630,6 +647,19 @@ class Editor:
             }
         )
         s.in_anims.append(a)
+        # action button
+        a = Animate(
+            widget=s.action_button,
+            duration=butter,
+            attrs={
+                'opacity':(0,Color.OPACITY),
+                'textcolor':(
+                    Color.INVISIBLE,
+                    (*Color.TEXT,Color.OPACITY)
+                )
+            }
+        )
+        s.in_anims.append(a)
         # finally
         if len(s.memory):
             if s.sl: s.show_tools()
@@ -731,6 +761,84 @@ class Editor:
         )
         s.window_on = (s.edit_button,s.edit_window,on_back)
 
+    @clickable
+    def action_window(s):
+        if s.window_on:
+            s.window_back()
+        if not s.sl:
+            Eval.SOUND(Const.BAD_SOUND).play()
+            s.toast(Strings.ERROR_SELECT_SOMETHING)
+            return
+        Eval.SOUND(Const.OK_SOUND).play()
+        # disable
+        bui.buttonwidget(
+            s.action_button,
+            on_activate_call=Const.DO_NOTHING,
+            selectable=False
+        )
+        # math
+        start_pos = s.event_on and s.action_button_pos2 or s.action_button_pos
+        end_pos = s.window_pos
+        start_size = s.edit_button_size
+        end_size = s.window_size
+        butter = s.global_butter*1.3
+        # button
+        s.anims[id(s.action_button)]['window'] = Animate(
+            s.action_button,
+            duration=butter,
+            attrs={
+                'position':(start_pos,end_pos),
+                'size':(start_size,end_size),
+                'textcolor':(
+                    (*Color.TEXT,Color.OPACITY),
+                    Color.INVISIBLE
+                )
+            }
+        )
+        # shadow
+        s.anims[id(s.action_button)]['shadow'] = (
+            Animate(
+                widget=s.action_button_shadow,
+                attrs={
+                    'opacity':(0,Color.OPACITY),
+                    'position':(
+                        start_pos,
+                        s.window_shadow_pos
+                    ),
+                    'size':(
+                        start_size,
+                        s.window_shadow_size
+                    )
+                },
+                duration=butter
+            )
+        )
+        # finally
+        ret = s.make_action_kids(
+            s.memory[id(s.sl)]['event']
+        )
+        on_back = lambda: (
+            callable(ret) and ret(),
+            s.toast(Strings.INFO_DISCARDED)
+        )
+        s.window_on = (s.action_button,s.action_window,on_back)
+
+    def make_action_kids(s,i):
+        s.make_window_default(
+            title=(
+                Strings.ACTION_ON(
+                    list(Strings.EVENTS)[i]
+                )
+            )
+        )
+        func = (
+            (lambda:s.toast(Strings.COMING_SOON))
+        )
+        r = func()
+        s.wrap_window_kids()
+        s.animate_window_kids()
+        return r
+
     def wrap(s,what=0,on_finish=None,init=False):
         # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
@@ -793,6 +901,15 @@ class Editor:
             pos[1]
         )
         s.edit_button_size = (dx-4,dy-3)
+        # action math
+        s.action_button_pos = pos = (
+            (dx+s.edit_button_xtra)*2,
+            sy+6.5
+        )
+        s.action_button_pos2 = (
+            pos[0]+ex-dx,
+            pos[1]
+        )
         # control math
         s.control_off, = Eval.SCALE(5)
         s.control_size = conx,cony = Eval.SCALE(50,50)
@@ -1029,8 +1146,37 @@ class Editor:
                 a = s.anims[id(s.edit_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
-        # controls
+        # action
         if yes or 6 in what:
+            # action button
+            win = s.action_button in s.window_on
+            pos = (
+                s.event_on and
+                s.action_button_pos2 or
+                s.action_button_pos
+            )
+            size = s.edit_button_size
+            bui.buttonwidget(
+                s.action_button,
+                size=(
+                    win and s.window_size or
+                    s.edit_button_size
+                ),
+                position=(
+                    win and s.window_pos
+                    or pos
+                ),
+                text_scale=one
+            )
+            if win:
+                a = s.anims[id(s.action_button)]['window'].attrs_start
+                a['position'] = pos
+                a['size'] = size
+                a = s.anims[id(s.action_button)]['shadow'].attrs_start
+                a['position'] = pos
+                a['size'] = size
+        # controls
+        if yes or 7 in what:
             for i,b in enumerate(s.controls):
                 bui.buttonwidget(
                     b,
@@ -1039,7 +1185,7 @@ class Editor:
                     text_scale=one
                 )
         # tools
-        if yes or 7 in what:
+        if yes or 8 in what:
             for i,b in enumerate(s.tools):
                 bui.buttonwidget(
                     b,
@@ -1311,8 +1457,9 @@ class Editor:
             return
         Eval.SOUND(Const.OK_SOUND).play()
 
-        # move edit button
-        def push_edit():
+        # push everything
+        def push():
+            # edit button
             w = s.edit_button
             ex,ey = s.edit_button_pos
             start,end = s.edit_button_pos, s.edit_button_pos2
@@ -1323,14 +1470,30 @@ class Editor:
             end_pos = s.event_on and start or end
             s.anims[id(w)]['push'] = Animate(
                 widget=w,
-
                 attrs={
                     'position':(start_pos,end_pos)
                 },
                 duration=s.global_butter,
                 delay=s.event_on and 0.07 or 0
             )
-        push_edit()
+            # action button
+            w = s.action_button
+            ex,ey = s.action_button_pos
+            start,end = s.action_button_pos, s.action_button_pos2
+            if (anim:=s.anims[id(w)].get('push',None)):
+                anim.cancel()
+                start_pos = anim.attrs_current['position']
+            else: start_pos = s.event_on and end or start
+            end_pos = s.event_on and start or end
+            s.anims[id(w)]['push'] = Animate(
+                widget=w,
+                attrs={
+                    'position':(start_pos,end_pos)
+                },
+                duration=s.global_butter,
+                delay=s.event_on and 0.07 or 0
+            )
+        push()
         dur = s.global_butter*1.5
         old_anim = s.anims.get(id(s.event_root),None)
         if s.event_on:
@@ -2303,14 +2466,16 @@ class Editor:
                 _ba.set_camera_target(*last_tar)
         # see func
         see_timer = None
+        was_man = False
         def see():
-            nonlocal see_timer
+            nonlocal see_timer,was_man
             see_timer = bui.AppTimer(
                 0.02, bui.CallPartial(
                     do_see
                 ), repeat=True
             )
-            _ba.set_camera_manual(chks[2])
+            was_man = chks[2]
+            was_man and _ba.set_camera_manual(True)
         # collect position
         def collect_pos():
             nonlocal last_pos
@@ -2429,7 +2594,10 @@ class Editor:
         ))
         # reset func
         def do_reset(shut=0):
-            _ba.set_camera_manual(False)
+            nonlocal was_man
+            if was_man:
+                _ba.set_camera_manual(False)
+                was_man = False
             Eval.SOUND(Const.OK_SOUND).play()
             shut or s.toast(Strings.INFO_RESETTED)
             if prv_on: do_preview(1)
@@ -2873,19 +3041,20 @@ class Editor:
                                 s.camera_data.values()
                             )
                         )
+                        if apply.last_man != man:
+                            apply.last_man = man
+                            _ba.set_camera_manual(man)
                         pos and _ba.set_camera_position(
                             *pos
                         )
                         pos and _ba.set_camera_target(
                             *tar
                         )
-                        if apply.last_man != man:
-                            apply.last_man = man
-                            _ba.set_camera_manual(man)
                     apply.last_man = False
                     s.camera_timer = bui.AppTimer(
                         0.02, apply, repeat=True
                     )
+                    apply()
             else:
                 man = s.camera_data.pop(key)[2]
                 if not s.camera_data:
@@ -3916,6 +4085,7 @@ class Strings:
         'Toggle Editor'
     )
     EDIT_BUTTON = 'Edit'
+    ACTION_BUTTON = 'Action'
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
     EVENTS = {
@@ -3997,7 +4167,7 @@ class Strings:
     )
     ERROR_PAUSE_FIRST = (
         'Stop playback first!',
-        'The red line is watching, I can\'t.'
+        'The playhead is watching, I can\'t.'
     )
     # info
     INFO_SAVED = (
@@ -4058,7 +4228,7 @@ class Strings:
     )
     INFO_FINISHED = (
         'Playback finished!',
-        'The red line is gone'
+        'The playhead is gone'
     )
     # confirm
     CONFIRM_DUPLICATE = lambda t:(
@@ -4070,6 +4240,9 @@ class Strings:
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
     )
     # extra
+    ACTION_ON = lambda t:(
+        f'Action on {t}'
+    )
     BYE = (
         'That\'s a wrap!',
         'How fast can you read this'
@@ -4101,7 +4274,7 @@ class Strings:
             'Cloud', 'Burst', 'Wave', 'Beam', 'Trail'
         ))
     )
-    BLAME = (
+    BLAME = lambda: (
         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
         'GCU|nmj0kz<}AdtfLdZb6+!sQ4OUYK6Q8uy*r^_3`Pcu$YW|C=9;{Y(LL1VnyQ*>B{gpqX'
         'dk#@9?UBPn;2%V#jMSPv_1XgyAJ^ZvYCOsN&;+crKe;d^f*1&xO5^OsH3p{1PWZr2DvZX#'
