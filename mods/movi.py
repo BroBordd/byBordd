@@ -18,7 +18,6 @@ from time import perf_counter
 from weakref import WeakMethod
 from collections import defaultdict
 
-# static
 __version__ = '1.0'
 __release__ = '1'
 
@@ -34,8 +33,15 @@ class Editor:
         return lambda s,*a,**k: (
             hasattr(s,'root') and
             s.root.exists() and
-            s.ui_clickable and
             s.ui_on and f(s,*a,**k)
+        )
+
+    @staticmethod
+    def clickable(f):
+        return lambda s,*a,**k: (
+            f(s,*a,**k) if s.ui_clickable else
+            s.toast(Strings.ERROR_PAUSE_FIRST) or
+            Eval.SOUND(Const.BAD_SOUND).play()
         )
 
     @staticmethod
@@ -44,7 +50,6 @@ class Editor:
             callback = callback_ref()
             callback(sig)
 
-    # listener
     def callback(s,cb):
         bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
@@ -55,6 +60,10 @@ class Editor:
         s.ui_clickable = False
         s.in_anims = []
         s.out_anims = []
+        # play
+        s.play_timer = None
+        s.playing = False
+        s.playhead = None
         # toast
         s.can_toast = True
         s.toast_zoom = None
@@ -100,7 +109,6 @@ class Editor:
         # extra
         s.sl = None
         s.global_butter = 0.3
-        s.long_line_y = 10**10
         s.can_do = False
         s.pending = []
         s.blame = None
@@ -260,7 +268,7 @@ class Editor:
             selectable=False,
             size=(0,0),
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN
+            color=Color.BASE
         )
         # trap
         bui.containerwidget(
@@ -281,7 +289,7 @@ class Editor:
         s.stamp_bg = bui.imagewidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             opacity=0
         )
         # square
@@ -289,7 +297,7 @@ class Editor:
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             label=Eval.CHAR(Const.SQUARE),
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
             on_activate_call=s.on_square
@@ -299,7 +307,7 @@ class Editor:
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             label=Eval.CHAR(Const.TRIANGLE),
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=(*Color.TEXT,Color.OPACITY),
             enable_sound=False,
             on_activate_call=s.on_triangle
@@ -308,7 +316,7 @@ class Editor:
         s.stamp_scroll = bui.scrollwidget(
             parent=s.root,
             border_opacity=0,
-            color=Color.MAIN,
+            color=Color.BASE,
             on_select_call=s.on_scroll
         )
         # stamp scroll root
@@ -320,7 +328,7 @@ class Editor:
         s.stamp_hscroll = bui.hscrollwidget(
             parent=s.stamp_scroll_root,
             border_opacity=0,
-            color=Color.MAIN
+            color=Color.BASE
         )
         # stamp hscroll root
         s.stamp_hscroll_root = bui.containerwidget(
@@ -350,7 +358,7 @@ class Editor:
         s.event_root = bui.imagewidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             opacity=0
         )
         # event button
@@ -369,7 +377,7 @@ class Editor:
             b = bui.buttonwidget(
                 parent=s.root,
                 label=n,
-                color=Color.MAIN,
+                color=Color.BASE,
                 textcolor=Color.INVISIBLE,
                 texture=Eval.TEXTURE(Const.SKIN),
                 opacity=0,
@@ -380,7 +388,7 @@ class Editor:
                 parent=s.root,
                 opacity=0,
                 texture=Eval.TEXTURE(Const.SHADOW),
-                color=Color.MAIN
+                color=Color.BASE
             )
             s.event_kids[b] = {'shadow':sh}
         # edit button
@@ -392,35 +400,19 @@ class Editor:
             opacity=0,
             textcolor=Color.INVISIBLE,
             enable_sound=False,
-            color=Color.MAIN
+            color=Color.BASE
         )
         s.edit_button_shadow = bui.imagewidget(
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
-            color=Color.MAIN
+            color=Color.BASE
         )
-        # controls
-        for i,t in enumerate(Const.CONTROLS):
-            b = bui.buttonwidget(
-                parent=s.root,
-                color=Color.MAIN,
-                opacity=0,
-                textcolor=Color.INVISIBLE,
-                enable_sound=False,
-                texture=Eval.TEXTURE(Const.SKIN),
-                label=Eval.CHAR(t),
-                on_activate_call=bui.CallPartial(
-                    s.do_tool, i
-                ),
-                repeat=True
-            )
-            s.controls.append(b)
         # tools
         for i,t in enumerate(Const.TOOLS):
             b = bui.buttonwidget(
                 parent=s.root,
-                color=Color.MAIN,
+                color=Color.BASE,
                 opacity=0,
                 textcolor=Color.INVISIBLE,
                 enable_sound=False,
@@ -432,6 +424,25 @@ class Editor:
                 repeat=True
             )
             s.tools.append(b)
+        # controls
+        for i,t in enumerate(Const.CONTROLS):
+            b = bui.buttonwidget(
+                parent=s.root,
+                color=Color.BASE,
+                opacity=0,
+                textcolor=Color.INVISIBLE,
+                enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN),
+                label=(
+                    isinstance(t,str)
+                    and Eval.CHAR(t)
+                    or Eval.CHAR(t[s.playing])
+                ),
+                on_activate_call=bui.CallPartial(
+                    s.do_control, i
+                )
+            )
+            s.controls.append(b)
         # extra
         s.make_menu()
         # finally
@@ -439,12 +450,11 @@ class Editor:
         s.make_timeline(init=True)
         s.wrap_timeline()
         s.top_left()
-        s.ui_on = True
         def on_finish():
             for call in s.pending: call()
             s.pending.clear()
         bui.apptimer(0.3,bui.CallPartial(
-            s.animate_in, on_finish
+            s.toggle_ui, on_finish
         ))
 
     def make_timeline(s,init=False):
@@ -477,7 +487,7 @@ class Editor:
                 parent=s.stamp_hscroll_root,
                 texture=Eval.TEXTURE(Const.SKIN),
                 opacity=0 if init else Color.OPACITY/10,
-                size=(2,s.long_line_y),
+                size=(2,s.stamp_deep_y*2),
                 color=Color.TEXT
             )
             s.stamp_timeline.append((t,l))
@@ -493,19 +503,20 @@ class Editor:
             )
             bui.imagewidget(
                 l,
-                position=(px+4,-s.long_line_y/2)
+                position=(px+4,-s.stamp_deep_y/2)
             )
 
-    def toggle_ui(s):
+    def toggle_ui(s,on_finish=None):
         if s.ui_on:
-            s.animate_out()
+            s.animate_out(on_finish=on_finish)
             s.ui_on = False
+            s.ui_clickable = False
         else:
-            s.animate_in()
+            s.animate_in(on_finish=on_finish)
             s.ui_on = True
+            s.ui_clickable = True
 
     def animate_in(s,on_finish=None):
-        s.ui_clickable = True
         # instant
         bui.scrollwidget(
             s.stamp_scroll,
@@ -568,7 +579,6 @@ class Editor:
         # event button background
         a = Animate(
             widget=s.event_root,
-
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY)
@@ -578,7 +588,6 @@ class Editor:
         # edit button
         a = Animate(
             widget=s.edit_button,
-
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY),
@@ -597,6 +606,23 @@ class Editor:
     def animate_out(s,on_finish=None):
         butter = s.global_butter*2
         # anything up?
+        s.collapse_all(hard=True)
+        # instant
+        bui.scrollwidget(
+            s.stamp_scroll,
+            size=(0,0)
+        )
+        s.out_anims.clear()
+        # reverse
+        for anim in s.in_anims:
+            a = anim.reverse(
+                duration=butter
+            )
+            s.out_anims.append(a)
+        s.in_anims.clear()
+        callable(on_finish) and bui.apptimer(butter,on_finish)
+
+    def collapse_all(s,hard=False):
         if not s.event_on and s.window_on:
             s.window_back(into_nothing=True)
         if s.event_on and s.window_on:
@@ -604,32 +630,12 @@ class Editor:
             s.toggle_event()
         if s.event_on:
             s.toggle_event()
-        if s.controls_shown:
+        if s.controls_shown and (hard or not s.memory):
             s.hide_controls()
         if s.tools_shown:
             s.hide_tools()
-        # instant
-        bui.scrollwidget(
-            s.stamp_scroll,
-            size=(0,0)
-        )
-        s.ui_clickable = True
-        # on finish
-        def cleanup():
-            s.in_anims.clear()
-            callable(on_finish) and on_finish()
-        s.out_anims.clear()
-        # reverse
-        for anim in s.in_anims:
-            a = anim.reverse(
-                duration=butter,
-                on_finish=cleanup
-            )
-            s.out_anims.append(a)
-        # finally
-        s.in_anims.clear()
 
-    @ui_safe
+    @clickable
     def edit_window(s):
         if s.window_on:
             s.window_back()
@@ -654,7 +660,6 @@ class Editor:
         s.anims[id(s.edit_button)]['window'] = Animate(
             s.edit_button,
             duration=butter,
-
             attrs={
                 'position':(start_pos,end_pos),
                 'size':(start_size,end_size),
@@ -668,7 +673,6 @@ class Editor:
         s.anims[id(s.edit_button)]['shadow'] = (
             Animate(
                 widget=s.edit_button_shadow,
-
                 attrs={
                     'opacity':(0,Color.OPACITY),
                     'position':(
@@ -708,18 +712,16 @@ class Editor:
         smolx = sx-s.stamp_hack
         old_deep_x = getattr(s,'stamp_deep_x',smolx)
         bigx = old_deep_x > sx
-#        most = max([
-#            _['start']+_['duration']
-#            for _ in s.memory.values()
-#        ] or [0])
-#        smolt = int(sx/s.entry_xs)
-#        s.max_time = max(most,smolt)
-#        s.stamp_deep_x = max(most*s.entries_per_sec*s.entry_xs,smolx)
-        rightmost_edge = max([
-            (_['start'] + _['duration']) * s.entries_per_sec * s.entry_xs_real
+        times = [
+            _['start'] + _['duration']
             for _ in s.memory.values()
-        ] or [0])
-        s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 10, smolx)
+        ] or [0]
+        s.max_time = max(times)
+        rightmost_edge = max([
+            _ * s.entries_per_sec * s.entry_xs_real
+            for _ in times
+        ])
+        s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 1, smolx)
         # window math
         y_off = 70
         xoff, = Eval.SCALE(25)
@@ -1044,19 +1046,27 @@ class Editor:
     def on_triangle(s):
         bui.get_special_widget('squad_button').activate()
 
-    @ui_safe
-    def kill(s):
-        s.ui_on = False
+    def kill(s,on_kill=None):
+        def finish():
+            callable(on_kill) and on_kill()
+            s.hard_cleanup()
         s.animate_out(
-            on_finish=s.root.delete
+            on_finish=finish
         )
+        s.ui_on = False
+        s.ui_clickable = False
+
+    def hard_cleanup(s):
+        for attr in s.__dict__.copy():
+            isinstance(attr,list) and attr.clear()
+            delattr(s,attr)
 
     def make_menu(s):
         # menu background
         s.menu_bg = bui.imagewidget(
             parent=s.root,
             opacity=0,
-            color=Color.MAIN,
+            color=Color.BASE,
             texture=Eval.TEXTURE(Const.SKIN)
         )
         # menu kids
@@ -1069,7 +1079,7 @@ class Editor:
                 size=(0,0),
                 opacity=0,
                 textcolor=Color.INVISIBLE,
-                color=Color.MAIN,
+                color=Color.BASE,
                 texture=Eval.TEXTURE(Const.SKIN)
             )
             s.menu_kids.append(w)
@@ -1206,7 +1216,14 @@ class Editor:
             Eval.SOUND(Const.OK_SOUND).play()
             # save & exit
             if i == 0:
-                pass
+                s.toast(Strings.BYE)
+                s.toggle_menu()
+                s.kill(
+                    on_kill=bui.CallPartial(
+                        bui.app.classic.return_to_main_menu_session_gracefully,
+                        reset_ui=False
+                    )
+                )
             # load seed
             if i == 1: pass
             # save seed
@@ -1247,7 +1264,7 @@ class Editor:
                 )
             )
 
-    @ui_safe
+    @clickable
     def toggle_event(s):
         if s.window_on:
             s.window_back()
@@ -1369,6 +1386,7 @@ class Editor:
                 )
             )
 
+    @clickable
     def event_window(s,b,i):
         if s.window_on: s.window_back()
         else: Eval.SOUND(Const.OK_SOUND).play()
@@ -1517,7 +1535,7 @@ class Editor:
             label=Eval.CHAR(Const.BACK),
             on_activate_call=bye,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=Color.INVISIBLE,
             opacity=0
         )
@@ -1557,7 +1575,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             label=nam,
             textcolor=Color.INVISIBLE,
-            color=Color.MAIN,
+            color=Color.BASE,
             opacity=0,
             enable_sound=False,
             size=size,
@@ -1711,7 +1729,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_TYPE_TEXT,
+            text=Strings.NODE_TYPE[0],
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0))
@@ -1725,7 +1743,7 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_TYPE_DESC,
+            description=Strings.NODE_TYPE[1],
             color=Color.INVISIBLE,
             v_align='center',
             glow_type='uniform',
@@ -1741,7 +1759,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_NAME_TEXT,
+            text=Strings.NODE_NAME[0],
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.05))
@@ -1755,7 +1773,7 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_NAME_DESC,
+            description=Strings.NODE_NAME[1],
             color=Color.INVISIBLE,
             v_align='center',
             glow_type='uniform',
@@ -1776,7 +1794,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             size=(0,0),
             opacity=0,
-            color=Color.TINT
+            color=Color.COLD
         )
         s.window_kids.append((w,pos,text_push,delay+0.1,
             ('size',((0,size[1]),size))
@@ -1786,7 +1804,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_ATTR_TEXT,
+            text=Strings.NODE_ATTR[0],
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.15))
@@ -1800,7 +1818,7 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_ATTR_DESC,
+            description=Strings.NODE_ATTR[1],
             color=Color.INVISIBLE,
             v_align='center',
             glow_type='uniform',
@@ -1814,7 +1832,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_EVAL_TEXT,
+            text=Strings.NODE_EVAL[0],
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.2))
@@ -1827,7 +1845,7 @@ class Editor:
             editable=True,
             allow_clear_button=False,
             size=(0,0),
-            description=Strings.NODE_EVAL_DESC,
+            description=Strings.NODE_EVAL[1],
             color=Color.INVISIBLE,
             v_align='center',
             maxwidth=size[0],
@@ -1849,7 +1867,7 @@ class Editor:
         w = bui.scrollwidget(
             parent=s.root,
             position=pos,
-            color=Color.MAIN,
+            color=Color.BASE,
             size=(dx/2,0),
             border_opacity=0
         )
@@ -2015,7 +2033,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.NODE_POP_BUTTON,
             textcolor=Color.INVISIBLE,
@@ -2038,7 +2056,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.NODE_SET_BUTTON,
             textcolor=Color.INVISIBLE,
@@ -2093,7 +2111,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.DONE_BUTTON,
             textcolor=Color.INVISIBLE,
@@ -2140,7 +2158,7 @@ class Editor:
             parent=s.root,
             text=Strings.CAMERA_POSITION_CHECK,
             position=pos,
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=Color.INVISIBLE,
             scale=0,
             maxwidth=bx-s.window_marg,
@@ -2180,7 +2198,7 @@ class Editor:
             parent=s.root,
             text=Strings.CAMERA_TARGET_CHECK,
             position=pos,
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=Color.INVISIBLE,
             scale=0,
             maxwidth=bx-s.window_marg,
@@ -2219,7 +2237,7 @@ class Editor:
             parent=s.root,
             text=Strings.CAMERA_MANUAL_CHECK,
             position=pos,
-            color=Color.MAIN,
+            color=Color.BASE,
             textcolor=Color.INVISIBLE,
             scale=0,
             maxwidth=bx-s.window_marg,
@@ -2340,7 +2358,7 @@ class Editor:
                     size=(0,0),
                     opacity=0,
                     label=t,
-                    color=Color.MAIN,
+                    color=Color.BASE,
                     textcolor=Color.INVISIBLE,
                     texture=Eval.TEXTURE(Const.SKIN),
                     enable_sound=False,
@@ -2361,7 +2379,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             size=(0,0),
             opacity=0,
-            color=Color.TINT
+            color=Color.COLD
         )
         s.window_kids.append((w,pos,text_push,delay+0.1,
             ('size',((0,size[1]),size))
@@ -2386,7 +2404,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.CAMERA_RESET_BUTTON,
             textcolor=Color.INVISIBLE,
@@ -2427,7 +2445,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.CAMERA_PREVIEW_BUTTON_OFF,
             textcolor=Color.INVISIBLE,
@@ -2462,7 +2480,7 @@ class Editor:
             size=(0,0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.MAIN,
+            color=Color.BASE,
             enable_sound=False,
             label=Strings.DONE_BUTTON,
             textcolor=Color.INVISIBLE,
@@ -2682,6 +2700,142 @@ class Editor:
             for b in s.controls:
                 s.anims[id(b)][up].reverse()
 
+    def do_control(s,i):
+        if not s.ui_on or s.tools_shown: return
+        r = None
+        # play
+        if i == 0: s.toggle_play()
+        # stop
+        if i == 1: r = s.stop()
+        Eval.SOUND(
+            r is None and Const.OK_SOUND
+            or Const.BAD_SOUND
+        ).play()
+
+    def toggle_play(s):
+        if s.playing: s.pause()
+        else: s.play()
+        s.toast(
+            s.playing
+            and Strings.INFO_PLAYING
+            or Strings.INFO_PAUSED
+        )
+        s.wrap_controls()
+
+    def wrap_controls(s):
+        bui.buttonwidget(
+            s.controls[0],
+            label=Eval.CHAR(
+                Const.CONTROLS[0][s.playing]
+            )
+        )
+
+    def pause(s):
+        s.playing = False
+        s.pause_start = perf_counter()
+
+    def stop(s):
+        if not s.play_timer:
+            s.toast(Strings.ERROR_NOT_PLAYING)
+            return False
+        s.playing = False
+        s.play_timer = None
+        s.ui_clickable = True
+        s.kill_playhead()
+        s.wrap_play()
+        s.wrap_controls()
+        s.toast(Strings.INFO_FINISHED)
+
+    def wrap_play(s,init=False):
+        s.pause_start = None
+        s.play_start = perf_counter() if init else None
+        s.play_elapsed = 0
+        s.paused_time = 0
+
+    def play(s):
+        s.playing = True
+        if s.play_timer:
+            s.paused_time += perf_counter() - s.pause_start
+            s.pause_start = None
+            return
+        # ui
+        s.collapse_all()
+        s.ui_clickable = False
+        s.make_playhead()
+        s.wrap_play(init=True)
+        # fire
+        s.play_timer = bui.AppTimer(
+            0.01, s.do_play, repeat=True
+        )
+        s.wrap_playhead()
+
+    def do_play(s):
+        if not s.playing: return
+        s.play_elapsed = (
+            s.pause_start - s.play_start - s.paused_time
+        ) if s.pause_start else (
+            perf_counter() - s.play_start - s.paused_time
+        )
+        if s.play_elapsed >= s.max_time:
+            s.stop()
+            return
+        s.move_playhead()
+
+    def make_playhead(s):
+        s.playhead and s.playhead.delete()
+        s.playhead = bui.imagewidget(
+            parent=s.stamp_hscroll_root,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.WARM,
+            opacity=Color.OPACITY
+        )
+
+    def move_playhead(s):
+        bui.imagewidget(
+            s.playhead,
+            position=s.playhead_pos(s.play_elapsed)
+        )
+
+    def wrap_playhead(s):
+        s.playhead_pos = lambda i:(
+            i*(s.entries_per_sec*s.entry_xs_real)+4,
+            -s.stamp_deep_y/2
+        )
+        s.playhead_size = (2,s.stamp_deep_y*2)
+        bui.imagewidget(
+            s.playhead,
+            size=s.playhead_size
+        )
+        s.move_playhead()
+
+    def kill_playhead(s,instant=False):
+        if instant:
+            s.playhead.delete()
+            return
+        px,py = s.playhead_pos(s.play_elapsed)
+        sx,sy = s.playhead_size
+        end_sx = sx*200
+        s.anims[id(s.playhead)] = Animate(
+            widget=s.playhead,
+            attrs={
+                'size':(
+                    (sx,sy),
+                    (end_sx,sy)
+                ),
+                'opacity':(
+                    Color.OPACITY*0.6,
+                    0
+                ),
+                'position':(
+                    (px,py),
+                    (px-end_sx/2,py)
+                )
+            },
+            duration=s.global_butter*2,
+            on_finish=s.playhead.delete
+        )
+
+    @clickable
     def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
@@ -2690,11 +2844,11 @@ class Editor:
         sl = b
         # yes
         yes = lambda: bui.buttonwidget(
-            b,color=Color.TINT
+            b,color=Color.COLD
         )
         # no
         no = lambda: bui.buttonwidget(
-            s.sl,color=Color.MAIN
+            s.sl,color=Color.BASE
         )
         # deselect
         if s.sl == sl:
@@ -2750,7 +2904,7 @@ class Editor:
                 )
             )
 
-    @ui_safe
+    @clickable
     def do_tool(s,which):
         if not s.sl: return
         b = s.sl
@@ -3156,7 +3310,7 @@ class Editor:
                 texture=Eval.TEXTURE(Const.SKIN),
                 label=node_data['name'],
                 textcolor=Color.INVISIBLE,
-                color=Color.MAIN,
+                color=Color.BASE,
                 opacity=0,
                 enable_sound=False,
                 size=size,
@@ -3198,7 +3352,7 @@ class Editor:
 
             # calculate positions
             width_steps = original_duration * s.entries_per_sec
-            final_x = s.magic_x + s.entry_xs_real * original_start + (width_steps * s.magic_left)
+            final_x = s.magic_x + s.entry_xs_real * original_start * s.entries_per_sec + (width_steps * s.magic_left)
 
             # start from original position
             orig_y = s.entry_ys_real * (len(s.memory) - original_order - 1)
@@ -3374,7 +3528,7 @@ class Editor:
             return
 
         # default
-        s.scroll_to_timer = bui.AppTimer(
+        bui.apptimer(
             scroll_butter,
             bui.CallPartial(s.scroll_to,b)
         )
@@ -3635,12 +3789,12 @@ class Strings:
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
     # UI
-    MENUS = [
+    MENUS = (
         'Save & Exit',
         'Load Seed',
         'Copy Seed',
         'Toggle Editor'
-    ]
+    )
     EDIT_BUTTON = 'Edit'
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
@@ -3655,14 +3809,22 @@ class Strings:
     # global event
     DONE_BUTTON = 'Done'
     # node event
-    NODE_TYPE_TEXT = 'Type'
-    NODE_TYPE_DESC = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
-    NODE_NAME_TEXT = 'Name'
-    NODE_NAME_DESC = 'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
-    NODE_ATTR_TEXT = 'Attr'
-    NODE_ATTR_DESC = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
-    NODE_EVAL_TEXT = 'Eval'
-    NODE_EVAL_DESC = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
+    NODE_TYPE = (
+        'Type',
+        'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
+    )
+    NODE_NAME = (
+        'Name',
+        'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
+    )
+    NODE_ATTR = (
+        'Attr',
+        'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
+    )
+    NODE_EVAL = (
+        'Eval',
+        'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
+    )
     NODE_SET_BUTTON = 'Set'
     NODE_POP_BUTTON = 'Pop'
     # camera event
@@ -3688,35 +3850,43 @@ class Strings:
         f'Nothing here is called {a!r}',
         'Yeah, nothing happened'
     )
-    ERROR_REACHED_ZERO = [
+    ERROR_REACHED_ZERO = (
         'Reached zero!',
         'Yeah I can\'t move it past that'
-    ]
-    ERROR_AT_TOP = [
+    )
+    ERROR_AT_TOP = (
         'Already at the top!',
         'No entries above to swap'
-    ]
-    ERROR_AT_BOTTOM = [
+    )
+    ERROR_AT_BOTTOM = (
         'Hit the bottom!',
         'No entries below to swap'
-    ]
-    ERROR_SMALLEST = [
+    )
+    ERROR_SMALLEST = (
         'Already at smallest size!',
         'Yeah it can\'t be smaller'
-    ]
-    ERROR_SELECT_SOMETHING = [
+    )
+    ERROR_SELECT_SOMETHING = (
         'Select something!',
         'Press on an entry to select it'
-    ]
+    )
+    ERROR_NOT_PLAYING = (
+        'Not even playing!',
+        'There is no playhead to hide'
+    )
+    ERROR_PAUSE_FIRST = (
+        'Stop playback first!',
+        'The red line is watching, I can\'t.'
+    )
     # info
-    INFO_SAVED = [
+    INFO_SAVED = (
         'Saved changes!',
         'Go look at it'
-    ]
-    INFO_DISCARDED = [
+    )
+    INFO_DISCARDED = (
         'Discarded changes!',
         'Because you changed your mind'
-    ]
+    )
     INFO_DELETED = lambda n:(
         f'Deleted "{n}"',
         'Now it\'s gone forever'
@@ -3757,6 +3927,18 @@ class Strings:
         'Resetted',
         'Everything is clean once again'
     )
+    INFO_PLAYING = (
+        'Now playing!',
+        'What else should\'ve happened?'
+    )
+    INFO_PAUSED = (
+        'Playback paused!',
+        'You just froze time'
+    )
+    INFO_FINISHED = (
+        'Playback finished!',
+        'The red line is gone'
+    )
     # confirm
     CONFIRM_DUPLICATE = lambda t:(
         f'Make another "{t}"?',
@@ -3767,32 +3949,36 @@ class Strings:
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
     )
     # extra
+    BYE = (
+        'That\'s a wrap!',
+        'How fast can you read this'
+    )
     EDIT = lambda t: f'Edit {t}'
     WELCOME = lambda n: (
         f'{n} joined the studio! Press for more',
         f'Movi v{__version__}, release {__release__}, what could go wrong?'
     )
-    COMING_SOON = [
+    COMING_SOON = (
         'Coming soon!',
         'Aka not implemented yet lmao'
-    ]
+    )
     PLACEHOLDER = lambda: (
-        choice([
+        choice((
             'Bomb', 'Blast', 'TNT', 'Flag', 'Punch',
             'Ice', 'Fire', 'Shield', 'Jump', 'Spaz',
             'Kronk', 'Mel', 'Zoom', 'Spark', 'Glow',
             'Sticky', 'Impact', 'Pixel', 'Ninja', 'Pirate',
             'Cyborg', 'Agent', 'Bunny', 'Santa', 'Frosty',
             'Power', 'Turbo', 'Mega', 'Ultra', 'Speed'
-        ]) + ' ' +
-        choice([
+        )) + ' ' +
+        choice((
             'Bot', 'Zone', 'Spawn', 'Node', 'Box',
             'Ball', 'Peak', 'Rock', 'Guy', 'Stand',
             'Pad', 'Light', 'Wall', 'Prop', 'Flash',
             'Cube', 'Orb', 'Ring', 'Core', 'Base',
             'Point', 'Mark', 'Spot', 'Area', 'Field',
             'Cloud', 'Burst', 'Wave', 'Beam', 'Trail'
-        ])
+        ))
     )
     BLAME = (
         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
@@ -3831,12 +4017,12 @@ class Const:
     EMPTY = 'empty'
     SHADOW = 'softRect'
     # control charstr
-    CONTROLS = [
-        'PLAY_BUTTON',
+    CONTROLS = (
+        ('PLAY_BUTTON','PAUSE_BUTTON'),
         'BACK'
-    ]
+    )
     # tool charstr
-    TOOLS = [
+    TOOLS = (
         'RIGHT_ARROW',
         'LEFT_ARROW',
         'FAST_FORWARD_BUTTON',
@@ -3845,9 +4031,9 @@ class Const:
         'DOWN_ARROW',
         'DPAD_CENTER_BUTTON',
         'PLAY_STATION_CROSS_BUTTON'
-    ]
+    )
     # arrows
-    CAMERA_TOOLS = [
+    CAMERA_TOOLS = (
         '-',
         'LEFT_ARROW',
         'LEFT_BUTTON',
@@ -3857,7 +4043,7 @@ class Const:
         '+',
         'RIGHT_ARROW',
         'RIGHT_BUTTON'
-    ]
+    )
     # sounds
     OK_SOUND = 'deek'
     BAD_SOUND = 'block'
@@ -3902,8 +4088,9 @@ class Eval:
     )
 
 class DarkColor:
-    MAIN = (0,0,0)
-    TINT = (0.5,0.5,0.5)
+    BASE = (0,0,0)
+    COLD = (0.5,0.5,0.5)
+    WARM = (2,0,0)
     TEXT = (2,2,2)
     INVISIBLE = (0,0,0,0)
     OPACITY = 0.4
@@ -3928,9 +4115,6 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
         super().__init__(settings)
         s.default_music = bs.MusicType.GRAND_ROMP
         s.editor = Editor()
-
-    def on_begin(s):
-        super().on_begin()
 
     def is_master(s,p):
         return p.sessionplayer.inputdevice.client_id == -1
