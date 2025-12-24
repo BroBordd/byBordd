@@ -23,7 +23,7 @@ __release__ = '1'
 
 class Config:
     COLOR = 'DARK'
-    DEBUG = False
+    DEBUG = True
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -58,8 +58,6 @@ class Editor:
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
         s.ui_clickable = False
-        s.in_anims = []
-        s.out_anims = []
         # timeline
         s.timeline = []
         s.timeline_index = 0
@@ -85,6 +83,7 @@ class Editor:
         # window
         s.window_on = ()
         s.window_kids = []
+        s.window_trash = []
         # magic
         s.magic_x = 5.5
         s.magic_y = 5
@@ -104,22 +103,25 @@ class Editor:
         # memory
         s.memory = {}
         s.anims = defaultdict(dict)
+        s.in_anims = []
+        s.out_anims = []
+        s.pending = []
         # controls
         s.controls = []
         s.controls_shown = False
         # tools
         s.tools = []
         s.tools_shown = False
+        # camera
+        s.camera_timer = None
+        s.camera_data = {}
         # extra
         s.sl = None
         s.global_butter = 0.3
         s.can_do = False
-        s.pending = []
-        s.camera_data = {}
-        s.camera_timer = None
         s.blame = None
 
-    def run_on_ui(s,f):
+    def schedule_on_ui(s,f):
         if s.ui_on: f()
         else: s.pending.append(f)
 
@@ -265,16 +267,6 @@ class Editor:
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
             background=False
-        )
-        # toast
-        s.toast_bg = bui.buttonwidget(
-            parent=s.root,
-            label='',
-            enable_sound=False,
-            selectable=False,
-            size=(0,0),
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE
         )
         # trap
         bui.containerwidget(
@@ -463,12 +455,24 @@ class Editor:
                 ),
                 on_activate_call=bui.CallPartial(
                     s.do_control, i
-                )
+                ),
+                size=(0,0)
             )
             s.controls.append(b)
+        # toast
+        s.toast_bg = bui.buttonwidget(
+            parent=s.root,
+            label='',
+            enable_sound=False,
+            selectable=False,
+            size=(0,0),
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE
+        )
         # extra
         s.make_menu()
         # finally
+        s.ui_clickable = True
         s.wrap_all(init=True)
         s.make_timeline(init=True)
         s.wrap_timeline()
@@ -818,8 +822,7 @@ class Editor:
             s.memory[id(s.sl)]['event']
         )
         on_back = lambda: (
-            callable(ret) and ret(),
-            s.toast(Strings.INFO_DISCARDED)
+            callable(ret) and ret()
         )
         s.window_on = (s.action_button,s.action_window,on_back)
 
@@ -831,13 +834,28 @@ class Editor:
                 )
             )
         )
-        func = (
-            (lambda:s.toast(Strings.COMING_SOON))
-        )
-        r = func()
+        s.make_action_default()
         s.wrap_window_kids()
         s.animate_window_kids()
-        return r
+
+    def make_action_default(s):
+        # math
+        x,y = s.window_pos
+        sx,sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        # what scroll
+        pos = (s.window_marg-s.window_fix,s.window_marg-4)
+        size = (150,sy-54)
+        w = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            border_opacity=Color.OPACITY
+        )
+        s.window_kids.append((w,pos,text_push,delay,
+            ('size',((size[0]-130,size[1]),size))
+        ))
 
     def wrap(s,what=0,on_finish=None,init=False):
         # global math
@@ -1180,7 +1198,11 @@ class Editor:
             for i,b in enumerate(s.controls):
                 bui.buttonwidget(
                     b,
-                    size=init and (0,0) or s.control_size,
+                    size=(
+                        (0,0) if init or not
+                        s.controls_shown else
+                        s.control_size
+                    ),
                     position=s.control_pos(i),
                     text_scale=one
                 )
@@ -1952,7 +1974,7 @@ class Editor:
             v_align='center',
             glow_type='uniform',
             text=data and data['type'] or (
-                Config.DEBUG and Strings.PLACEHOLDER() or ''
+                Config.DEBUG and Strings.DEBUG_NODE_TYPE_INPUT or ''
             )
         )
         s.window_kids.append((type_text,pos,text_push,delay+0,
@@ -1982,8 +2004,7 @@ class Editor:
             v_align='center',
             glow_type='uniform',
             text=(
-                data and data['name']
-                or Strings.PLACEHOLDER()
+                data and data['name'] or Strings.PLACEHOLDER()
             )
         )
         s.window_kids.append((name_text,pos,text_push,delay+0.05,
@@ -2026,7 +2047,7 @@ class Editor:
             color=Color.INVISIBLE,
             v_align='center',
             glow_type='uniform',
-            text=Config.DEBUG and Strings.PLACEHOLDER() or ''
+            text=Config.DEBUG and Strings.DEBUG_NODE_ATTR_INPUT or ''
         )
         s.window_kids.append((attr,pos,text_push,delay+0.15,
             ('size',((0,size[1]),size))
@@ -2054,7 +2075,7 @@ class Editor:
             v_align='center',
             maxwidth=size[0],
             glow_type='uniform',
-            text=Config.DEBUG and '1' or ''
+            text=Config.DEBUG and Strings.DEBUG_NODE_EVAL_INPUT or ''
         )
         s.window_kids.append((val,pos,text_push,delay+0.2,
             ('size',((0,size[1]),size))
@@ -2076,8 +2097,9 @@ class Editor:
             border_opacity=0
         )
         s.window_kids.append((w,pos,20,delay+0,
-            ('size',((dx/2,size[1]),size)),
-            ('border_opacity',(0,Color.OPACITY))
+            ('size',((0,size[1]),size)),
+            ('border_opacity',(0,Color.OPACITY)),
+            ('color',(Color.COLD,Color.BASE))
         ))
         # attr root
         attr_root = bui.containerwidget(
@@ -2327,8 +2349,9 @@ class Editor:
             ('size',((0,size[1]),size))
         ))
         # finally
+        s.window_trash = [attr_texts]
         if data:
-            so_far = data['attrs']
+            so_far = data['attrs'].copy()
             if so_far:
                 for i,a in enumerate(so_far):
                     w = new_kid(a)
@@ -2719,6 +2742,12 @@ class Editor:
                 on_cancel=w.delete
             )
         s.window_kids.clear()
+        for l in s.window_trash:
+            for w in (
+                l if isinstance(l,list)
+                else l.values()
+            ): w.delete()
+        s.window_trash.clear()
 
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
         b,call,on_back = s.window_on
@@ -2912,7 +2941,11 @@ class Editor:
                 s.anims[id(b)][up].reverse()
 
     def do_control(s,i):
-        if not s.ui_on or s.tools_shown: return
+        if (
+           not s.ui_on or
+           s.tools_shown or
+           not s.controls_shown
+        ): return
         r = None
         # play
         if i == 0: s.toggle_play()
@@ -3001,7 +3034,13 @@ class Editor:
             s.timeline[s.timeline_index]['time'] <= s.play_elapsed
         ):
             event = s.timeline[s.timeline_index]
-            s.execute_event(event)
+            try: s.execute_event(event)
+            except Exception as e:
+                t = event['memory']['data']['name']
+                s.toast(Strings.ERROR_EVENT(t,e))
+                s.stop()
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
             s.timeline_index += 1
         if s.play_elapsed >= s.max_time:
             s.stop()
@@ -3123,8 +3162,10 @@ class Editor:
     def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
-        if s.window_on and s.window_on[1] == s.edit_window:
-            s.window_back()
+        if s.window_on and s.window_on[1] in (
+            s.edit_window,
+            s.action_window
+        ): s.window_back()
         sl = b
         # yes
         yes = lambda: bui.buttonwidget(
@@ -3190,6 +3231,7 @@ class Editor:
 
     @clickable
     def do_tool(s,which):
+        if not s.tools_shown: return
         if not s.sl: return
         b = s.sl
         mem = s.memory[id(b)]
@@ -3579,8 +3621,12 @@ class Editor:
             original_duration = original_data['duration']
             original_start = original_data['start']
             original_order = original_data['order']
-            node_data = original_data['data'].copy()
-            node_data['attrs'] = node_data['attrs'].copy()
+            node_data = {
+                i:(
+                    isinstance(j,(list,dict))
+                    and j.copy() or j
+                ) for i,j in original_data['data'].copy().items()
+            }
 
             # create button
             size = (
@@ -4137,6 +4183,10 @@ class Strings:
         'Are you using quotes for str?' or
         'You\'re on your own pal'
     )
+    ERROR_EVENT = lambda t,e: (
+        f'{t}: {e}',
+        'Your fault, not mine.'
+    )
     ERROR_NOT_FOUND = lambda a:(
         f'Nothing here is called {a!r}',
         'Yeah, nothing happened'
@@ -4239,6 +4289,10 @@ class Strings:
         f'Really delete "{t}"?',
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
     )
+    # debug
+    DEBUG_NODE_TYPE_INPUT = 'prop'
+    DEBUG_NODE_EVAL_INPUT = 'bs.gettexture(\'logo\')'
+    DEBUG_NODE_ATTR_INPUT = 'color_texture'
     # extra
     ACTION_ON = lambda t:(
         f'Action on {t}'
@@ -4417,7 +4471,7 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
         if s.is_master(p):
             s.master = p
             s.make_ui()
-        s.editor and s.editor.run_on_ui(
+        s.editor and s.editor.schedule_on_ui(
             lambda: s.editor.toast(
                 Strings.WELCOME(
                     p.sessionplayer.getname()
