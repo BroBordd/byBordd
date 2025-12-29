@@ -139,7 +139,7 @@ class byBordd(Plugin):
         elif s.kb_mode == 1:
             rows = [
                 [(c, c) for c in '1234567890'],
-                [(c, c) for c in '+"`\\|/_<>[]'],
+                [(c, c) for c in '+"=\\|/_<>[]'],
                 [(c, c) for c in "-'%^&*{}()"],
                 [(SPECIAL_MODE_0, 'ABC'), (SPECIAL_LOGO, cs(sc.LOGO_FLAT)), (',', ','),
                  (SPECIAL_SPACE, ' '), ('.', '.'), (SPECIAL_TAB, 'TAB')]
