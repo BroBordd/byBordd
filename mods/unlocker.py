@@ -7,93 +7,92 @@ Unlocker v1.0 - Chest unlocker
 
 Autorun on startup:
 - Calim pending chests from inbox
-- Skip wait time for each chest
 - Unlock all pending chests in slots
+- Handle notifications
 
 Experimental.
 """
 
-import bauiv1 as bui
+import babase as ba
 import bacommon as bc
-from babase import Plugin
 
-plus = bui.app.plus
+LAMENT = True
+PLUS = ba.app.plus
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
-class byBordd(Plugin):
+class byBordd(ba.Plugin):
+    @staticmethod
+    def lament(f):
+        return LAMENT and (
+            lambda s,*a: (
+                f(s,*a) or print(
+                    '[Unlocker]',
+                    f.__name__,
+                    *a
+                )
+            )
+        ) or f
     def __init__(s):
         s.patch()
-        s.wait_timer = bui.AppTimer(
+        s.wait_timer = ba.AppTimer(
             0.113, s.wait, repeat=True
         )
     def patch(s):
         from baclassic import ClassicAppMode as c
         f = '_on_classic_account_data_change'
         o = getattr(c,f)
-        n = lambda z,v: s.check(v) or o(z,v)
+        n = lambda z,v: (
+            v.inbox_contains_prize
+            and s.fetch() or o(z,v)
+        )
         setattr(c,f,n)
-    def check(s,v):
-        if v.inbox_contains_prize:
-            s.fetch()
     def wait(s):
-        if plus.cloud.connected:
+        if PLUS.cloud.connected:
             s.wait_timer = None
             s.fetch()
+    @lament
     def fetch(s):
-        with plus.accounts.primary:
-            plus.cloud.send_message_cb(
+        with PLUS.accounts.primary:
+            PLUS.cloud.send_message_cb(
                 bc.bs.InboxRequestMessage(),
                 on_response=s.claim
             )
     def claim(s,r):
         cd = bc.clouddialog
-        with plus.accounts.primary:
+        with PLUS.accounts.primary:
             for w in r.wrappers:
                 if w.ui.button_label_positive == cd.basic.ButtonLabel.CLAIM:
-                    plus.cloud.send_message_cb(
+                    PLUS.cloud.send_message_cb(
                         cd.ActionMessage(
                             w.id,
                             cd.Action.BUTTON_PRESS_POSITIVE
                          ),
                          on_response=lambda r:None
                     )
-        s.scan()
-    def scan(s):
-        for i in range(4):
-            s.query(i)
-    def query(s,i,r=0):
-        with plus.accounts.primary:
-            plus.cloud.send_message_cb(
-                bc.bs.ChestInfoMessage(
-                    chest_id=str(i)
-                ),
-                on_response=bui.CallPartial(s.parse,i)
-            )
-    def parse(s,i,r):
-        c = r.chest
-        if c:
-            if c.unlock_tokens != 0: s.skip(i)
-            else: s.unlock(i)
-    def skip(s,i):
-        cl = bc.cloud
-        with plus.accounts.primary:
-            plus.cloud.send_message_cb(
-                cl.ChestActionMessage(
-                    chest_id=str(i),
-                    action=cl.ChestActionMessage.Action.AD,
-                    token_payment=0
-                ),
-                on_response=bui.CallPartial(s.query,i)
-            )
+        ba.apptimer(3,lambda:[
+            s.query(i) for i in range(4)
+        ])
+    @lament
     def unlock(s,i):
         cl = bc.cloud
-        with plus.accounts.primary:
-            plus.cloud.send_message_cb(
+        with PLUS.accounts.primary:
+            PLUS.cloud.send_message_cb(
                 cl.ChestActionMessage(
                     chest_id=str(i),
                     action=cl.ChestActionMessage.Action.UNLOCK,
                     token_payment=0
                 ),
                 on_response=lambda r:None
+            )
+    def query(s,i,r=0):
+        with PLUS.accounts.primary:
+            PLUS.cloud.send_message_cb(
+                bc.bs.ChestInfoMessage(
+                    chest_id=str(i)
+                ),
+                on_response=lambda i:(
+                    getattr(r,'chest',None)
+                    and s.unlock(i)
+                )
             )
