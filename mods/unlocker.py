@@ -70,9 +70,8 @@ class byBordd(ba.Plugin):
                          ),
                          on_response=lambda r:None
                     )
-        ba.apptimer(3,lambda:[
-            s.query(i) for i in range(4)
-        ])
+        for i in range(4):
+            s.query(i)
     @lament
     def unlock(s,i):
         cl = bc.cloud
@@ -91,7 +90,7 @@ class byBordd(ba.Plugin):
                 bc.bs.ChestInfoMessage(
                     chest_id=str(i)
                 ),
-                on_response=lambda i:(
+                on_response=lambda r:(
                     getattr(r,'chest',None)
                     and s.unlock(i)
                 )
