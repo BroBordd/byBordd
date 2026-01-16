@@ -152,6 +152,14 @@
         "mod_filename_base": "blud"
     },
     {
+        "mod_name": "Board",
+        "mod_fancy_name": "The Board",
+        "mod_version": "1.0",
+        "mod_description": "Yes",
+        "api_version": 9,
+        "mod_filename_base": "board"
+    },
+    {
         "mod_name": "Byte",
         "mod_fancy_name": "At your service.",
         "mod_version": "1.1",
