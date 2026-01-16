@@ -8,7 +8,6 @@ Simple demo to show how a custom dev console tab is added.
 See code to know more.
 """
 
-from typing import override
 from babase import Plugin, app
 from babase._devconsole import (
     DevConsoleTabEntry as ENT,
@@ -16,7 +15,6 @@ from babase._devconsole import (
 )
 
 class DumTab(TAB):
-    @override
     def refresh(s):
         s.button(
             'Button example',
