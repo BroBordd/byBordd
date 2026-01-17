@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Unlocker v1.0 - Chest unlocker
+Unlocker v1.1 - Chest unlocker
 
 Autorun on startup:
 - Calim pending chests from inbox
@@ -55,7 +55,7 @@ class byBordd(ba.Plugin):
     def fetch(s):
         with PLUS.accounts.primary:
             PLUS.cloud.send_message_cb(
-                bc.bs.InboxRequestMessage(),
+                bc.classic.InboxRequestMessage(),
                 on_response=s.claim
             )
     def claim(s,r):
@@ -87,7 +87,7 @@ class byBordd(ba.Plugin):
     def query(s,i,r=0):
         with PLUS.accounts.primary:
             PLUS.cloud.send_message_cb(
-                bc.bs.ChestInfoMessage(
+                bc.classic.ChestInfoMessage(
                     chest_id=str(i)
                 ),
                 on_response=lambda r:(
