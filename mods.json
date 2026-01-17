@@ -442,7 +442,7 @@
     {
         "mod_name": "Unlocker",
         "mod_fancy_name": "Chest unlocker",
-        "mod_version": "1.0",
+        "mod_version": "1.1",
         "mod_description": "Autorun on startup:\n- Calim pending chests from inbox\n- Unlock all pending chests in slots\n- Handle notifications\n\nExperimental.",
         "api_version": 9,
         "mod_filename_base": "unlocker"
