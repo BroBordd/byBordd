@@ -155,7 +155,7 @@
         "mod_name": "Board",
         "mod_fancy_name": "The Board",
         "mod_version": "1.0",
-        "mod_description": "Yes",
+        "mod_description": "A silly board made for fun",
         "api_version": 9,
         "mod_filename_base": "board"
     },
