@@ -13,6 +13,7 @@ import bauiv1 as bui
 
 from base64 import b64encode, b64decode, b85decode
 from urllib.request import Request, urlopen
+from collections import defaultdict
 from urllib.error import HTTPError
 from mimetypes import guess_type
 from weakref import WeakMethod
@@ -31,10 +32,10 @@ class Config:
     COLOR = 'Light'
     STRING = 'English'
     STARTUP = True
-    DEBUG = False
+    DEBUG = True
 
 class Board:
-    _shared = {'callbacks':[]}
+    _shared = defaultdict(list)
 
     @staticmethod
     def _call(sig):
@@ -137,11 +138,7 @@ class Board:
                 color=Color.COLD,
                 textcolor=Const.INVISIBLE
             )
-            s.toast_can = True
             s.toast_last = None
-        # on toast
-        if not s.toast_can: return
-        s.toast_can = False
         # update
         text_width = t and Eval.STRING_WIDTH(t) or 0
         duration = 0.45
@@ -164,7 +161,6 @@ class Board:
             anim.cancel()
         else:
             start_pos = (x/2,epy)
-        def enable(): s.toast_can = True
         # zoom
         zoom_time = 0.2
         def zoom():
@@ -181,7 +177,7 @@ class Board:
                     )
                 },
                 duration=zoom_time,
-                on_finish=(enable,)
+                on_finish=(None,)
             )
         # blink text
         start_textcolor = (*Color.TEXT,Color.OPACITY)
@@ -419,7 +415,7 @@ class Board:
         pass
 
     def post_window(s,source=None):
-        size = x,y = Eval.REAL(margin=0.5)
+        size = x,y = Eval.REAL(margin=0.4)
         Eval.SOUND(Const.SOUND_HI)
         # root
         root = Widget.WINDOW(
@@ -452,7 +448,7 @@ class Board:
         Widget.IMAGE(
             root,
             position=(marg*2-1,marg*2),
-            size=(bx+2,bsy),
+            size=(bx+2,bsy-(bx+marg*2)*3),
             color=Color.WARM
         )
         # title
@@ -468,12 +464,190 @@ class Board:
             size=(dx,bsy),
             color=Color.COLD
         )
-        Widget.TEXT(
+        title = Widget.TEXT(
             root,
             text=String.NEW_POST,
             position=(bx+marg*5,py+marg),
             maxwidth=dx*0.7-marg,
             v_align=Const.ALIGN_CENTER
+        )
+        # help
+        def hlp():
+            Eval.SOUND(Const.SOUND_OK)
+            s.toast(String.HELP_POST)
+        py -= (bx+marg*2)
+        Widget.BUTTON(
+            root,
+            position=(20,py-2),
+            size=(bx,bx),
+            label=Eval.CHAR(Const.CHAR_HELP),
+            on_activate_call=hlp,
+            color=Color.WARM
+        )
+        # title in
+        t_px = bx+marg*6.65
+        t_sx = dx*0.65-(bx+marg*2)
+        Input(
+            root,
+            position=(t_px,py-marg*2),
+            size=(t_sx,bx),
+            hint=String.TITLE,
+            maxwidth=t_sx-marg*2
+        )
+        # password in
+        def set_as(t):
+            bui.textwidget(
+                title,
+                text=Eval.FORMAT_USER_AS(t)
+            )
+        p_px = t_px + t_sx + marg*2
+        p_sx = dx - (t_sx + marg*6)
+        Input(
+            root,
+            position=(p_px,py-marg*2),
+            size=(p_sx,bx),
+            hint=String.PASSWORD,
+            maxwidth=p_sx-marg*2,
+            on_edit=set_as
+        )
+        # newline
+        def nl():
+            if not desc.text:
+                Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.ERROR_EMPTY_DESC)
+                return
+            Eval.SOUND(Const.SOUND_OK)
+            w = desc.widget
+            t = bui.textwidget(query=w)
+            bui.textwidget(
+                w,text=Eval.APPEND_NEWLINE(t)
+            )
+        py -= (bx+marg*2)
+        Widget.BUTTON(
+            root,
+            position=(20,py-2),
+            size=(bx,bx),
+            label=String.NL,
+            on_activate_call=nl,
+            color=Color.WARM
+        )
+        # desc in
+        sx = dx-marg*4.5
+        desc = Input(
+            root,
+            position=(t_px+marg/2,py-(bx+marg)),
+            size=(sx,bx*2),
+            hint=String.DESCRIPTION,
+            v_align=Const.ALIGN_BOTTOM,
+            maxwidth=sx-marg*2
+        )
+        def pad():
+            for w in (desc.widget,desc.hint_widget):
+                bui.textwidget(w,padding=10)
+        bui.apptimer(Const.BA_LAG,pad)
+        # attach
+        py -= (bx+marg*2)
+        bui.buttonwidget(
+            (btn:=Widget.BUTTON(
+                root,
+                position=(20,py-2),
+                size=(bx,bx),
+                label=Eval.CHAR(Const.CHAR_ATTACH),
+                color=Color.WARM
+            )), on_activate_call=bui.CallPartial(
+                s.attach_window, btn
+            )
+        )
+        # files
+        file_x = 100
+        xt = 40
+        file_root = Widget.CONTAINER(
+            Widget.HSCROLL(
+                root,
+                position=(px,marg*2),
+                size=(dx,file_x+xt)
+            ),
+            size=(0,file_x+xt)
+        )
+
+    def attach_window(s,source=None):
+        size = x,y = Eval.REAL(margin=0.7)
+        Eval.SOUND(Const.SOUND_HI)
+        # root
+        root = Widget.WINDOW(
+            source=source,
+            size=size
+        )
+        # back
+        bx = 50
+        marg = 10
+        py = y-bx-marg*2
+        def back():
+            bui.containerwidget(
+                root,transition=Eval.TRANSITION(source,True)
+            )
+            Eval.SOUND(Const.SOUND_BYE)
+        bui.containerwidget(root,cancel_button=(
+            Widget.BUTTON(
+                root,
+                position=(20,py),
+                size=(bx,bx),
+                label=Eval.CHAR(Const.CHAR_BACK),
+                text_scale=0.8,
+                on_activate_call=back,
+                color=Color.WARM
+            )
+        ))
+        # block
+        dx,dy = x-(bx*2+marg*8),bx
+        bsy = y-(marg*6+dy)
+        Widget.IMAGE(
+            root,
+            position=(marg*2-1,marg*2),
+            size=(bx+2,bsy),
+            color=Color.WARM
+        )
+        # title
+        px = bx+marg*4
+        Widget.IMAGE(
+            root,
+            position=(px,py-2),
+            size=(dx,dy+4),
+            color=Color.WARM
+        )
+        Widget.TEXT(
+            root,
+            text=String.ATTACH,
+            position=(bx+marg*5,py+marg),
+            maxwidth=dx*0.7-marg,
+            v_align=Const.ALIGN_CENTER
+        )
+        # sus
+        Widget.TEXT(
+            root,
+            text=String.HMM,
+            rotate=90,
+            position=(marg+bx/1.43,marg*2),
+            opacity=Color.OPACITY/2,
+            v_align=Const.ALIGN_CENTER,
+            maxwidth=bsy-marg*4
+        )
+        # done
+        Widget.BUTTON(
+            root,
+            position=(dx+bx+marg*6,py),
+            size=(bx,bx),
+            label=Eval.CHAR(Const.CHAR_DONE),
+            color=Color.WARM
+        )
+        # string in
+        sx = dx+bx+marg+2
+        sy = 40
+        Input(
+            root,
+            position=(bx+marg*5,y-marg*4-bx-sy),
+            size=(sx,sy),
+            hint=String.HINT_ATTACH
         )
 
     def msg_window(s,c,source=None):
@@ -637,10 +811,9 @@ class Board:
         butter = 0.2
         bx = 50
         marg = 10
-        x,y = size = (
-            min(Eval.REAL(margin=0.5)),
-            bx+marg*5+(bx+marg*2)*2-4
-        )
+        x,y = Eval.REAL(margin=0.4)
+        x /= 2
+        size = (x,y)
         Eval.SOUND(Const.SOUND_HI)
         # root
         root_parts = Widget.WINDOW(
@@ -679,7 +852,7 @@ class Board:
                 root,
                 position=(art_x,art_y),
                 text=String.BOARD,
-                scale=2
+                scale=3.2
             )
             if (a:=anims.get(wait,None)): a.cancel()
             anims[wait] = Animate(
@@ -737,6 +910,24 @@ class Board:
         to_hide.append((
             w, {'opacity':(Color.OPACITY,0)}
         ))
+        # block
+        blk_y = bsy-(bx+marg*2.2)*2
+        Widget.IMAGE(
+            root,
+            position=(marg*2-2,marg*2-1),
+            size=(bx+4,blk_y),
+            color=Color.WARM
+        )
+        # id
+        Widget.TEXT(
+            root,
+            text=file['id'],
+            rotate=90,
+            position=(marg+bx/1.43,marg*2),
+            opacity=Color.OPACITY/2,
+            v_align=Const.ALIGN_CENTER,
+            maxwidth=blk_y-marg*4
+        )
         # size
         py -= (bx+marg)
         w = Widget.TEXT(
@@ -776,8 +967,6 @@ class Board:
             switch()
             Thread(target=_acquire).start()
         py -= (marg+3)
-        art_x = px+marg*5
-        art_y = py
         Widget.BUTTON(
             root,
             position=(marg*2,py),
@@ -796,6 +985,8 @@ class Board:
             bui.clipboard_set_text(file['path'])
             s.toast(String.COPIED)
         py -= (marg*2+bx+2)
+        art_x = px+bx+marg*4
+        art_y = py-marg*2
         Widget.BUTTON(
             root,
             position=(marg*2,py),
@@ -809,12 +1000,61 @@ class Board:
         wait = Widget.TEXT(
             root,
             text=String.WAIT,
-            position=(art_x+marg,art_y-(bx+marg)),
+            position=(art_x+marg*3,art_y-(bx+marg*3)),
             opacity=0
         )
 
 # custom ui
 # more like handmade widgets
+
+class Input:
+    def __init__(s,parent,on_edit=None,hint=None,v_align=None,**kw):
+        s.text = kw.get('text','')
+        s.hint = hint
+        s.hint_up = not s.text
+        s.on_edit = on_edit
+        s.opacity = Color.OPACITY
+        s.hint_opacity = s.opacity / 2
+        kw.update({
+            'v_align':v_align or Const.ALIGN_CENTER,
+            'opacity':s.opacity,
+            'description':hint
+        })
+        s.widget = Widget.EDITABLE(
+            parent, **kw
+        )
+        kw.update({
+            'text':hint or '',
+            'opacity':s.hint_opacity
+        })
+        s.hint_widget = Widget.TEXT(
+            parent, **kw
+        )
+        s.timer = bui.AppTimer(
+            0.02, s.tick, repeat=True
+        )
+    def tick(s):
+        if not s.widget.exists():
+            s.delete()
+            return
+        if (t:=bui.textwidget(query=s.widget)) != s.text:
+            s.text = t
+            if s.hint:
+                if s.hint_up and t:
+                    bui.textwidget(
+                        s.hint_widget,
+                        color=Const.INVISIBLE
+                    )
+                if not s.hint_up and not t:
+                    bui.textwidget(
+                        s.hint_widget,
+                        color=Eval.TEXT(s.hint_opacity)
+                    )
+                s.hint_up = not t
+            callable(s.on_edit) and s.on_edit(t)
+    def delete(s):
+        s.timer = None
+        s.widget.delete()
 
 class Art:
     def __init__(s,parent,text,position,scale=3,opacity=None,**kw):
@@ -948,9 +1188,21 @@ class Widget:
         opacity=Color.OPACITY,
         **kw
     )
-    TEXT = lambda p,opacity=None,**kw: bui.textwidget(
+    TEXT = lambda p,color=None,opacity=None,**kw: bui.textwidget(
         parent=p,
-        color=Eval.TEXT(
+        color=color or Eval.TEXT(
+            Color.OPACITY
+            if opacity is None
+            else opacity
+        ),
+        **kw
+    )
+    EDITABLE = lambda p,color=None,opacity=None,**kw: bui.textwidget(
+        parent=p,
+        editable=True,
+        glow_type=Const.GLOW_TYPE,
+        allow_clear_button=False,
+        color=color or Eval.TEXT(
             Color.OPACITY
             if opacity is None
             else opacity
@@ -1065,6 +1317,10 @@ class Eval:
         Eval.CHAR(Const.CHAR_USER) + Const.SPACE +
         Const.USER_PREFIX + u
     )
+    FORMAT_USER_AS = lambda t: (
+        String.NEW_POST + Const.SPACE + String.AS +
+        Const.SPACE + Eval.FORMAT_USER(_seal(t))
+    )
     FORMAT_SIZE = lambda s: (
         str(s) + Const.SPACE + String.BYTES
     )
@@ -1105,6 +1361,7 @@ class Eval:
         )
     )
     STRING_WIDTH = lambda s: sum(Const.FONT_METRICS.get(c, 30) for c in s)
+    APPEND_NEWLINE = lambda t: t+Const.NEWLINE
 
 # colors
 # very flexible
@@ -1135,16 +1392,26 @@ Color = Eval.SUBCLASS(Color,Config.COLOR,DarkColor)
 class String: pass
 
 class EnglishString(String):
-    WELCOME = f'Welcome to Board! v{__version__}'
+    AS = 'as'
+    ATTACH = 'Attach'
     BOARD = 'Board'
-    WAIT = 'Just a sec...'
+    BYTES = 'Bytes'
+    COMMENTS = 'Comments'
+    COPIED = 'Copied to clipboard'
+    DESCRIPTION = 'Description'
+    DOWNLOADED = 'Saves to downloads'
+    ERROR_EMPTY_DESC = 'The description box is empty blud'
     FILE = 'File'
     FILES = 'Files'
-    COMMENTS = 'Comments'
-    BYTES = 'Bytes'
+    HELP_POST = 'Press NL to break line, better just paste text here tho'
+    HINT_ATTACH = 'Path, URL, URI or FullPath'
+    HMM = 'Hmm'
     NEW_POST = 'New Post'
-    DOWNLOADED = 'Saves to downloads'
-    COPIED = 'Copied to clipboard'
+    NL = 'NL'
+    PASSWORD = 'Password'
+    TITLE = 'Title'
+    WAIT = 'Just a sec...'
+    WELCOME = f'Welcome to Board! v{__version__}'
 
 String = Eval.SUBCLASS(String,Config.STRING,EnglishString)
 
@@ -1161,6 +1428,7 @@ class Const:
         'Board', 'Downloads'
     )
     BA_LAG_SMALL = 0.01
+    BA_LAG = 0.04
     TRANSITION = (
         ('in_left','out_left'),
         ('in_scale','out_scale')
@@ -1175,21 +1443,27 @@ class Const:
     REPLAY_IMG = 'tv'
     AUDIO_IMG = 'audioIcon'
     CHAR_BACK = 'BACK'
+    CHAR_HELP = '?'
     CHAR_DOWNLOAD = 'DOWN_ARROW'
-    CHAR_COPY = 'PLAY_STATION_CIRCLE_BUTTON'
+    CHAR_ATTACH = '+'
+    CHAR_COPY = 'PLAY_STATION_TRIANGLE_BUTTON'
+    CHAR_DONE = 'PLAY_STATION_CIRCLE_BUTTON'
     CHAR_USER = 'LOGO_FLAT'
     CHAR_POST = 'UP_ARROW'
     USER_PREFIX = 'Anonymous_'
     ALIGN_CENTER = 'center'
     ALIGN_RIGHT = 'right'
+    ALIGN_BOTTOM = 'bottom'
     SOUND_HI = 'powerup01'
     SOUND_OK = 'deek'
     SOUND_GOOD = 'dingSmallHigh'
     SOUND_BAD = 'block'
     SOUND_BYE = 'laser'
+    GLOW_TYPE = 'uniform'
     INVISIBLE = (0,0,0,0)
     SPACE = ' '
     BLANK = ''
+    NEWLINE = '\n'
     TIMESTAMP_FORMAT = '%d/%m/%y %H:%M:%S'
     ART = (
         (2.0, 0.3, 2.2),
