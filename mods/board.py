@@ -1773,7 +1773,8 @@ class Board:
                 art_y-marg*4
             ),
             opacity=0,
-            h_align=Const.ALIGN_CENTER
+            h_align=Const.ALIGN_CENTER,
+            maxwidth=dx-marg*2
         )
 
 # custom ui
