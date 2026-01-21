@@ -1810,7 +1810,7 @@ class Input:
 
 class Art:
     def __init__(s, parent, position, size, **kw):
-        s.opacity = 0.8
+        s.opacity = 1
         s.bar_opacity = s.opacity/2
         s.parent = parent
         px, py = position
