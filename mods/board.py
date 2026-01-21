@@ -423,6 +423,7 @@ class Board:
             size=(art_sx,art_sy),
         )
         s.update_title(String.WAIT)
+        return
         s.loaded = False
         def kill():
             for w in getattr(s, 'catalog_widgets', []): w.delete()
@@ -1808,9 +1809,9 @@ class Input:
         s.widget.delete()
 
 class Art:
-    def __init__(s, parent, position, size, opacity=None, **kw):
-        s.opacity = opacity or Color.OPACITY/1.5
-        s.bar_opacity = Color.OPACITY
+    def __init__(s, parent, position, size, **kw):
+        s.opacity = 1
+        s.bar_opacity = s.opacity/2
         s.parent = parent
         px, py = position
         sx, sy = size
@@ -1828,7 +1829,7 @@ class Art:
         s.kids = [
             Widget.TEXT(
                 parent,
-                flatness=-2,
+                flatness=-3,
                 big=True,
                 text=t,
                 position=(letter_start_x + gap * i, letter_y),
