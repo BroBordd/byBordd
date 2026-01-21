@@ -26,7 +26,6 @@ from hashlib import sha256
 from random import random
 from uuid import uuid4
 from enum import Enum
-from re import match
 
 __version__ = '1.0.0'
 
@@ -41,7 +40,7 @@ class Board:
 
     @staticmethod
     def _call(sig):
-        for callback_ref in Editor._shared['callbacks']:
+        for callback_ref in Board._shared['callbacks']:
             callback = callback_ref()
             callback(sig)
 
@@ -98,7 +97,6 @@ class Board:
             s.root,
             position=(rf_x, py),
             size=(bx, bx),
-            text_scale=1.1,
             on_activate_call=s.refresh
         )
         Widget.IMAGE(
@@ -143,6 +141,8 @@ class Board:
         s.refresh(shut=True)
 
     def toast(s,t):
+        if getattr(s,'toast_zoom',None):
+            s.toast_zoom.cancel()
         # create once
         if not hasattr(s,'toast_bg'):
             s.toast_bg = bui.buttonwidget(
@@ -151,7 +151,7 @@ class Board:
                 enable_sound=False,
                 selectable=False,
                 size=(0,0),
-                texture=Eval.TEXTURE(Const.BASE),
+                texture=Eval.TEXTURE(Const.IMG_BASE),
                 color=Color.COLD,
                 textcolor=Const.INVISIBLE
             )
@@ -408,16 +408,19 @@ class Board:
             ))
 
     def refresh(s,shut=False):
-        if not s.loaded:
+        if not hasattr(s,'loaded'):
+            s.loaded = False
+        elif not s.loaded:
             Eval.SOUND(Const.SOUND_BAD)
             return
         shut or Eval.SOUND(Const.SOUND_OK)
         x, y = Eval.REAL(margin=0.2)
+        art_sx = 350
+        art_sy = 250
         s.art = Art(
             s.root,
-            String.BOARD,
-            position=(x/2.35, y/2),
-            scale=3
+            position=(x/2-art_sx/2,y/2-art_sy/4),
+            size=(art_sx,art_sy),
         )
         s.update_title(String.WAIT)
         s.loaded = False
@@ -532,6 +535,10 @@ class Board:
         # done
         def done():
             if is_busy(): return
+            if not pass_inp.text:
+                s.toast(String.ENTER_PASSWORD)
+                Eval.SOUND(Const.SOUND_BAD)
+                return
             s.toast(String.UPLOADING)
             Eval.DOUBLE_DING(1,0)
             Thread(target=_upload).start()
@@ -651,6 +658,17 @@ class Board:
                 size=(file_x,file_x),
                 texture=Eval.TEXTURE(img)
             )
+            if img == Const.IMG_FILE:
+                Widget.TEXT(
+                    file_root,
+                    position=(i*step+gay+file_x-54,xt-marg*2),
+                    text=Eval.FILE_EXTENTION(txt),
+                    size=(file_x,30),
+                    big=True,
+                    opacity=Color.OPACITY/2,
+                    rotate=90,
+                    maxwidth=file_x*0.5
+                )
             corn = file_x/3.6+marg*0.8+step*i,0
             Widget.TEXT(
                 file_root,
@@ -663,13 +681,16 @@ class Board:
                 v_align=Const.ALIGN_CENTER,
                 h_align=Const.ALIGN_CENTER
             )
+            def prv(txt):
+                Eval.SOUND(Const.SOUND_OK)
+                s.toast(txt)
             bui.buttonwidget(
                 (sensor:=Widget.SENSOR(
                     file_root,
                     position=corn,
                     size=(file_x,file_x+xt),
                 )), on_activate_call=bui.CallPartial(
-                    print, txt
+                    prv, txt
                 )
             )
             bui.containerwidget(
@@ -703,7 +724,7 @@ class Board:
         )
 
     def attach_window(s,source=None,pipe=None):
-        size = x,y = Eval.REAL(margin=0.7)
+        x,y = Eval.REAL(margin=0.7)
         Eval.SOUND(Const.SOUND_HI)
         extra_y = y
         # root
@@ -873,12 +894,8 @@ class Board:
             size=(dx-(bx+marg*2),dy+4),
             color=Color.WARM
         )
-        Widget.TEXT(
+        cwd_text = Widget.TEXT(
             root,
-            text=Eval.ELLIPSE_START(
-                Const.ROOT_PATH,
-                Const.PATH_MAX
-            ),
             position=(px+marg*2,py+marg),
             maxwidth=dx-(bx+marg*6),
             v_align=Const.ALIGN_CENTER
@@ -926,6 +943,7 @@ class Board:
             )
             try:
                 ls = list(os.scandir(new))
+                ls.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
             except PermissionError:
                 s.toast(String.ACCESS_DENIED)
                 Eval.SOUND(Const.SOUND_BAD)
@@ -945,14 +963,21 @@ class Board:
         sl = None
         wd = Const.ROOT_PATH
         ls = list(os.scandir(wd))
+        ls.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         lx = 30
         fx = 30
         dx -= fx+marg*2
         trash = []
         def fresh():
+            bui.textwidget(
+                cwd_text,
+                text=Eval.ELLIPSE_START(
+                    wd,
+                    Const.PATH_MAX
+                )
+            )
             for w in trash: w.delete()
             trash.clear()
-            nonlocal ls
             lsy = max((len(ls)+1)*(lx+5),sy)
             bui.containerwidget(
                 ls_root,
@@ -1085,25 +1110,280 @@ class Board:
             maxwidth=dx-marg*2,
             opacity=Color.OPACITY/2
         )
-        # comment
+        # comment box
+        def push_com():
+            if not loaded:
+                Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.NOT_NOW)
+                return
+            if not com_inp.text:
+                s.toast(String.ENTER_SOMETHING)
+                Eval.SOUND(Const.SOUND_BAD)
+                return
+            if not pass_inp.text:
+                s.toast(String.ENTER_PASSWORD)
+                Eval.SOUND(Const.SOUND_BAD)
+                return
+            bui.textwidget(
+                com_inp.widget,
+                text=Const.BLANK
+            )
+            Eval.DOUBLE_DING(1,0)
+            s.toast(String.SENDING_COMMENT)
+            Thread(target=_comment).start()
+        def _comment():
+            call = done
+            try:
+                comment(
+                    pass_inp.text,
+                    c['id'],
+                    com_inp.text
+                )
+            except Exception as e:
+                call = bui.CallPartial(
+                    done, str(e)
+                )
+            bui.pushcall(call,from_other_thread=True)
+        def done(err=None):
+            if err:
+                Eval.DOUBLE_DING(0,0)
+                s.toast(Eval.FORMAT_ERROR(err))
+                return
+            Eval.DOUBLE_DING(0,1)
+            s.toast(String.COMMENT_SENT)
+        com_x = px+dx+marg*2
         Widget.IMAGE(
             root,
-            position=(px+dx+marg*2,py-2),
-            size=(cx,dy+4),
+            position=(com_x,py-2),
+            size=(cx-(bx+marg*2),dy+4),
             color=Color.WARM
         )
+        ys = y-(marg*6+dy)
+        box_y = 35
+        box_x = cx-(box_y+marg*4)
         Widget.IMAGE(
             root,
-            position=(px+dx+marg*2,marg*2),
-            size=(cx,y-(marg*6+dy)),
+            position=(com_x,marg*2),
+            size=(cx,box_y*2+marg*3),
             color=Color.COLD
         )
         Widget.TEXT(
             root,
-            position=(px+dx+marg/2+cx/2.1,py+marg),
+            position=(px+dx+marg/2+cx/2.7,py+marg),
             text=String.COMMENTS,
             h_align=Const.ALIGN_CENTER
         )
+        com_inp = Input(
+            root,
+            position=(com_x+marg*2,marg*3),
+            size=(box_x,box_y),
+            hint=String.COMMENT
+        )
+        Widget.BUTTON(
+            root,
+            position=(com_x+box_x+marg*3,marg*3+2),
+            size=(box_y-2,box_y-2),
+            label=Eval.CHAR(Const.CHAR_POST),
+            color=Color.WARM,
+            text_scale=1.2,
+            on_activate_call=push_com
+        )
+        pass_inp = Input(
+            root,
+            position=(com_x+marg*2,marg*4+box_y),
+            size=(box_x+box_y+marg,box_y),
+            hint=String.PASSWORD
+        )
+        # list comment
+        coms = None
+        art = None
+        com_widgets = []
+        com_anims = []
+        last_anim = None
+        com_big = False
+        def refresh(shut=False):
+            nonlocal art, loaded
+            if not loaded:
+                Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.NOT_NOW)
+                return
+            shut or Eval.SOUND(Const.SOUND_OK)
+            loaded = False
+            if com_anims:
+                for anim in com_anims:
+                    anim.reverse()
+                com_anims.clear()
+                def cleanup_and_fetch():
+                    for w in com_widgets:
+                        w.delete()
+                    com_widgets.clear()
+                    if com_big:
+                        nonlocal last_anim
+                        lx,_ = last_size
+                        last_anim = Animate(
+                            widget=com_scroll,
+                            duration=10,
+                            attrs={
+                                'size':(
+                                    last_size,
+                                    (lx,0)
+                                )
+                            }
+                        )
+                    Thread(target=_get).start()
+                bui.apptimer(0.4, cleanup_and_fetch)
+            else:
+                for w in com_widgets:
+                    w.delete()
+                com_widgets.clear()
+                Thread(target=_get).start()
+            art = Art(
+                root,
+                position=(com_x+marg,com_yp+com_ys/4),
+                size=(cx-marg*2,255)
+            )
+        def _get():
+            nonlocal coms
+            coms = get_comments(c['id'])
+            coms.reverse()
+            bui.pushcall(do_list,from_other_thread=True)
+        def do_list():
+            nonlocal com_big
+            last_anim and last_anim.cancel()
+            art.fade_out(on_finish=art.delete)
+            bui.scrollwidget(
+                com_scroll,
+                size=last_size
+            )
+            # id user_hash text timestamp
+            step = 30
+            each_y = step*2+marg*2
+            ry = len(coms)*each_y
+            com_ry = max(com_ys-15,ry)
+            com_big = ry > (com_ys-15)
+            bui.containerwidget(
+                com_root,
+                size=(cx,com_ry)
+            )
+            widgets_to_animate = []
+            for i,com in enumerate(coms):
+                cur_y = i*each_y
+                # head
+                head = Widget.IMAGE(
+                    com_root,
+                    color=Color.WARM,
+                    size=(cx,step),
+                    position=(0,cur_y+step),
+                    opacity=0
+                )
+                com_widgets.append(head)
+                widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
+                # body
+                body = Widget.IMAGE(
+                    com_root,
+                    color=Color.COLD,
+                    size=(cx,step),
+                    position=(0,cur_y),
+                    opacity=0
+                )
+                com_widgets.append(body)
+                widgets_to_animate.append((body, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
+                # user
+                user = Widget.TEXT(
+                    com_root,
+                    text=Eval.FORMAT_USER(com['user_hash']),
+                    position=(marg/2,cur_y+step),
+                    size=(cx,step),
+                    maxwidth=cx-marg*4,
+                    v_align=Const.ALIGN_CENTER,
+                    opacity=0
+                )
+                com_widgets.append(user)
+                widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + i*0.05))
+                # text
+                text_widget = Widget.TEXT(
+                    com_root,
+                    text=Eval.ELLIPSE_END(
+                        com['text'],
+                        Const.COMMENT_MAX
+                    ),
+                    position=(marg/2,cur_y),
+                    size=(cx,step),
+                    maxwidth=cx-marg*4,
+                    v_align=Const.ALIGN_CENTER,
+                    opacity=0
+                )
+                com_widgets.append(text_widget)
+                widgets_to_animate.append((text_widget, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + i*0.05))
+                # sensor
+                bui.buttonwidget(
+                    (sensor:=Widget.SENSOR(
+                        com_root,
+                        position=(marg/2,cur_y),
+                        size=(cx,step*2)
+                    )), on_activate_call=bui.CallPartial(
+                        s.comment_window, com, sensor
+                    )
+                )
+            bui.containerwidget(
+                com_root,
+                visible_child=foo
+            )
+            # animate
+            butter = 0.4
+            for widget, attr_name, (start, end), delay in widgets_to_animate:
+                if attr_name == 'opacity':
+                    attrs = {'opacity': (start, end)}
+                else:
+                    attrs = {'color': (start, end)}
+                anim = Animate(
+                    widget=widget,
+                    attrs=attrs,
+                    duration=butter,
+                    delay=delay
+                )
+                com_anims.append(anim)
+            # placeholder
+            if not coms:
+                w = Widget.TEXT(
+                    root,
+                    position=(com_x+box_x/2+marg,com_yp+com_ys/2.3),
+                    h_align=Const.ALIGN_CENTER,
+                    text=String.NO_COMMENTS
+                )
+                com_widgets.append(w)
+            # finally
+            nonlocal loaded
+            loaded = True
+        off_up = box_y*2+marg*4
+        com_ys = ys-off_up
+        com_yp = marg*2+off_up
+        last_size = (cx+marg-2,com_ys)
+        com_scroll = Widget.SCROLL(
+            root,
+            size=last_size,
+            position=(com_x-marg/2,com_yp)
+        )
+        com_root = Widget.CONTAINER(com_scroll)
+        foo = Widget.FOO(com_root)
+        rf_x = x-(bx+marg*2+2)
+        rf_y = y-(bx+marg*2)
+        Widget.BUTTON(
+            root,
+            position=(rf_x,rf_y),
+            size=(bx,bx),
+            color=Color.WARM,
+            on_activate_call=refresh
+        )
+        Widget.IMAGE(
+            root,
+            position=(rf_x + bx*0.1, rf_y + bx*0.1),
+            size=(bx*0.8, bx*0.8),
+            texture=Eval.TEXTURE(Const.IMG_REFRESH),
+            color=Color.TEXT
+        )
+        loaded = True
+        refresh(shut=True)
         # user
         Widget.TEXT(
             root,
@@ -1150,6 +1430,17 @@ class Board:
                 size=(file_x,file_x),
                 texture=Eval.TEXTURE(im)
             )
+            if im == Const.IMG_FILE:
+                Widget.TEXT(
+                    file_root,
+                    position=(i*step+gay+file_x-54,xt-marg*2),
+                    text=Eval.FILE_EXTENTION(n),
+                    size=(file_x,30),
+                    big=True,
+                    opacity=Color.OPACITY/2,
+                    rotate=90,
+                    maxwidth=file_x*0.5
+                )
             corn = file_x/3.6+i*step,0
             Widget.TEXT(
                 file_root,
@@ -1168,6 +1459,105 @@ class Board:
                     s.file_window, f, sensor, c['user_hash']
                 )
             )
+
+    def comment_window(s,com,source):
+        bx = 50
+        marg = 10
+        x,y = Eval.REAL(margin=0.4)
+        size = (x,y)
+        Eval.SOUND(Const.SOUND_HI)
+        # root
+        root = Widget.WINDOW(
+            source=source,
+            size=size
+        )
+        # back
+        py = y-bx-marg*2
+        def back():
+            bui.containerwidget(
+                root,transition=Eval.TRANSITION(source,True)
+            )
+            Eval.SOUND(Const.SOUND_BYE)
+        bui.containerwidget(root,cancel_button=(
+            Widget.BUTTON(
+                root,
+                position=(marg*2,py),
+                size=(bx,bx),
+                label=Eval.CHAR(Const.CHAR_BACK),
+                text_scale=0.8,
+                on_activate_call=back,
+                color=Color.WARM
+            )
+        ))
+        # copy
+        def cp():
+            if not bui.clipboard_is_supported():
+                Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.CLIPBOARD_UNSUPPORTED)
+                return
+            Eval.SOUND(Const.SOUND_DING)
+            bui.clipboard_set_text(com['text'])
+            s.toast(String.COPIED)
+        Widget.BUTTON(
+            root,
+            position=(marg*2,py-(bx+marg*2)),
+            size=(bx,bx),
+            label=Eval.CHAR(Const.CHAR_COPY),
+            text_scale=0.8,
+            color=Color.WARM,
+            on_activate_call=cp
+        )
+        # user
+        dx,dy = x-(bx+marg*6),bx
+        px = bx+marg*4
+        bsy = y-(marg*6+dy)
+        Widget.IMAGE(
+            root,
+            position=(px,py-2),
+            size=(dx,dy+4),
+            color=Color.WARM
+        )
+        Widget.TEXT(
+            root,
+            text=Eval.FORMAT_USER(com['user_hash']),
+            position=(bx+marg*5,py+marg),
+            maxwidth=dx-marg*2,
+            v_align=Const.ALIGN_CENTER
+        )
+        Widget.IMAGE(
+            root,
+            position=(px,marg*2-1),
+            size=(dx,bsy),
+            color=Color.COLD
+        )
+        # block
+        blk_y = bsy-(bx+marg*2)+2
+        Widget.IMAGE(
+            root,
+            position=(marg*2-2,marg*2-1),
+            size=(bx+4,blk_y),
+            color=Color.WARM
+        )
+        # id
+        Widget.TEXT(
+            root,
+            text=com['id'],
+            rotate=90,
+            position=(marg+bx/1.43,marg*2),
+            opacity=Color.OPACITY/2,
+            v_align=Const.ALIGN_CENTER,
+            maxwidth=blk_y-marg*4
+        )
+        # text
+        py -= (bx+marg)
+        mw = x-(bx+marg*4)
+        Widget.TEXT(
+            root,
+            position=(px+marg,py),
+            maxwidth=mw-marg*4,
+            max_height=y-(bx+marg*7),
+            text=fit_string(com['text'],mw)
+        )
 
     def file_window(s,file,source,uh):
         clickable = True
@@ -1214,8 +1604,7 @@ class Board:
             art = Art(
                 root,
                 position=(art_x,art_y),
-                text=String.BOARD,
-                scale=3.2
+                size=(art_sx,bsy*0.8)
             )
             if (a:=anims.get(notice,None)): a.cancel()
             anims[notice] = Animate(
@@ -1356,13 +1745,15 @@ class Board:
         def cp():
             if not bui.clipboard_is_supported():
                 Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.CLIPBOARD_UNSUPPORTED)
                 return
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(file['path'])
             s.toast(String.COPIED)
+        art_x = px+marg*2
+        art_y = bsy/2
+        art_sx = dx-marg*4
         py -= (marg*2+bx+2)
-        art_x = px+bx+marg*4
-        art_y = py-marg*2
         Widget.BUTTON(
             root,
             position=(marg*2,py),
@@ -1376,7 +1767,10 @@ class Board:
         notice = Widget.TEXT(
             root,
             text=String.DOWNLOADING,
-            position=(art_x+marg*8,art_y-(bx+marg*3)),
+            position=(
+                art_x+art_sx/2-marg*2,
+                art_y-marg*4
+            ),
             opacity=0,
             h_align=Const.ALIGN_CENTER
         )
@@ -1434,121 +1828,128 @@ class Input:
         s.widget.delete()
 
 class Art:
-    def __init__(s,parent,text,position,scale=3,opacity=None,**kw):
+    def __init__(s, parent, position, size, opacity=None, **kw):
         s.opacity = opacity or Color.OPACITY/1.5
-        gap = 20*scale
+        s.bar_opacity = Color.OPACITY
         s.parent = parent
-        px,py = position
-        # art
+        px, py = position
+        sx, sy = size
+        # text
+        text = String.BOARD
+        num_letters = len(text)
+        # calculate letter sizing
+        letter_height = sy * 0.5
+        letter_scale = letter_height / 40
+        total_text_width = sx
+        gap = total_text_width / num_letters if num_letters > 1 else 0
+        letter_start_x = px
+        letter_y = py
+        # create letters
         s.kids = [
             Widget.TEXT(
                 parent,
                 flatness=-3,
                 big=True,
                 text=t,
-                position=(px+gap*i,py),
+                position=(letter_start_x + gap * i, letter_y),
                 opacity=s.opacity,
-                scale=scale,
+                scale=letter_scale,
+                size=(gap, letter_height),
+                h_align=Const.ALIGN_CENTER,
+                v_align=Const.ALIGN_CENTER,
                 **kw
             )
-            for i,t in enumerate(text)
+            for i, t in enumerate(text)
         ]
+        # color animation state
         off = random()
-        s.art_color_idx = [int(off * len(Const.ART)) for _ in range(len(text))]
-        s.art_progress = [i * 0.1 + off for i in range(len(text))]  # remove % 1.0
+        s.art_color_idx = [int(off * len(Const.ART)) for _ in range(num_letters)]
+        s.art_progress = [i * 0.1 + off for i in range(num_letters)]
         s.art_timer = bui.AppTimer(0.01, s.animate, repeat=True)
-        # pro
-        s.pro_base_x,s.pro_base_y = pos = px-(15*scale),py-(13.3*scale)
+        # progress bar
+        bar_height = sy * 0.02
+        bar_y = py
+        bar_margin = 0 #sx * 0.05
+        bar_width = sx - bar_margin * 2
+        indicator_width = bar_width * 0.2
+        s.pro_base_x = px + bar_margin
+        s.pro_base_y = bar_y
+        s.pro_width = bar_width
+        s.pro_indicator_width = indicator_width
         s.pro_time = 0.0
-        s.prox = gap*scale*(-0.97*scale+4.49)
-        s.prox2 = s.prox*0.19
+        # background bar
         s.pro_bg = Widget.IMAGE(
             parent,
-            position=pos,
-            opacity=s.opacity,
-            size=(s.prox,5),
-            color=Color.COLD
+            position=(s.pro_base_x, s.pro_base_y),
+            opacity=s.bar_opacity/2,
+            size=(bar_width, bar_height),
+            color=Color.WARM
         )
+        # moving indicator
         s.pro = Widget.IMAGE(
             parent,
-            position=pos,
-            opacity=s.opacity*2,
-            size=(s.prox*0.19,5),
-            color=Color.COLD
+            position=(s.pro_base_x, s.pro_base_y),
+            opacity=s.bar_opacity,
+            size=(indicator_width, bar_height),
+            color=Color.WARM
         )
         s.anims = {}
 
     def animate(s):
-        for i,k in enumerate(s.kids):
+        for i, k in enumerate(s.kids):
             s.art_progress[i] -= 0.02
-
             if s.art_progress[i] < 0:
                 s.art_progress[i] += 1.0
                 s.art_color_idx[i] = (s.art_color_idx[i] + 1) % len(Const.ART)
-
             current_idx = s.art_color_idx[i]
             next_idx = (current_idx + 1) % len(Const.ART)
-
+            progress = s.art_progress[i] % 1.0
             blended = tuple(
-                Const.ART[current_idx][j] * s.art_progress[i] +
-                Const.ART[next_idx][j] * (1 - s.art_progress[i])
+                Const.ART[current_idx][j] * progress +
+                Const.ART[next_idx][j] * (1 - progress)
                 for j in range(3)
-            )+(s.opacity,)
-
+            ) + (s.opacity,)
             if not k.exists():
                 s.art_timer = None
                 return
             bui.textwidget(k, color=blended)
-        # pro
+        # progress bar animation
         s.pro_time += 0.02
-
         cycle = (s.pro_time % 2.0) / 2.0
         t = cycle * 2
-        t = (t if t < 1 else 2 - t)
+        t = t if t < 1 else 2 - t
         t = t * t * (3.0 - 2.0 * t)
-
-        x_offset = (s.prox - s.prox2) * t
-        bui.imagewidget(s.pro, position=(s.pro_base_x + x_offset, s.pro_base_y), size=(s.prox2, 5))
+        x_offset = (s.pro_width - s.pro_indicator_width) * t
+        bui.imagewidget(s.pro, position=(s.pro_base_x + x_offset, s.pro_base_y))
 
     def fade_out(s, duration=0.3, on_finish=None):
-        """Fade out all art elements"""
-        # Stop color animation
         s.art_timer = None
-
-        # Fade out text widgets (using color alpha channel)
         for kid in s.kids:
             if not kid.exists():
                 return
             s.anims[id(kid)] = Animate(
                 widget=kid,
-                attrs={
-                    'color': (
-                        Eval.TEXT(s.opacity),
-                        Const.INVISIBLE
-                    )
-                },
+                attrs={'color': (Eval.TEXT(s.opacity), Const.INVISIBLE)},
                 duration=duration
             )
-
-        # Fade out image widgets (using opacity)
         s.anims[id(s.pro_bg)] = Animate(
             widget=s.pro_bg,
             attrs={'opacity': (s.opacity, 0)},
             duration=duration
         )
-
         s.anims[id(s.pro)] = Animate(
             widget=s.pro,
-            attrs={'opacity': (s.opacity*2, 0)},
+            attrs={'opacity': (s.opacity * 2, 0)},
             duration=duration,
-            on_finish=on_finish  # Call cleanup after last animation
+            on_finish=on_finish
         )
 
     def delete(s):
         s.art_timer = None
         s.pro_bg.delete()
         s.pro.delete()
-        for k in s.kids: k.delete()
+        for k in s.kids:
+            k.delete()
         s.kids.clear()
         s.anims.clear()
 
@@ -1558,7 +1959,7 @@ class Art:
 class Widget:
     BUTTON = lambda p,label=None,color=None,**kw: bui.buttonwidget(
         parent=p,
-        texture=Eval.TEXTURE(Const.BASE),
+        texture=Eval.TEXTURE(Const.IMG_BASE),
         color=color or Color.COLD,
         textcolor=Color.TEXT,
         enable_sound=False,
@@ -1606,7 +2007,7 @@ class Widget:
             if opacity is None
             else opacity
         ),
-        texture=texture or Eval.TEXTURE(Const.BASE),
+        texture=texture or Eval.TEXTURE(Const.IMG_BASE),
         **kw
     )
     CONTAINER = lambda p=None,source=None,**kw: bui.containerwidget(
@@ -1639,7 +2040,7 @@ class Widget:
             root,
             position=shadow[0],
             size=shadow[1],
-            texture=Eval.TEXTURE(Const.SHADOW),
+            texture=Eval.TEXTURE(Const.IMG_SHADOW),
             color=Color.SHADOW
         ),
         Widget.IMAGE(
@@ -1656,6 +2057,10 @@ class Widget:
         opacity=0,
         enable_sound=False,
         **k
+    )
+    FOO = lambda p: bui.textwidget(
+        parent=p,
+        text=Const.BLANK
     )
 
 # evaluation
@@ -1795,6 +2200,10 @@ class Eval:
     FLATTEN = lambda t:(
         t.replace(Const.FAKE_NEWLINE,Const.BLANK)
     )
+    FILE_EXTENTION = lambda n:(
+        n.rsplit(Const.DOT,1)[-1]
+        if Const.DOT in n else Const.BLANK
+    )
 
 # colors
 # very flexible
@@ -1831,12 +2240,16 @@ class EnglishString(String):
     ATTACH_DONE = 'Attached!'
     BOARD = 'Board'
     BYTES = 'Bytes'
+    CLIPBOARD_UNSUPPORTED = 'Clipboard unsupported!'
+    COMMENT = 'Comment'
     COMMENTS = 'Comments'
+    COMMENT_SENT = 'Comment sent! It should be availabe in seconds.'
     COPIED = 'Copied to clipboard!'
     DESCRIPTION = 'Description'
     DOWNLOADED = 'Saved to downloads'
     DOWNLOADING = 'Downloading...\nYou can close this window'
     EMPTY = 'Empty'
+    ENTER_PASSWORD = 'Enter password!'
     ENTER_SOMETHING = 'Enter something!'
     ERROR = 'An error occured'
     FILE = 'File'
@@ -1849,6 +2262,7 @@ class EnglishString(String):
     NEW_POST = 'New Post'
     NL = 'NL'
     NOT_NOW = 'Not now I\'m busy!'
+    NO_COMMENTS = 'No comments'
     NO_DESCRIPTION = 'No description provided.'
     NO_TITLE = 'No title'
     PASSWORD = 'Password'
@@ -1856,6 +2270,7 @@ class EnglishString(String):
     PATH_MEANS = 'Path: uploads file'
     PUBLISHED = 'Post published! It should be availabe in seconds.'
     SELECT_SOMETHING = 'Select something!'
+    SENDING_COMMENT = 'Sending comment, please wait...'
     TITLE = 'Title'
     UPLOADING = 'Uploading, please wait...'
     URI = 'URI'
@@ -1878,14 +2293,8 @@ class Const:
         bui.app.env.python_directory_user,
         'Board', 'Downloads'
     )
-    BA_LAG_SMALL = 0.01
-    BA_LAG = 0.04
-    TRANSITION = (
-        ('in_left','out_left'),
-        ('in_scale','out_scale')
-    )
-    BASE = 'white'
-    SHADOW = 'softRect'
+    IMG_BASE = 'white'
+    IMG_SHADOW = 'softRect'
     IMG_DEFAULT = 'star'
     IMG_FILE = 'file'
     IMG_FOLDER = 'folder'
@@ -1904,9 +2313,6 @@ class Const:
     CHAR_DONE = 'PLAY_STATION_CIRCLE_BUTTON'
     CHAR_USER = 'LOGO_FLAT'
     CHAR_POST = 'UP_ARROW'
-    COLON = ':'
-    DOT = '.'
-    DOT_DOT = '..'
     USER_PREFIX = 'Anonymous_'
     ALIGN_CENTER = 'center'
     ALIGN_RIGHT = 'right'
@@ -1919,16 +2325,20 @@ class Const:
     SOUND_BYE = 'laser'
     SOUND_ACTION = 'gunCocking'
     GLOW_TYPE = 'uniform'
-    INVISIBLE = (0,0,0,0)
     SPACE = ' '
     BLANK = ''
     NEWLINE = '\n'
     FAKE_NEWLINE = '\\n'
     ELLIPSIS = '...'
     QUOTE = '\''
+    COLON = ':'
+    DOT = '.'
+    DOT_DOT = '..'
     FILENAME_MAX = 20
     PATH_MAX = 50
-    TIMESTAMP_FORMAT = '%d/%m/%y %H:%M:%S'
+    COMMENT_MAX = 40
+    BA_LAG_SMALL = 0.01
+    BA_LAG = 0.04
     ART = (
         (2.0, 0.3, 2.2),
         (2.2, 0.3, 1.5),
@@ -1936,6 +2346,11 @@ class Const:
         (2.2, 1.8, 0.3),
         (0.3, 2.0, 1.8),
     )
+    TRANSITION = (
+        ('in_left','out_left'),
+        ('in_scale','out_scale')
+    )
+    INVISIBLE = (0,0,0,0)
     FONT_METRICS = loads(decompress(b85decode(
         'c$`&KXG0Y+5d13|QHmH-F6}H>Y4+Zpf)znQl&Xlo-DI+P+<v=xvpYMPY~G'
         'PLC3-KDSIGu9D^80($Y_++CZmxkFeRg7A<u|jcQX1=;Y5a3Hu7vnNvaUhc'
@@ -1954,9 +2369,42 @@ class Const:
     VIDEO_PREFIX = ('mkv','brp','mp4','webm')
     VALID_URI = r'data:([^;,]+)?(;base64)?,(.+)'
     VALID_URL = r'https?://.+'
+    TIMESTAMP_FORMAT = '%d/%m/%y %H:%M:%S'
 
 # tools
-# classes that do big stuff
+# they do big stuff
+
+def fit_string(text, max_width):
+    if not text: return Const.BLANK
+    lines, current_line, current_width = [], [], 0
+    for word in text.split():
+        word_width = Eval.STRING_WIDTH(word)
+        space_width = Eval.STRING_WIDTH(Const.SPACE)
+        if word_width > max_width:
+            if current_line:
+                lines.append(Const.SPACE.join(current_line))
+                current_line, current_width = [], 0
+            chunk, chunk_width = [], 0
+            for char in word:
+                char_width = Eval.STRING_WIDTH(char)
+                if chunk_width + char_width > max_width:
+                    lines.append(Const.BLANK.join(chunk))
+                    chunk, chunk_width = [char], char_width
+                else:
+                    chunk.append(char)
+                    chunk_width += char_width
+            if chunk:
+                current_line, current_width = [Const.BLANK.join(chunk)], chunk_width
+        else:
+            needed = current_width + (space_width if current_line else 0) + word_width
+            if needed > max_width:
+                lines.append(Const.SPACE.join(current_line))
+                current_line, current_width = [word], word_width
+            else:
+                current_line.append(word)
+                current_width = needed
+    if current_line: lines.append(Const.SPACE.join(current_line))
+    return Const.NEWLINE.join(lines)
 
 class Animate:
     def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
@@ -2476,6 +2924,40 @@ def acquire(user_hash, file_id, destination):
 
     return destination
 
+def comment(secret, post_id, text):
+    """Post a comment on a specific post"""
+    stamp = _seal(secret)
+
+    payload_data = {
+        "post_id": post_id,
+        "user_hash": stamp,
+        "text": text
+    }
+
+    payload = f"COMMENT:{dumps(payload_data)}"
+    subject = f"Comment on {post_id} by user_{stamp}"
+
+    return _forge(subject, payload)
+
+def get_comments(post_id):
+    """Get all comments for a specific post"""
+    probe = f"{Data.API_URL.real}/repos/{Data.OWNER.real}/{Data.VAULT.real}/contents/database.json"
+
+    req = Request(probe, headers=_get_headers())
+
+    try:
+        with urlopen(req) as response:
+            meta = loads(response.read().decode())
+            raw = b64decode(meta['content'])
+            registry = loads(raw.decode('utf-8'))
+
+            comments = registry.get('comments', {}).get(post_id, [])
+            return comments
+    except HTTPError as e:
+        if e.code == 404:
+            return []
+        raise
+
 # the ba corner
 # ballistica related stuff lies here
 
@@ -2491,7 +2973,7 @@ class byBordd(ba.Plugin):
     has_settings_ui = lambda s: True
     show_settings_ui = lambda s, source: Board(source)
     def __init__(s):
-        Config.STARTUP and bui.apptimer(1,Board)
+        Config.STARTUP and bui.apptimer(2,Board)
 
 DEBUG_CATALOG = (
     [{'description': 'Yeah this is a test',
