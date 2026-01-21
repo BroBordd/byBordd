@@ -1607,17 +1607,6 @@ class Board:
                 position=(art_x,art_y),
                 size=(art_sx,art_sx-100)
             )
-            if (a:=anims.get(notice,None)): a.cancel()
-            anims[notice] = Animate(
-                widget=notice,
-                duration=butter,
-                attrs={
-                    'color':(
-                        Const.INVISIBLE,
-                        Eval.TEXT(Color.OPACITY/2)
-                    )
-                }
-            )
 
         # back
         py = y-bx-marg*2
@@ -1732,6 +1721,7 @@ class Board:
             switch()
             Thread(target=_acquire).start()
             Eval.DOUBLE_DING(1,0)
+            s.toast(String.DOWNLOADING)
         py -= (marg+3)
         Widget.BUTTON(
             root,
@@ -1763,18 +1753,6 @@ class Board:
             text_scale=0.8,
             color=Color.WARM,
             on_activate_call=cp
-        )
-        # notice
-        notice = Widget.TEXT(
-            root,
-            text=String.DOWNLOADING,
-            position=(
-                art_x+art_sx/2-marg*2,
-                art_y-marg*4
-            ),
-            opacity=0,
-            h_align=Const.ALIGN_CENTER,
-            maxwidth=dx-marg*6
         )
 
 # custom ui
@@ -2249,7 +2227,7 @@ class EnglishString(String):
     COPIED = 'Copied to clipboard!'
     DESCRIPTION = 'Description'
     DOWNLOADED = 'Saved to downloads'
-    DOWNLOADING = 'Downloading...\nYou can close this window'
+    DOWNLOADING = 'Downloading... (you can close this window)'
     EMPTY = 'Empty'
     ENTER_PASSWORD = 'Enter password!'
     ENTER_SOMETHING = 'Enter something!'
