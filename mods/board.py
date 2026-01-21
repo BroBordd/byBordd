@@ -1829,7 +1829,7 @@ class Art:
         s.kids = [
             Widget.TEXT(
                 parent,
-                flatness=-3,
+                flatness=-2,
                 big=True,
                 text=t,
                 position=(letter_start_x + gap * i, letter_y),
