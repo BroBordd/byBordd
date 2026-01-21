@@ -1604,7 +1604,7 @@ class Board:
             art = Art(
                 root,
                 position=(art_x,art_y),
-                size=(art_sx,bsy*0.7)
+                size=(art_sx,art_sx-100)
             )
             if (a:=anims.get(notice,None)): a.cancel()
             anims[notice] = Animate(
