@@ -1099,7 +1099,7 @@ class Board:
             root,
             position=(px+marg*2,marg+bsy-30),
             text=c['title'] or String.NO_TITLE,
-            maxwidth=dx-marg*2,
+            maxwidth=dx-marg*4,
             scale=1.3,
             v_align=Const.ALIGN_CENTER
         )
@@ -1107,7 +1107,7 @@ class Board:
             root,
             position=(px+marg*1.7,marg+bsy-65),
             text=c['description'] or String.NO_DESCRIPTION,
-            maxwidth=dx-marg*2,
+            maxwidth=dx-marg*4,
             opacity=Color.OPACITY/2
         )
         # comment box
