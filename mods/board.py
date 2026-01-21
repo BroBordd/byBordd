@@ -1551,12 +1551,13 @@ class Board:
         # text
         py -= (bx+marg)
         mw = x-(bx+marg*4)
+        mh = y-(bx+marg*7)
         Widget.TEXT(
             root,
             position=(px+marg,py),
             maxwidth=mw-marg*4,
-            max_height=y-(bx+marg*7),
-            text=fit_string(com['text'],mw)
+            max_height=mh,
+            text=fit_string(com['text'],mw,mh)
         )
 
     def file_window(s,file,source,uh):
@@ -2374,36 +2375,46 @@ class Const:
 # tools
 # they do big stuff
 
-def fit_string(text, max_width):
+def fit_string(text, max_width, max_height=None):
     if not text: return Const.BLANK
     lines, current_line, current_width = [], [], 0
+    line_height = 40
     for word in text.split():
         word_width = Eval.STRING_WIDTH(word)
         space_width = Eval.STRING_WIDTH(Const.SPACE)
+        if max_height and len(lines) * line_height >= max_height:
+            break
         if word_width > max_width:
             if current_line:
                 lines.append(Const.SPACE.join(current_line))
                 current_line, current_width = [], 0
+            if max_height and len(lines) * line_height >= max_height:
+                break
             chunk, chunk_width = [], 0
             for char in word:
                 char_width = Eval.STRING_WIDTH(char)
                 if chunk_width + char_width > max_width:
                     lines.append(Const.BLANK.join(chunk))
+                    if max_height and len(lines) * line_height >= max_height:
+                        break
                     chunk, chunk_width = [char], char_width
                 else:
                     chunk.append(char)
                     chunk_width += char_width
-            if chunk:
+            if chunk and (not max_height or len(lines) * line_height < max_height):
                 current_line, current_width = [Const.BLANK.join(chunk)], chunk_width
         else:
             needed = current_width + (space_width if current_line else 0) + word_width
             if needed > max_width:
                 lines.append(Const.SPACE.join(current_line))
+                if max_height and len(lines) * line_height >= max_height:
+                    break
                 current_line, current_width = [word], word_width
             else:
                 current_line.append(word)
                 current_width = needed
-    if current_line: lines.append(Const.SPACE.join(current_line))
+    if current_line and (not max_height or len(lines) * line_height < max_height):
+        lines.append(Const.SPACE.join(current_line))
     return Const.NEWLINE.join(lines)
 
 class Animate:
