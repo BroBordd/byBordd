@@ -1774,7 +1774,7 @@ class Board:
             ),
             opacity=0,
             h_align=Const.ALIGN_CENTER,
-            maxwidth=dx-marg*2
+            maxwidth=dx-marg*4
         )
 
 # custom ui
