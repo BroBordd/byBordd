@@ -1747,7 +1747,7 @@ class Board:
             bui.clipboard_set_text(file['path'])
             s.toast(String.COPIED)
         art_x = px+marg*2
-        art_y = bsy/2
+        art_y = bsy/2.4
         art_sx = dx-marg*4
         py -= (marg*2+bx+2)
         Widget.BUTTON(
