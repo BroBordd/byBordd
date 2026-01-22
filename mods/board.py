@@ -423,7 +423,6 @@ class Board:
             size=(art_sx,art_sy),
         )
         s.update_title(String.WAIT)
-        return
         s.loaded = False
         def kill():
             for w in getattr(s, 'catalog_widgets', []): w.delete()
@@ -1811,7 +1810,6 @@ class Input:
 class Art:
     def __init__(s, parent, position, size, **kw):
         s.opacity = 1
-        s.bar_opacity = s.opacity/2
         s.parent = parent
         px, py = position
         sx, sy = size
@@ -1825,6 +1823,14 @@ class Art:
         gap = total_text_width / num_letters if num_letters > 1 else 0
         letter_start_x = px
         letter_y = py
+        # shadow
+        s.shadow = Widget.IMAGE(
+            parent,
+            position=position,
+            size=(sx,letter_height),
+            color=Color.SHADOW,
+            texture=Eval.TEXTURE(Const.IMG_REFLECTION)
+        )
         # create letters
         s.kids = [
             Widget.TEXT(
@@ -1862,7 +1868,7 @@ class Art:
         s.pro_bg = Widget.IMAGE(
             parent,
             position=(s.pro_base_x, s.pro_base_y),
-            opacity=s.bar_opacity/2,
+            opacity=s.opacity/2,
             size=(bar_width, bar_height),
             color=Color.WARM
         )
@@ -1870,7 +1876,7 @@ class Art:
         s.pro = Widget.IMAGE(
             parent,
             position=(s.pro_base_x, s.pro_base_y),
-            opacity=s.bar_opacity,
+            opacity=s.opacity,
             size=(indicator_width, bar_height),
             color=Color.WARM
         )
@@ -1878,22 +1884,34 @@ class Art:
 
     def animate(s):
         for i, k in enumerate(s.kids):
-            s.art_progress[i] -= 0.02
+            # variable speed based on current color
+            current_idx = s.art_color_idx[i]
+            current_color = Const.ART[current_idx]
+
+            # speed up if red is dominant (R high, G low, B low)
+            # The red one is: (3.0, 0.3, 0.3)
+            if current_idx == 2:
+                speed = 0.03
+            else:
+                speed = 0.02
+
+            s.art_progress[i] -= speed
             if s.art_progress[i] < 0:
                 s.art_progress[i] += 1.0
                 s.art_color_idx[i] = (s.art_color_idx[i] + 1) % len(Const.ART)
             current_idx = s.art_color_idx[i]
             next_idx = (current_idx + 1) % len(Const.ART)
             progress = s.art_progress[i] % 1.0
-            blended = tuple(
+            r,g,b,a = tuple(
                 Const.ART[current_idx][j] * progress +
                 Const.ART[next_idx][j] * (1 - progress)
                 for j in range(3)
-            ) + (s.opacity,)
+            )+(s.opacity,)
             if not k.exists():
                 s.art_timer = None
                 return
-            bui.textwidget(k, color=blended)
+            bui.textwidget(k, color=(r,g,b,a))
+
         # progress bar animation
         s.pro_time += 0.02
         cycle = (s.pro_time % 2.0) / 2.0
@@ -1901,10 +1919,44 @@ class Art:
         t = t if t < 1 else 2 - t
         t = t * t * (3.0 - 2.0 * t)
         x_offset = (s.pro_width - s.pro_indicator_width) * t
-        bui.imagewidget(s.pro, position=(s.pro_base_x + x_offset, s.pro_base_y))
+
+        # sample 3 gradient colors for shadow
+        base_idx = s.art_color_idx[0]
+        base_prog = s.art_progress[0] % 1.0
+
+        # color 1: current position
+        idx1, idx1_next = base_idx, (base_idx + 1) % len(Const.ART)
+        c1 = tuple(Const.ART[idx1][j] * base_prog + Const.ART[idx1_next][j] * (1 - base_prog) for j in range(3))
+
+        # color 2: offset by 1/3
+        prog2 = (base_prog + 0.33) % 1.0
+        idx2 = (base_idx + int((base_prog + 0.33) // 1.0)) % len(Const.ART)
+        idx2_next = (idx2 + 1) % len(Const.ART)
+        c2 = tuple(Const.ART[idx2][j] * prog2 + Const.ART[idx2_next][j] * (1 - prog2) for j in range(3))
+
+        # color 3: offset by 2/3
+        prog3 = (base_prog + 0.66) % 1.0
+        idx3 = (base_idx + int((base_prog + 0.66) // 1.0)) % len(Const.ART)
+        idx3_next = (idx3 + 1) % len(Const.ART)
+        c3 = tuple(Const.ART[idx3][j] * prog3 + Const.ART[idx3_next][j] * (1 - prog3) for j in range(3))
+
+        bui.imagewidget(s.shadow, color=c1, tint_color=c2, tint2_color=c3)
+        bui.imagewidget(
+            s.pro,
+            position=(s.pro_base_x + x_offset, s.pro_base_y),
+            color=c1
+        )
+        bui.imagewidget(
+            s.pro_bg, color=c1
+        )
 
     def fade_out(s, duration=0.3, on_finish=None):
         s.art_timer = None
+        s.anims[id(s.shadow)] = Animate(
+            widget=s.shadow,
+            attrs={'opacity': (s.opacity, 0)},
+            duration=duration
+        )
         for kid in s.kids:
             if not kid.exists():
                 return
@@ -1920,7 +1972,7 @@ class Art:
         )
         s.anims[id(s.pro)] = Animate(
             widget=s.pro,
-            attrs={'opacity': (s.opacity * 2, 0)},
+            attrs={'opacity': (s.opacity, 0)},
             duration=duration,
             on_finish=on_finish
         )
@@ -1931,6 +1983,7 @@ class Art:
         s.pro.delete()
         for k in s.kids:
             k.delete()
+        s.shadow.delete()
         s.kids.clear()
         s.anims.clear()
 
@@ -2204,7 +2257,7 @@ class LightColor(Color):
     COLD = (0.75,0.75,0.75)
     WARM = (0.6,0.6,0.6)
     TEXT = (0,0,0)
-    SHADOW = (0.3,0.3,0.3)
+    SHADOW = (0.1,0.1,0.1)
     OPACITY = 0.8
 
 Color = Eval.SUBCLASS(Color,Config.COLOR,DarkColor)
@@ -2286,6 +2339,7 @@ class Const:
     IMG_REFRESH = 'replayIcon'
     IMG_AUDIO = 'audioIcon'
     IMG_DOT_DOT = 'replayIcon'
+    IMG_REFLECTION = 'reflectionSoft_+y'
     CHAR_BACK = 'BACK'
     CHAR_HELP = '?'
     CHAR_DOWNLOAD = 'DOWN_ARROW'
