@@ -1,4 +1,5 @@
 # Copyright 2026 - Solely by BrotherBoard
+# Intended for personal use only
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
@@ -27,7 +28,7 @@ from random import random
 from uuid import uuid4
 from enum import Enum
 
-__version__ = '1.0.0'
+__version__ = '1.0'
 
 class Config:
     COLOR = 'Light'
@@ -1239,10 +1240,12 @@ class Board:
                     w.delete()
                 com_widgets.clear()
                 Thread(target=_get).start()
+            artx = cx-marg*8
             art = Art(
                 root,
-                position=(com_x+marg,com_yp+com_ys/4),
-                size=(cx-marg*2,255)
+                position=(com_x+cx/8,com_yp+com_ys/4+artx/8),
+                size=(artx,artx/2),
+                opacity=Color.OPACITY/1.3
             )
         def _get():
             nonlocal coms
@@ -1810,8 +1813,8 @@ class Input:
         s.widget.delete()
 
 class Art:
-    def __init__(s, parent, position, size, **kw):
-        s.opacity = 1
+    def __init__(s, parent, position, size, opacity=None,**kw):
+        s.opacity = opacity or Color.OPACITY
         s.parent = parent
         px, py = position
         sx, sy = size
@@ -1826,12 +1829,22 @@ class Art:
         letter_start_x = px
         letter_y = py
         # shadow
+        xoff = sx*0.1
+        yoff = letter_height*0.2
         s.shadow = Widget.IMAGE(
+            parent,
+            position=(px-xoff,py-yoff),
+            size=(sx+xoff*2,letter_height+yoff*2),
+            texture=Eval.TEXTURE(Const.IMG_SHADOW),
+            opacity=s.opacity/2.5,
+        )
+        # bg
+        s.bg = Widget.IMAGE(
             parent,
             position=position,
             size=(sx,letter_height),
-            color=Color.SHADOW,
-            texture=Eval.TEXTURE(Const.IMG_REFLECTION)
+            texture=Eval.TEXTURE(Const.IMG_REFLECTION),
+            opacity=s.opacity
         )
         # create letters
         s.kids = [
@@ -1922,7 +1935,7 @@ class Art:
         t = t * t * (3.0 - 2.0 * t)
         x_offset = (s.pro_width - s.pro_indicator_width) * t
 
-        # sample 3 gradient colors for shadow
+        # sample 3 gradient colors for bg
         base_idx = s.art_color_idx[0]
         base_prog = s.art_progress[0] % 1.0
 
@@ -1930,18 +1943,22 @@ class Art:
         idx1, idx1_next = base_idx, (base_idx + 1) % len(Const.ART)
         c1 = tuple(Const.ART[idx1][j] * base_prog + Const.ART[idx1_next][j] * (1 - base_prog) for j in range(3))
 
-        bui.imagewidget(s.shadow, color=c1, tint_color=c1, tint2_color=c1)
+        bui.imagewidget(s.bg, color=c1, tint_color=c1, tint2_color=c1)
         bui.imagewidget(
             s.pro,
             position=(s.pro_base_x + x_offset, s.pro_base_y),
             color=c1
         )
-        bui.imagewidget(
-            s.pro_bg, color=c1
-        )
+        bui.imagewidget(s.pro_bg, color=c1)
+        bui.imagewidget(s.shadow, color=c1)
 
     def fade_out(s, duration=0.3, on_finish=None):
         s.art_timer = None
+        s.anims[id(s.bg)] = Animate(
+            widget=s.bg,
+            attrs={'opacity': (s.opacity, 0)},
+            duration=duration
+        )
         s.anims[id(s.shadow)] = Animate(
             widget=s.shadow,
             attrs={'opacity': (s.opacity, 0)},
@@ -1973,6 +1990,7 @@ class Art:
         s.pro.delete()
         for k in s.kids:
             k.delete()
+        s.bg.delete()
         s.shadow.delete()
         s.kids.clear()
         s.anims.clear()
