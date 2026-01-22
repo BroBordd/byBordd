@@ -424,6 +424,8 @@ class Board:
         )
         s.update_title(String.WAIT)
         s.loaded = False
+        if Config.DEBUG == 'title':
+            return
         def kill():
             for w in getattr(s, 'catalog_widgets', []): w.delete()
             s.catalog_widgets = []
@@ -1890,7 +1892,7 @@ class Art:
 
             # speed up if red is dominant (R high, G low, B low)
             # The red one is: (3.0, 0.3, 0.3)
-            if current_idx == 2:
+            if current_idx in (0,2):
                 speed = 0.03
             else:
                 speed = 0.02
@@ -1928,19 +1930,7 @@ class Art:
         idx1, idx1_next = base_idx, (base_idx + 1) % len(Const.ART)
         c1 = tuple(Const.ART[idx1][j] * base_prog + Const.ART[idx1_next][j] * (1 - base_prog) for j in range(3))
 
-        # color 2: offset by 1/3
-        prog2 = (base_prog + 0.33) % 1.0
-        idx2 = (base_idx + int((base_prog + 0.33) // 1.0)) % len(Const.ART)
-        idx2_next = (idx2 + 1) % len(Const.ART)
-        c2 = tuple(Const.ART[idx2][j] * prog2 + Const.ART[idx2_next][j] * (1 - prog2) for j in range(3))
-
-        # color 3: offset by 2/3
-        prog3 = (base_prog + 0.66) % 1.0
-        idx3 = (base_idx + int((base_prog + 0.66) // 1.0)) % len(Const.ART)
-        idx3_next = (idx3 + 1) % len(Const.ART)
-        c3 = tuple(Const.ART[idx3][j] * prog3 + Const.ART[idx3_next][j] * (1 - prog3) for j in range(3))
-
-        bui.imagewidget(s.shadow, color=c1, tint_color=c2, tint2_color=c3)
+        bui.imagewidget(s.shadow, color=c1, tint_color=c1, tint2_color=c1)
         bui.imagewidget(
             s.pro,
             position=(s.pro_base_x + x_offset, s.pro_base_y),
