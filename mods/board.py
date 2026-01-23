@@ -33,74 +33,92 @@ __version__ = '1.0'
 class Config:
     COLOR = 'Light'
     STRING = 'English'
-    STARTUP = True
     DEBUG = False
 
-class Board:
-    _shared = defaultdict(list)
-
-    @staticmethod
-    def _call(sig):
-        for callback_ref in Board._shared['callbacks']:
-            callback = callback_ref()
-            callback(sig)
-
-    def callback(s,cb):
-        bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
-
-    def __init__(s, source=None):
-        s.__class__._shared['callbacks'].append(
-            WeakMethod(s.callback)
+class Board(bui.MainWindow):
+    def main_window_should_preserve_selection(s):
+        return False
+    def get_main_window_state(s):
+        cls = type(self)
+        return bui.BasicMainWindowState(
+            create_call=lambda transition, origin_widget: cls(
+                transition=transition, origin_widget=origin_widget
+            )
         )
+    def __init__(s, source=None):
         s.anims = {}
         s.welcome = False
         s.toast_blink = None
-        Eval.SOUND(Const.SOUND_HI, 0.15)
+        s.source = source
 
-        # screen
+        s.catalog_widgets = []
+        s.catalog_anims = []
+
+        s._build_ui()
+        super().__init__(
+            root_widget=s.root,
+            origin_widget=source,
+            refresh_on_screen_size_changes=True,
+            transition=Eval.TRANSITION(source)
+        )
+
+        Eval.SOUND(Const.SOUND_HI, 0.15)
+        s.refresh(shut=True)
+
+    def _build_ui(s):
+        if hasattr(s, 'root') and s.root.exists():
+            old_root = s.root
+
         x, y = size = Eval.REAL(margin=0.2)
 
-        # constants
-        marg = 20
-        bx = 50
-        dy = 50
+        s._layout = {
+            'margin': 20,
+            'button_size': 50,
+            'title_height': 50,
+        }
+
+        marg = s._layout['margin']
+        bx = s._layout['button_size']
+        dy = s._layout['title_height']
         py = y - 70
 
         # root
-        s.root = Widget.WINDOW(size=size, source=source)
+        s.root = Widget.WINDOW(
+            size=size, source=s.source
+        )
 
         # back
         back_x = marg
-        back = Widget.BUTTON(
+        s.back_button = Widget.BUTTON(
             s.root,
             position=(back_x, py),
             size=(bx, bx),
             label=Eval.CHAR(Const.CHAR_BACK),
             text_scale=0.8
         )
-        bui.buttonwidget(back, on_activate_call=bui.CallPartial(s.exit, source))
-        bui.containerwidget(s.root, cancel_button=back)
+        bui.buttonwidget(s.back_button, on_activate_call=bui.CallPartial(s.exit, s.source))
+        bui.containerwidget(s.root, cancel_button=s.back_button)
 
         # post
         post_x = x - marg - bx
-        post = Widget.BUTTON(
+        s.post_button = Widget.BUTTON(
             s.root,
             position=(post_x, py),
             size=(bx, bx),
             label=Eval.CHAR(Const.CHAR_POST),
             text_scale=1.1
         )
-        bui.buttonwidget(post, on_activate_call=bui.CallPartial(s.post_window, post))
+        bui.buttonwidget(s.post_button, on_activate_call=bui.CallPartial(s.post_window, s.post_button))
 
         # refresh
         rf_x = post_x - marg - bx
-        Widget.BUTTON(
+        s.refresh_button = Widget.BUTTON(
             s.root,
             position=(rf_x, py),
             size=(bx, bx),
             on_activate_call=s.refresh
         )
-        Widget.IMAGE(
+        s.refresh_icon = Widget.IMAGE(
             s.root,
             position=(rf_x + bx*0.1, py + bx*0.1),
             size=(bx*0.8, bx*0.8),
@@ -111,7 +129,7 @@ class Board:
         # title
         px = back_x + bx + marg
         dx = rf_x - px - marg
-        Widget.IMAGE(
+        s.title_bg = Widget.IMAGE(
             s.root,
             position=(px, py - 2),
             size=(dx, dy + 4),
@@ -131,17 +149,209 @@ class Board:
             size=(sx, sy)
         )
 
-        # container
+        # scroll root
         cx, cy = sx, sy - 15
         s.scroll_root = Widget.CONTAINER(
             s.scroll,
             size=(cx, cy)
         )
 
-        # finally
-        s.refresh(shut=True)
+    def on_resize(s):
+        """Called when screen size changes - rebuild UI"""
+        if not hasattr(s, 'root') or not s.root.exists():
+            return
+        # Store current catalog data if we have it
+        current_catalog = getattr(s, '_current_catalog', None)
+        # Rebuild UI with new dimensions
+        s._build_ui()
+        print('built')
+        # Restore catalog if we had one loaded
+        if current_catalog:
+            s._render_catalog_content(current_catalog)
+        # Otherwise check if art widget is showing (loading state)
+        elif hasattr(s, 'art') and s.art and not s.art.art_timer is None:
+            x, y = Eval.REAL(margin=0.2)
+            art_sx = 350
+            art_sy = 250
+            old_art = s.art
+            s.art = Art(
+                s.root,
+                position=(x/2-art_sx/2, y/2-art_sy/4),
+                size=(art_sx, art_sy),
+            )
+            if old_art:
+                old_art.delete()
+
+    def on_rescale(s):
+        """Called when UI scale changes - can reuse on_resize logic"""
+        s.on_resize()
+
+    def render(s, cat):
+        if not s.root.exists(): return
+        # Store catalog for resize
+        s._current_catalog = cat
+
+        if s.art:
+            s.art.fade_out(
+                duration=0.3,
+                on_finish=s.art.delete
+            )
+            bui.apptimer(0.2, lambda: s.update_title(String.BOARD))
+            bui.apptimer(0.1, lambda: s._render_catalog_content(cat))
+        else:
+            s.update_title(String.BOARD)
+            s._render_catalog_content(cat)
+
+    def _render_catalog_content(s, cat):
+        x, y = s.scroll_size
+        marg = 10
+        ey = 150
+        xt = 40
+        ix = ey - marg
+        lc = len(cat)
+        ry = (marg + ey + xt)*lc-marg
+
+        # Clear old catalog widgets
+        for w in getattr(s, 'catalog_widgets', []):
+            if hasattr(w, 'delete'):
+                w.delete()
+        for anim in getattr(s, 'catalog_anims', []):
+            if hasattr(anim, 'cancel'):
+                anim.cancel()
+
+        s.catalog_widgets = []
+        s.catalog_anims = []
+        widgets_to_animate = []
+
+        for i, c in enumerate(cat, start=1):
+            px, py = (0, (marg + ey + xt) * (i - 1))
+            files = c['files']
+
+            # bg
+            bg = Widget.IMAGE(
+                s.scroll_root,
+                size=(x, ey),
+                position=(px, py),
+                color=Color.COLD,
+                opacity=0
+            )
+            s.catalog_widgets.append(bg)
+            widgets_to_animate.append((bg, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
+
+            # head
+            head = Widget.IMAGE(
+                s.scroll_root,
+                size=(x, xt),
+                position=(px, py + ey),
+                color=Color.WARM,
+                opacity=0
+            )
+            s.catalog_widgets.append(head)
+            widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
+
+            # img
+            img = Widget.IMAGE(
+                s.scroll_root,
+                position=(px + marg/2, py + marg/2),
+                size=(ix, ix),
+                texture=Eval.COVER_IMG(files),
+                opacity=0
+            )
+            s.catalog_widgets.append(img)
+            widgets_to_animate.append((img, 'opacity', (0, Color.OPACITY), 0.15 + (lc-i)*0.05))
+
+            # user
+            user = Widget.TEXT(
+                s.scroll_root,
+                text=Eval.FORMAT_USER(c['user_hash']),
+                position=(marg/2, py + ey + marg/2),
+                opacity=0
+            )
+            s.catalog_widgets.append(user)
+            widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + (lc-i)*0.05))
+
+            # id
+            idx = 70
+            id_text = Widget.TEXT(
+                s.scroll_root,
+                text=Eval.METADATA(c['timestamp'], c['id']),
+                position=(x - idx - marg/2, py + ey + marg/2),
+                h_align=Const.ALIGN_RIGHT,
+                opacity=0
+            )
+            s.catalog_widgets.append(id_text)
+            widgets_to_animate.append((id_text, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + (lc-i)*0.05))
+
+            # title
+            title = Widget.TEXT(
+                s.scroll_root,
+                position=(px + ix + marg*1.5, py + ey - (marg + 30)),
+                text=c['title'] or String.NO_TITLE,
+                maxwidth=x - ix - marg*2,
+                scale=1.3,
+                v_align=Const.ALIGN_CENTER,
+                opacity=0
+            )
+            s.catalog_widgets.append(title)
+            widgets_to_animate.append((title, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.2 + (lc-i)*0.05))
+
+            # desc
+            mw = x - ix - marg*4
+            desc = Widget.TEXT(
+                s.scroll_root,
+                position=(px + ix + marg, py + ey - (marg + 60)),
+                text='\n'.join(
+                    fit_string(
+                        (c['description'] or String.NO_DESCRIPTION),
+                        mw
+                    ).split('\n')[:3]
+                ),
+                maxwidth=mw,
+                max_height=ix - 30,
+                opacity=0
+            )
+            s.catalog_widgets.append(desc)
+            widgets_to_animate.append((desc, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.2 + (lc-i)*0.05))
+
+            # sensor
+            sensor = Widget.SENSOR(
+                s.scroll_root,
+                position=(px, py + marg/2),
+                size=(x, ey + xt - marg),
+            )
+            s.catalog_widgets.append(sensor)
+            widgets_to_animate.append((sensor, 'opacity', (0, 0.01), 0.25 + (lc-i)*0.05))
+            bui.buttonwidget(
+                sensor,
+                on_activate_call=bui.CallPartial(s.msg_window, c, sensor)
+            )
+
+        bui.containerwidget(s.scroll_root, size=(x, ry))
+
+        # animate
+        butter = 0.4
+        for widget, attr_name, (start, end), delay in widgets_to_animate:
+            if attr_name == 'opacity':
+                attrs = {'opacity': (start, end)}
+            else:
+                attrs = {'color': (start, end)}
+
+            anim = Animate(
+                widget=widget,
+                attrs=attrs,
+                duration=butter,
+                delay=delay
+            )
+            s.catalog_anims.append(anim)
+
+        if not s.welcome:
+            s.welcome = True
+            bui.apptimer(butter, bui.CallPartial(
+                s.toast, String.WELCOME
+            ))
 
     def toast(s,t):
+        if not s.root.exists(): return
         if getattr(s,'toast_zoom',None):
             s.toast_zoom.cancel()
         # create once
@@ -275,139 +485,6 @@ class Board:
             on_finish=on_finish
         )
 
-    def render(s, cat):
-        if s.art:
-            # fade
-            s.art.fade_out(
-                duration=0.3,
-                on_finish=s.art.delete
-            )
-            # title
-            bui.apptimer(0.2, lambda: s.update_title(String.BOARD))
-            # catalog
-            bui.apptimer(0.1, lambda: s._render_catalog_content(cat))
-        else:
-            s.update_title(String.BOARD)
-            s._render_catalog_content(cat)
-
-    def _render_catalog_content(s, cat):
-        x, y = s.scroll_size
-        marg = 10
-        ey = 150
-        xt = 40
-        ix = ey - marg
-        lc = len(cat)
-        ry = ry = (marg + ey + xt)*lc-marg
-        # widgets
-        widgets_to_animate = []
-        s.catalog_widgets = []
-        s.catalog_anims = []
-
-        for i, c in enumerate(cat, start=1):
-            px, py = (0, (marg + ey + xt) * (i - 1))
-            files = c['files']
-            # bg
-            bg = Widget.IMAGE(
-                s.scroll_root,
-                size=(x, ey),
-                position=(px, py),
-                color=Color.COLD,
-                opacity=0
-            )
-            widgets_to_animate.append((bg, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
-            # head
-            head = Widget.IMAGE(
-                s.scroll_root,
-                size=(x, xt),
-                position=(px, py + ey),
-                color=Color.WARM,
-                opacity=0
-            )
-            widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
-            # img
-            img = Widget.IMAGE(
-                s.scroll_root,
-                position=(px + marg/2, py + marg/2),
-                size=(ix, ix),
-                texture=Eval.COVER_IMG(files),
-                opacity=0
-            )
-            widgets_to_animate.append((img, 'opacity', (0, Color.OPACITY), 0.15 + (lc-i)*0.05))
-            # user
-            user = Widget.TEXT(
-                s.scroll_root,
-                text=Eval.FORMAT_USER(c['user_hash']),
-                position=(marg/2, py + ey + marg/2),
-                opacity=0
-            )
-            widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + (lc-i)*0.05))
-            # id
-            idx = 70
-            id_text = Widget.TEXT(
-                s.scroll_root,
-                text=Eval.METADATA(c['timestamp'], c['id']),
-                position=(x - idx - marg/2, py + ey + marg/2),
-                h_align=Const.ALIGN_RIGHT,
-                opacity=0
-            )
-            widgets_to_animate.append((id_text, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + (lc-i)*0.05))
-            # title
-            title = Widget.TEXT(
-                s.scroll_root,
-                position=(px + ix + marg*1.5, py + ey - (marg + 30)),
-                text=c['title'] or String.NO_TITLE,
-                maxwidth=x - ix - marg*2,
-                scale=1.3,
-                v_align=Const.ALIGN_CENTER,
-                opacity=0
-            )
-            widgets_to_animate.append((title, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.2 + (lc-i)*0.05))
-            # desc
-            desc = Widget.TEXT(
-                s.scroll_root,
-                position=(px + ix + marg, py + ey - (marg + 60)),
-                text='\n'.join((c['description'] or String.NO_DESCRIPTION).split('\n')[:3]),
-                maxwidth=x - ix - marg*2,
-                max_height=ix - 30,
-                opacity=0
-            )
-            widgets_to_animate.append((desc, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.2 + (lc-i)*0.05))
-            # sensor
-            sensor = Widget.SENSOR(
-                s.scroll_root,
-                position=(px, py + marg/2),
-                size=(x, ey + xt - marg),
-
-            )
-            widgets_to_animate.append((sensor, 'opacity', (0, 0.01), 0.25 + (lc-i)*0.05))
-
-            bui.buttonwidget(
-                sensor,
-                on_activate_call=bui.CallPartial(s.msg_window, c, sensor)
-            )
-
-        bui.containerwidget(s.scroll_root, size=(x, ry))
-        # animate
-        butter = 0.4
-        for widget, attr_name, (start, end), delay in widgets_to_animate:
-            if attr_name == 'opacity':
-                attrs = {'opacity': (start, end)}
-            else:
-                attrs = {'color': (start, end)}
-
-            anim = Animate(
-                widget=widget,
-                attrs=attrs,
-                duration=butter,
-                delay=delay
-            )
-            s.catalog_anims.append(anim)
-        if not s.welcome:
-            s.welcome = True
-            bui.apptimer(butter,bui.CallPartial(
-                s.toast, String.WELCOME
-            ))
-
     def refresh(s,shut=False):
         if not hasattr(s,'loaded'):
             s.loaded = False
@@ -439,11 +516,7 @@ class Board:
             kill()
 
     def fetch(s):
-        try: cat = (
-            Config.DEBUG and
-            DEBUG_CATALOG
-            or catalog()
-        )
+        try: cat = catalog()
         except Exception as e:
             call = bui.CallPartial(
                 bui.textwidget, s.title, text=str(e)
@@ -454,19 +527,10 @@ class Board:
         ba.pushcall(call, from_other_thread=True)
 
     def exit(s,source=None):
-        if s.art:
-            s.art.delete()
-            s.art = None
-        bui.containerwidget(
-            s.root,transition=Eval.TRANSITION(source,out=True)
-        )
+        s.anims.clear()
+        s.catalog_anims.clear()
         Eval.SOUND(Const.SOUND_BYE)
-
-    def on_resize(s):
-        pass
-
-    def on_rescale(s):
-        pass
+        s.main_window_back()
 
     def post_window(s,source=None):
         if not s.loaded:
@@ -1085,7 +1149,9 @@ class Board:
             opacity=Color.OPACITY/2,
             v_align=Const.ALIGN_CENTER
         )
-        # title
+        # title and desc
+        file_x = 100
+        xt = 30
         Widget.IMAGE(
             root,
             position=(px,py-2),
@@ -1106,11 +1172,17 @@ class Board:
             scale=1.3,
             v_align=Const.ALIGN_CENTER
         )
+        mw = dx-marg*4
+        mh = bsy-(file_x+xt+marg*3+30)
         Widget.TEXT(
             root,
             position=(px+marg*1.7,marg+bsy-65),
-            text=c['description'] or String.NO_DESCRIPTION,
-            maxwidth=dx-marg*4,
+            text=fit_string(
+                c['description'] or String.NO_DESCRIPTION,
+                mw, mh
+            ),
+            maxwidth=mw,
+            max_height=mh,
             opacity=Color.OPACITY/2
         )
         # comment box
@@ -1253,6 +1325,7 @@ class Board:
             coms.reverse()
             bui.pushcall(do_list,from_other_thread=True)
         def do_list():
+            if not com_scroll.exists(): return
             nonlocal com_big
             last_anim and last_anim.cancel()
             art.fade_out(on_finish=art.delete)
@@ -1409,8 +1482,6 @@ class Board:
             opacity=Color.OPACITY/2
         )
         # files
-        file_x = 100
-        xt = 30
         step = (file_x+marg)
         rdx = max(len(files)*step,dx-15)
         file_root = Widget.CONTAINER(
@@ -1610,7 +1681,7 @@ class Board:
             art = Art(
                 root,
                 position=(art_x,art_y),
-                size=(art_sx,art_sx-100)
+                size=(art_sx,art_sy)
             )
 
         # back
@@ -1746,9 +1817,10 @@ class Board:
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(file['path'])
             s.toast(String.COPIED)
-        art_x = px+marg*2
-        art_y = bsy/2.4
         art_sx = dx-marg*4
+        art_sy = art_sx-100
+        art_x = px+marg*2
+        art_y = bsy/2-art_sy/8
         py -= (marg*2+bx+2)
         Widget.BUTTON(
             root,
@@ -2075,6 +2147,7 @@ class Widget:
         (root:=Widget.CONTAINER(
             source=source,
             size=size,
+            toolbar_visibility=Const.TOOLBAR_VISIBILITY,
             **k
         )),
         (shadow:=Eval.SHADOW(*size)),
@@ -2111,6 +2184,13 @@ class Widget:
 class Eval:
     WIDGET = lambda w: getattr(
         bui, w.get_widget_type() + 'widget'
+    )
+    BY_SCALE = lambda a,b,c:(
+        (scale:=bui.app.ui_v1.uiscale) and (
+            a if scale is bui.UIScale.SMALL else
+            b if scale is bui.UIScale.MEDIUM else
+            c
+        )
     )
     TRANSITION = lambda source=None,out=False:(
         Const.TRANSITION[bool(source)][out]
@@ -2348,6 +2428,7 @@ class Const:
     IMG_AUDIO = 'audioIcon'
     IMG_DOT_DOT = 'replayIcon'
     IMG_REFLECTION = 'reflectionSoft_+y'
+    BUTTON_TYPE = 'square'
     CHAR_BACK = 'BACK'
     CHAR_HELP = '?'
     CHAR_DOWNLOAD = 'DOWN_ARROW'
@@ -2360,6 +2441,7 @@ class Const:
     ALIGN_CENTER = 'center'
     ALIGN_RIGHT = 'right'
     ALIGN_BOTTOM = 'bottom'
+    TOOLBAR_VISIBILITY = 'no_menu_minimal'
     SOUND_HI = 'powerup01'
     SOUND_OK = 'deek'
     SOUND_DING = 'dingSmallHigh'
@@ -2419,45 +2501,75 @@ class Const:
 
 def fit_string(text, max_width, max_height=None):
     if not text: return Const.BLANK
-    lines, current_line, current_width = [], [], 0
-    line_height = 40
-    for word in text.split():
-        word_width = Eval.STRING_WIDTH(word)
-        space_width = Eval.STRING_WIDTH(Const.SPACE)
-        if max_height and len(lines) * line_height >= max_height:
-            break
-        if word_width > max_width:
-            if current_line:
-                lines.append(Const.SPACE.join(current_line))
-                current_line, current_width = [], 0
-            if max_height and len(lines) * line_height >= max_height:
-                break
-            chunk, chunk_width = [], 0
-            for char in word:
-                char_width = Eval.STRING_WIDTH(char)
-                if chunk_width + char_width > max_width:
-                    lines.append(Const.BLANK.join(chunk))
-                    if max_height and len(lines) * line_height >= max_height:
-                        break
-                    chunk, chunk_width = [char], char_width
+    result_lines = []
+    line_height = 20
+
+    # If height is constrained, calculate effective width
+    effective_width = max_width
+    if max_height:
+        max_lines = int(max_height / line_height)
+        # Do a first pass to see how many lines we'd get
+        temp_lines = []
+        for paragraph in text.split(Const.NEWLINE):
+            words = paragraph.split()
+            if not words:
+                temp_lines.append('')
+                continue
+            current_line, current_width = [], 0
+            for word in words:
+                word_width = Eval.STRING_WIDTH(word)
+                space_width = Eval.STRING_WIDTH(Const.SPACE)
+                needed = current_width + (space_width if current_line else 0) + word_width
+                if needed > max_width:
+                    temp_lines.append(Const.SPACE.join(current_line))
+                    current_line, current_width = [word], word_width
                 else:
-                    chunk.append(char)
-                    chunk_width += char_width
-            if chunk and (not max_height or len(lines) * line_height < max_height):
-                current_line, current_width = [Const.BLANK.join(chunk)], chunk_width
-        else:
-            needed = current_width + (space_width if current_line else 0) + word_width
-            if needed > max_width:
-                lines.append(Const.SPACE.join(current_line))
-                if max_height and len(lines) * line_height >= max_height:
-                    break
-                current_line, current_width = [word], word_width
+                    current_line.append(word)
+                    current_width = needed
+            if current_line:
+                temp_lines.append(Const.SPACE.join(current_line))
+
+        # If we'd exceed max_lines, increase effective width to compensate
+        if len(temp_lines) > max_lines:
+            scale_factor = max_lines / len(temp_lines)
+            effective_width = max_width / scale_factor
+
+    # Now do the actual wrapping with effective_width
+    for paragraph in text.split(Const.NEWLINE):
+        lines, current_line, current_width = [], [], 0
+        for word in paragraph.split():
+            word_width = Eval.STRING_WIDTH(word)
+            space_width = Eval.STRING_WIDTH(Const.SPACE)
+            if max_height and len(result_lines) * line_height >= max_height:
+                break
+            if word_width > effective_width:
+                if current_line:
+                    lines.append(Const.SPACE.join(current_line))
+                    current_line, current_width = [], 0
+                chunk, chunk_width = [], 0
+                for char in word:
+                    char_width = Eval.STRING_WIDTH(char)
+                    if chunk_width + char_width > effective_width:
+                        lines.append(Const.BLANK.join(chunk))
+                        chunk, chunk_width = [char], char_width
+                    else:
+                        chunk.append(char)
+                        chunk_width += char_width
+                if chunk:
+                    current_line, current_width = [Const.BLANK.join(chunk)], chunk_width
             else:
-                current_line.append(word)
-                current_width = needed
-    if current_line and (not max_height or len(lines) * line_height < max_height):
-        lines.append(Const.SPACE.join(current_line))
-    return Const.NEWLINE.join(lines)
+                needed = current_width + (space_width if current_line else 0) + word_width
+                if needed > effective_width:
+                    lines.append(Const.SPACE.join(current_line))
+                    current_line, current_width = [word], word_width
+                else:
+                    current_line.append(word)
+                    current_width = needed
+        if current_line:
+            lines.append(Const.SPACE.join(current_line))
+        result_lines.extend(lines)
+
+    return Const.NEWLINE.join(result_lines)
 
 class Animate:
     def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
@@ -3011,89 +3123,46 @@ def get_comments(post_id):
             return []
         raise
 
-# the ba corner
-# ballistica related stuff lies here
-
-class BoardSubsystem(ba.AppSubsystem):
-    def on_screen_size_change(s):
-        Board._call('on_resize')
-    def on_ui_scale_change(s):
-        Board._call('on_rescale')
-
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(ba.Plugin):
     has_settings_ui = lambda s: True
     show_settings_ui = lambda s, source: Board(source)
     def __init__(s):
-        Config.STARTUP and bui.apptimer(2,Board)
+        from bauiv1lib.mainmenu import MainMenuWindow
+        old = MainMenuWindow._refresh
+        MainMenuWindow._refresh = lambda z:(old(z),s.make(z))
+    def make(s,z):
+        px,py = -190,Eval.BY_SCALE(-10,-45,-80)
+        sx = 60
+        bui.buttonwidget(
+            (btn:=bui.buttonwidget(
+                parent=z._root_widget,
+                label=Const.BLANK,
+                color=Color.BASE,
+                textcolor=Color.TEXT,
+                size=(sx,sx),
+                position=(px,py),
+                button_type=Const.BUTTON_TYPE,
+                id=f"{z.main_window_id_prefix}|board",
+            )), on_activate_call=bui.CallPartial(
+                z.main_window_replace, bui.CallPartial(
+                    Board, btn
+                )
+            )
+        )
+        i = sx * 0.1
+        gap = sx * 0.05
+        square_size = (sx - i * 2 - gap) / 2
 
-DEBUG_CATALOG = (
-    [{'description': 'Yeah this is a test',
-      'files': [{'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341170127',
-                 'downloads': 0,
-                 'extension': 'txt',
-                 'id': '5bf241fecf92',
-                 'original_name': 'file1.txt',
-                 'path': '5e884898da28/5bf241fecf92.txt',
-                 'size': 4}],
-      'id': 'a6a8c8e03f27',
-      'timestamp': '2026-01-15T23:13:10.583785',
-      'title': 'Test File',
-      'user_hash': '5e884898da28'},
-     {'description': 'This is getting interesting',
-      'files': [{'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341178181',
-                 'downloads': 0,
-                 'extension': 'txt',
-                 'id': '9d5f16531678',
-                 'original_name': 'file2.txt',
-                 'path': '6cf615d5bcaa/9d5f16531678.txt',
-                 'size': 16}],
-      'id': 'e2a31d379fc6',
-      'timestamp': '2026-01-15T23:22:54.067707',
-      'title': 'Another File',
-      'user_hash': '6cf615d5bcaa'},
-     {'description': 'No files were attached this time.\nHaha!',
-      'files': [],
-      'id': 'b63a09d68067',
-      'timestamp': '2026-01-16T20:49:32.198125',
-      'title': 'No File',
-      'user_hash': '5906ac361a13'},
-     {'description': 'Hey there!\n'
-                     'Welcome to Board!\n'
-                     '\n'
-                     'This post contains random various media.\n'
-                     'For testing purposes of course!',
-      'files': [{'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341638260',
-                 'downloads': 0,
-                 'extension': 'ogg',
-                 'id': '9c6e39a6ed9d',
-                 'original_name': 'vine-boom.ogg',
-                 'path': 'b97873a40f73/9c6e39a6ed9d.ogg',
-                 'size': 14935},
-                {'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341638262',
-                 'downloads': 0,
-                 'extension': 'py',
-                 'id': 'c57fb8c78f7f',
-                 'original_name': 'nice.py',
-                 'path': 'b97873a40f73/c57fb8c78f7f.py',
-                 'size': 13},
-                {'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341638264',
-                 'downloads': 0,
-                 'extension': 'txt',
-                 'id': '918c27ac9cef',
-                 'original_name': 'file2.txt',
-                 'path': 'b97873a40f73/918c27ac9cef.txt',
-                 'size': 16},
-                {'download_url': 'https://api.github.com/repos/BroBordd/board/releases/assets/341638271',
-                 'downloads': 0,
-                 'extension': 'txt',
-                 'id': 'ceaf5d97e83c',
-                 'original_name': 'file1.txt',
-                 'path': 'b97873a40f73/ceaf5d97e83c.txt',
-                 'size': 4}],
-      'id': 'bd51a341c9e6',
-      'timestamp': '2026-01-16T21:30:11.902400',
-      'title': 'Various Media!',
-      'user_hash': 'b97873a40f73'}]
-)
+        for row in range(2):
+            for col in range(2):
+                bui.imagewidget(
+                    parent=z._root_widget,
+                    draw_controller=btn,
+                    position=(px + i + col * (square_size + gap), 
+                             py + i + row * (square_size + gap)),
+                    texture=Eval.TEXTURE(Const.IMG_SHADOW),
+                    color=Color.SHADOW,
+                    size=(square_size, square_size)
+                )
