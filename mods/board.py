@@ -15,6 +15,7 @@ import bauiv1 as bui
 from base64 import b64encode, b64decode, b85decode
 from urllib.request import Request, urlopen
 from collections import defaultdict
+from random import random, uniform
 from urllib.error import HTTPError
 from mimetypes import guess_type
 from weakref import WeakMethod
@@ -24,7 +25,6 @@ from json import dumps, loads
 from threading import Thread
 from zlib import decompress
 from hashlib import sha256
-from random import random
 from uuid import uuid4
 from enum import Enum
 
@@ -36,39 +36,53 @@ class Config:
     DEBUG = False
 
 class Board(bui.MainWindow):
+    CACHE = defaultdict(dict)
     def main_window_should_preserve_selection(s):
         return False
     def get_main_window_state(s):
-        cls = type(self)
+        s.cleanup()
+        cls = type(s)
         return bui.BasicMainWindowState(
-            create_call=lambda transition, origin_widget: cls(
-                transition=transition, origin_widget=origin_widget
+            create_call=lambda *a,**k:cls(
+                fast=True
             )
         )
-    def __init__(s, source=None):
+    def __init__(s, source=None, fast=False):
+        s.cache = type(s).CACHE
         s.anims = {}
-        s.welcome = False
         s.toast_blink = None
-        s.source = source
 
         s.catalog_widgets = []
         s.catalog_anims = []
+        s.rest_anims = []
 
         s._build_ui()
         super().__init__(
             root_widget=s.root,
             origin_widget=source,
             refresh_on_screen_size_changes=True,
-            transition=Eval.TRANSITION(source)
+            transition=Eval.TRANSITION(
+                False if fast else source
+            )
         )
 
-        Eval.SOUND(Const.SOUND_HI, 0.15)
-        s.refresh(shut=True)
+        fast or Eval.SOUND(Const.SOUND_HI)
+        if bool(s.cache['catalog'].get('call',None)):
+            s.cache['catalog']['call'] = bui.CallPartial(
+                s.render,fast=True
+            )
+            s.make_art(
+                continue_from=s.cache['art']
+            )
+        elif (cat:=s.cache['catalog'].get('data',None)):
+            s.render(cat,fast=True)
+        else:
+            s.refresh(shut=True)
+
+    def ui_safe(s):
+        return s.root.exists() and not s.root.transitioning_out
 
     def _build_ui(s):
-        if hasattr(s, 'root') and s.root.exists():
-            old_root = s.root
-
         x, y = size = Eval.REAL(margin=0.2)
 
         s._layout = {
@@ -84,7 +98,7 @@ class Board(bui.MainWindow):
 
         # root
         s.root = Widget.WINDOW(
-            size=size, source=s.source
+            size=size, source=False
         )
 
         # back
@@ -96,7 +110,7 @@ class Board(bui.MainWindow):
             label=Eval.CHAR(Const.CHAR_BACK),
             text_scale=0.8
         )
-        bui.buttonwidget(s.back_button, on_activate_call=bui.CallPartial(s.exit, s.source))
+        bui.buttonwidget(s.back_button, on_activate_call=s.exit)
         bui.containerwidget(s.root, cancel_button=s.back_button)
 
         # post
@@ -153,56 +167,28 @@ class Board(bui.MainWindow):
         cx, cy = sx, sy - 15
         s.scroll_root = Widget.CONTAINER(
             s.scroll,
+            source=False,
             size=(cx, cy)
         )
 
-    def on_resize(s):
-        """Called when screen size changes - rebuild UI"""
-        if not hasattr(s, 'root') or not s.root.exists():
-            return
-        # Store current catalog data if we have it
-        current_catalog = getattr(s, '_current_catalog', None)
-        # Rebuild UI with new dimensions
-        s._build_ui()
-        print('built')
-        # Restore catalog if we had one loaded
-        if current_catalog:
-            s._render_catalog_content(current_catalog)
-        # Otherwise check if art widget is showing (loading state)
-        elif hasattr(s, 'art') and s.art and not s.art.art_timer is None:
-            x, y = Eval.REAL(margin=0.2)
-            art_sx = 350
-            art_sy = 250
-            old_art = s.art
-            s.art = Art(
-                s.root,
-                position=(x/2-art_sx/2, y/2-art_sy/4),
-                size=(art_sx, art_sy),
-            )
-            if old_art:
-                old_art.delete()
-
-    def on_rescale(s):
-        """Called when UI scale changes - can reuse on_resize logic"""
-        s.on_resize()
-
-    def render(s, cat):
+    def render(s, cat, fast=False):
         if not s.root.exists(): return
-        # Store catalog for resize
-        s._current_catalog = cat
+        s.cache['catalog']['data'] = cat
 
-        if s.art:
-            s.art.fade_out(
+        art = s.cache['art']
+        if art:
+            art.fade_out(
                 duration=0.3,
-                on_finish=s.art.delete
+                on_finish=s.kill_art
             )
             bui.apptimer(0.2, lambda: s.update_title(String.BOARD))
             bui.apptimer(0.1, lambda: s._render_catalog_content(cat))
         else:
-            s.update_title(String.BOARD)
-            s._render_catalog_content(cat)
+            s.update_title(String.BOARD,fast=fast)
+            s._render_catalog_content(cat, fast)
 
-    def _render_catalog_content(s, cat):
+    def _render_catalog_content(s, cat, fast=False):
+        if not s.ui_safe(): return
         x, y = s.scroll_size
         marg = 10
         ey = 150
@@ -223,6 +209,8 @@ class Board(bui.MainWindow):
         s.catalog_anims = []
         widgets_to_animate = []
 
+        initial_opacity = Color.OPACITY if fast else 0
+
         for i, c in enumerate(cat, start=1):
             px, py = (0, (marg + ey + xt) * (i - 1))
             files = c['files']
@@ -233,10 +221,11 @@ class Board(bui.MainWindow):
                 size=(x, ey),
                 position=(px, py),
                 color=Color.COLD,
-                opacity=0
+                opacity=initial_opacity
             )
             s.catalog_widgets.append(bg)
-            widgets_to_animate.append((bg, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((bg, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
 
             # head
             head = Widget.IMAGE(
@@ -244,10 +233,11 @@ class Board(bui.MainWindow):
                 size=(x, xt),
                 position=(px, py + ey),
                 color=Color.WARM,
-                opacity=0
+                opacity=initial_opacity
             )
             s.catalog_widgets.append(head)
-            widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
 
             # img
             img = Widget.IMAGE(
@@ -255,20 +245,22 @@ class Board(bui.MainWindow):
                 position=(px + marg/2, py + marg/2),
                 size=(ix, ix),
                 texture=Eval.COVER_IMG(files),
-                opacity=0
+                opacity=initial_opacity
             )
             s.catalog_widgets.append(img)
-            widgets_to_animate.append((img, 'opacity', (0, Color.OPACITY), 0.15 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((img, 'opacity', (0, Color.OPACITY), 0.15 + (lc-i)*0.05))
 
             # user
             user = Widget.TEXT(
                 s.scroll_root,
                 text=Eval.FORMAT_USER(c['user_hash']),
                 position=(marg/2, py + ey + marg/2),
-                opacity=0
+                opacity=initial_opacity
             )
             s.catalog_widgets.append(user)
-            widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + (lc-i)*0.05))
 
             # id
             idx = 70
@@ -277,10 +269,11 @@ class Board(bui.MainWindow):
                 text=Eval.METADATA(c['timestamp'], c['id']),
                 position=(x - idx - marg/2, py + ey + marg/2),
                 h_align=Const.ALIGN_RIGHT,
-                opacity=0
+                opacity=initial_opacity/2
             )
             s.catalog_widgets.append(id_text)
-            widgets_to_animate.append((id_text, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((id_text, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + (lc-i)*0.05))
 
             # title
             title = Widget.TEXT(
@@ -290,10 +283,11 @@ class Board(bui.MainWindow):
                 maxwidth=x - ix - marg*2,
                 scale=1.3,
                 v_align=Const.ALIGN_CENTER,
-                opacity=0
+                opacity=initial_opacity
             )
             s.catalog_widgets.append(title)
-            widgets_to_animate.append((title, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.2 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((title, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.2 + (lc-i)*0.05))
 
             # desc
             mw = x - ix - marg*4
@@ -308,10 +302,11 @@ class Board(bui.MainWindow):
                 ),
                 maxwidth=mw,
                 max_height=ix - 30,
-                opacity=0
+                opacity=initial_opacity/2
             )
             s.catalog_widgets.append(desc)
-            widgets_to_animate.append((desc, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.2 + (lc-i)*0.05))
+            if not fast:
+                widgets_to_animate.append((desc, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.2 + (lc-i)*0.05))
 
             # sensor
             sensor = Widget.SENSOR(
@@ -320,7 +315,6 @@ class Board(bui.MainWindow):
                 size=(x, ey + xt - marg),
             )
             s.catalog_widgets.append(sensor)
-            widgets_to_animate.append((sensor, 'opacity', (0, 0.01), 0.25 + (lc-i)*0.05))
             bui.buttonwidget(
                 sensor,
                 on_activate_call=bui.CallPartial(s.msg_window, c, sensor)
@@ -328,27 +322,25 @@ class Board(bui.MainWindow):
 
         bui.containerwidget(s.scroll_root, size=(x, ry))
 
-        # animate
-        butter = 0.4
-        for widget, attr_name, (start, end), delay in widgets_to_animate:
-            if attr_name == 'opacity':
-                attrs = {'opacity': (start, end)}
-            else:
-                attrs = {'color': (start, end)}
+        # Only animate if not fast
+        if not fast:
+            butter = 0.4
+            for widget, attr_name, (start, end), delay in widgets_to_animate:
+                if attr_name == 'opacity':
+                    attrs = {'opacity': (start, end)}
+                else:
+                    attrs = {'color': (start, end)}
 
-            anim = Animate(
-                widget=widget,
-                attrs=attrs,
-                duration=butter,
-                delay=delay
-            )
-            s.catalog_anims.append(anim)
-
-        if not s.welcome:
-            s.welcome = True
-            bui.apptimer(butter, bui.CallPartial(
-                s.toast, String.WELCOME
-            ))
+                anim = Animate(
+                    widget=widget,
+                    attrs=attrs,
+                    duration=butter,
+                    delay=delay
+                )
+                s.catalog_anims.append(anim)
+        if not s.cache['welcome']:
+            s.cache['welcome'] = True
+            s.toast(String.WELCOME)
 
     def toast(s,t):
         if not s.root.exists(): return
@@ -407,6 +399,7 @@ class Board(bui.MainWindow):
                 duration=zoom_time,
                 on_finish=(None,)
             )
+            s.rest_anims.append(s.toast_zoom)
         # blink text
         start_textcolor = (*Color.TEXT,Color.OPACITY)
         blink_time = 0.2
@@ -431,6 +424,7 @@ class Board(bui.MainWindow):
                 on_reverse=apply_text,
                 on_cancel=apply_text
             )
+            s.rest_anims.append(s.toast_blink)
         blink()
         # animate
         s.anims[id(s.toast_bg)] = Animate(
@@ -456,8 +450,13 @@ class Board(bui.MainWindow):
         # finally
         s.toast_last = t
 
-    def update_title(s, new_text, on_finish=None):
-        Animate(
+    def update_title(s, new_text, fast=False,on_finish=None):
+        if fast:
+            bui.textwidget(
+                s.title, text=new_text
+            )
+            return
+        a = Animate(
             widget=s.title,
             attrs={
                 'color': (
@@ -468,12 +467,13 @@ class Board(bui.MainWindow):
             duration=0.2,
             on_finish=lambda: s._change_title_text(new_text, on_finish)
         )
+        s.rest_anims.append(a)
 
     def _change_title_text(s, new_text, on_finish=None):
         # update
         bui.textwidget(s.title, text=new_text)
         # fade
-        Animate(
+        a = Animate(
             widget=s.title,
             attrs={
                 'color': (
@@ -484,29 +484,35 @@ class Board(bui.MainWindow):
             duration=0.2,
             on_finish=on_finish
         )
+        s.rest_anims.append(a)
 
-    def refresh(s,shut=False):
-        if not hasattr(s,'loaded'):
-            s.loaded = False
-        elif not s.loaded:
-            Eval.SOUND(Const.SOUND_BAD)
-            return
-        shut or Eval.SOUND(Const.SOUND_OK)
+    def make_art(s,continue_from=None):
+        s.kill_art()
         x, y = Eval.REAL(margin=0.2)
         art_sx = 350
         art_sy = 250
-        s.art = Art(
+        s.cache['art'] = Art(
             s.root,
             position=(x/2-art_sx/2,y/2-art_sy/4),
             size=(art_sx,art_sy),
+            continue_from=continue_from
         )
-        s.update_title(String.WAIT)
-        s.loaded = False
-        if Config.DEBUG == 'title':
+
+    def kill_art(s):
+        (art:=s.cache.pop('art',None)) and art.delete()
+
+    def refresh(s,shut=False):
+        s.cache['catalog'].pop('data',None)
+        if s.cache['catalog'].get('call',None):
+            Eval.SOUND(Const.SOUND_BAD)
             return
+        shut or Eval.SOUND(Const.SOUND_OK)
+        s.update_title(String.WAIT)
+        s.make_art()
         def kill():
             for w in getattr(s, 'catalog_widgets', []): w.delete()
             s.catalog_widgets = []
+            s.cache['catalog']['call'] = s.render
             Thread(target=s.fetch).start()
         if getattr(s, 'catalog_anims', None):
             for anim in s.catalog_anims: anim.reverse()
@@ -518,22 +524,35 @@ class Board(bui.MainWindow):
     def fetch(s):
         try: cat = catalog()
         except Exception as e:
-            call = bui.CallPartial(
-                bui.textwidget, s.title, text=str(e)
+            ba.pushcall(
+                bui.CallPartial(
+                    bui.textwidget, s.title, text=str(e)
+                ),
+                from_other_thread=True
             )
         else:
-            call = bui.CallPartial(s.render, cat)
-            s.loaded = True
-        ba.pushcall(call, from_other_thread=True)
+            call = s.cache['catalog'].pop('call',None)
+            callable(call) and ba.pushcall(
+                bui.CallPartial(call,cat),
+                from_other_thread=True
+            )
 
-    def exit(s,source=None):
+    def cleanup(s):
+        for a in s.anims.values(): a.cancel()
+        for a in s.catalog_anims: a.cancel()
+        for a in s.rest_anims: a.cancel()
         s.anims.clear()
         s.catalog_anims.clear()
+        s.rest_anims.clear()
+        s.toast_timer = None
+
+    def exit(s):
+        s.cleanup()
         Eval.SOUND(Const.SOUND_BYE)
         s.main_window_back()
 
     def post_window(s,source=None):
-        if not s.loaded:
+        if s.cache['catalog'].get('call',None):
             Eval.SOUND(Const.SOUND_BAD)
             return
         size = x,y = Eval.REAL(margin=0.4)
@@ -1305,6 +1324,7 @@ class Board(bui.MainWindow):
                                 )
                             }
                         )
+                        s.rest_anims.append(last_anim)
                     Thread(target=_get).start()
                 bui.apptimer(0.4, cleanup_and_fetch)
             else:
@@ -1421,6 +1441,7 @@ class Board(bui.MainWindow):
                     delay=delay
                 )
                 com_anims.append(anim)
+                s.rest_anims.append(anim)
             # placeholder
             if not coms:
                 w = Widget.TEXT(
@@ -1673,11 +1694,12 @@ class Board(bui.MainWindow):
             switched = True
             for w,at in to_hide:
                 if (a:=anims.get(w)): a.cancel()
-                anims[w] = Animate(
+                anims[w] = a = Animate(
                     widget=w,
                     duration=butter,
                     attrs=at
                 )
+                s.rest_anims.append(a)
             art = Art(
                 root,
                 position=(art_x,art_y),
@@ -1885,7 +1907,7 @@ class Input:
         s.widget.delete()
 
 class Art:
-    def __init__(s, parent, position, size, opacity=None,**kw):
+    def __init__(s, parent, position, size, opacity=None, continue_from=None, **kw):
         s.opacity = opacity or Color.OPACITY
         s.parent = parent
         px, py = position
@@ -1935,10 +1957,19 @@ class Art:
             )
             for i, t in enumerate(text)
         ]
-        # color animation state
-        off = random()
-        s.art_color_idx = [int(off * len(Const.ART)) for _ in range(num_letters)]
-        s.art_progress = [i * 0.1 + off for i in range(num_letters)]
+        # color animation state - CONTINUE FROM PREVIOUS OR START FRESH
+        if continue_from and isinstance(continue_from, Art):
+            # Copy state from previous art object
+            s.art_color_idx = continue_from.art_color_idx.copy()
+            s.art_progress = continue_from.art_progress.copy()
+            s.pro_time = continue_from.pro_time
+        else:
+            # Fresh start
+            off = random()
+            s.art_color_idx = [int(off * len(Const.ART)) for _ in range(num_letters)]
+            s.art_progress = [i * 0.1 + off for i in range(num_letters)]
+            s.pro_time = 0.0
+
         s.art_timer = bui.AppTimer(0.01, s.animate, repeat=True)
         # progress bar
         bar_height = sy * 0.02
@@ -1950,7 +1981,6 @@ class Art:
         s.pro_base_y = bar_y
         s.pro_width = bar_width
         s.pro_indicator_width = indicator_width
-        s.pro_time = 0.0
         # background bar
         s.pro_bg = Widget.IMAGE(
             parent,
@@ -2127,8 +2157,9 @@ class Widget:
     CONTAINER = lambda p=None,source=None,**kw: bui.containerwidget(
         parent=p or bui.get_special_widget('overlay_stack'),
         background=False,
-        scale_origin_stack_offset=source and source.get_screen_space_center() or source,
+        scale_origin_stack_offset=source and source.get_screen_space_center() or None,
         transition=Eval.TRANSITION(source),
+        toolbar_visibility=Const.TOOLBAR_VISIBILITY,
         **kw
     )
     SCROLL = lambda p,**kw: bui.scrollwidget(
@@ -2147,7 +2178,6 @@ class Widget:
         (root:=Widget.CONTAINER(
             source=source,
             size=size,
-            toolbar_visibility=Const.TOOLBAR_VISIBILITY,
             **k
         )),
         (shadow:=Eval.SHADOW(*size)),
@@ -2193,15 +2223,16 @@ class Eval:
         )
     )
     TRANSITION = lambda source=None,out=False:(
-        Const.TRANSITION[bool(source)][out]
+        source is False and Const.TRANSITION[-1]
+        or Const.TRANSITION[bool(source)][out]
     )
     SUBCLASS = lambda cls,sub,fallback: next(
         (c for c in cls.__subclasses__()
         if c.__name__[:-len(cls.__name__)] == sub), fallback
     )
-    SOUND = lambda which,duration=0.15:(
+    SOUND = lambda which:(
         (sound:=bui.getsound(which)).play() or
-        (duration and bui.apptimer(duration,sound.stop))
+        bui.apptimer(uniform(0.13,0.16),sound.stop)
     )
     SOUNDS = lambda s1,s2,gap=0.12:(
         (sound:=bui.getsound(s1)).play() or
@@ -2473,7 +2504,8 @@ class Const:
     )
     TRANSITION = (
         ('in_left','out_left'),
-        ('in_scale','out_scale')
+        ('in_scale','out_scale'),
+        'none'
     )
     INVISIBLE = (0,0,0,0)
     FONT_METRICS = loads(decompress(b85decode(
@@ -3145,9 +3177,10 @@ class byBordd(ba.Plugin):
                 position=(px,py),
                 button_type=Const.BUTTON_TYPE,
                 id=f"{z.main_window_id_prefix}|board",
+                enable_sound=False
             )), on_activate_call=bui.CallPartial(
                 z.main_window_replace, bui.CallPartial(
-                    Board, btn
+                    Board, source=btn
                 )
             )
         )
@@ -3160,8 +3193,10 @@ class byBordd(ba.Plugin):
                 bui.imagewidget(
                     parent=z._root_widget,
                     draw_controller=btn,
-                    position=(px + i + col * (square_size + gap), 
-                             py + i + row * (square_size + gap)),
+                    position=(
+                        px + i + col * (square_size + gap),
+                        py + i + row * (square_size + gap)
+                    ),
                     texture=Eval.TEXTURE(Const.IMG_SHADOW),
                     color=Color.SHADOW,
                     size=(square_size, square_size)
