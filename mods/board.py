@@ -332,24 +332,28 @@ class Board(bui.MainWindow):
         bui.containerwidget(s.scroll_root, size=(x, ry))
 
         # Only animate if not fast
-        if not fast:
-            butter = 0.4
-            for widget, attr_name, (start, end), delay in widgets_to_animate:
-                if attr_name == 'opacity':
-                    attrs = {'opacity': (start, end)}
-                else:
-                    attrs = {'color': (start, end)}
-
-                anim = Animate(
-                    widget=widget,
-                    attrs=attrs,
-                    duration=butter,
-                    delay=delay
-                )
-                s.catalog_anims.append(anim)
+        if not fast: s.fade_catalog(widgets_to_animate)
+        else: s.temp_cat = widgets_to_animate
         if not s.cache['welcome']:
             s.cache['welcome'] = True
             s.toast(String.WELCOME)
+
+    def fade_catalog(s,widgets,out=False):
+        butter = 0.4
+        for widget, attr_name, (start, end), delay in widgets:
+            if attr_name == 'opacity':
+                attrs = {'opacity': (start, end)}
+            else:
+                attrs = {'color': (start, end)}
+
+            anim = Animate(
+                widget=widget,
+                attrs=attrs,
+                duration=butter,
+                delay=delay,
+                swapped=out
+            )
+            s.catalog_anims.append(anim)
 
     def toast(s,t):
         if not s.root.exists(): return
@@ -528,6 +532,9 @@ class Board(bui.MainWindow):
             s.catalog_anims = []
             bui.apptimer(0.4, kill)
         else:
+            if hasattr(s,'temp_catalog'):
+                s.fade_catalog(s.temp_catalog,out=True)
+                del s.temp_catalog
             kill()
 
     def fetch(s):
@@ -680,7 +687,6 @@ class Board(bui.MainWindow):
         )
         # capture
         def capture(t,k,f=None):
-            nonlocal data
             data[k] = t
             callable(f) and f(t)
         # title in
@@ -700,7 +706,10 @@ class Board(bui.MainWindow):
         def set_as(t):
             bui.textwidget(
                 title,
-                text=Eval.FORMAT_USER_AS(t)
+                text=(
+                    t and Eval.FORMAT_USER_AS(t)
+                    or String.NEW_POST
+                )
             )
         p_px = t_px + t_sx + marg*2
         p_sx = dx - (t_sx + marg*6)
@@ -801,11 +810,11 @@ class Board(bui.MainWindow):
                 Eval.SOUND(Const.SOUND_OK)
                 s.toast(txt)
             bui.buttonwidget(
-                (sensor:=Widget.SENSOR(
+                Widget.SENSOR(
                     file_root,
                     position=corn,
                     size=(file_x,file_x+xt),
-                )), on_activate_call=bui.CallPartial(
+                ), on_activate_call=bui.CallPartial(
                     prv, txt
                 )
             )
@@ -1174,6 +1183,127 @@ class Board(bui.MainWindow):
         sl and slct(sl,yes=False)
         sus and set_sus(sus)
 
+    def pass_window(s,post=None,source=None,pipe=None,data=None,shut=False):
+        weak_s = ref(s)
+        size = x,y = Eval.REAL(margin=0.7)
+        s.cache['windows']['pass_window'] = data = data or {}
+        data or Eval.SOUND(Const.SOUND_HI)
+        # root
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
+            size=size
+        )
+        post = data['post'] = post or data['post']
+        # back
+        bx = 50
+        marg = 10
+        py = y-bx-marg*2
+        def back(shut=False):
+            bui.containerwidget(
+                root,transition=Eval.TRANSITION(source,True)
+            )
+            shut or Eval.SOUND(Const.SOUND_BYE)
+            weak_s().cache['windows'].pop('pass_window')
+        bui.containerwidget(root,cancel_button=(
+            Widget.BUTTON(
+                root,
+                position=(20,py),
+                size=(bx,bx),
+                label=Eval.CHAR(Const.CHAR_BACK),
+                text_scale=0.8,
+                on_activate_call=back,
+                color=Color.WARM
+            )
+        ))
+        correct = data['correct'] = data.get('correct',None)
+        ha = data['hash'] = data.get('hash',None)
+        # done
+        def done():
+            # only send correct passwords
+            # we don't want server cussing at us
+            if not correct or not ha:
+                weak_s().toast(
+                    ha is None and String.ENTER_PASSWORD
+                    or String.INCORRECT_PASSWORD
+                )
+                Eval.SOUND(Const.SOUND_BAD)
+                return
+            callable(pipe) and pipe(inp.text)
+            back(shut=shut)
+        Widget.BUTTON(
+            root,
+            position=(x-(bx+marg*2+2),py),
+            size=(bx,bx),
+            label=Eval.CHAR(Const.CHAR_DONE),
+            text_scale=0.8,
+            on_activate_call=done,
+            color=Color.WARM
+        )
+        # block
+        dx,dy = x-(bx+marg*6),bx
+        bsy = y-(marg*6+dy)
+        px = bx+marg*4
+        Widget.IMAGE(
+            root,
+            position=(marg*2-2,marg*2),
+            size=(bx+4,bsy+2),
+            color=Color.WARM
+        )
+        # hmm
+        hmm = Widget.TEXT(
+            root,
+            text=String.HMM,
+            rotate=90,
+            position=(marg+bx/1.43,marg*2),
+            opacity=Color.OPACITY/2,
+            v_align=Const.ALIGN_CENTER,
+            maxwidth=bsy-marg*3.5
+        )
+        # title
+        Widget.IMAGE(
+            root,
+            position=(px,py-2),
+            size=(dx-(bx+marg*2),dy+4),
+            color=Color.WARM
+        )
+        Widget.IMAGE(
+            root,
+            position=(px,marg*2),
+            size=(dx,bsy),
+            color=Color.COLD
+        )
+        Widget.TEXT(
+            root,
+            text=Eval.FORMAT_DELETE(post['id']),
+            position=(px+marg*2,py+marg),
+            maxwidth=dx-marg*4,
+            v_align=Const.ALIGN_CENTER
+        )
+        # capture
+        def capture(t):
+            nonlocal correct, ha
+            ha = t and _seal(t) or None
+            correct = ha == post['user_hash']
+            data['text'] = t
+            data['hash'] = ha
+            bui.textwidget(
+                hmm, text=(
+                    String.CORRECT if correct else
+                    String.WRONG if t else String.HMM
+                )
+            )
+        # inp
+        t = data['text'] = data.get('text','')
+        t and capture(t)
+        inp = Input(
+            root,
+            text=t,
+            hint=String.PASSWORD,
+            position=(px+marg*2.5,marg*2+bsy/2-dy/2),
+            size=(dx-marg*4,dy),
+            on_edit=capture
+        )
+
     def msg_window(s,c=None,source=None,data=None):
         weak_s = ref(s)
         size = x,y = Eval.REAL(margin=0.3)
@@ -1189,11 +1319,12 @@ class Board(bui.MainWindow):
         bx = 50
         marg = 10
         py = y-bx-marg*2
-        def back():
+        def back(shut=False):
+            if not root.exists(): return
             bui.containerwidget(
                 root,transition=Eval.TRANSITION(source,True)
             )
-            Eval.SOUND(Const.SOUND_BYE)
+            shut or Eval.SOUND(Const.SOUND_BYE)
             weak_s().cache['windows'].pop('msg_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
@@ -1206,6 +1337,48 @@ class Board(bui.MainWindow):
                 color=Color.WARM
             )
         ))
+        # nuke
+        def on_nuke(e=None):
+            data.pop('delete_call',None)
+            bord = weak_s()
+            if e:
+                bord.toast(Eval.FORMAT_ERROR(e))
+                Eval.DOUBLE_DING(0,0)
+                return
+            bord.toast(String.POST_DELETED)
+            Eval.DOUBLE_DING(0,1)
+            back(shut=True)
+        if data.get('delete_call',None):
+            data['delete_call'] = on_nuke
+        def _nuke(t):
+            try: delete_post(t,c['id'])
+            except Exception as e:
+                call = bui.CallPartial(
+                    data['delete_call'], str(e)
+                )
+            else: call = data['delete_call']
+            bui.pushcall(call,from_other_thread=True)
+        def nuke(t):
+            data['delete_call'] = on_nuke
+            Thread(target=lambda:_nuke(t)).start()
+            Eval.DOUBLE_DING(1,0)
+            weak_s().toast(String.DELETING)
+        bui.buttonwidget(
+            (nuke_btn:=Widget.BUTTON(
+                root,
+                position=(20,py-(bx+marg*2)),
+                label=Eval.CHAR(Const.CHAR_DELETE),
+                size=(bx,bx),
+                text_scale=0.8,
+                color=Color.WARM,
+            )), on_activate_call=bui.CallPartial(
+                s.pass_window,
+                post=c,
+                source=nuke_btn,
+                pipe=nuke,
+                shut=True
+            )
+        )
         # block
         cx = 350
         px = bx+marg*4
@@ -1213,8 +1386,8 @@ class Board(bui.MainWindow):
         bsy = y-(marg*6+dy)
         Widget.IMAGE(
             root,
-            position=(marg*2-1,marg*2),
-            size=(bx+2,bsy),
+            position=(marg*2-2,marg*2),
+            size=(bx+4,bsy-(bx+marg*2)+2),
             color=Color.WARM
         )
         # id
@@ -1506,7 +1679,10 @@ class Board(bui.MainWindow):
                         position=(marg/2,cur_y),
                         size=(cx,step*2)
                     )), on_activate_call=bui.CallPartial(
-                        bord.comment_window, com, sensor
+                        bord.comment_window,
+                        com=com,
+                        source=sensor,
+                        pid=c['id']
                     )
                 )
             bui.containerwidget(
@@ -1649,7 +1825,8 @@ class Board(bui.MainWindow):
                 )
             )
 
-    def comment_window(s,com=None,source=None,data=None):
+    def comment_window(s,com=None,source=None,data=None,pid=None):
+        weak_s = ref(s)
         bx = 50
         marg = 10
         x,y = Eval.REAL(margin=0.4)
@@ -1662,13 +1839,15 @@ class Board(bui.MainWindow):
             size=size
         )
         com = data['com'] = com or data.get('com',None)
+        pid = data['pid'] = pid or data.get('pid',None)
         # back
         py = y-bx-marg*2
-        def back():
+        def back(shut=False):
+            if not root.exists(): return
             bui.containerwidget(
                 root,transition=Eval.TRANSITION(source,True)
             )
-            Eval.SOUND(Const.SOUND_BYE)
+            shut or Eval.SOUND(Const.SOUND_BYE)
             s.cache['windows'].pop('comment_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
@@ -1681,6 +1860,48 @@ class Board(bui.MainWindow):
                 color=Color.WARM
             )
         ))
+        # nuke
+        def on_nuke(e=None):
+            data.pop('delete_call',None)
+            bord = weak_s()
+            if e:
+                bord.toast(Eval.FORMAT_ERROR(e))
+                Eval.DOUBLE_DING(0,0)
+                return
+            bord.toast(String.COMMENT_DELETED)
+            Eval.DOUBLE_DING(0,1)
+            back(shut=True)
+        if data.get('delete_call',None):
+            data['delete_call'] = on_nuke
+        def _nuke(t):
+            try: delete_comment(t,com['id'],pid)
+            except Exception as e:
+                call = bui.CallPartial(
+                    data['delete_call'], str(e)
+                )
+            else: call = data['delete_call']
+            bui.pushcall(call,from_other_thread=True)
+        def nuke(t):
+            data['delete_call'] = on_nuke
+            Thread(target=lambda:_nuke(t)).start()
+            Eval.DOUBLE_DING(1,0)
+            weak_s().toast(String.DELETING)
+        bui.buttonwidget(
+            (nuke_btn:=Widget.BUTTON(
+                root,
+                position=(20,py-(bx+marg*2)),
+                label=Eval.CHAR(Const.CHAR_DELETE),
+                size=(bx,bx),
+                text_scale=0.8,
+                color=Color.WARM,
+            )), on_activate_call=bui.CallPartial(
+                s.pass_window,
+                post=com,
+                source=nuke_btn,
+                pipe=nuke,
+                shut=True
+            )
+        )
         # copy
         def cp():
             if not bui.clipboard_is_supported():
@@ -1692,7 +1913,7 @@ class Board(bui.MainWindow):
             s.toast(String.COPIED)
         Widget.BUTTON(
             root,
-            position=(marg*2,py-(bx+marg*2)),
+            position=(marg*2,py-(bx*2+marg*4)),
             size=(bx,bx),
             label=Eval.CHAR(Const.CHAR_COPY),
             text_scale=0.8,
@@ -1723,7 +1944,7 @@ class Board(bui.MainWindow):
             color=Color.COLD
         )
         # block
-        blk_y = bsy-(bx+marg*2)+2
+        blk_y = bsy-(bx*2+marg*4)+2
         Widget.IMAGE(
             root,
             position=(marg*2-2,marg*2-1),
@@ -2002,7 +2223,8 @@ class Input:
         kw.update({
             'v_align':v_align or Const.ALIGN_CENTER,
             'opacity':s.opacity,
-            'description':hint
+            'description':hint,
+            'maxwidth':kw['size'][0]
         })
         s.widget = Widget.EDITABLE(
             parent, **kw
@@ -2410,7 +2632,10 @@ class Eval:
     )
     FORMAT_USER_AS = lambda t: (
         String.NEW_POST + Const.SPACE + String.AS +
-        Const.SPACE + Eval.FORMAT_USER(_seal(t))
+        Const.SPACE + Eval.SEAL_PASSWORD(t)
+    )
+    SEAL_PASSWORD = lambda t: (
+        Eval.FORMAT_USER(_seal(t))
     )
     FORMAT_SIZE = lambda s: (
         str(s) + Const.SPACE + String.BYTES
@@ -2420,6 +2645,9 @@ class Eval:
             Const.COLON + Const.SPACE +
             str(e)
         )) or Const.DOT
+    )
+    FORMAT_DELETE = lambda i: (
+        String.DELETE + Const.SPACE + i
     )
     METADATA = lambda t,i: (
         datetime.fromisoformat(t).strftime(Const.TIMESTAMP_FORMAT) +
@@ -2474,10 +2702,10 @@ class Eval:
         re.match(Const.VALID_URL,t)
     )
     ELLIPSE_START = lambda t,i: (
-        len(t)<=i and t or (Const.ELLIPSIS+t[-i:])
+        len(t)<(i+3) and t or (Const.ELLIPSIS+t[-i:])
     )
     ELLIPSE_END = lambda t,i: (
-        len(t)<=i and t or t[:i]+Const.ELLIPSIS
+        len(t)<(i+3) and t or (t[:i]+Const.ELLIPSIS)
     )
     FORMAT_DOWNLOADED = lambda t: (
         String.DOWNLOADED + Const.SPACE +
@@ -2530,8 +2758,12 @@ class EnglishString(String):
     CLIPBOARD_UNSUPPORTED = 'Clipboard unsupported!'
     COMMENT = 'Comment'
     COMMENTS = 'Comments'
-    COMMENT_SENT = 'Comment sent! It should be availabe in seconds.'
+    COMMENT_DELETED = 'Comment deleted! Should take in seconds (reload to see)'
+    COMMENT_SENT = 'Comment sent! Should take in seconds (reload to see)'
     COPIED = 'Copied to clipboard!'
+    CORRECT = 'Correct'
+    DELETE = 'Delete'
+    DELETING = 'Deleting... (you can close this window)'
     DESCRIPTION = 'Description'
     DOWNLOADED = 'Saved to downloads'
     DOWNLOADING = 'Downloading... (you can close this window)'
@@ -2545,17 +2777,19 @@ class EnglishString(String):
     HELP_POST = 'Press NL to break line, better just paste text here tho'
     HINT_ATTACH = 'Path, URL, URI or FullPath'
     HMM = 'Hmm'
+    INCORRECT_PASSWORD = 'Incorrect password!'
     INVALID_URI = 'Invalid URI!'
     NEW_POST = 'New Post'
     NL = 'NL'
     NOT_NOW = 'Not now I\'m busy!'
     NO_COMMENTS = 'No comments'
     NO_DESCRIPTION = 'No description provided.'
-    NO_TITLE = 'No title'
+    NO_TITLE = 'No Title'
     PASSWORD = 'Password'
     PATH = 'Path'
     PATH_MEANS = 'Path: uploads file'
-    PUBLISHED = 'Post published! It should be availabe in seconds.'
+    POST_DELETED = 'Post deleted! Should take seconds (reload to see)'
+    PUBLISHED = 'Post published! Should take seconds (reload to see)'
     SELECT_SOMETHING = 'Select something!'
     SENDING_COMMENT = 'Sending comment... (you can close this window)'
     TITLE = 'Title'
@@ -2565,6 +2799,7 @@ class EnglishString(String):
     URL_MEANS = 'URL/URI: directly sent to server'
     WAIT = 'Just a sec...'
     WELCOME = f'Welcome to Board! v{__version__}'
+    WRONG = 'Wrong'
 
 String = Eval.SUBCLASS(String,Config.STRING,EnglishString)
 
@@ -2600,6 +2835,7 @@ class Const:
     CHAR_ATTACH = '+'
     CHAR_COPY = 'PLAY_STATION_TRIANGLE_BUTTON'
     CHAR_DONE = 'PLAY_STATION_CIRCLE_BUTTON'
+    CHAR_DELETE = 'PLAY_STATION_CROSS_BUTTON'
     CHAR_USER = 'LOGO_FLAT'
     CHAR_POST = 'UP_ARROW'
     USER_PREFIX = 'Anonymous_'
@@ -3294,6 +3530,35 @@ def get_comments(post_id):
         if e.code == 404:
             return []
         raise
+
+def delete_post(secret, post_id):
+    """Delete a post (must be owner)"""
+    stamp = _seal(secret)
+
+    payload_data = {
+        "post_id": post_id,
+        "user_hash": stamp
+    }
+
+    payload = f"DELETE_POST:{dumps(payload_data)}"
+    subject = f"Delete post {post_id} by user_{stamp}"
+
+    return _forge(subject, payload)
+
+def delete_comment(secret, comment_id, post_id):
+    """Delete a comment (must be owner)"""
+    stamp = _seal(secret)
+
+    payload_data = {
+        "comment_id": comment_id,
+        "post_id": post_id,
+        "user_hash": stamp
+    }
+
+    payload = f"DELETE_COMMENT:{dumps(payload_data)}"
+    subject = f"Delete comment {comment_id} by user_{stamp}"
+
+    return _forge(subject, payload)
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
