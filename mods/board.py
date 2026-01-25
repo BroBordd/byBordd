@@ -18,13 +18,13 @@ from collections import defaultdict
 from random import random, uniform
 from urllib.error import HTTPError
 from mimetypes import guess_type
-from weakref import WeakMethod
 from datetime import datetime
 from time import perf_counter
 from json import dumps, loads
 from threading import Thread
 from zlib import decompress
 from hashlib import sha256
+from weakref import ref
 from uuid import uuid4
 from enum import Enum
 
@@ -171,6 +171,13 @@ class Board(bui.MainWindow):
             size=(cx, cy)
         )
 
+    def remake_windows(s):
+        for which,data in s.cache['windows'].items():
+            data.pop('root').delete()
+            getattr(s,which)(
+                data=data
+            )
+
     def render(s, cat, fast=False):
         if not s.root.exists(): return
         s.cache['catalog']['data'] = cat
@@ -186,6 +193,8 @@ class Board(bui.MainWindow):
         else:
             s.update_title(String.BOARD,fast=fast)
             s._render_catalog_content(cat, fast)
+
+        s.remake_windows()
 
     def _render_catalog_content(s, cat, fast=False):
         if not s.ui_safe(): return
@@ -551,16 +560,17 @@ class Board(bui.MainWindow):
         Eval.SOUND(Const.SOUND_BYE)
         s.main_window_back()
 
-    def post_window(s,source=None):
+    def post_window(s,source=None,data=None):
         if s.cache['catalog'].get('call',None):
             Eval.SOUND(Const.SOUND_BAD)
             return
+        s.cache['windows']['post_window'] = data = data or {}
         size = x,y = Eval.REAL(margin=0.4)
-        Eval.SOUND(Const.SOUND_HI)
+        data or Eval.SOUND(Const.SOUND_HI)
         busy = False
         # root
-        root = Widget.WINDOW(
-            source=source,
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
             size=size
         )
         # back
@@ -570,10 +580,14 @@ class Board(bui.MainWindow):
         dx,dy = x-(bx+marg*6),bx
         bsy = y-(marg*6+dy)
         def back(shut=False):
+            if not root.exists(): return
             bui.containerwidget(
-                root,transition=Eval.TRANSITION(source,True)
+                root,transition=Eval.TRANSITION(
+                    source,True
+                )
             )
             shut or Eval.SOUND(Const.SOUND_BYE)
+            s.cache['windows'].pop('post_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
                 root,
@@ -664,15 +678,23 @@ class Board(bui.MainWindow):
             on_activate_call=hlp,
             color=Color.WARM
         )
+        # capture
+        def capture(t,k,f=None):
+            nonlocal data
+            data[k] = t
+            callable(f) and f(t)
         # title in
         t_px = bx+marg*6.65
         t_sx = dx*0.65-(bx+marg*2)
+        data['title'] = t = data.get('title','')
         title_inp = Input(
             root,
             position=(t_px,py-marg*2),
             size=(t_sx,bx),
             hint=String.TITLE,
-            maxwidth=t_sx-marg*2
+            maxwidth=t_sx-marg*2,
+            on_edit=lambda t:capture(t,'title'),
+            text=t
         )
         # password in
         def set_as(t):
@@ -682,13 +704,15 @@ class Board(bui.MainWindow):
             )
         p_px = t_px + t_sx + marg*2
         p_sx = dx - (t_sx + marg*6)
+        data['pass'] = t = data.get('pass','')
         pass_inp = Input(
             root,
             position=(p_px,py-marg*2),
             size=(p_sx,bx),
             hint=String.PASSWORD,
             maxwidth=p_sx-marg*2,
-            on_edit=set_as
+            on_edit=lambda t:capture(t,'pass',set_as),
+            text=t
         )
         # newline
         def nl():
@@ -713,19 +737,25 @@ class Board(bui.MainWindow):
         )
         # desc in
         sx = dx-marg*4.5
+        data['desc'] = t = data.get('desc','')
         desc_inp = Input(
             root,
             position=(t_px+marg/2,py-(bx+marg)),
             size=(sx,bx*2),
             hint=String.DESCRIPTION,
             v_align=Const.ALIGN_BOTTOM,
-            maxwidth=sx-marg*2
+            maxwidth=sx-marg*2,
+            on_edit=lambda t:capture(t,'desc'),
+            text=t
         )
         def pad():
             for w in (desc_inp.widget,desc_inp.hint_widget):
                 bui.textwidget(w,padding=10)
         bui.apptimer(Const.BA_LAG,pad)
         # attach
+        def on_attach(*a):
+            ui_files.append(a)
+            push_file(*a)
         def push_file(txt,ty,img):
             i = len(files)
             files.append(txt)
@@ -783,6 +813,7 @@ class Board(bui.MainWindow):
                 file_root, size=(max(dx-15,sx),file_x+xt)
             )
             return to
+
         py -= (bx+marg*2)
         bui.buttonwidget(
             (btn:=Widget.BUTTON(
@@ -792,7 +823,7 @@ class Board(bui.MainWindow):
                 label=Eval.CHAR(Const.CHAR_ATTACH),
                 color=Color.WARM
             )), on_activate_call=bui.CallPartial(
-                s.attach_window, btn, pipe=push_file
+                s.attach_window, btn, pipe=on_attach
             )
         )
         # files
@@ -808,14 +839,19 @@ class Board(bui.MainWindow):
             ),
             size=(dx-15,file_x+xt)
         )
+        # finally
+        data['ui_files'] = ui_files = data.get('ui_files',[])
+        for a in ui_files: push_file(*a)
 
-    def attach_window(s,source=None,pipe=None):
+    def attach_window(s,source=None,pipe=None,data=None):
+        sw = ref(s)
         x,y = Eval.REAL(margin=0.7)
-        Eval.SOUND(Const.SOUND_HI)
+        s.cache['windows']['attach_window'] = data = data or {}
+        data or Eval.SOUND(Const.SOUND_HI)
         extra_y = y
         # root
-        root = Widget.WINDOW(
-            source=source,
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
             size=(x,y+extra_y)
         )
         # back
@@ -823,6 +859,7 @@ class Board(bui.MainWindow):
         marg = 10
         py = y-bx-marg*2+extra_y
         def back(src=None):
+            bord = sw()
             src and bui.containerwidget(
                 root, scale_origin_stack_offset=(
                     src.get_screen_space_center()
@@ -834,6 +871,7 @@ class Board(bui.MainWindow):
                 )
             )
             Eval.SOUND(Const.SOUND_BYE)
+            bord.cache['windows'].pop('attach_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
                 root,
@@ -880,6 +918,7 @@ class Board(bui.MainWindow):
                 suspect,
                 text=Eval.FORMAT_STRING_TYPE(t,ty)
             )
+            data['sus'] = t
         suspect = Widget.TEXT(
             root,
             text=String.HMM,
@@ -892,9 +931,10 @@ class Board(bui.MainWindow):
         # done
         def done():
             nonlocal txt
+            bord = sw()
             if not txt or ty < 0:
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.ENTER_SOMETHING)
+                bord.toast(String.ENTER_SOMETHING)
                 return
 
             img = Const.IMG_DEFAULT
@@ -904,7 +944,7 @@ class Board(bui.MainWindow):
                     if not Eval.VALIDATE_URL(txt): raise
                 except:
                     Eval.SOUND(Const.SOUND_BAD)
-                    s.toast(String.INVALID_URI)
+                    bord.toast(String.INVALID_URI)
                     return
 
             # URI (data:)
@@ -913,7 +953,7 @@ class Board(bui.MainWindow):
                     if not Eval.VALIDATE_URI(txt): raise
                 except:
                     Eval.SOUND(Const.SOUND_BAD)
-                    s.toast(String.INVALID_URI)
+                    bord.toast(String.INVALID_URI)
                     return
 
             # path (local file)
@@ -924,12 +964,12 @@ class Board(bui.MainWindow):
                     )
                 if not os.path.exists(txt):
                     Eval.SOUND(Const.SOUND_BAD)
-                    s.toast(String.FILE_NOT_FOUND)
+                    bord.toast(String.FILE_NOT_FOUND)
                     return
                 img = Eval.IMG_FILE(txt)
 
             # finally
-            s.toast(String.ATTACH_DONE)
+            bord.toast(String.ATTACH_DONE)
             back(
                 callable(pipe) and pipe(
                     txt, ty, img
@@ -946,13 +986,15 @@ class Board(bui.MainWindow):
         # string in
         sx = dx+bx+marg+2
         sy = 40
+        sus = data['sus'] = data.get('sus','')
         inp = Input(
             root,
             position=(bx+marg*5,y-marg*4-bx-sy+extra_y),
             size=(sx,sy),
             hint=String.HINT_ATTACH,
             on_edit=set_sus,
-            maxwidth=sx-marg
+            maxwidth=sx-marg,
+            text=sus
         )
         # help
         mw = x-(bx+marg*7)
@@ -988,15 +1030,16 @@ class Board(bui.MainWindow):
         )
         # kang
         def kang():
+            bord = sw()
             if not sl:
-                s.toast(String.SELECT_SOMETHING)
+                bord.toast(String.SELECT_SOMETHING)
                 Eval.SOUND(Const.SOUND_BAD)
                 return
             bui.textwidget(
                 inp.widget,
-                text=sl[0].path
+                text=sl
             )
-            Eval.SOUND(Const.SOUND_ACTION,0)
+            Eval.SOUND(Const.SOUND_ACTION,cut=False)
         Widget.BUTTON(
             root,
             position=(dx+marg*2-bx,py),
@@ -1017,13 +1060,14 @@ class Board(bui.MainWindow):
             Widget.SCROLL(
                 root,
                 position=(px,marg*2),
-                size=(dx+2,sy)
-            )
+                size=(dx+2,sy),
+            ), source=False
         )
         sy -= 15
         # ls
         def cd(n=Const.DOT_DOT):
             nonlocal wd, sl, ls
+            bord = sw()
             new = os.path.normpath(
                 os.path.join(wd,n)
             )
@@ -1031,28 +1075,33 @@ class Board(bui.MainWindow):
                 ls = list(os.scandir(new))
                 ls.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
             except PermissionError:
-                s.toast(String.ACCESS_DENIED)
+                bord.toast(String.ACCESS_DENIED)
                 Eval.SOUND(Const.SOUND_BAD)
                 return
-            wd = new
-            sl = None
+            wd = data['wd'] = new
+            sl = data['sl'] = None
             fresh()
-        def slct(f,w):
+        def slct(f,yes=True):
             nonlocal sl
-            sl and bui.textwidget(
-                sl[1], color=Eval.TEXT(Color.OPACITY)
+            sl and yes and bui.textwidget(
+                texts[sl], color=Eval.TEXT(Color.OPACITY)
             )
-            sl = (f,w)
+            sl = data['sl'] = f
+            w = texts[f]
             bui.textwidget(
                 w, color=Color.BASE
             )
-        sl = None
-        wd = Const.ROOT_PATH
+            bui.containerwidget(
+                ls_root, visible_child=w
+            )
+        sl = data['sl'] = data.get('sl',None)
+        wd = data['wd'] = data.get('wd',Const.ROOT_PATH)
         ls = list(os.scandir(wd))
         ls.sort(key=lambda x: (not x.is_dir(), x.name.lower()))
         lx = 30
         fx = 30
         dx -= fx+marg*2
+        texts = {}
         trash = []
         def fresh():
             bui.textwidget(
@@ -1062,6 +1111,8 @@ class Board(bui.MainWindow):
                     Const.PATH_MAX
                 )
             )
+            for w in texts.values(): w.delete()
+            texts.clear()
             for w in trash: w.delete()
             trash.clear()
             lsy = max((len(ls)+1)*(lx+5),sy)
@@ -1112,22 +1163,28 @@ class Board(bui.MainWindow):
                         is_dir and bui.CallPartial(
                             cd, f.name
                         ) or bui.CallPartial(
-                            slct, f, w
+                            slct, f.path
                         )
                     )
                 )
-                trash.append(w)
+                if is_dir: trash.append(w)
+                else: texts[f.path] = w
         # finally
         fresh()
+        sl and slct(sl,yes=False)
+        sus and set_sus(sus)
 
-    def msg_window(s,c,source=None):
+    def msg_window(s,c=None,source=None,data=None):
+        weak_s = ref(s)
         size = x,y = Eval.REAL(margin=0.3)
-        Eval.SOUND(Const.SOUND_HI)
+        s.cache['windows']['msg_window'] = data = data or {}
+        data or Eval.SOUND(Const.SOUND_HI)
         # root
-        root = Widget.WINDOW(
-            source=source,
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
             size=size
         )
+        c = data['c'] = c or data['c']
         # back
         bx = 50
         marg = 10
@@ -1137,6 +1194,7 @@ class Board(bui.MainWindow):
                 root,transition=Eval.TRANSITION(source,True)
             )
             Eval.SOUND(Const.SOUND_BYE)
+            weak_s().cache['windows'].pop('msg_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
                 root,
@@ -1223,7 +1281,7 @@ class Board(bui.MainWindow):
                 text=Const.BLANK
             )
             Eval.DOUBLE_DING(1,0)
-            s.toast(String.SENDING_COMMENT)
+            weak_s().toast(String.SENDING_COMMENT)
             Thread(target=_comment).start()
         def _comment():
             call = done
@@ -1239,12 +1297,13 @@ class Board(bui.MainWindow):
                 )
             bui.pushcall(call,from_other_thread=True)
         def done(err=None):
+            bord = weak_s()
             if err:
                 Eval.DOUBLE_DING(0,0)
-                s.toast(Eval.FORMAT_ERROR(err))
+                bord.toast(Eval.FORMAT_ERROR(err))
                 return
             Eval.DOUBLE_DING(0,1)
-            s.toast(String.COMMENT_SENT)
+            bord.toast(String.COMMENT_SENT)
         com_x = px+dx+marg*2
         Widget.IMAGE(
             root,
@@ -1267,11 +1326,17 @@ class Board(bui.MainWindow):
             text=String.COMMENTS,
             h_align=Const.ALIGN_CENTER
         )
+        def capture(t,k):
+            nonlocal data
+            data[k] = t
+        t = data['com'] = data.get('com','')
         com_inp = Input(
             root,
             position=(com_x+marg*2,marg*3),
             size=(box_x,box_y),
-            hint=String.COMMENT
+            hint=String.COMMENT,
+            on_edit=lambda t:capture(t,'com'),
+            text=t
         )
         Widget.BUTTON(
             root,
@@ -1282,24 +1347,29 @@ class Board(bui.MainWindow):
             text_scale=1.2,
             on_activate_call=push_com
         )
+        t = data['pass'] = data.get('pass','')
         pass_inp = Input(
             root,
             position=(com_x+marg*2,marg*4+box_y),
             size=(box_x+box_y+marg,box_y),
-            hint=String.PASSWORD
+            hint=String.PASSWORD,
+            on_edit=lambda t:capture(t,'pass'),
+            text=t
         )
         # list comment
-        coms = None
-        art = None
+        coms = data['coms'] = data.get('coms',None)
+        had_coms = coms is not None
+        art = data['art'] = data.get('art',None)
         com_widgets = []
         com_anims = []
         last_anim = None
         com_big = False
         def refresh(shut=False):
             nonlocal art, loaded
+            bord = weak_s()
             if not loaded:
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.NOT_NOW)
+                bord.toast(String.NOT_NOW)
                 return
             shut or Eval.SOUND(Const.SOUND_OK)
             loaded = False
@@ -1324,35 +1394,50 @@ class Board(bui.MainWindow):
                                 )
                             }
                         )
-                        s.rest_anims.append(last_anim)
+                        bord.rest_anims.append(last_anim)
+                    data['call'] = do_list
                     Thread(target=_get).start()
                 bui.apptimer(0.4, cleanup_and_fetch)
             else:
-                for w in com_widgets:
-                    w.delete()
-                com_widgets.clear()
-                Thread(target=_get).start()
+                if had_coms and not data.get('call',None):
+                    do_list()
+                    return
+                else:
+                    if com_widgets:
+                        for w in com_widgets: w.delete()
+                        com_widgets.clear()
+                    if data.get('call',None):
+                        data['call'] = do_list
+                    else:
+                        data['call'] = do_list
+                        Thread(target=_get).start()
             artx = cx-marg*8
-            art = Art(
+            art = data['art'] = Art(
                 root,
                 position=(com_x+cx/8,com_yp+com_ys/4+artx/8),
                 size=(artx,artx/2),
-                opacity=Color.OPACITY/1.3
+                opacity=Color.OPACITY/1.3,
+                continue_from=art
             )
         def _get():
             nonlocal coms
             coms = get_comments(c['id'])
             coms.reverse()
-            bui.pushcall(do_list,from_other_thread=True)
+            data['coms'] = coms
+            bui.pushcall(data['call'],from_other_thread=True)
         def do_list():
             if not com_scroll.exists(): return
-            nonlocal com_big
+            bord = weak_s()
+            data.pop('call',None)
+            nonlocal com_big, had_coms
             last_anim and last_anim.cancel()
-            art.fade_out(on_finish=art.delete)
-            bui.scrollwidget(
-                com_scroll,
-                size=last_size
-            )
+            if art:
+                art.fade_out(on_finish=art.delete)
+                bui.scrollwidget(
+                    com_scroll,
+                    size=last_size
+                )
+                data.pop('art',None)
             # id user_hash text timestamp
             step = 30
             each_y = step*2+marg*2
@@ -1364,6 +1449,7 @@ class Board(bui.MainWindow):
                 size=(cx,com_ry)
             )
             widgets_to_animate = []
+            initial_opacity = Color.OPACITY if had_coms else 0
             for i,com in enumerate(coms):
                 cur_y = i*each_y
                 # head
@@ -1372,20 +1458,20 @@ class Board(bui.MainWindow):
                     color=Color.WARM,
                     size=(cx,step),
                     position=(0,cur_y+step),
-                    opacity=0
+                    opacity=initial_opacity
                 )
                 com_widgets.append(head)
-                widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
+                had_coms or widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
                 # body
                 body = Widget.IMAGE(
                     com_root,
                     color=Color.COLD,
                     size=(cx,step),
                     position=(0,cur_y),
-                    opacity=0
+                    opacity=initial_opacity
                 )
                 com_widgets.append(body)
-                widgets_to_animate.append((body, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
+                had_coms or widgets_to_animate.append((body, 'opacity', (0, Color.OPACITY), 0.1 + i*0.05))
                 # user
                 user = Widget.TEXT(
                     com_root,
@@ -1394,10 +1480,10 @@ class Board(bui.MainWindow):
                     size=(cx,step),
                     maxwidth=cx-marg*4,
                     v_align=Const.ALIGN_CENTER,
-                    opacity=0
+                    opacity=initial_opacity
                 )
                 com_widgets.append(user)
-                widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + i*0.05))
+                had_coms or widgets_to_animate.append((user, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY)), 0.15 + i*0.05))
                 # text
                 text_widget = Widget.TEXT(
                     com_root,
@@ -1409,10 +1495,10 @@ class Board(bui.MainWindow):
                     size=(cx,step),
                     maxwidth=cx-marg*4,
                     v_align=Const.ALIGN_CENTER,
-                    opacity=0
+                    opacity=initial_opacity/2
                 )
                 com_widgets.append(text_widget)
-                widgets_to_animate.append((text_widget, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + i*0.05))
+                had_coms or widgets_to_animate.append((text_widget, 'color', (Const.INVISIBLE, Eval.TEXT(Color.OPACITY/2)), 0.15 + i*0.05))
                 # sensor
                 bui.buttonwidget(
                     (sensor:=Widget.SENSOR(
@@ -1420,28 +1506,29 @@ class Board(bui.MainWindow):
                         position=(marg/2,cur_y),
                         size=(cx,step*2)
                     )), on_activate_call=bui.CallPartial(
-                        s.comment_window, com, sensor
+                        bord.comment_window, com, sensor
                     )
                 )
             bui.containerwidget(
                 com_root,
                 visible_child=foo
             )
-            # animate
-            butter = 0.4
-            for widget, attr_name, (start, end), delay in widgets_to_animate:
-                if attr_name == 'opacity':
-                    attrs = {'opacity': (start, end)}
-                else:
-                    attrs = {'color': (start, end)}
-                anim = Animate(
-                    widget=widget,
-                    attrs=attrs,
-                    duration=butter,
-                    delay=delay
-                )
-                com_anims.append(anim)
-                s.rest_anims.append(anim)
+            if not had_coms:
+                # animate
+                butter = 0.4
+                for widget, attr_name, (start, end), delay in widgets_to_animate:
+                    if attr_name == 'opacity':
+                        attrs = {'opacity': (start, end)}
+                    else:
+                        attrs = {'color': (start, end)}
+                    anim = Animate(
+                        widget=widget,
+                        attrs=attrs,
+                        duration=butter,
+                        delay=delay
+                    )
+                    com_anims.append(anim)
+                    bord.rest_anims.append(anim)
             # placeholder
             if not coms:
                 w = Widget.TEXT(
@@ -1454,6 +1541,7 @@ class Board(bui.MainWindow):
             # finally
             nonlocal loaded
             loaded = True
+            had_coms = False
         off_up = box_y*2+marg*4
         com_ys = ys-off_up
         com_yp = marg*2+off_up
@@ -1463,7 +1551,10 @@ class Board(bui.MainWindow):
             size=last_size,
             position=(com_x-marg/2,com_yp)
         )
-        com_root = Widget.CONTAINER(com_scroll)
+        com_root = Widget.CONTAINER(
+            com_scroll,
+            source=False
+        )
         foo = Widget.FOO(com_root)
         rf_x = x-(bx+marg*2+2)
         rf_y = y-(bx+marg*2)
@@ -1511,7 +1602,8 @@ class Board(bui.MainWindow):
                 position=(px,marg*2),
                 size=(dx,file_x+xt)
             ),
-            size=(rdx,file_x+xt)
+            size=(rdx,file_x+xt),
+            source=False
         )
         for i,f in enumerate(files):
             n = f['original_name']
@@ -1557,17 +1649,19 @@ class Board(bui.MainWindow):
                 )
             )
 
-    def comment_window(s,com,source):
+    def comment_window(s,com=None,source=None,data=None):
         bx = 50
         marg = 10
         x,y = Eval.REAL(margin=0.4)
+        s.cache['windows']['comment_window'] = data = data or {}
         size = (x,y)
-        Eval.SOUND(Const.SOUND_HI)
+        data or Eval.SOUND(Const.SOUND_HI)
         # root
-        root = Widget.WINDOW(
-            source=source,
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
             size=size
         )
+        com = data['com'] = com or data.get('com',None)
         # back
         py = y-bx-marg*2
         def back():
@@ -1575,6 +1669,7 @@ class Board(bui.MainWindow):
                 root,transition=Eval.TRANSITION(source,True)
             )
             Eval.SOUND(Const.SOUND_BYE)
+            s.cache['windows'].pop('comment_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
                 root,
@@ -1657,7 +1752,9 @@ class Board(bui.MainWindow):
             text=fit_string(com['text'],mw,mh)
         )
 
-    def file_window(s,file,source,uh):
+    def file_window(s,file=None,source=None,uh=None,data=None):
+        weak_s = ref(s)
+        s.cache['windows']['file_window'] = data = data or {}
         clickable = True
         butter = 0.2
         bx = 50
@@ -1665,47 +1762,64 @@ class Board(bui.MainWindow):
         x,y = Eval.REAL(margin=0.4)
         x /= 2
         size = (x,y)
-        Eval.SOUND(Const.SOUND_HI)
+        data or Eval.SOUND(Const.SOUND_HI)
         # root
         root_parts = Widget.WINDOW(
-            source=source,
+            source=False if data else source,
             size=size,
             parts=True
         )
+        file = data['file'] = file or data['file']
+        uh = data['file'] = file or data['uh']
         shadow,root_bg,root = root_parts
+        data['root'] = root
         # expand
         to_hide = []
-        art = None
-        switched = False
+        art = data.get('art',None)
+        switched = data.get('switched',None)
         anims = {}
-        def switch():
-            nonlocal switched, art
+        def switch(fast=False):
+            nonlocal switched, clickable
+            bord = weak_s()
+            dur = Const.EPSILON if fast else butter
             if switched:
-                switched = False
-                for w,a in anims.copy().items():
-                    anims[w] = a.reverse()
-                art.fade_out(
-                    duration=butter,
-                    on_finish=art.delete
-                )
-                nonlocal clickable
                 clickable = True
-                return
-            switched = True
-            for w,at in to_hide:
-                if (a:=anims.get(w)): a.cancel()
-                anims[w] = a = Animate(
-                    widget=w,
-                    duration=butter,
-                    attrs=at
-                )
-                s.rest_anims.append(a)
-            art = Art(
+                switched = data['switched'] = False
+                for w,at in to_hide:
+                    if (a:=anims.get(w)): a.cancel()
+                    anims[w] = a = Animate(
+                        widget=w,
+                        duration=dur,
+                        attrs=at,
+                        swapped=True
+                    )
+                    bord.rest_anims.append(a)
+            else:
+                clickable = False
+                switched = data['switched'] = True
+                for w,at in to_hide:
+                    if (a:=anims.get(w)): a.cancel()
+                    anims[w] = a = Animate(
+                        widget=w,
+                        duration=dur,
+                        attrs=at
+                    )
+                    bord.rest_anims.append(a)
+        def make_art():
+            nonlocal art
+            art = data['art'] = Art(
                 root,
                 position=(art_x,art_y),
-                size=(art_sx,art_sy)
+                size=(art_sx,art_sy),
+                continue_from=data.get('art',None)
             )
-
+        def kill_art():
+            nonlocal art
+            art.fade_out(
+                duration=butter,
+                on_finish=art.delete
+            )
+            data.pop('art',None)
         # back
         py = y-bx-marg*2
         def back():
@@ -1713,6 +1827,7 @@ class Board(bui.MainWindow):
                 root,transition=Eval.TRANSITION(source,True)
             )
             Eval.SOUND(Const.SOUND_BYE)
+            weak_s().cache['windows'].pop('file_window')
         bui.containerwidget(root,cancel_button=(
             Widget.BUTTON(
                 root,
@@ -1741,11 +1856,13 @@ class Board(bui.MainWindow):
             maxwidth=dx-marg*2,
             v_align=Const.ALIGN_CENTER
         )
+        initial_opacity = 0 if switched else Color.OPACITY
         w = Widget.IMAGE(
             root,
             position=(px,marg*2-1),
             size=(dx,bsy),
-            color=Color.COLD
+            color=Color.COLD,
+            opacity=initial_opacity
         )
         to_hide.append((
             w, {'opacity':(Color.OPACITY,0)}
@@ -1775,7 +1892,8 @@ class Board(bui.MainWindow):
             position=(px+marg,py),
             maxwidth=dx-marg*2,
             max_height=dy-marg*2,
-            text=Eval.FORMAT_SIZE(file['size'])
+            text=Eval.FORMAT_SIZE(file['size']),
+            opacity=initial_opacity
         )
         to_hide.append((
             w, {
@@ -1789,10 +1907,6 @@ class Board(bui.MainWindow):
         def _acquire():
             os.makedirs(Const.DOWNLOAD_PATH,exist_ok=True)
             nam = file['original_name']
-            def _abort(e):
-                switch()
-                s.toast(Eval.FORMAT_ERROR(e))
-                Eval.DOUBLE_DING(0,0)
             try:
                 acquire(
                     uh,
@@ -1801,25 +1915,40 @@ class Board(bui.MainWindow):
                 )
             except Exception as e:
                 bui.pushcall(
-                    bui.CallPartial(_abort,e),
+                    bui.CallPartial(data['abort'],e),
                     from_other_thread=True
                 )
                 return
-            def _done():
-                switch()
-                s.toast(Eval.FORMAT_DOWNLOADED(nam))
-                Eval.DOUBLE_DING(0,1)
-            bui.pushcall(_done,from_other_thread=True)
+            bui.pushcall(
+                bui.CallPartial(
+                    data['call'], nam
+                ),
+                from_other_thread=True
+            )
+        def _done(nam):
+            switch()
+            kill_art()
+            weak_s().toast(Eval.FORMAT_DOWNLOADED(nam))
+            Eval.DOUBLE_DING(0,1)
+            data.pop('call',None)
+        def _abort(e):
+            switch()
+            kill_art()
+            weak_s().toast(Eval.FORMAT_ERROR(e))
+            Eval.DOUBLE_DING(0,0)
+            data.pop('abort',None)
         def download():
-            nonlocal clickable
             if not clickable:
                 Eval.SOUND(Const.SOUND_BAD)
                 return
-            clickable = False
+            bord = weak_s()
             switch()
+            make_art()
+            data['call'] = _done
+            data['abort'] = _abort
             Thread(target=_acquire).start()
             Eval.DOUBLE_DING(1,0)
-            s.toast(String.DOWNLOADING)
+            weak_s().toast(String.DOWNLOADING)
         py -= (marg+3)
         Widget.BUTTON(
             root,
@@ -1832,13 +1961,14 @@ class Board(bui.MainWindow):
         )
         # copy
         def cp():
+            bord = weak_s()
             if not bui.clipboard_is_supported():
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.CLIPBOARD_UNSUPPORTED)
+                bord.toast(String.CLIPBOARD_UNSUPPORTED)
                 return
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(file['path'])
-            s.toast(String.COPIED)
+            bord.toast(String.COPIED)
         art_sx = dx-marg*4
         art_sy = art_sx-100
         art_x = px+marg*2
@@ -1853,7 +1983,11 @@ class Board(bui.MainWindow):
             color=Color.WARM,
             on_activate_call=cp
         )
-
+        # finally
+        if data.get('call',None):
+            data['call'] = _done
+            data['abort'] = _abort
+            make_art()
 # custom ui
 # more like handmade widgets
 
@@ -1864,7 +1998,7 @@ class Input:
         s.hint_up = not s.text
         s.on_edit = on_edit
         s.opacity = Color.OPACITY
-        s.hint_opacity = s.opacity / 2
+        s.hint_opacity = s.hint_up and (s.opacity / 2) or 0
         kw.update({
             'v_align':v_align or Const.ALIGN_CENTER,
             'opacity':s.opacity,
@@ -2230,9 +2364,9 @@ class Eval:
         (c for c in cls.__subclasses__()
         if c.__name__[:-len(cls.__name__)] == sub), fallback
     )
-    SOUND = lambda which:(
+    SOUND = lambda which,cut=True:(
         (sound:=bui.getsound(which)).play() or
-        bui.apptimer(uniform(0.13,0.16),sound.stop)
+        cut and bui.apptimer(uniform(0.13,0.16),sound.stop)
     )
     SOUNDS = lambda s1,s2,gap=0.12:(
         (sound:=bui.getsound(s1)).play() or
@@ -2423,9 +2557,9 @@ class EnglishString(String):
     PATH_MEANS = 'Path: uploads file'
     PUBLISHED = 'Post published! It should be availabe in seconds.'
     SELECT_SOMETHING = 'Select something!'
-    SENDING_COMMENT = 'Sending comment, please wait...'
+    SENDING_COMMENT = 'Sending comment... (you can close this window)'
     TITLE = 'Title'
-    UPLOADING = 'Uploading, please wait...'
+    UPLOADING = 'Uploading... (you can close this window)'
     URI = 'URI'
     URL = 'URL'
     URL_MEANS = 'URL/URI: directly sent to server'
@@ -2495,6 +2629,7 @@ class Const:
     COMMENT_MAX = 40
     BA_LAG_SMALL = 0.01
     BA_LAG = 0.04
+    EPSILON = 1e-8
     ART = (
         (2.0, 0.3, 2.2),
         (2.2, 0.3, 1.5),
@@ -2503,7 +2638,7 @@ class Const:
         (0.3, 2.0, 1.8),
     )
     TRANSITION = (
-        ('in_left','out_left'),
+        ('in_left','out_right'),
         ('in_scale','out_scale'),
         'none'
     )
@@ -2604,7 +2739,7 @@ def fit_string(text, max_width, max_height=None):
     return Const.NEWLINE.join(result_lines)
 
 class Animate:
-    def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
+    def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None, swapped=False):
         """
         Dynamic animation system.
 
@@ -2622,6 +2757,7 @@ class Animate:
             on_finish: Optional callback when animation completes
             delay: Delay in seconds before starting animation
             condition: Optional callable that must return True
+            swapped: If True, reverses all (start, end) pairs in attrs
         """
         s.widget = widget
         s.on_start = on_start
@@ -2647,6 +2783,10 @@ class Animate:
         s.attrs_current = {}
 
         for attr_name, (start_val, end_val) in attrs.items():
+            # Swap if requested
+            if swapped:
+                start_val, end_val = end_val, start_val
+
             s.attrs_start[attr_name] = start_val
             s.attrs_end[attr_name] = end_val
             # initialize current value
