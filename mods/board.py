@@ -30,10 +30,30 @@ from enum import Enum
 
 __version__ = '1.0'
 
-class Config:
-    COLOR = 'Light'
+class ConfigManager:
+    COLOR = 'Dark'
     STRING = 'English'
-    DEBUG = False
+
+    def __setattr__(s, name, value):
+        bui.app.config[Const.CONFIG_PREFIX + name] = value
+        bui.app.config.commit()
+        object.__setattr__(s, name, value)
+        glo = globals()
+        glo[name.capitalize()] = glo[
+            value+getattr(s,'_'+name)
+        ]
+
+    def __init__(s):
+        for key, value in bui.app.config.items():
+            if key.startswith(Const.CONFIG_PREFIX):
+                object.__setattr__(s, key[len(Const.CONFIG_PREFIX):], value)
+        glo = globals()
+        for k in dir(s):
+            if not k.startswith('_'):
+                cap = k.capitalize()
+                nam = getattr(s,k)+cap
+                glo[cap] = glo[nam]
+                object.__setattr__(s,'_'+k,cap)
 
 class Board(bui.MainWindow):
     CACHE = defaultdict(dict)
@@ -78,6 +98,7 @@ class Board(bui.MainWindow):
             s.render(cat,fast=True)
         else:
             s.refresh(shut=True)
+        (f:=s.cache.pop('pending',None)) and f(s)
 
     def ui_safe(s):
         return s.root.exists() and not s.root.transitioning_out
@@ -115,24 +136,25 @@ class Board(bui.MainWindow):
 
         # post
         post_x = x - marg - bx
-        s.post_button = Widget.BUTTON(
-            s.root,
-            position=(post_x, py),
-            size=(bx, bx),
-            label=Eval.CHAR(Const.CHAR_POST),
-            text_scale=1.1
+        bui.buttonwidget(
+            (btn:=Widget.BUTTON(
+                s.root,
+                position=(post_x, py),
+                size=(bx, bx),
+                label=Eval.CHAR(Const.CHAR_POST),
+                text_scale=1.1
+            )), on_activate_call=bui.CallPartial(s.post_window,btn)
         )
-        bui.buttonwidget(s.post_button, on_activate_call=bui.CallPartial(s.post_window, s.post_button))
 
         # refresh
         rf_x = post_x - marg - bx
-        s.refresh_button = Widget.BUTTON(
+        Widget.BUTTON(
             s.root,
             position=(rf_x, py),
             size=(bx, bx),
             on_activate_call=s.refresh
         )
-        s.refresh_icon = Widget.IMAGE(
+        Widget.IMAGE(
             s.root,
             position=(rf_x + bx*0.1, py + bx*0.1),
             size=(bx*0.8, bx*0.8),
@@ -140,10 +162,29 @@ class Board(bui.MainWindow):
             color=Color.TEXT
         )
 
+        # settings
+        st_x = post_x - (marg+bx)*2
+        bui.buttonwidget(
+            (btn:=Widget.BUTTON(
+                s.root,
+                position=(st_x, py),
+                size=(bx, bx)
+            )), on_activate_call=bui.CallPartial(
+                s.settings_window, source=btn
+            )
+        )
+        Widget.IMAGE(
+            s.root,
+            position=(st_x + bx*0.1, py + bx*0.1),
+            size=(bx*0.8, bx*0.8),
+            texture=Eval.TEXTURE(Const.IMG_SETTINGS),
+            color=Color.TEXT
+        )
+
         # title
         px = back_x + bx + marg
-        dx = rf_x - px - marg
-        s.title_bg = Widget.IMAGE(
+        dx = st_x - px - marg
+        Widget.IMAGE(
             s.root,
             position=(px, py - 2),
             size=(dx, dy + 4),
@@ -152,7 +193,8 @@ class Board(bui.MainWindow):
         s.title = Widget.TEXT(
             s.root,
             position=(px + marg/2, py + dy/4 - 2),
-            text=String.WAIT
+            text=String.WAIT,
+            maxwidth=dx-marg*2
         )
 
         # scroll
@@ -170,6 +212,10 @@ class Board(bui.MainWindow):
             source=False,
             size=(cx, cy)
         )
+    def remake(s):
+        ui = bui.app.ui_v1
+        ui._last_win_recreate_uiscale = None
+        ui._do_main_win_recreate()
 
     def remake_windows(s):
         for which,data in s.cache['windows'].items():
@@ -194,7 +240,7 @@ class Board(bui.MainWindow):
             s.update_title(String.BOARD,fast=fast)
             s._render_catalog_content(cat, fast)
 
-        s.remake_windows()
+        fast and s.remake_windows()
 
     def _render_catalog_content(s, cat, fast=False):
         if not s.ui_safe(): return
@@ -249,12 +295,15 @@ class Board(bui.MainWindow):
                 widgets_to_animate.append((head, 'opacity', (0, Color.OPACITY), 0.1 + (lc-i)*0.05))
 
             # img
+            tex = Eval.COVER_IMG(files)
             img = Widget.IMAGE(
                 s.scroll_root,
                 position=(px + marg/2, py + marg/2),
                 size=(ix, ix),
-                texture=Eval.COVER_IMG(files),
-                opacity=initial_opacity
+                texture=tex,
+                opacity=initial_opacity,
+                tint_texture=tex,
+                tint_color=ba.normalized_color(Color.BASE)
             )
             s.catalog_widgets.append(img)
             if not fast:
@@ -288,7 +337,7 @@ class Board(bui.MainWindow):
             title = Widget.TEXT(
                 s.scroll_root,
                 position=(px + ix + marg*1.5, py + ey - (marg + 30)),
-                text=c['title'] or String.NO_TITLE,
+                text=c['title'] or String.NO.format(String.TITLE),
                 maxwidth=x - ix - marg*2,
                 scale=1.3,
                 v_align=Const.ALIGN_CENTER,
@@ -305,7 +354,7 @@ class Board(bui.MainWindow):
                 position=(px + ix + marg, py + ey - (marg + 60)),
                 text='\n'.join(
                     fit_string(
-                        (c['description'] or String.NO_DESCRIPTION),
+                        (c['description'] or String.NO.format(String.DESCRIPTION)),
                         mw
                     ).split('\n')[:3]
                 ),
@@ -643,7 +692,7 @@ class Board(bui.MainWindow):
         def done():
             if is_busy(): return
             if not pass_inp.text:
-                s.toast(String.ENTER_PASSWORD)
+                s.toast(String.ENTER.format(String.PASSWORD))
                 Eval.SOUND(Const.SOUND_BAD)
                 return
             s.toast(String.UPLOADING)
@@ -707,7 +756,7 @@ class Board(bui.MainWindow):
             bui.textwidget(
                 title,
                 text=(
-                    t and Eval.FORMAT_USER_AS(t)
+                    t and String.POST_BY.format(Eval.SEAL_PASSWORD(t))
                     or String.NEW_POST
                 )
             )
@@ -727,7 +776,7 @@ class Board(bui.MainWindow):
         def nl():
             if not desc_inp.text:
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.ENTER_SOMETHING)
+                s.toast(String.ENTER.format(String.SOMETHING))
                 return
             Eval.SOUND(Const.SOUND_OK)
             w = desc_inp.widget
@@ -943,7 +992,7 @@ class Board(bui.MainWindow):
             bord = sw()
             if not txt or ty < 0:
                 Eval.SOUND(Const.SOUND_BAD)
-                bord.toast(String.ENTER_SOMETHING)
+                bord.toast(String.ENTER.format(String.SOMETHING))
                 return
 
             img = Const.IMG_DEFAULT
@@ -953,7 +1002,7 @@ class Board(bui.MainWindow):
                     if not Eval.VALIDATE_URL(txt): raise
                 except:
                     Eval.SOUND(Const.SOUND_BAD)
-                    bord.toast(String.INVALID_URI)
+                    bord.toast(String.INVALID.format(String.URI))
                     return
 
             # URI (data:)
@@ -962,7 +1011,7 @@ class Board(bui.MainWindow):
                     if not Eval.VALIDATE_URI(txt): raise
                 except:
                     Eval.SOUND(Const.SOUND_BAD)
-                    bord.toast(String.INVALID_URI)
+                    bord.toast(String.INVALID.format(String.URI))
                     return
 
             # path (local file)
@@ -973,12 +1022,12 @@ class Board(bui.MainWindow):
                     )
                 if not os.path.exists(txt):
                     Eval.SOUND(Const.SOUND_BAD)
-                    bord.toast(String.FILE_NOT_FOUND)
+                    bord.toast(String.NOT_FOUND.format(String.FILE))
                     return
                 img = Eval.IMG_FILE(txt)
 
             # finally
-            bord.toast(String.ATTACH_DONE)
+            bord.toast(String.DONE.format(String.ATTACH))
             back(
                 callable(pipe) and pipe(
                     txt, ty, img
@@ -1010,14 +1059,14 @@ class Board(bui.MainWindow):
         Widget.TEXT(
             root,
             position=(bx+marg*4.5,marg*5+extra_y),
-            text=String.PATH_MEANS,
+            text=String.PATH_INFO,
             maxwidth=mw,
             v_align=Const.ALIGN_CENTER
         )
         Widget.TEXT(
             root,
             position=(bx+marg*4.5,marg*2+extra_y),
-            text=String.URL_MEANS,
+            text=String.URL_INFO,
             maxwidth=mw,
             v_align=Const.ALIGN_CENTER
         )
@@ -1041,7 +1090,7 @@ class Board(bui.MainWindow):
         def kang():
             bord = sw()
             if not sl:
-                bord.toast(String.SELECT_SOMETHING)
+                bord.toast(String.SELECT.format(String.SOMETHING))
                 Eval.SOUND(Const.SOUND_BAD)
                 return
             bui.textwidget(
@@ -1223,8 +1272,8 @@ class Board(bui.MainWindow):
             # we don't want server cussing at us
             if not correct or not ha:
                 weak_s().toast(
-                    ha is None and String.ENTER_PASSWORD
-                    or String.INCORRECT_PASSWORD
+                    ha is None and String.ENTER.format(String.PASSWORD)
+                    or String.INCORRECT.format(String.PASSWORD)
                 )
                 Eval.SOUND(Const.SOUND_BAD)
                 return
@@ -1274,7 +1323,7 @@ class Board(bui.MainWindow):
         )
         Widget.TEXT(
             root,
-            text=Eval.FORMAT_DELETE(post['id']),
+            text=String.DELETE_ID.format(post['id']),
             position=(px+marg*2,py+marg),
             maxwidth=dx-marg*4,
             v_align=Const.ALIGN_CENTER
@@ -1342,10 +1391,10 @@ class Board(bui.MainWindow):
             data.pop('delete_call',None)
             bord = weak_s()
             if e:
-                bord.toast(Eval.FORMAT_ERROR(e))
+                bord.toast(String.ERROR_WITH.format(str(e)) if e else String.ERROR_UNKNOWN)
                 Eval.DOUBLE_DING(0,0)
                 return
-            bord.toast(String.POST_DELETED)
+            bord.toast(String.DELETED.format(String.POST))
             Eval.DOUBLE_DING(0,1)
             back(shut=True)
         if data.get('delete_call',None):
@@ -1383,7 +1432,7 @@ class Board(bui.MainWindow):
         def cp():
             if not bui.clipboard_is_supported():
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.CLIPBOARD_UNSUPPORTED)
+                s.toast(String.UNSUPPORTED.format(String.CLIPBOARD))
                 return
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(
@@ -1437,8 +1486,8 @@ class Board(bui.MainWindow):
         Widget.TEXT(
             root,
             position=(px+marg*2,marg+bsy-30),
-            text=c['title'] or String.NO_TITLE,
-            maxwidth=dx-marg*4,
+            text=c['title'] or String.NO.format(String.TITLE),
+            maxwidth=dx-marg*4-(bx*2+marg*2),
             scale=1.3,
             v_align=Const.ALIGN_CENTER
         )
@@ -1448,7 +1497,7 @@ class Board(bui.MainWindow):
             root,
             position=(px+marg*1.7,marg+bsy-65),
             text=fit_string(
-                c['description'] or String.NO_DESCRIPTION,
+                c['description'] or String.NO.format(String.DESCRIPTION),
                 mw, mh
             ),
             maxwidth=mw,
@@ -1462,11 +1511,11 @@ class Board(bui.MainWindow):
                 s.toast(String.NOT_NOW)
                 return
             if not com_inp.text:
-                s.toast(String.ENTER_SOMETHING)
+                s.toast(String.ENTER.format(String.SOMETHING))
                 Eval.SOUND(Const.SOUND_BAD)
                 return
             if not pass_inp.text:
-                s.toast(String.ENTER_PASSWORD)
+                s.toast(String.ENTER.format(String.PASSWORD))
                 Eval.SOUND(Const.SOUND_BAD)
                 return
             bui.textwidget(
@@ -1474,7 +1523,7 @@ class Board(bui.MainWindow):
                 text=Const.BLANK
             )
             Eval.DOUBLE_DING(1,0)
-            weak_s().toast(String.SENDING_COMMENT)
+            weak_s().toast(String.CAN_CLOSE.format(String.SENDING + ' ' + String.COMMENT.lower()))
             Thread(target=_comment).start()
         def _comment():
             call = done
@@ -1496,7 +1545,7 @@ class Board(bui.MainWindow):
                 bord.toast(Eval.FORMAT_ERROR(err))
                 return
             Eval.DOUBLE_DING(0,1)
-            bord.toast(String.COMMENT_SENT)
+            bord.toast(String.SENT.format(String.COMMENT))
         com_x = px+dx+marg*2
         Widget.IMAGE(
             root,
@@ -1520,7 +1569,6 @@ class Board(bui.MainWindow):
             h_align=Const.ALIGN_CENTER
         )
         def capture(t,k):
-            nonlocal data
             data[k] = t
         t = data['com'] = data.get('com','')
         com_inp = Input(
@@ -1558,7 +1606,7 @@ class Board(bui.MainWindow):
         last_anim = None
         com_big = False
         def refresh(shut=False):
-            nonlocal art, loaded
+            nonlocal loaded
             bord = weak_s()
             if not loaded:
                 Eval.SOUND(Const.SOUND_BAD)
@@ -1590,6 +1638,7 @@ class Board(bui.MainWindow):
                         bord.rest_anims.append(last_anim)
                     data['call'] = do_list
                     Thread(target=_get).start()
+                    make_art()
                 bui.apptimer(0.4, cleanup_and_fetch)
             else:
                 if had_coms and not data.get('call',None):
@@ -1604,14 +1653,22 @@ class Board(bui.MainWindow):
                     else:
                         data['call'] = do_list
                         Thread(target=_get).start()
+                    make_art()
+        def make_art():
+            nonlocal art
             artx = cx-marg*8
             art = data['art'] = Art(
                 root,
-                position=(com_x+cx/8,com_yp+com_ys/4+artx/8),
+                position=(com_x+cx/8,com_yp+com_ys/2-artx/8),
                 size=(artx,artx/2),
                 opacity=Color.OPACITY/1.3,
                 continue_from=art
             )
+        def kill_art():
+            art.fade_out(
+                on_finish=art.delete
+            )
+            data.pop('art',None)
         def _get():
             nonlocal coms
             coms = get_comments(c['id'])
@@ -1621,20 +1678,18 @@ class Board(bui.MainWindow):
         def do_list():
             if not com_scroll.exists(): return
             bord = weak_s()
-            data.pop('call',None)
             nonlocal com_big, had_coms
             last_anim and last_anim.cancel()
             if art:
-                art.fade_out(on_finish=art.delete)
+                kill_art()
                 bui.scrollwidget(
                     com_scroll,
                     size=last_size
                 )
-                data.pop('art',None)
             # id user_hash text timestamp
             step = 30
             each_y = step*2+marg*2
-            ry = len(coms)*each_y
+            ry = 0 if coms is None else (len(coms)*each_y)
             com_ry = max(com_ys-15,ry)
             com_big = ry > (com_ys-15)
             bui.containerwidget(
@@ -1643,7 +1698,7 @@ class Board(bui.MainWindow):
             )
             widgets_to_animate = []
             initial_opacity = Color.OPACITY if had_coms else 0
-            for i,com in enumerate(coms):
+            for i,com in enumerate(coms or []):
                 cur_y = i*each_y
                 # head
                 head = Widget.IMAGE(
@@ -1731,13 +1786,14 @@ class Board(bui.MainWindow):
                     root,
                     position=(com_x+box_x/2+marg,com_yp+com_ys/2.3),
                     h_align=Const.ALIGN_CENTER,
-                    text=String.NO_COMMENTS
+                    text=String.NO.format(String.COMMENTS)
                 )
                 com_widgets.append(w)
             # finally
             nonlocal loaded
             loaded = True
             had_coms = False
+            data.pop('call',None)
         off_up = box_y*2+marg*4
         com_ys = ys-off_up
         com_yp = marg*2+off_up
@@ -1782,7 +1838,7 @@ class Board(bui.MainWindow):
         files = c['files']
         Widget.TEXT(
             root,
-            text=Eval.COUNT(files,String.FILE,String.FILES),
+            text=Eval.COUNT(len(files),String.FILE,String.FILES),
             position=(x-(cx+marg*10.5),py+marg),
             h_align=Const.ALIGN_RIGHT,
             maxwidth=dx*0.26,
@@ -1885,10 +1941,10 @@ class Board(bui.MainWindow):
             data.pop('delete_call',None)
             bord = weak_s()
             if e:
-                bord.toast(Eval.FORMAT_ERROR(e))
+                bord.toast(String.ERROR_WITH.format(str(e)) if e else String.ERROR_UNKNOWN)
                 Eval.DOUBLE_DING(0,0)
                 return
-            bord.toast(String.COMMENT_DELETED)
+            bord.toast(String.DELETED.format(String.COMMENT))
             Eval.DOUBLE_DING(0,1)
             back(shut=True)
         if data.get('delete_call',None):
@@ -1926,7 +1982,7 @@ class Board(bui.MainWindow):
         def cp():
             if not bui.clipboard_is_supported():
                 Eval.SOUND(Const.SOUND_BAD)
-                s.toast(String.CLIPBOARD_UNSUPPORTED)
+                s.toast(String.UNSUPPORTED.format(String.CLIPBOARD))
                 return
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(com['text'])
@@ -2011,7 +2067,7 @@ class Board(bui.MainWindow):
             parts=True
         )
         file = data['file'] = file or data['file']
-        uh = data['file'] = file or data['uh']
+        uh = data['uh'] = uh or data['uh']
         shadow,root_bg,root = root_parts
         data['root'] = root
         # expand
@@ -2055,7 +2111,6 @@ class Board(bui.MainWindow):
                 continue_from=data.get('art',None)
             )
         def kill_art():
-            nonlocal art
             art.fade_out(
                 duration=butter,
                 on_finish=art.delete
@@ -2133,7 +2188,7 @@ class Board(bui.MainWindow):
             position=(px+marg,py),
             maxwidth=dx-marg*2,
             max_height=dy-marg*2,
-            text=Eval.FORMAT_SIZE(file['size']),
+            text=Eval.COUNT(file['size'], String.BYTE, String.BYTES),
             opacity=initial_opacity
         )
         to_hide.append((
@@ -2169,20 +2224,19 @@ class Board(bui.MainWindow):
         def _done(nam):
             switch()
             kill_art()
-            weak_s().toast(Eval.FORMAT_DOWNLOADED(nam))
+            weak_s().toast(String.SAVED_AS.format(nam))
             Eval.DOUBLE_DING(0,1)
             data.pop('call',None)
         def _abort(e):
             switch()
             kill_art()
-            weak_s().toast(Eval.FORMAT_ERROR(e))
+            weak_s().toast(String.ERROR_WITH.format(str(e)) if e else String.ERROR_UNKNOWN)
             Eval.DOUBLE_DING(0,0)
             data.pop('abort',None)
         def download():
             if not clickable:
                 Eval.SOUND(Const.SOUND_BAD)
                 return
-            bord = weak_s()
             switch()
             make_art()
             data['call'] = _done
@@ -2205,7 +2259,7 @@ class Board(bui.MainWindow):
             bord = weak_s()
             if not bui.clipboard_is_supported():
                 Eval.SOUND(Const.SOUND_BAD)
-                bord.toast(String.CLIPBOARD_UNSUPPORTED)
+                bord.toast(String.UNSUPPORTED.format(String.CLIPBOARD))
                 return
             Eval.SOUND(Const.SOUND_DING)
             bui.clipboard_set_text(file['path'])
@@ -2229,6 +2283,187 @@ class Board(bui.MainWindow):
             data['call'] = _done
             data['abort'] = _abort
             make_art()
+
+    def settings_window(s,source=None,data=None):
+        weak_s = ref(s)
+        x = y = min(Eval.REAL(margin=0.5))
+        s.cache['windows']['settings_window'] = data = data or {}
+        data or Eval.SOUND(Const.SOUND_HI)
+        # root
+        root = data['root'] = Widget.WINDOW(
+            source=False if data else source,
+            size=(x,y)
+        )
+        data['hi'] = 1
+        # back
+        bx = 50
+        marg = 10
+        py = y-bx-marg*2
+        def back():
+            bui.containerwidget(
+                root,transition=Eval.TRANSITION(source,True)
+            )
+            Eval.SOUND(Const.SOUND_BYE)
+            weak_s().cache['windows'].pop('settings_window')
+        bui.containerwidget(root,cancel_button=(
+            Widget.BUTTON(
+                root,
+                position=(20,py),
+                size=(bx,bx),
+                label=Eval.CHAR(Const.CHAR_BACK),
+                text_scale=0.8,
+                on_activate_call=back,
+                color=Color.WARM
+            )
+        ))
+        # block
+        dx,dy = x-(bx+marg*6),bx
+        bsy = y-(marg*6+dy)
+        px = bx+marg*4
+        Widget.IMAGE(
+            root,
+            position=(marg*2-2,marg*2),
+            size=(bx+4,bsy),
+            color=Color.WARM
+        )
+        # version
+        Widget.TEXT(
+            root,
+            text=__version__,
+            rotate=90,
+            position=(marg+bx/1.43,marg*2),
+            opacity=Color.OPACITY/2,
+            v_align=Const.ALIGN_CENTER,
+            maxwidth=bsy-marg*3.5
+        )
+        # title
+        Widget.IMAGE(
+            root,
+            position=(px,py-2),
+            size=(dx,dy+4),
+            color=Color.WARM
+        )
+        Widget.IMAGE(
+            root,
+            position=(px,marg*2),
+            size=(dx,bsy),
+            color=Color.COLD
+        )
+        Widget.TEXT(
+            root,
+            text=String.SETTINGS,
+            position=(px+marg*2,py+marg),
+            maxwidth=dx-marg*4,
+            v_align=Const.ALIGN_CENTER
+        )
+        # color
+        color_x = dx/2
+        ex = 30
+        Widget.TEXT(
+            root,
+            position=(px+marg,marg*3),
+            size=(color_x-40,ex),
+            text=String.THEME,
+            maxwidth=color_x-marg*2,
+            h_align=Const.ALIGN_CENTER,
+            v_align=Const.ALIGN_CENTER
+        )
+        glo = globals()
+        colors = [
+            glo[_] for _ in glo
+            if _.endswith(Config._COLOR)
+            and not _ == Config._COLOR
+        ]
+        waffle_w = color_x/2
+        waffle_px = color_x/8
+        step = waffle_w+waffle_px
+        color_y = len(colors)*step+waffle_px
+        color_root = Widget.CONTAINER(
+            Widget.SCROLL(
+                root,
+                position=(px,ex+marg*3),
+                size=(color_x,bsy-(ex+marg))
+            ),
+            source=False,
+            size=(color_x,color_y)
+        )
+        def apply(color):
+            color_name = Config.COLOR = color.__name__[
+                :-len(Config._COLOR)
+            ]
+            Eval.SOUND(Const.SOUND_ACTION,cut=False)
+            s.cache['pending'] = lambda bord:(
+                bord.toast(color_name)
+            )
+            s.remake()
+        waffles = [
+            Waffle(
+                color_root,
+                theme=color,
+                position=(waffle_px,waffle_px+i*step),
+                width=waffle_w,
+                on_activate_call=bui.CallPartial(
+                    apply, color
+                )
+            ).waffle
+            for i,color in enumerate(colors)
+        ]
+        (i:=colors.index(Color)-1)<0 and (i:=0)
+        bui.containerwidget(
+            color_root,
+            visible_child=waffles[i]
+        )
+        # language
+        px += color_x
+        lang_x = dx/2
+        ex = 30
+        Widget.TEXT(
+            root,
+            position=(px+marg,marg*3),
+            size=(color_x-40,ex),
+            text=String.LANGUAGE,
+            maxwidth=color_x-marg*2,
+            h_align=Const.ALIGN_CENTER,
+            v_align=Const.ALIGN_CENTER
+        )
+        langs = [
+            glo[_] for _ in glo
+            if _.endswith(Config._STRING)
+            and not _ == Config._STRING
+        ]
+        del glo
+        step = 30
+        lang_y = max(len(langs)*step,bsy-(ex+15))
+        lang_root = Widget.CONTAINER(
+            Widget.SCROLL(
+                root,
+                position=(px,ex+marg*3),
+                size=(lang_x,bsy-(ex+marg))
+            ),
+            source=False,
+            size=(lang_x,lang_y)
+        )
+        get_name = lambda l: l.__name__[
+           :-len(Config._STRING)
+        ]
+        def apply(lang):
+            Config.STRING = get_name(lang)
+            Eval.SOUND(Const.SOUND_ACTION,cut=False)
+            s.cache['pending'] = lambda bord:(
+                bord.toast(String.LANGUAGE_IS_NOW)
+            )
+            s.remake()
+        for i,lang in enumerate(langs):
+            Widget.HYPER(
+                lang_root,
+                text=get_name(lang),
+                size=(lang_x,step),
+                position=(0,step*i+waffle_px),
+                on_activate_call=bui.CallPartial(
+                    apply, lang
+                )
+            )
+
 # custom ui
 # more like handmade widgets
 
@@ -2289,7 +2524,7 @@ class Art:
         px, py = position
         sx, sy = size
         # text
-        text = String.BOARD
+        text = String.ART_WORD
         num_letters = len(text)
         # calculate letter sizing
         letter_height = sy * 0.5
@@ -2379,7 +2614,6 @@ class Art:
         for i, k in enumerate(s.kids):
             # variable speed based on current color
             current_idx = s.art_color_idx[i]
-            current_color = Const.ART[current_idx]
 
             # speed up if red is dominant (R high, G low, B low)
             # The red one is: (3.0, 0.3, 0.3)
@@ -2472,6 +2706,59 @@ class Art:
         s.shadow.delete()
         s.kids.clear()
         s.anims.clear()
+
+class Waffle:
+    def __init__(s,parent,theme,width,position,opacity=None,**k):
+        s.theme = theme
+        s.parent = parent
+        s.width = width
+        s.position = position
+        s.colors = [
+            s.theme.SHADOW,
+            s.theme.TEXT,
+            s.theme.COLD,
+            s.theme.BASE
+        ]
+        s.waffle = bui.buttonwidget(
+            parent=parent,
+            label=Const.BLANK,
+            button_type=Const.BUTTON_TYPE,
+            enable_sound=False,
+            color=s.theme.BASE,
+            size=(width,width),
+            position=position,
+            opacity=(
+                s.theme.OPACITY if opacity is None
+                else opacity
+            ),
+            texture=Eval.TEXTURE(Const.IMG_BASE),
+            **k
+        )
+        s.waffie()
+    def waffie(s):
+        i = s.width * 0.1
+        gap = s.width * 0.05
+        width = (s.width - i * 2 - gap) / 2
+        px,py = s.position
+
+        s.waffies = [
+            bui.imagewidget(
+                parent=s.parent,
+                draw_controller=s.waffle,
+                position=(
+                    px + i + col * (width + gap),
+                    py + i + row * (width + gap)
+                ),
+                texture=Eval.TEXTURE(Const.IMG_SHADOW),
+                color=color,
+                size=(width, width),
+                opacity=s.theme.OPACITY
+            )
+            for (row, col), color in zip(
+                ((r, c) for r in range(2) for c in range(2)),
+                s.colors
+            )
+        ]
 
 # widgets
 # logic to save code with defaults
@@ -2650,24 +2937,8 @@ class Eval:
         Eval.CHAR(Const.CHAR_USER) + Const.SPACE +
         Const.USER_PREFIX + u
     )
-    FORMAT_USER_AS = lambda t: (
-        String.NEW_POST + Const.SPACE + String.AS +
-        Const.SPACE + Eval.SEAL_PASSWORD(t)
-    )
     SEAL_PASSWORD = lambda t: (
         Eval.FORMAT_USER(_seal(t))
-    )
-    FORMAT_SIZE = lambda s: (
-        str(s) + Const.SPACE + String.BYTES
-    )
-    FORMAT_ERROR = lambda e: (
-        String.ERROR + (str(e) and (
-            Const.COLON + Const.SPACE +
-            str(e)
-        )) or Const.DOT
-    )
-    FORMAT_DELETE = lambda i: (
-        String.DELETE + Const.SPACE + i
     )
     METADATA = lambda t,i: (
         datetime.fromisoformat(t).strftime(Const.TIMESTAMP_FORMAT) +
@@ -2695,11 +2966,9 @@ class Eval:
             else Const.IMG_FILE
         )
     )[1]
-    COUNT = lambda l,t1,t2: (
-        ((i:=len(l)) or 1) and (
-            str(i) + Const.SPACE +
-            (i != 1 and t2 or t1)
-        )
+    COUNT = lambda c, singular, plural: (
+        str(c) + Const.SPACE +
+        (singular if c == 1 else plural)
     )
     STRING_WIDTH = lambda s: sum(Const.FONT_METRICS.get(c, 30) for c in s)
     APPEND_NEWLINE = lambda t: t+Const.NEWLINE
@@ -2722,30 +2991,23 @@ class Eval:
         re.match(Const.VALID_URL,t)
     )
     ELLIPSE_START = lambda t,i: (
-        len(t)<(i+3) and t or (Const.ELLIPSIS+t[-i:])
+        len(t)<(i+3) and t or ('...'+t[-i:])
     )
     ELLIPSE_END = lambda t,i: (
-        len(t)<(i+3) and t or (t[:i]+Const.ELLIPSIS)
-    )
-    FORMAT_DOWNLOADED = lambda t: (
-        String.DOWNLOADED + Const.SPACE +
-        String.AS + Const.SPACE +
-        Const.QUOTE + t + Const.QUOTE
+        len(t)<(i+3) and t or (t[:i]+'...')
     )
     FLATTEN = lambda t:(
         t.replace(Const.FAKE_NEWLINE,Const.BLANK)
     )
     FILE_EXTENTION = lambda n:(
-        n.rsplit(Const.DOT,1)[-1]
-        if Const.DOT in n else Const.BLANK
+        n.rsplit('.',1)[-1]
+        if '.' in n else Const.BLANK
     )
 
 # colors
-# very flexible
+# generated by claude ai
 
-class Color: pass
-
-class DarkColor(Color):
+class DarkColor:
     BASE = (0,0,0)
     COLD = (0.08,0.08,0.08)
     WARM = (0.2,0.2,0.2)
@@ -2753,75 +3015,689 @@ class DarkColor(Color):
     SHADOW = (0,0,0)
     OPACITY = 0.8
 
-class LightColor(Color):
+class LightColor:
     BASE = (1,1,1)
     COLD = (0.75,0.75,0.75)
     WARM = (0.6,0.6,0.6)
     TEXT = (0,0,0)
-    SHADOW = (0.1,0.1,0.1)
+    SHADOW = (0.2,0.2,0.2)
     OPACITY = 0.8
 
-Color = Eval.SUBCLASS(Color,Config.COLOR,DarkColor)
+class OceanColor:
+    BASE = (0.05, 0.15, 0.25)
+    COLD = (0.1, 0.3, 0.45)
+    WARM = (0.2, 0.5, 0.7)
+    TEXT = (0.9, 0.95, 1)
+    SHADOW = (0, 0.05, 0.1)
+    OPACITY = 0.8
+
+class ForestColor:
+    BASE = (0.1, 0.2, 0.1)
+    COLD = (0.15, 0.35, 0.15)
+    WARM = (0.3, 0.5, 0.2)
+    TEXT = (0.9, 0.95, 0.85)
+    SHADOW = (0.05, 0.1, 0.05)
+    OPACITY = 0.8
+
+class SunsetColor:
+    BASE = (0.2, 0.1, 0.15)
+    COLD = (0.5, 0.2, 0.3)
+    WARM = (0.9, 0.4, 0.2)
+    TEXT = (1, 0.95, 0.9)
+    SHADOW = (0.1, 0.05, 0.1)
+    OPACITY = 0.8
+
+class CherryColor:
+    BASE = (0.95, 0.9, 0.92)
+    COLD = (0.9, 0.7, 0.8)
+    WARM = (1, 0.75, 0.85)
+    TEXT = (0.3, 0.15, 0.25)
+    SHADOW = (0.8, 0.6, 0.7)
+    OPACITY = 0.8
+
+class MidnightColor:
+    BASE = (0.05, 0.05, 0.15)
+    COLD = (0.1, 0.1, 0.3)
+    WARM = (0.2, 0.15, 0.4)
+    TEXT = (0.7, 0.8, 1)
+    SHADOW = (0, 0, 0.05)
+    OPACITY = 0.8
+
+class DesertColor:
+    BASE = (0.3, 0.25, 0.15)
+    COLD = (0.6, 0.5, 0.3)
+    WARM = (0.85, 0.65, 0.35)
+    TEXT = (0.95, 0.9, 0.8)
+    SHADOW = (0.15, 0.1, 0.05)
+    OPACITY = 0.8
+
+class LavenderColor:
+    BASE = (0.9, 0.88, 0.95)
+    COLD = (0.7, 0.65, 0.85)
+    WARM = (0.8, 0.7, 0.9)
+    TEXT = (0.2, 0.15, 0.3)
+    SHADOW = (0.6, 0.55, 0.7)
+    OPACITY = 0.8
+
+class CyberpunkColor:
+    BASE = (0.05, 0.05, 0.1)
+    COLD = (0.15, 0.1, 0.3)
+    WARM = (0.8, 0.1, 0.5)
+    TEXT = (0, 1, 0.9)
+    SHADOW = (0.3, 0, 0.2)
+    OPACITY = 0.8
+
+class AutumnColor:
+    BASE = (0.25, 0.15, 0.1)
+    COLD = (0.5, 0.3, 0.15)
+    WARM = (0.8, 0.4, 0.1)
+    TEXT = (1, 0.9, 0.7)
+    SHADOW = (0.15, 0.08, 0.05)
+    OPACITY = 0.8
+
+class MintyColor:
+    BASE = (0.9, 0.98, 0.95)
+    COLD = (0.6, 0.9, 0.8)
+    WARM = (0.4, 0.95, 0.75)
+    TEXT = (0.1, 0.3, 0.25)
+    SHADOW = (0.5, 0.8, 0.7)
+    OPACITY = 0.8
+
+class SlateColor:
+    BASE = (0.15, 0.17, 0.2)
+    COLD = (0.25, 0.28, 0.32)
+    WARM = (0.4, 0.43, 0.48)
+    TEXT = (0.85, 0.88, 0.92)
+    SHADOW = (0.08, 0.09, 0.11)
+    OPACITY = 0.8
+
+class AmberColor:
+    BASE = (0.2, 0.12, 0.05)
+    COLD = (0.6, 0.4, 0.1)
+    WARM = (0.95, 0.65, 0.15)
+    TEXT = (1, 0.95, 0.85)
+    SHADOW = (0.12, 0.07, 0.02)
+    OPACITY = 0.8
+
+class SapphireColor:
+    BASE = (0.05, 0.08, 0.2)
+    COLD = (0.1, 0.2, 0.5)
+    WARM = (0.2, 0.4, 0.8)
+    TEXT = (0.9, 0.95, 1)
+    SHADOW = (0.02, 0.04, 0.12)
+    OPACITY = 0.8
+
+class MossColor:
+    BASE = (0.12, 0.18, 0.1)
+    COLD = (0.25, 0.38, 0.2)
+    WARM = (0.4, 0.6, 0.3)
+    TEXT = (0.85, 0.95, 0.8)
+    SHADOW = (0.06, 0.1, 0.05)
+    OPACITY = 0.8
+
+class CrimsonColor:
+    BASE = (0.2, 0.05, 0.08)
+    COLD = (0.5, 0.1, 0.15)
+    WARM = (0.8, 0.15, 0.25)
+    TEXT = (1, 0.9, 0.92)
+    SHADOW = (0.1, 0.02, 0.04)
+    OPACITY = 0.8
+
+class IvoryColor:
+    BASE = (0.98, 0.96, 0.92)
+    COLD = (0.9, 0.88, 0.82)
+    WARM = (0.95, 0.92, 0.85)
+    TEXT = (0.15, 0.12, 0.08)
+    SHADOW = (0.75, 0.73, 0.68)
+    OPACITY = 0.8
+
+class CoralColor:
+    BASE = (0.25, 0.18, 0.15)
+    COLD = (0.7, 0.4, 0.35)
+    WARM = (1, 0.5, 0.45)
+    TEXT = (1, 0.95, 0.93)
+    SHADOW = (0.15, 0.1, 0.08)
+    OPACITY = 0.8
+
+class TealColor:
+    BASE = (0.08, 0.18, 0.18)
+    COLD = (0.15, 0.4, 0.4)
+    WARM = (0.25, 0.65, 0.6)
+    TEXT = (0.9, 1, 0.98)
+    SHADOW = (0.04, 0.1, 0.1)
+    OPACITY = 0.8
+
+class PlumColor:
+    BASE = (0.18, 0.1, 0.2)
+    COLD = (0.4, 0.2, 0.45)
+    WARM = (0.65, 0.35, 0.7)
+    TEXT = (0.95, 0.88, 1)
+    SHADOW = (0.1, 0.05, 0.12)
+    OPACITY = 0.8
+
+class WheatColor:
+    BASE = (0.35, 0.3, 0.2)
+    COLD = (0.7, 0.6, 0.4)
+    WARM = (0.95, 0.85, 0.55)
+    TEXT = (0.2, 0.15, 0.1)
+    SHADOW = (0.25, 0.2, 0.12)
+    OPACITY = 0.8
+
+class LemonColor:
+    BASE = (0.25, 0.25, 0.05)
+    COLD = (0.7, 0.7, 0.15)
+    WARM = (0.95, 0.95, 0.25)
+    TEXT = (0.15, 0.15, 0.02)
+    SHADOW = (0.15, 0.15, 0.03)
+    OPACITY = 0.8
+
+class LimeColor:
+    BASE = (0.15, 0.22, 0.05)
+    COLD = (0.4, 0.6, 0.15)
+    WARM = (0.65, 0.9, 0.25)
+    TEXT = (0.95, 1, 0.9)
+    SHADOW = (0.08, 0.12, 0.02)
+    OPACITY = 0.8
+
+class CyanColor:
+    BASE = (0.05, 0.2, 0.22)
+    COLD = (0.1, 0.5, 0.55)
+    WARM = (0.2, 0.8, 0.85)
+    TEXT = (0.9, 1, 1)
+    SHADOW = (0.02, 0.12, 0.13)
+    OPACITY = 0.8
+
+class MagentaColor:
+    BASE = (0.22, 0.05, 0.2)
+    COLD = (0.6, 0.15, 0.55)
+    WARM = (0.9, 0.25, 0.85)
+    TEXT = (1, 0.9, 1)
+    SHADOW = (0.13, 0.02, 0.12)
+    OPACITY = 0.8
+
+class AmoledColor:
+    BASE = (0, 0, 0)
+    COLD = (0.02, 0.02, 0.02)
+    WARM = (0.05, 0.05, 0.05)
+    TEXT = (1, 1, 1)
+    SHADOW = (0, 0, 0)
+    OPACITY = 1.0
+
+class AmoledBlueColor:
+    BASE = (0, 0, 0)
+    COLD = (0, 0.05, 0.12)
+    WARM = (0, 0.1, 0.25)
+    TEXT = (0.7, 0.85, 1)
+    SHADOW = (0, 0, 0)
+    OPACITY = 1.0
+
+class AmoledRedColor:
+    BASE = (0, 0, 0)
+    COLD = (0.12, 0, 0.02)
+    WARM = (0.25, 0, 0.05)
+    TEXT = (1, 0.75, 0.8)
+    SHADOW = (0, 0, 0)
+    OPACITY = 1.0
+
+class AmoledGreenColor:
+    BASE = (0, 0, 0)
+    COLD = (0, 0.1, 0.05)
+    WARM = (0.05, 0.2, 0.1)
+    TEXT = (0.75, 1, 0.85)
+    SHADOW = (0, 0, 0)
+    OPACITY = 1.0
+
+class AmoledPurpleColor:
+    BASE = (0, 0, 0)
+    COLD = (0.08, 0, 0.12)
+    WARM = (0.15, 0, 0.25)
+    TEXT = (0.9, 0.75, 1)
+    SHADOW = (0, 0, 0)
+    OPACITY = 1.0
+
+class GlassColor:
+    BASE = (0.95, 0.97, 1)
+    COLD = (0.85, 0.9, 0.98)
+    WARM = (0.75, 0.82, 0.95)
+    TEXT = (0.1, 0.15, 0.25)
+    SHADOW = (0.6, 0.7, 0.85)
+    OPACITY = 0.3
+
+class FrostedColor:
+    BASE = (0.9, 0.92, 0.95)
+    COLD = (0.7, 0.75, 0.82)
+    WARM = (0.6, 0.65, 0.75)
+    TEXT = (0.15, 0.18, 0.25)
+    SHADOW = (0.5, 0.55, 0.65)
+    OPACITY = 0.5
+
+class MistyColor:
+    BASE = (0.85, 0.88, 0.9)
+    COLD = (0.65, 0.7, 0.75)
+    WARM = (0.5, 0.58, 0.65)
+    TEXT = (0.2, 0.25, 0.3)
+    SHADOW = (0.45, 0.52, 0.6)
+    OPACITY = 0.6
+
+class SmokeColor:
+    BASE = (0.3, 0.32, 0.35)
+    COLD = (0.2, 0.22, 0.25)
+    WARM = (0.15, 0.17, 0.2)
+    TEXT = (0.85, 0.88, 0.92)
+    SHADOW = (0.1, 0.11, 0.13)
+    OPACITY = 0.7
+
+class AuroraColor:
+    BASE = (0.05, 0.1, 0.15)
+    COLD = (0.1, 0.3, 0.4)
+    WARM = (0.2, 0.5, 0.6)
+    TEXT = (0.8, 0.95, 1)
+    SHADOW = (0, 0.05, 0.08)
+    OPACITY = 0.65
 
 # strings
 # all text used is defined here
 
-class String: pass
-
-class EnglishString(String):
-    ACCESS_DENIED = 'Access denied!'
-    AS = 'as'
-    ATTACH = 'Attach'
-    ATTACH_DONE = 'Attached!'
+class EnglishString:
+    # core
     BOARD = 'Board'
-    BYTES = 'Bytes'
-    CLIPBOARD_UNSUPPORTED = 'Clipboard unsupported!'
-    COMMENT = 'Comment'
-    COMMENTS = 'Comments'
-    COMMENT_DELETED = 'Comment deleted! Should take in seconds (reload to see)'
-    COMMENT_SENT = 'Comment sent! Should take in seconds (reload to see)'
-    COPIED = 'Copied to clipboard!'
-    CORRECT = 'Correct'
-    DELETE = 'Delete'
-    DELETING = 'Deleting... (you can close this window)'
-    DESCRIPTION = 'Description'
-    DOWNLOADED = 'Saved to downloads'
-    DOWNLOADING = 'Downloading... (you can close this window)'
+    WELCOME = 'Welcome to Board!'
+    WAIT = 'Just a sec...'
+    ERROR = 'An error occurred'
+    HMM = 'Hmm'
     EMPTY = 'Empty'
-    ENTER_PASSWORD = 'Enter password!'
-    ENTER_SOMETHING = 'Enter something!'
-    ERROR = 'An error occured'
-    FILE = 'File'
-    FILE_NOT_FOUND = 'File not found!'
-    FILES = 'Files'
+    ART_WORD = 'BOARD'
+
+    # actions & status
+    ATTACH = 'Attach'
+    DELETE = 'Delete'
+    SENDING = 'Sending'
+    DELETING = 'Deleting'
+    DOWNLOADING = 'Downloading'
+    UPLOADING = 'Uploading'
+    COPIED = 'Copied to clipboard!'
+
+    # completion messages
+    DONE = '{} done!'
+    SAVED_AS = 'Saved to downloads as "{}"'
+    PUBLISHED = 'Post published! Should take seconds (reload to see)'
+    DELETED = '{} deleted! Should take seconds (reload to see)'
+    SENT = '{} sent! Should take seconds (reload to see)'
+
+    # prompts & instructions
+    ENTER = 'Enter {}!'
+    SELECT = 'Select {}!'
+    NOT_NOW = "Not now I'm busy!"
     HELP_POST = 'Press NL to break line, better just paste text here tho'
     HINT_ATTACH = 'Path, URL, URI or FullPath'
-    HMM = 'Hmm'
-    INCORRECT_PASSWORD = 'Incorrect password!'
-    INVALID_URI = 'Invalid URI!'
-    NEW_POST = 'New Post'
-    NL = 'NL'
-    NOT_NOW = 'Not now I\'m busy!'
-    NO_COMMENTS = 'No comments'
-    NO_DESCRIPTION = 'No description provided.'
-    NO_TITLE = 'No Title'
-    PASSWORD = 'Password'
-    PATH = 'Path'
-    PATH_MEANS = 'Path: uploads file'
-    POST_DELETED = 'Post deleted! Should take seconds (reload to see)'
-    PUBLISHED = 'Post published! Should take seconds (reload to see)'
-    SELECT_SOMETHING = 'Select something!'
-    SENDING_COMMENT = 'Sending comment... (you can close this window)'
+    CAN_CLOSE = '{}... (you can close this window)'
+
+    # validation & errors
+    CORRECT = 'Correct'
+    WRONG = 'Wrong'
+    INCORRECT = 'Incorrect {}!'
+    INVALID = 'Invalid {}!'
+    NOT_FOUND = '{} not found!'
+    UNSUPPORTED = '{} unsupported!'
+    ACCESS_DENIED = 'Access denied!'
+    ERROR_WITH = 'An error occurred: {}'
+    ERROR_UNKNOWN = 'An error occurred.'
+
+    # ui labels
     TITLE = 'Title'
-    UPLOADING = 'Uploading... (you can close this window)'
+    DESCRIPTION = 'Description'
+    COMMENT = 'Comment'
+    COMMENTS = 'Comments'
+    PASSWORD = 'Password'
+    SETTINGS = 'Settings'
+    THEME = 'Theme'
+    LANGUAGE = 'Language'
+    NEW_POST = 'New Post'
+    POST_BY = 'New Post by {}'
+    DELETE_ID = 'Delete {}'
+    NL = 'NL'
+    POST = 'Post'
+    CLIPBOARD = 'Clipboard'
+    SOMETHING = 'something'
+
+    # file & data
+    FILE = 'File'
+    FILES = 'Files'
+    BYTE = 'Byte'
+    BYTES = 'Bytes'
+    PATH = 'Path'
     URI = 'URI'
     URL = 'URL'
-    URL_MEANS = 'URL/URI: directly sent to server'
-    WAIT = 'Just a sec...'
-    WELCOME = f'Welcome to Board! v{__version__}'
-    WRONG = 'Wrong'
+    PATH_INFO = 'Path: uploads file'
+    URL_INFO = 'URL/URI: directly sent to server'
 
-String = Eval.SUBCLASS(String,Config.STRING,EnglishString)
+    # empty states
+    NO = 'No {}'
+    NO_PROVIDED = 'No {} provided.'
+
+    # language specific
+    LANGUAGE_IS_NOW = 'Language is now English!'
+
+class ArabicString:
+    # core
+    BOARD = 'اللوحة'
+    WELCOME = 'مرحباً بك في اللوحة!'
+    WAIT = 'لحظة من فضلك...'
+    ERROR = 'حدث خطأ'
+    HMM = 'همم'
+    EMPTY = 'فارغ'
+    ART_WORD = 'ﺔـﺣﻮـﻟ'
+
+    # actions & status
+    ATTACH = 'إرفاق'
+    DELETE = 'حذف'
+    SENDING = 'جارٍ الإرسال'
+    DELETING = 'جارٍ الحذف'
+    DOWNLOADING = 'جارٍ التنزيل'
+    UPLOADING = 'جارٍ الرفع'
+    COPIED = 'تم النسخ إلى الحافظة!'
+
+    # completion messages
+    DONE = 'تم {}!'
+    SAVED_AS = 'تم الحفظ في التنزيلات باسم "{}"'
+    PUBLISHED = 'تم نشر المنشور! سيظهر خلال ثوانٍ (حدّث الصفحة)'
+    DELETED = 'تم حذف {}! سيظهر التحديث خلال ثوانٍ (حدّث الصفحة)'
+    SENT = 'تم إرسال {}! سيظهر خلال ثوانٍ (حدّث الصفحة)'
+
+    # prompts & instructions
+    ENTER = 'أدخل {}!'
+    SELECT = 'اختر {}!'
+    NOT_NOW = 'ليس الآن، أنا مشغول!'
+    HELP_POST = 'اضغط NL لكسر السطر، لكن الأفضل لصق النص هنا مباشرة'
+    HINT_ATTACH = 'مسار، رابط، URI أو المسار الكامل'
+    CAN_CLOSE = '{}... (يمكنك إغلاق هذه النافذة)'
+
+    # validation & errors
+    CORRECT = 'صحيح'
+    WRONG = 'خطأ'
+    INCORRECT = '{} غير صحيح!'
+    INVALID = '{} غير صالح!'
+    NOT_FOUND = '{} غير موجود!'
+    UNSUPPORTED = '{} غير مدعوم!'
+    ACCESS_DENIED = 'تم رفض الوصول!'
+    ERROR_WITH = 'حدث خطأ: {}'
+    ERROR_UNKNOWN = 'حدث خطأ.'
+
+    # ui labels
+    TITLE = 'العنوان'
+    DESCRIPTION = 'الوصف'
+    COMMENT = 'تعليق'
+    COMMENTS = 'التعليقات'
+    PASSWORD = 'كلمة المرور'
+    SETTINGS = 'الإعدادات'
+    THEME = 'المظهر'
+    LANGUAGE = 'اللغة'
+    NEW_POST = 'منشور جديد'
+    POST_BY = 'منشور جديد بواسطة {}'
+    DELETE_ID = 'حذف {}'
+    NL = 'سطر'
+    POST = 'نشر'
+    CLIPBOARD = 'الحافظة'
+    SOMETHING = 'شيئاً ما'
+
+    # file & data
+    FILE = 'ملف'
+    FILES = 'ملفات'
+    BYTE = 'بايت'
+    BYTES = 'بايت'
+    PATH = 'المسار'
+    URI = 'URI'
+    URL = 'رابط'
+    PATH_INFO = 'المسار: رفع الملف'
+    URL_INFO = 'الرابط/URI: إرسال مباشر إلى الخادم'
+
+    # empty states
+    NO = 'لا يوجد {}'
+    NO_PROVIDED = 'لم يتم تقديم {}.'
+
+    # language specific
+    LANGUAGE_IS_NOW = 'اللغة الآن هي العربية!'
+
+class JapaneseString:
+    # core
+    BOARD = 'ボード'
+    ART_WORD = 'ボード'
+    WELCOME = 'ボードへようこそ！'
+    WAIT = '少々お待ちください...'
+    ERROR = 'エラーが発生しました'
+    HMM = 'うーん'
+    EMPTY = '空'
+
+    # actions & status
+    ATTACH = '添付'
+    DELETE = '削除'
+    SENDING = '送信中'
+    DELETING = '削除中'
+    DOWNLOADING = 'ダウンロード中'
+    UPLOADING = 'アップロード中'
+    COPIED = 'クリップボードにコピーしました！'
+
+    # completion messages
+    DONE = '{}が完了しました！'
+    SAVED_AS = '"{}"としてダウンロードに保存しました'
+    PUBLISHED = '投稿が公開されました！数秒後に表示されます（再読み込みしてください）'
+    DELETED = '{}が削除されました！数秒後に表示されます（再読み込みしてください）'
+    SENT = '{}が送信されました！数秒後に表示されます（再読み込みしてください）'
+
+    # prompts & instructions
+    ENTER = '{}を入力してください！'
+    SELECT = '{}を選択してください！'
+    NOT_NOW = '今は忙しいです！'
+    HELP_POST = 'NLを押して改行、またはテキストを直接貼り付けてください'
+    HINT_ATTACH = 'パス、URL、URIまたはフルパス'
+    CAN_CLOSE = '{}...（このウィンドウを閉じても構いません）'
+
+    # validation & errors
+    CORRECT = '正しい'
+    WRONG = '間違い'
+    INCORRECT = '{}が正しくありません！'
+    INVALID = '{}が無効です！'
+    NOT_FOUND = '{}が見つかりません！'
+    UNSUPPORTED = '{}はサポートされていません！'
+    ACCESS_DENIED = 'アクセスが拒否されました！'
+    ERROR_WITH = 'エラーが発生しました：{}'
+    ERROR_UNKNOWN = 'エラーが発生しました。'
+
+    # ui labels
+    TITLE = 'タイトル'
+    DESCRIPTION = '説明'
+    COMMENT = 'コメント'
+    COMMENTS = 'コメント'
+    PASSWORD = 'パスワード'
+    SETTINGS = '設定'
+    THEME = 'テーマ'
+    LANGUAGE = '言語'
+    NEW_POST = '新規投稿'
+    POST_BY = '{}による新規投稿'
+    DELETE_ID = '{}を削除'
+    NL = '改行'
+    POST = '投稿'
+    CLIPBOARD = 'クリップボード'
+    SOMETHING = '何か'
+
+    # file & data
+    FILE = 'ファイル'
+    FILES = 'ファイル'
+    BYTE = 'バイト'
+    BYTES = 'バイト'
+    PATH = 'パス'
+    URI = 'URI'
+    URL = 'URL'
+    PATH_INFO = 'パス：ファイルをアップロード'
+    URL_INFO = 'URL/URI：サーバーに直接送信'
+
+    # empty states
+    NO = '{}なし'
+    NO_PROVIDED = '{}が提供されていません。'
+
+    # language specific
+    LANGUAGE_IS_NOW = '言語が日本語になりました！'
+
+
+class SpanishString:
+    # core
+    BOARD = 'Tablero'
+    ART_WORD = 'TABLERO'
+    WELCOME = '¡Bienvenido al Tablero!'
+    WAIT = 'Un momento...'
+    ERROR = 'Ocurrió un error'
+    HMM = 'Hmm'
+    EMPTY = 'Vacío'
+
+    # actions & status
+    ATTACH = 'Adjuntar'
+    DELETE = 'Eliminar'
+    SENDING = 'Enviando'
+    DELETING = 'Eliminando'
+    DOWNLOADING = 'Descargando'
+    UPLOADING = 'Subiendo'
+    COPIED = '¡Copiado al portapapeles!'
+
+    # completion messages
+    DONE = '¡{} completado!'
+    SAVED_AS = 'Guardado en descargas como "{}"'
+    PUBLISHED = '¡Publicación publicada! Aparecerá en segundos (recarga para ver)'
+    DELETED = '¡{} eliminado! Aparecerá en segundos (recarga para ver)'
+    SENT = '¡{} enviado! Aparecerá en segundos (recarga para ver)'
+
+    # prompts & instructions
+    ENTER = '¡Ingresa {}!'
+    SELECT = '¡Selecciona {}!'
+    NOT_NOW = '¡Ahora no, estoy ocupado!'
+    HELP_POST = 'Presiona NL para salto de línea, mejor pega el texto aquí'
+    HINT_ATTACH = 'Ruta, URL, URI o ruta completa'
+    CAN_CLOSE = '{}... (puedes cerrar esta ventana)'
+
+    # validation & errors
+    CORRECT = 'Correcto'
+    WRONG = 'Incorrecto'
+    INCORRECT = '¡{} incorrecto!'
+    INVALID = '¡{} inválido!'
+    NOT_FOUND = '¡{} no encontrado!'
+    UNSUPPORTED = '¡{} no soportado!'
+    ACCESS_DENIED = '¡Acceso denegado!'
+    ERROR_WITH = 'Ocurrió un error: {}'
+    ERROR_UNKNOWN = 'Ocurrió un error.'
+
+    # ui labels
+    TITLE = 'Título'
+    DESCRIPTION = 'Descripción'
+    COMMENT = 'Comentario'
+    COMMENTS = 'Comentarios'
+    PASSWORD = 'Contraseña'
+    SETTINGS = 'Configuración'
+    THEME = 'Tema'
+    LANGUAGE = 'Idioma'
+    NEW_POST = 'Nueva publicación'
+    POST_BY = 'Nueva publicación de {}'
+    DELETE_ID = 'Eliminar {}'
+    NL = 'NL'
+    POST = 'Publicar'
+    CLIPBOARD = 'Portapapeles'
+    SOMETHING = 'algo'
+
+    # file & data
+    FILE = 'Archivo'
+    FILES = 'Archivos'
+    BYTE = 'Byte'
+    BYTES = 'Bytes'
+    PATH = 'Ruta'
+    URI = 'URI'
+    URL = 'URL'
+    PATH_INFO = 'Ruta: sube el archivo'
+    URL_INFO = 'URL/URI: enviado directamente al servidor'
+
+    # empty states
+    NO = 'Sin {}'
+    NO_PROVIDED = 'No se proporcionó {}.'
+
+    # language specific
+    LANGUAGE_IS_NOW = '¡El idioma ahora es español!'
+
+class BruhString:
+    # core
+    BOARD = 'The Board™'
+    WELCOME = 'get in loser'
+    WAIT = 'stfu im loading...'
+    ERROR = 'skill issue'
+    HMM = 'sus af'
+    EMPTY = 'empty like ur brain'
+    ART_WORD = 'TRASH'
+
+    # actions & status
+    ATTACH = 'attach shit'
+    DELETE = 'nuke'
+    SENDING = 'sending ur trash'
+    DELETING = 'deleting this garbage'
+    DOWNLOADING = 'downloading (finally)'
+    UPLOADING = 'uploading (this better work)'
+    COPIED = 'copied. u happy now?'
+
+    # completion messages
+    DONE = '{} done. touch grass!'
+    SAVED_AS = 'saved as "{}". u gonna use it or nah?'
+    PUBLISHED = 'posted. nobody cares. refresh if u want'
+    DELETED = '{} deleted. good riddance. refresh to confirm'
+    SENT = '{} sent. congrats i guess. refresh'
+
+    # prompts & instructions
+    ENTER = 'enter {} dumbass!'
+    SELECT = 'select {} braindead!'
+    NOT_NOW = 'not now idiot im busy!'
+    HELP_POST = 'press NL to break line. or just paste ur wall of text idc'
+    HINT_ATTACH = 'path, url, uri. figure it out'
+    CAN_CLOSE = '{}... (close this already)'
+
+    # validation & errors
+    CORRECT = 'correct (shocking)'
+    WRONG = 'wrong moron'
+    INCORRECT = '{} is wrong u fool!'
+    INVALID = 'invalid {}. try again loser!'
+    NOT_FOUND = '{} not found. maybe check ur spelling?'
+    UNSUPPORTED = '{} unsupported. skill issue!'
+    ACCESS_DENIED = 'access denied lmfao'
+    ERROR_WITH = 'error: {} (ur fault btw)'
+    ERROR_UNKNOWN = 'error. idk what u did but u broke it'
+
+    # ui labels
+    TITLE = 'title'
+    DESCRIPTION = 'description'
+    COMMENT = 'comment'
+    COMMENTS = 'comments'
+    PASSWORD = 'password'
+    SETTINGS = 'settings'
+    THEME = 'theme'
+    LANGUAGE = 'language'
+    NEW_POST = 'new post'
+    POST_BY = 'new post by {}'
+    DELETE_ID = 'delete {}'
+    NL = 'NL'
+    POST = 'post'
+    CLIPBOARD = 'clipboard'
+    SOMETHING = 'something'
+
+    # file & data
+    FILE = 'file'
+    FILES = 'files'
+    BYTE = 'byte'
+    BYTES = 'bytes'
+    PATH = 'path'
+    URI = 'URI'
+    URL = 'url'
+    PATH_INFO = 'path: uploads file (slowly)'
+    URL_INFO = 'url/uri: sent to server (maybe works)'
+
+    # empty states
+    NO = 'no {}'
+    NO_PROVIDED = 'no {} provided. what did u expect?'
+
+    # language specific
+    LANGUAGE_IS_NOW = 'what are you doing'
 
 # constants
 # these are never changed on runtime
@@ -2841,6 +3717,7 @@ class Const:
     IMG_FILE = 'file'
     IMG_FOLDER = 'folder'
     IMG_SCRIPT = 'settingsIcon'
+    IMG_SETTINGS = 'settingsIcon'
     IMG_EMPTY = 'empty'
     IMAGE_IMG = 'alwaysLandBGColor'
     IMG_REPLAY = 'tv'
@@ -2875,10 +3752,6 @@ class Const:
     BLANK = ''
     NEWLINE = '\n'
     FAKE_NEWLINE = '\\n'
-    ELLIPSIS = '...'
-    QUOTE = '\''
-    COLON = ':'
-    DOT = '.'
     DOT_DOT = '..'
     FILENAME_MAX = 20
     PATH_MAX = 50
@@ -2912,6 +3785,7 @@ class Const:
         'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
         '1Pc'
     )))
+    CONFIG_PREFIX = 'board_'
     URL_PREFIX = ('http://', 'https://', 'ftp://')
     URI_PREFIX = ('data:')
     VIDEO_PREFIX = ('mkv','brp','mp4','webm')
@@ -2919,6 +3793,11 @@ class Const:
     VALID_URL = r'https?://.+'
     TIMESTAMP_FORMAT = '%d/%m/%y %H:%M:%S'
     ADMIN = ['760222dac06c']
+
+# config
+# manager is defined at module level
+
+Config = ConfigManager()
 
 # tools
 # they do big stuff
@@ -3594,36 +4473,16 @@ class byBordd(ba.Plugin):
         px,py = -190,Eval.BY_SCALE(-10,-45,-80)
         sx = 60
         bui.buttonwidget(
-            (btn:=bui.buttonwidget(
-                parent=z._root_widget,
-                label=Const.BLANK,
-                color=Color.BASE,
-                textcolor=Color.TEXT,
-                size=(sx,sx),
+            (btn:=Waffle(
+                z._root_widget,
+                theme=Color,
+                width=sx,
                 position=(px,py),
-                button_type=Const.BUTTON_TYPE,
                 id=f"{z.main_window_id_prefix}|board",
-                enable_sound=False
-            )), on_activate_call=bui.CallPartial(
+                opacity=0.3
+            ).waffle), on_activate_call=bui.CallPartial(
                 z.main_window_replace, bui.CallPartial(
                     Board, source=btn
                 )
             )
         )
-        i = sx * 0.1
-        gap = sx * 0.05
-        square_size = (sx - i * 2 - gap) / 2
-
-        for row in range(2):
-            for col in range(2):
-                bui.imagewidget(
-                    parent=z._root_widget,
-                    draw_controller=btn,
-                    position=(
-                        px + i + col * (square_size + gap),
-                        py + i + row * (square_size + gap)
-                    ),
-                    texture=Eval.TEXTURE(Const.IMG_SHADOW),
-                    color=Color.SHADOW,
-                    size=(square_size, square_size)
-                )
