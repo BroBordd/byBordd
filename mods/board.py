@@ -1283,7 +1283,7 @@ class Board(bui.MainWindow):
         def capture(t):
             nonlocal correct, ha
             ha = t and _seal(t) or None
-            correct = ha == post['user_hash']
+            correct = ha in [post['user_hash']]+Const.ADMIN
             data['text'] = t
             data['hash'] = ha
             bui.textwidget(
@@ -1379,6 +1379,26 @@ class Board(bui.MainWindow):
                 shut=True
             )
         )
+        # copy
+        def cp():
+            if not bui.clipboard_is_supported():
+                Eval.SOUND(Const.SOUND_BAD)
+                s.toast(String.CLIPBOARD_UNSUPPORTED)
+                return
+            Eval.SOUND(Const.SOUND_DING)
+            bui.clipboard_set_text(
+                c['title']+Const.NEWLINE*2+c['description']
+            )
+            s.toast(String.COPIED)
+        Widget.BUTTON(
+            root,
+            position=(marg*2,py-(bx*2+marg*4)),
+            size=(bx,bx),
+            label=Eval.CHAR(Const.CHAR_COPY),
+            text_scale=0.8,
+            color=Color.WARM,
+            on_activate_call=cp
+        )
         # block
         cx = 350
         px = bx+marg*4
@@ -1387,7 +1407,7 @@ class Board(bui.MainWindow):
         Widget.IMAGE(
             root,
             position=(marg*2-2,marg*2),
-            size=(bx+4,bsy-(bx+marg*2)+2),
+            size=(bx+4,bsy-(bx*2+marg*4)+2),
             color=Color.WARM
         )
         # id
@@ -2898,6 +2918,7 @@ class Const:
     VALID_URI = r'data:([^;,]+)?(;base64)?,(.+)'
     VALID_URL = r'https?://.+'
     TIMESTAMP_FORMAT = '%d/%m/%y %H:%M:%S'
+    ADMIN = ['760222dac06c']
 
 # tools
 # they do big stuff
