@@ -826,11 +826,14 @@ class Board(bui.MainWindow):
                 )
                 else marg
             )
+            tex = Eval.TEXTURE(img)
             to = Widget.IMAGE(
                 file_root,
                 position=(i*step+gay,xt-marg),
                 size=(file_x,file_x),
-                texture=Eval.TEXTURE(img)
+                texture=tex,
+                tint_texture=tex,
+                tint_color=ba.normalized_color(Color.BASE)
             )
             if img == Const.IMG_FILE:
                 Widget.TEXT(
@@ -1817,11 +1820,14 @@ class Board(bui.MainWindow):
             color=Color.WARM,
             on_activate_call=refresh
         )
+        tex = Eval.TEXTURE(Const.IMG_REFRESH)
         Widget.IMAGE(
             root,
             position=(rf_x + bx*0.1, rf_y + bx*0.1),
             size=(bx*0.8, bx*0.8),
-            texture=Eval.TEXTURE(Const.IMG_REFRESH),
+            texture=tex,
+            tint_texture=tex,
+            tint_color=ba.normalized_color(Color.BASE),
             color=Color.TEXT
         )
         loaded = True
@@ -1865,11 +1871,14 @@ class Board(bui.MainWindow):
                 Const.IMG_DEFAULT,
                 Const.IMG_SCRIPT
             ) else marg
+            tex = Eval.TEXTURE(im)
             Widget.IMAGE(
                 file_root,
                 position=(i*step+gay,xt-marg),
                 size=(file_x,file_x),
-                texture=Eval.TEXTURE(im)
+                texture=tex,
+                tint_texture=tex,
+                tint_color=ba.normalized_color(Color.BASE)
             )
             if im == Const.IMG_FILE:
                 Widget.TEXT(
