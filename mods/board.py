@@ -2979,7 +2979,10 @@ class Eval:
         str(c) + Const.SPACE +
         (singular if c == 1 else plural)
     )
-    STRING_WIDTH = lambda s: sum(Const.FONT_METRICS.get(c, 30) for c in s)
+    STRING_WIDTH = lambda s: (
+        bui.get_string_width(s,suppress_warning=True) or
+        sum(Const.FONT_METRICS.get(c, 30) for c in s)
+    )
     APPEND_NEWLINE = lambda t: t+Const.NEWLINE
     STRING_TYPE = lambda s: (
         0 if s.startswith(Const.URL_PREFIX) else
