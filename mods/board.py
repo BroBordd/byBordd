@@ -3636,7 +3636,7 @@ class BruhString:
     ERROR = 'skill issue'
     HMM = 'sus af'
     EMPTY = 'empty like ur brain'
-    ART_WORD = 'TRASH'
+    ART_WORD = 'BOARD?'
 
     # actions & status
     ATTACH = 'attach shit'
@@ -3648,47 +3648,47 @@ class BruhString:
     COPIED = 'copied. u happy now?'
 
     # completion messages
-    DONE = '{} done. touch grass!'
-    SAVED_AS = 'saved as "{}". u gonna use it or nah?'
+    DONE = '{} done. now touch grass'
+    SAVED_AS = 'saved as "{}". not like ur gonna use it'
     PUBLISHED = 'posted. nobody cares. refresh if u want'
     DELETED = '{} deleted. good riddance. refresh to confirm'
     SENT = '{} sent. congrats i guess. refresh'
 
     # prompts & instructions
-    ENTER = 'enter {} dumbass!'
-    SELECT = 'select {} braindead!'
-    NOT_NOW = 'not now idiot im busy!'
+    ENTER = 'enter {} blud'
+    SELECT = 'select {} you walnut'
+    NOT_NOW = 'not now donut im busy!'
     HELP_POST = 'press NL to break line. or just paste ur wall of text idc'
     HINT_ATTACH = 'path, url, uri. figure it out'
-    CAN_CLOSE = '{}... (close this already)'
+    CAN_CLOSE = '{}... (close window idc)'
 
     # validation & errors
-    CORRECT = 'correct (shocking)'
-    WRONG = 'wrong moron'
-    INCORRECT = '{} is wrong u fool!'
-    INVALID = 'invalid {}. try again loser!'
-    NOT_FOUND = '{} not found. maybe check ur spelling?'
-    UNSUPPORTED = '{} unsupported. skill issue!'
+    CORRECT = 'WOW'
+    WRONG = 'pathetic'
+    INCORRECT = 'wrong {} you moron'
+    INVALID = 'invalid {}. dont try again'
+    NOT_FOUND = '{} not found. check your eyes'
+    UNSUPPORTED = '{} unsupported. skull tissue'
     ACCESS_DENIED = 'access denied lmfao'
-    ERROR_WITH = 'error: {} (ur fault btw)'
+    ERROR_WITH = 'it gives error: {}'
     ERROR_UNKNOWN = 'error. idk what u did but u broke it'
 
     # ui labels
     TITLE = 'title'
     DESCRIPTION = 'description'
     COMMENT = 'comment'
-    COMMENTS = 'comments'
-    PASSWORD = 'password'
+    COMMENTS = 'yappers'
+    PASSWORD = 'secret'
     SETTINGS = 'settings'
-    THEME = 'theme'
+    THEME = 'skin'
     LANGUAGE = 'language'
-    NEW_POST = 'new post'
-    POST_BY = 'new post by {}'
-    DELETE_ID = 'delete {}'
+    NEW_POST = 'cook up a post'
+    POST_BY = 'cook up a post as {}'
+    DELETE_ID = 'nuke {}'
     NL = 'NL'
     POST = 'post'
     CLIPBOARD = 'clipboard'
-    SOMETHING = 'something'
+    SOMETHING = 'smth'
 
     # file & data
     FILE = 'file'
@@ -3698,12 +3698,12 @@ class BruhString:
     PATH = 'path'
     URI = 'URI'
     URL = 'url'
-    PATH_INFO = 'path: uploads file (slowly)'
-    URL_INFO = 'url/uri: sent to server (maybe works)'
+    PATH_INFO = 'path: uploads file'
+    URL_INFO = 'url/uri: sends to server'
 
     # empty states
-    NO = 'no {}'
-    NO_PROVIDED = 'no {} provided. what did u expect?'
+    NO = '{} is gone'
+    NO_PROVIDED = '{} went brrrr'
 
     # language specific
     LANGUAGE_IS_NOW = 'what are you doing'
