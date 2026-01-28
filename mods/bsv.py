@@ -24,6 +24,8 @@ TEMP = os.path.join(
         bui.app.env.cache_directory
     ), 'ballistica_files', 'ba_data', 'textures'
 )
+FULL = '\u2588'
+EMPTY = '\u2591'
 
 class BSV:
     def __init__(s,source=None):
@@ -126,6 +128,16 @@ class BSV:
             texture=tex,
             color=color3
         )
+        # pro
+        s.pro = bui.textwidget(
+            parent=s.root,
+            position=(
+                tv_width/2,
+                tv_width/2-30
+            ),
+            maxwidth=tv_width,
+            color=color3
+        )
         # input
         s.input = bui.textwidget(
             parent=s.root,
@@ -173,11 +185,18 @@ class BSV:
             s.play_timer = None
 
     def tick(s):
+        if not s.root.exists() or s.root.transitioning_out: return
         s.current += 1
-        if s.current >= len(s.frames): s.current = 0
+        total = len(s.frames)
+        if s.current >= total: s.current = 0
         bui.imagewidget(
             s.tv, texture=bui.gettexture(
                 s.frames[s.current]
+            )
+        )
+        bui.textwidget(
+            s.pro, text=(
+                FULL*s.current+EMPTY*(total-s.current-1)
             )
         )
 
