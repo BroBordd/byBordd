@@ -160,6 +160,14 @@
         "mod_filename_base": "board"
     },
     {
+        "mod_name": "BSV",
+        "mod_fancy_name": "The BombSquad Video",
+        "mod_version": "1.0",
+        "mod_description": "Very stupid video playing approach\nCheck out https://github.com/BroBordd/bsvideo",
+        "api_version": 9,
+        "mod_filename_base": "bsv"
+    },
+    {
         "mod_name": "Byte",
         "mod_fancy_name": "At your service.",
         "mod_version": "1.1",
