@@ -165,8 +165,9 @@ class BSV:
         bui.getsound('deek').play()
         if set is not None: return
         if s.playing:
+            s.tick()
             s.play_timer = bui.AppTimer(
-                s.fps, s.tick, repeat=True
+                1/s.fps, s.tick, repeat=True
             )
         else:
             s.play_timer = None
@@ -195,6 +196,9 @@ class BSV:
             bui.screenmessage('no')
             bui.getsound('block').play()
             return
+        if s.playing:
+            s.play()
+        s.play_timer = None
         os.makedirs(ROOT,exist_ok=True)
         filepath = os.path.join(
             ROOT, t
