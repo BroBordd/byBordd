@@ -94,6 +94,7 @@ class Board(bui.MainWindow):
                 )
             )
         else: Eval.SOUND(Const.SOUND_HI)
+        fast and s.remake_windows()
         if bool(s.cache['catalog'].get('call',None)):
             s.cache['catalog']['call'] = bui.CallPartial(
                 s.render,fast=True
@@ -219,6 +220,7 @@ class Board(bui.MainWindow):
             source=False,
             size=(cx, cy)
         )
+
     def remake(s):
         if s.main:
             ui = bui.app.ui_v1
@@ -254,8 +256,6 @@ class Board(bui.MainWindow):
         else:
             s.update_title(String.BOARD,fast=fast)
             s._render_catalog_content(cat, fast)
-
-        fast and s.remake_windows()
 
     def _render_catalog_content(s, cat, fast=False):
         if not s.ui_safe(): return
@@ -2562,7 +2562,7 @@ class Art:
         px, py = position
         sx, sy = size
         # text
-        text = String.ART_WORD
+        text = s.text = String.ART_WORD
         num_letters = len(text)
         # calculate letter sizing
         letter_height = sy * 0.5
@@ -2607,7 +2607,11 @@ class Art:
             for i, t in enumerate(text)
         ]
         # color animation state - CONTINUE FROM PREVIOUS OR START FRESH
-        if continue_from and isinstance(continue_from, Art):
+        if (
+            continue_from and
+            isinstance(continue_from, Art)
+            and text == continue_from.text
+        ):
             # Copy state from previous art object
             s.art_color_idx = continue_from.art_color_idx.copy()
             s.art_progress = continue_from.art_progress.copy()
