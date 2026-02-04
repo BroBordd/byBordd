@@ -23,7 +23,6 @@ __release__ = '1'
 
 class Config:
     COLOR = 'DARK'
-    DEBUG = True
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -117,6 +116,7 @@ class Editor:
         s.camera_data = {}
         # extra
         s.sl = None
+        s.sl_main = None
         s.global_butter = 0.3
         s.can_do = False
         s.blame = None
@@ -406,18 +406,18 @@ class Editor:
             texture=Eval.TEXTURE(Const.SHADOW),
             color=Color.BASE
         )
-        # action button
-        s.action_button = bui.buttonwidget(
+        # key button
+        s.key_button = bui.buttonwidget(
             parent=s.root,
-            label=Strings.ACTION_BUTTON,
-            on_activate_call=s.action_window,
+            label=Strings.KEY,
+            on_activate_call=s.key_window,
             texture=Eval.TEXTURE(Const.SKIN),
             opacity=0,
             textcolor=Color.INVISIBLE,
             enable_sound=False,
             color=Color.BASE
         )
-        s.action_button_shadow = bui.imagewidget(
+        s.key_button_shadow = bui.imagewidget(
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
@@ -651,9 +651,9 @@ class Editor:
             }
         )
         s.in_anims.append(a)
-        # action button
+        # key button
         a = Animate(
-            widget=s.action_button,
+            widget=s.key_button,
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY),
@@ -766,34 +766,34 @@ class Editor:
         s.window_on = (s.edit_button,s.edit_window,on_back)
 
     @clickable
-    def action_window(s):
+    def key_window(s):
         if not s.sl:
             Eval.SOUND(Const.BAD_SOUND).play()
             s.toast(Strings.ERROR_SELECT_SOMETHING)
             return
         si = s.memory[id(s.sl)]['event']
-        if not (acts:=Const.EVENT_ACTIONS[si]):
+        if not (keys:=Const.EVENT_KEYS.get(si,())):
             Eval.SOUND(Const.BAD_SOUND).play()
-            s.toast(Strings.ERROR_NO_ACTIONS)
+            s.toast(Strings.NO_ACTIONS)
             return
         if s.window_on:
             s.window_back()
         Eval.SOUND(Const.OK_SOUND).play()
         # disable
         bui.buttonwidget(
-            s.action_button,
+            s.key_button,
             on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
         # math
-        start_pos = s.event_on and s.action_button_pos2 or s.action_button_pos
+        start_pos = s.event_on and s.key_button_pos2 or s.key_button_pos
         end_pos = s.window_pos
         start_size = s.edit_button_size
         end_size = s.window_size
         butter = s.global_butter*1.3
         # button
-        s.anims[id(s.action_button)]['window'] = Animate(
-            s.action_button,
+        s.anims[id(s.key_button)]['window'] = Animate(
+            s.key_button,
             duration=butter,
             attrs={
                 'position':(start_pos,end_pos),
@@ -805,9 +805,9 @@ class Editor:
             }
         )
         # shadow
-        s.anims[id(s.action_button)]['shadow'] = (
+        s.anims[id(s.key_button)]['shadow'] = (
             Animate(
-                widget=s.action_button_shadow,
+                widget=s.key_button_shadow,
                 attrs={
                     'opacity':(0,Color.OPACITY),
                     'position':(
@@ -823,25 +823,25 @@ class Editor:
             )
         )
         # finally
-        ret = s.make_action_kids(
-            title=Strings.ACTION_ON(
+        ret = s.make_key_kids(
+            title=Strings.KEY_ON(
                 list(Strings.EVENTS)[si]
             ),
-            acts=acts
+            keys=keys
         )
         on_back = lambda: (
             callable(ret) and ret(),
-            s.act_clean()
+            s.key_clean()
         )
-        s.window_on = (s.action_button,s.action_window,on_back)
+        s.window_on = (s.key_button,s.key_window,on_back)
 
-    def make_action_kids(s,title,acts):
+    def make_key_kids(s,title,keys):
         s.make_window_default(title=title)
-        s.make_action_default(acts)
+        s.make_key_default(keys)
         s.wrap_window_kids()
         s.animate_window_kids()
 
-    def make_action_default(s,what):
+    def make_key_default(s,what):
         # math
         x,y = s.window_pos
         sx,sy = s.window_size
@@ -899,23 +899,23 @@ class Editor:
                 (*Color.TEXT,Color.OPACITY)
             ))
         ))
-        s.act_kids = [(t,0)]
+        s.key_kids = [(t,0)]
         # finally
         s.window_trash = [what_texts]
 
-    def act_clean(s):
-        for k,_ in s.act_kids:
+    def key_clean(s):
+        for k,_ in s.key_kids:
             if _ == 1:
                 k.delete()
                 continue
             s.anims[id(k)].reverse(
                 on_finish=k.delete
             )
-        s.act_kids.clear()
+        s.key_kids.clear()
 
     def set_act(s,i):
         butter = s.global_butter
-        s.act_clean()
+        s.key_clean()
         # math
         x,y = (
             s.window_pos[0]+150+s.window_marg*2,
@@ -927,15 +927,15 @@ class Editor:
         )
         # Attribute
         if i == 0:
+            tx = Strings.ATTR
             # attr text
             t = bui.textwidget(
                 parent=s.root,
                 position=(x,y+sy-35),
-                text=Strings.NODE_NAME[0],
-                description=Strings.NODE_ATTR[1],
+                text=tx,
                 color=Color.INVISIBLE
             )
-            s.act_kids.append((t,0))
+            s.key_kids.append((t,0))
             # attr input
             attr = bui.textwidget(
                 parent=s.root,
@@ -944,20 +944,21 @@ class Editor:
                 editable=True,
                 size=(sx-10,35),
                 allow_clear_button=False,
+                description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
-                text=Config.DEBUG and Strings.DEBUG_FOO or ''
+                color=(*Color.TEXT,Color.OPACITY)
             )
-            s.act_kids.append((attr,1))
+            s.key_kids.append((attr,1))
             # eval text
+            tx = Strings.EVAL
             t = bui.textwidget(
                 parent=s.root,
                 position=(x,y+sy-37*3),
-                text=Strings.NODE_EVAL[0],
-                description=Strings.NODE_EVAL[1],
+                text=tx,
+                description=Strings.EVAL_HELP,
                 color=Color.INVISIBLE
             )
-            s.act_kids.append((t,0))
+            s.key_kids.append((t,0))
             # eval input
             val = bui.textwidget(
                 parent=s.root,
@@ -966,58 +967,75 @@ class Editor:
                 editable=True,
                 size=(sx-10,35),
                 allow_clear_button=False,
+                description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
-                text=Config.DEBUG and Strings.DEBUG_ONE or ''
+                color=(*Color.TEXT,Color.OPACITY)
             )
-            s.act_kids.append((val,1))
+            s.key_kids.append((val,1))
+            # time text
+            bx,by = 100,40
+            tx = Strings.TIME
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+37),
+                text=tx,
+                color=Color.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            # time input
+            time_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+5,y),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-(bx+30),35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY)
+            )
+            s.key_kids.append((val,1))
             # done func
             def do_done():
                 # collect
                 a = bui.textwidget(query=attr)
                 v = bui.textwidget(query=val)
+                t = bui.textwidget(query=time_inp)
                 # verify
                 if not a:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_ATTR[0]
-                    ))
+                    s.toast(Format.ERROR_EMPTY(Strings.ATTR))
                     return
                 if not v:
-                    s.toast(Strings.ERROR_EMPTY(
-                        Strings.NODE_EVAL[0]
-                    ))
+                    s.toast(Format.ERROR_EMPTY(Strings.EVAL))
+                    return
+                if not t:
+                    s.toast(Format.ERROR_EMPTY(Strings.TIME))
                     return
                 # evaluate
                 try:
                     with bs.get_foreground_host_activity().context:
                         v = eval(v)
                 except Exception as e:
-                    s.toast(Strings.ERROR_EVAL(e))
+                    s.toast(Format.ERROR(e))
                     return
                 # finally
-                final = {
-                    'action':i,
-                    'data':(a,v),
-                    'duration':s.object_duration
-                }
-                s.add_action(final)
-                s.toast(Strings.INFO_ADDED_ACTION)
+                # TODO
+                s.toast(Strings.INFO_ADDED_KEY)
                 s.window_back()
             # done button
-            bx,by = 100,40
             b = bui.buttonwidget(
                 parent=s.root,
-                position=(x+sx-bx,y),
+                position=(x+sx-(bx+5),y),
                 size=(bx,by),
                 texture=Eval.TEXTURE(Const.SKIN),
                 opacity=0,
                 on_activate_call=do_done,
                 enable_sound=False,
-                label=Strings.DONE_BUTTON,
+                label=Strings.DONE,
                 color=Color.BASE,
                 textcolor=Color.INVISIBLE
             )
-            s.act_kids.append((b,2))
+            s.key_kids.append((b,2))
         # Callable
         elif i == 1:
             pass
@@ -1028,7 +1046,7 @@ class Editor:
         elif i == 3:
             pass
         # finally
-        for k,_ in s.act_kids:
+        for k,_ in s.key_kids:
             if _ == 1: continue
             attrs = _ == 2 and {
                 'opacity':(0,Color.OPACITY),
@@ -1047,112 +1065,6 @@ class Editor:
                 attrs=attrs,
                 duration=butter
             )
-
-    def add_action(s, final):
-        # setup
-        nam = Strings.ACTIONS[final['action']]
-        mem = s.memory[id(s.sl)]
-        sx, sy = (
-            s.entry_xs_real * (
-                s.entries_per_sec *
-                s.object_duration
-            ) * s.magic_right,
-            s.entry_ys_real - s.magic_y
-        )
-        
-        # Calculate position: after all existing actions
-        action_index = len(mem['actions'])
-        y_pos = Eval.ENTRY_Y(s, mem)
-        
-        # X position is after the last action (or entry if no actions)
-        final_x = Eval.ENTRY_ACTION_X(s, mem, action_index)
-        final_y = y_pos
-        
-        # make
-        btn = bui.buttonwidget(
-            parent=s.stamp_hscroll_root,
-            texture=Eval.TEXTURE(Const.SKIN),
-            label=nam,
-            textcolor=Color.INVISIBLE,
-            color=Color.BASE,
-            opacity=0,
-            enable_sound=False,
-            size=(0, sy),
-            position=(final_x, final_y),
-            button_type='square'
-        )
-        bui.buttonwidget(
-            btn,
-            on_activate_call=bui.CallPartial(
-                print, f'Action {action_index}: {nam}'
-            )
-        )
-        
-        # Add to memory FIRST (so calculations include it)
-        final['button'] = btn
-        mem['actions'].append(final)
-        
-        # NOW push existing actions to the right (they already existed)
-        # We need to push actions at indices 0 to action_index-1
-        for i in range(action_index):
-            a = mem['actions'][i]
-            w = a['button']
-            
-            # Old position (before new action was added)
-            # Calculate what position they WOULD have been at without the new action
-            old_mem_actions = mem['actions'][:action_index]  # Exclude the new one
-            old_x = (
-                Eval.ENTRY_X_END(s, mem) + 
-                sum(
-                    act['duration'] * s.entries_per_sec * s.entry_xs_real 
-                    for act in old_mem_actions[:i]
-                )
-            )
-            
-            # Get current position if animating
-            l = s.anims[id(w)]
-            start_x = old_x
-            for key in list(l.keys()):
-                anim = l[key]
-                if anim and not anim.finished:
-                    start_x = anim.attrs_current['position'][0]
-                    anim.cancel()
-                    l.pop(key)
-            
-            # New position: with the new action included
-            new_x = Eval.ENTRY_ACTION_X(s, mem, i)
-            
-            # Animate the push
-            s.anims[id(w)]['push_new'] = Animate(
-                widget=w,
-                duration=s.global_butter,
-                attrs={
-                    'position': (
-                        (start_x, y_pos),
-                        (new_x, y_pos)
-                    )
-                }
-            )
-        
-        # animate new action appearing
-        s.anims[id(btn)]['action'] = Animate(
-            widget=btn,
-            duration=s.global_butter,
-            attrs={
-                'size': (
-                    (0, sy),
-                    (sx, sy)
-                ),
-                'textcolor': (
-                    Color.INVISIBLE,
-                    (*Color.TEXT, Color.OPACITY)
-                ),
-                'opacity': (0, Color.OPACITY)
-            }
-        )
-        
-        # rebuild timeline
-        s.build_timeline()
 
     def wrap(s,what=0,on_finish=None,init=False):
         # global math
@@ -1216,12 +1128,12 @@ class Editor:
             pos[1]
         )
         s.edit_button_size = (dx-4,dy-3)
-        # action math
-        s.action_button_pos = pos = (
+        # key math
+        s.key_button_pos = pos = (
             (dx+s.edit_button_xtra)*2,
             sy+6.5
         )
-        s.action_button_pos2 = (
+        s.key_button_pos2 = (
             pos[0]+ex-dx,
             pos[1]
         )
@@ -1461,18 +1373,18 @@ class Editor:
                 a = s.anims[id(s.edit_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
-        # action
+        # key
         if yes or 6 in what:
-            # action button
-            win = s.action_button in s.window_on
+            # key button
+            win = s.key_button in s.window_on
             pos = (
                 s.event_on and
-                s.action_button_pos2 or
-                s.action_button_pos
+                s.key_button_pos2 or
+                s.key_button_pos
             )
             size = s.edit_button_size
             bui.buttonwidget(
-                s.action_button,
+                s.key_button,
                 size=(
                     win and s.window_size or
                     s.edit_button_size
@@ -1484,10 +1396,10 @@ class Editor:
                 text_scale=one
             )
             if win:
-                a = s.anims[id(s.action_button)]['window'].attrs_start
+                a = s.anims[id(s.key_button)]['window'].attrs_start
                 a['position'] = pos
                 a['size'] = size
-                a = s.anims[id(s.action_button)]['shadow'].attrs_start
+                a = s.anims[id(s.key_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
         # controls
@@ -1795,10 +1707,10 @@ class Editor:
                 duration=s.global_butter,
                 delay=s.event_on and 0.07 or 0
             )
-            # action button
-            w = s.action_button
-            ex,ey = s.action_button_pos
-            start,end = s.action_button_pos, s.action_button_pos2
+            # key button
+            w = s.key_button
+            ex,ey = s.key_button_pos
+            start,end = s.key_button_pos, s.key_button_pos2
             if (anim:=s.anims[id(w)].get('push',None)):
                 anim.cancel()
                 start_pos = anim.attrs_current['position']
@@ -2099,7 +2011,7 @@ class Editor:
         bui.buttonwidget(
             btn,
             on_activate_call=bui.CallPartial(
-                s.select,btn
+                s.select, btn
             )
         )
         s.stamp_kids.append(btn)
@@ -2246,7 +2158,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_TYPE[0],
+            text=Strings.TYPE,
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0))
@@ -2260,13 +2172,11 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_TYPE[1],
+            description=Strings.TYPE_HELP,
             color=Color.INVISIBLE,
             v_align=Const.ALIGN,
             glow_type=Const.GLOW,
-            text=data and data['type'] or (
-                Config.DEBUG and Strings.DEBUG_NODE_TYPE_INPUT or ''
-            )
+            text=data and data['type'] or ''
         )
         s.window_kids.append((type_text,pos,text_push,delay+0,
             ('size',((0,size[1]),size))
@@ -2276,7 +2186,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_NAME[0],
+            text=Strings.NAME,
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.05))
@@ -2290,7 +2200,7 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_NAME[1],
+            description=Strings.NAME_HELP,
             color=Color.INVISIBLE,
             v_align=Const.ALIGN,
             glow_type=Const.GLOW,
@@ -2320,7 +2230,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_ATTR[0],
+            text=Strings.ATTR,
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.15))
@@ -2334,11 +2244,10 @@ class Editor:
             allow_clear_button=False,
             size=(0,0),
             maxwidth=size[0],
-            description=Strings.NODE_ATTR[1],
+            description=Strings.ATTR_HELP,
             color=Color.INVISIBLE,
             v_align=Const.ALIGN,
-            glow_type=Const.GLOW,
-            text=Config.DEBUG and Strings.DEBUG_NODE_ATTR_INPUT or ''
+            glow_type=Const.GLOW
         )
         s.window_kids.append((attr,pos,text_push,delay+0.15,
             ('size',((0,size[1]),size))
@@ -2348,7 +2257,7 @@ class Editor:
         w = bui.textwidget(
             parent=s.root,
             position=pos,
-            text=Strings.NODE_EVAL[0],
+            text=Strings.EVAL,
             color=Color.INVISIBLE
         )
         s.window_kids.append((w,pos,text_push,delay+0.2))
@@ -2361,12 +2270,11 @@ class Editor:
             editable=True,
             allow_clear_button=False,
             size=(0,0),
-            description=Strings.NODE_EVAL[1],
+            description=Strings.EVAL_HELP,
             color=Color.INVISIBLE,
             v_align=Const.ALIGN,
             maxwidth=size[0],
-            glow_type=Const.GLOW,
-            text=Config.DEBUG and Strings.DEBUG_NODE_EVAL_INPUT or ''
+            glow_type=Const.GLOW
         )
         s.window_kids.append((val,pos,text_push,delay+0.2,
             ('size',((0,size[1]),size))
@@ -2407,14 +2315,10 @@ class Editor:
             v = bui.textwidget(query=val)
             # verify
             if not a:
-                s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_ATTR[0]
-                ))
+                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
                 return
             if not v:
-                s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_EVAL[0]
-                ))
+                s.toast(Format.ERROR_EMPTY(Strings.EVAL))
                 return
             return a,v
         # sync
@@ -2523,7 +2427,7 @@ class Editor:
                 with bs.get_foreground_host_activity().context:
                     v = eval(v)
             except Exception as e:
-                s.toast(Strings.ERROR_EVAL(e))
+                s.toast(Format.ERROR(e))
                 return
             # check
             if a in so_far:
@@ -2536,11 +2440,6 @@ class Editor:
                 # finally
                 sync()
                 s.toast(Strings.INFO_ASSIGNED(a))
-                # debug
-                Config.DEBUG and bui.textwidget(
-                    attr,
-                    text=Strings.PLACEHOLDER()
-                )
             # finally
             anim_kid(w,px,py)
             so_far.update({a:v})
@@ -2554,7 +2453,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
-            label=Strings.NODE_POP_BUTTON,
+            label=Strings.POP,
             textcolor=Color.INVISIBLE,
             on_activate_call=do_pop
         )
@@ -2577,7 +2476,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
-            label=Strings.NODE_SET_BUTTON,
+            label=Strings.SET,
             textcolor=Color.INVISIBLE,
             on_activate_call=do_set
         )
@@ -2590,14 +2489,10 @@ class Editor:
             nam = bui.textwidget(query=name_text)
             # verify
             if not typ:
-                s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_TYPE[0]
-                ))
+                s.toast(Format.ERROR_EMPTY(Strings.TYPE))
                 return
             if not nam:
-                s.toast(Strings.ERROR_EMPTY(
-                    Strings.NODE_NAME[0]
-                ))
+                s.toast(Format.ERROR_EMPTY(Strings.NAME))
                 return
             return typ,nam
         # done func
@@ -2632,7 +2527,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
-            label=Strings.DONE_BUTTON,
+            label=Strings.DONE,
             textcolor=Color.INVISIBLE,
             on_activate_call=do_done
         )
@@ -2661,7 +2556,6 @@ class Editor:
         off = s.window_marg*5+bx
         yoff = by+s.window_marg
         data = edit and edit['data']
-        pre = '0.0'
         # data
         prv_on = False
         chks = [True,True,False]
@@ -2694,7 +2588,8 @@ class Editor:
         # position input
         pos_texts = []
         top = yoff*4.5
-        for i in range(3):
+        old_pos = _ba.get_camera_position()
+        for i,o in enumerate(old_pos):
             pos = (
                 s.window_marg-3,
                 top-yoff*i
@@ -2706,7 +2601,7 @@ class Editor:
                 allow_clear_button=False,
                 color=Color.INVISIBLE,
                 size=(0,0),
-                text=pre
+                text=str(round(o,2))
             )
             pos_texts.append(w)
             s.window_kids.append((w,pos,text_push,delay+(0.24-0.06*i),
@@ -2733,7 +2628,8 @@ class Editor:
         ))
         # target input
         target_texts = []
-        for i in range(3):
+        old_tar = _ba.get_camera_target()
+        for i,o in enumerate(old_tar):
             pos = (
                 off+s.window_marg-3,
                 top-yoff*i
@@ -2745,7 +2641,7 @@ class Editor:
                 allow_clear_button=False,
                 color=Color.INVISIBLE,
                 size=(0,0),
-                text=pre
+                text=str(round(o,2))
             )
             target_texts.append(w)
             s.window_kids.append((w,pos,text_push,delay+(0.24-0.06*i),
@@ -2834,9 +2730,9 @@ class Editor:
         def add(*d):
             for i,w in enumerate(mod and target_texts or pos_texts):
                 old = bui.textwidget(query=w) or '0'
-                z = float(old)+d[i]*stp
+                z = round(float(old)+d[i]*stp,2)
                 bui.textwidget(
-                    w, text=f'{z}'
+                    w, text=str(z)
                 )
             collect()
         def action(n):
@@ -2919,6 +2815,16 @@ class Editor:
                 nonlocal see_timer,virgin
                 see_timer = None
                 virgin = True
+            if not shut:
+                for i in range(3):
+                    bui.textwidget(
+                        pos_texts[i],
+                        text=str(round(old_pos[i],2))
+                    )
+                    bui.textwidget(
+                        target_texts[i],
+                        text=str(round(old_tar[i],2))
+                    )
         # reset button
         pos = (
             s.window_marg,
@@ -2953,7 +2859,7 @@ class Editor:
             shut or (
                 s.toast(
                     prv_on and Strings.INFO_PREVIEW_ON or
-                    Strings.INFO_PREVIEW_OFF
+                    Strings.PREVIEW_OFF
                 ) or Eval.SOUND(Const.OK_SOUND).play()
             )
             if prv_on:
@@ -3007,7 +2913,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
-            label=Strings.DONE_BUTTON,
+            label=Strings.DONE,
             textcolor=Color.INVISIBLE,
             on_activate_call=do_done
         )
@@ -3273,7 +3179,7 @@ class Editor:
     def freeze_scene(s,b=True):
         bs.get_foreground_host_activity().globalsnode.paused = b
 
-    def stop(s):
+    def stop(s,shut=0):
         if not s.play_timer:
             s.toast(Strings.ERROR_NOT_PLAYING)
             return False
@@ -3285,8 +3191,9 @@ class Editor:
         s.wrap_controls()
         for _ in s.active.values(): _.delete()
         s.active.clear()
-        s.toast(Strings.INFO_FINISHED)
+        shut or s.toast(Strings.INFO_FINISHED)
         s.freeze_scene(False)
+        _ba.set_camera_manual(False)
 
     def wrap_play(s,init=False):
         s.pause_start = None
@@ -3329,7 +3236,7 @@ class Editor:
             except Exception as e:
                 t = event['memory']['data']['name']
                 s.toast(Strings.ERROR_EVENT(t,e))
-                s.stop()
+                s.stop(shut=1)
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             s.timeline_index += 1
@@ -3344,14 +3251,22 @@ class Editor:
         start = e['type'] == 'start'
         what = mem['event']
         data = mem['data']
+        call = None
         # node
         if what == 0:
             if start:
+                attrs = data['attrs'].copy()
+                if data['type'] == 'spaz' and 'position' in data['attrs']:
+                    position = attrs.pop('position')
+                    call = lambda: n.handlemessage(
+                        bs.StandMessage,
+                        position
+                    )
                 with bs.get_foreground_host_activity().context:
-                    s.active[key] = bs.newnode(
+                    s.active[key] = n = bs.newnode(
                         type=data['type'],
                         name=data['name'],
-                        attrs=data['attrs']
+                        attrs=attrs
                     )
             else: s.active.pop(key).delete()
         # camera
@@ -3390,6 +3305,8 @@ class Editor:
                 if not s.camera_data:
                     s.camera_timer = None
                     man and _ba.set_camera_manual(False)
+        # finally
+        callable(call) and call()
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
@@ -3450,12 +3367,12 @@ class Editor:
         )
 
     @clickable
-    def select(s,b):
+    def select(s,b,main=None):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
         if s.window_on and s.window_on[1] in (
             s.edit_window,
-            s.action_window
+            s.key_window
         ): s.window_back()
         sl = b
         # yes
@@ -3478,6 +3395,7 @@ class Editor:
         s.hide_controls(up=True)
         s.show_tools()
         s.sl = sl
+        s.sl_main = main
         yes()
 
     def show_tools(s):
@@ -3524,10 +3442,9 @@ class Editor:
     def do_tool(s,which):
         if not s.tools_shown: return
         if not s.sl: return
-        b = s.sl
+        b = s.sl_main or s.sl
         mem = s.memory[id(b)]
         new = {}
-        new_acts = {}
         scroll_butter = s.global_butter/2
         restamp = lambda:(
             s.wrap(2),
@@ -3554,43 +3471,9 @@ class Editor:
             s.anims[id(b)].pop(0, None)
 
             # math
-            y_pos = Eval.ENTRY_Y(s,mem)
-            old_mem = mem.copy()
             mem['start'] += 1/s.entries_per_sec
             end_pos = Eval.ENTRY_POS(s,mem)
             new['position'] = (start_pos, end_pos)
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                
-                # Get current position
-                l = s.anims[id(w)]
-                old_x = Eval.ENTRY_ACTION_X(s, {'start': mem['start'] - 1/s.entries_per_sec, 'duration': mem['duration'], 'actions': mem['actions'][:i]}, i)
-                
-                if (anim := l.get(0, None)) and not anim.finished:
-                    p1 = anim.attrs_current['position']
-                    anim.cancel()
-                else:
-                    p1 = (old_x, y_pos)
-                
-                # Conflict cleanup
-                for key in [1, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                l.pop(0, None)
-                
-                # New position after entry moved
-                p2 = (
-                    Eval.ENTRY_ACTION_X(s, mem, i),
-                    y_pos
-                )
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
 
             # finally
             restamp()
@@ -3618,43 +3501,9 @@ class Editor:
             s.anims[id(b)].pop(1, None)
 
             # math
-            y_pos = Eval.ENTRY_Y(s, mem)
-            old_mem = mem.copy()
             mem['start'] -= 1/s.entries_per_sec
             end_pos = Eval.ENTRY_POS(s, mem)
             new['position'] = (start_pos, end_pos)
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                
-                # Get current position
-                l = s.anims[id(w)]
-                old_x = Eval.ENTRY_ACTION_X(s, {'start': mem['start'] + 1/s.entries_per_sec, 'duration': mem['duration'], 'actions': mem['actions'][:i]}, i)
-                
-                if (anim := l.get(1, None)) and not anim.finished:
-                    p1 = anim.attrs_current['position']
-                    anim.cancel()
-                else:
-                    p1 = (old_x, y_pos)
-                
-                # Conflict cleanup
-                for key in [0, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                l.pop(1, None)
-                
-                # New position after entry moved
-                p2 = (
-                    Eval.ENTRY_ACTION_X(s, mem, i),
-                    y_pos
-                )
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
 
             # finally
             restamp()
@@ -3685,45 +3534,6 @@ class Editor:
             # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                y_pos = Eval.ENTRY_Y(s, mem)
-                
-                # Get current position from animation state
-                l = s.anims[id(w)]
-                
-                # Check running animations
-                anim_expand = l.get(2, None)
-                if anim_expand and not anim_expand.finished:
-                    p1 = anim_expand.attrs_current['position']
-                    anim_expand.cancel()
-                    l.pop(2, None)
-                elif (anim_shrink := l.get(3, None)) and not anim_shrink.finished:
-                    p1 = anim_shrink.attrs_current['position']
-                    anim_shrink.cancel()
-                    l.pop(3, None)
-                else:
-                    # Default: old position before expand
-                    old_mem = {'start': mem['start'], 'duration': mem['duration'] - 1/s.entries_per_sec, 'actions': mem['actions'][:i]}
-                    p1 = (Eval.ENTRY_ACTION_X(s, old_mem, i), y_pos)
-                
-                # Cancel conflicts
-                for key in [0, 1, 4, 5]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                # New position: pushed right by expand
-                p2 = (
-                    Eval.ENTRY_ACTION_X(s, mem, i),
-                    y_pos
-                )
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
 
             # finally
             restamp()
@@ -3767,45 +3577,6 @@ class Editor:
             # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                y_pos = Eval.ENTRY_Y(s, mem)
-                
-                # Get current position from animation state
-                l = s.anims[id(w)]
-                
-                # Check running animations
-                anim_shrink = l.get(3, None)
-                if anim_shrink and not anim_shrink.finished:
-                    p1 = anim_shrink.attrs_current['position']
-                    anim_shrink.cancel()
-                    l.pop(3, None)
-                elif (anim_expand := l.get(2, None)) and not anim_expand.finished:
-                    p1 = anim_expand.attrs_current['position']
-                    anim_expand.cancel()
-                    l.pop(2, None)
-                else:
-                    # Default: old position before shrink
-                    old_mem = {'start': mem['start'], 'duration': mem['duration'] + 1/s.entries_per_sec, 'actions': mem['actions'][:i]}
-                    p1 = (Eval.ENTRY_ACTION_X(s, old_mem, i), y_pos)
-                
-                # Cancel conflicts
-                for key in [0, 1, 4, 5]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                # New position: pulled left by shrink
-                p2 = (
-                    Eval.ENTRY_ACTION_X(s, mem, i),
-                    y_pos
-                )
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
 
             # finally
             restamp()
@@ -3883,78 +3654,6 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
-            for i, a in enumerate(other_mem['actions']):
-                w = a['button']
-                x_pos = Eval.ENTRY_ACTION_X(s, other_mem, i)
-                
-                l = s.anims[id(w)]
-                
-                # Check running animations
-                anim_up = l.get(4, None)
-                if anim_up and not anim_up.finished:
-                    first_y = anim_up.attrs_current['position'][1]
-                    anim_up.cancel()
-                    l.pop(4, None)
-                elif (anim_down := l.get(5, None)) and not anim_down.finished:
-                    first_y = anim_down.attrs_current['position'][1]
-                    anim_down.cancel()
-                    l.pop(5, None)
-                else:
-                    # Default: neighbor was at new_y_up before swap
-                    first_y = new_y_up
-                
-                # Cancel conflicts
-                for key in [0, 1, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                p1 = (x_pos, first_y)
-                p2 = (x_pos, new_y_down)
-                
-                # Use a different key to avoid conflicts with selected entry's actions
-                s.anims[id(w)][4] = Animate(
-                    widget=w,
-                    duration=s.global_butter,
-                    attrs={'position': (p1, p2)}
-                )
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                x_pos = Eval.ENTRY_ACTION_X(s, mem, i)
-                
-                # Get current position from animation state
-                l = s.anims[id(w)]
-                
-                # Check running up animation
-                anim_up = l.get(4, None)
-                if anim_up and not anim_up.finished:
-                    first_y = anim_up.attrs_current['position'][1]
-                    anim_up.cancel()
-                    l.pop(4, None)
-                # Check running down animation
-                elif (anim_down := l.get(5, None)) and not anim_down.finished:
-                    first_y = anim_down.attrs_current['position'][1]
-                    anim_down.cancel()
-                    l.pop(5, None)
-                else:
-                    # Default to Y before swap
-                    first_y = new_y_down
-                
-                # Cancel conflicts
-                for key in [0, 1, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                p1 = (x_pos, first_y)
-                p2 = (x_pos, new_y_up)
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
-
         # move down
         if which == 5:
             # validate bounds
@@ -4029,77 +3728,6 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
-            for i, a in enumerate(other_mem['actions']):
-                w = a['button']
-                x_pos = Eval.ENTRY_ACTION_X(s, other_mem, i)
-                
-                l = s.anims[id(w)]
-                
-                # Check running animations
-                anim_down = l.get(5, None)
-                if anim_down and not anim_down.finished:
-                    first_y = anim_down.attrs_current['position'][1]
-                    anim_down.cancel()
-                    l.pop(5, None)
-                elif (anim_up := l.get(4, None)) and not anim_up.finished:
-                    first_y = anim_up.attrs_current['position'][1]
-                    anim_up.cancel()
-                    l.pop(4, None)
-                else:
-                    # Default: neighbor was at new_y_down before swap
-                    first_y = new_y_down
-                
-                # Cancel conflicts
-                for key in [0, 1, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                p1 = (x_pos, first_y)
-                p2 = (x_pos, new_y_up)
-                
-                s.anims[id(w)][5] = Animate(
-                    widget=w,
-                    duration=s.global_butter,
-                    attrs={'position': (p1, p2)}
-                )
-
-            # actions
-            for i, a in enumerate(mem['actions']):
-                w = a['button']
-                x_pos = Eval.ENTRY_ACTION_X(s, mem, i)
-                
-                # Get current position from animation state
-                l = s.anims[id(w)]
-                
-                # Check running down animation
-                anim_down = l.get(5, None)
-                if anim_down and not anim_down.finished:
-                    first_y = anim_down.attrs_current['position'][1]
-                    anim_down.cancel()
-                    l.pop(5, None)
-                # Check running up animation
-                elif (anim_up := l.get(4, None)) and not anim_up.finished:
-                    first_y = anim_up.attrs_current['position'][1]
-                    anim_up.cancel()
-                    l.pop(4, None)
-                else:
-                    # Default to Y before swap
-                    first_y = new_y_up
-                
-                # Cancel conflicts
-                for key in [0, 1, 2, 3]:
-                    if (anim := l.get(key, None)):
-                        anim.cancel()
-                        l.pop(key, None)
-                
-                p1 = (x_pos, first_y)
-                p2 = (x_pos, new_y_down)
-                
-                new_acts[w] = {
-                    'position': (p1, p2)
-                }
-
         # duplicate
         if which == 6:
             Eval.SOUND(Const.OK_SOUND).play()
@@ -4129,7 +3757,6 @@ class Editor:
             original_duration = original_data['duration']
             original_start = original_data['start']
             original_order = original_data['order']
-            original_actions = []
             node_data = {
                 i:(
                     isinstance(j,(list,dict))
@@ -4176,17 +3803,12 @@ class Editor:
                 'event': original_event,
                 'data': node_data,
                 'duration': original_duration,
-                'start': original_start,
-                'actions': original_actions
+                'start': original_start
             }
 
             # shift all entries below down by one
             for kid in s.stamp_kids[original_list_index + 2:]:
                 s.memory[id(kid)]['order'] += 1
-
-            # capture old state
-            smol = s.stamp_size[1] - s.stamp_hack
-            old_deep_y = getattr(s, 'stamp_deep_y', smol)
 
             # update layout
             s.wrap([1, 2, 3])
@@ -4196,92 +3818,24 @@ class Editor:
             orig_y = Eval.ENTRY_Y(s, {'order': original_order})
             final_y = Eval.ENTRY_Y(s, {'order': new_order})
 
-            # actions
-            for i, action_data in enumerate(original_data['actions']):
-                action_copy = action_data.copy()
-                
-                # Calculate size
-                action_size = (
-                    s.entry_xs_real * (
-                        s.entries_per_sec *
-                        action_copy['duration']
-                    ) * s.magic_right,
-                    s.entry_ys_real - s.magic_y
-                )
-                
-                # Calculate position for this action
-                action_x = Eval.ENTRY_ACTION_X(s, {'start': original_start, 'duration': original_duration, 'actions': original_actions[:i]}, i)
-                action_y = final_y  # Same Y as the duplicated entry
-                
-                # Create new button for duplicated action
-                action_btn = bui.buttonwidget(
-                    parent=s.stamp_hscroll_root,
-                    texture=Eval.TEXTURE(Const.SKIN),
-                    label=Strings.ACTIONS[action_copy['action']],
-                    textcolor=Color.INVISIBLE,
-                    color=Color.BASE,
-                    opacity=0,
-                    enable_sound=False,
-                    size=action_size,
-                    button_type='square',
-                    position=(action_x, action_y)  # Add position
-                )
-                
-                action_copy['button'] = action_btn
-                original_actions.append(action_copy)
-                
-                # Animate the duplicated action appearing
-                s.anims[id(action_btn)][which] = Animate(
-                    widget=action_btn,
-                    attrs={
-                        'opacity': (0, Color.OPACITY),
-                        'textcolor': (
-                            Color.INVISIBLE,
-                            (*Color.TEXT, Color.OPACITY)
-                        ),
-                        'position': ((action_x, orig_y), (action_x, final_y))
-                    },
-                    duration=s.global_butter
-                )
-
             # place at original position
             bui.buttonwidget(btn, position=(final_x, orig_y))
 
-            # animate entries that need to shift
-            big = old_deep_y != smol
-
             # shift entries below duplicate down by one
-            for kid in s.stamp_kids[original_list_index + 2:]:
+            for kid in s.stamp_kids[:original_list_index + 1]:
                 kid_mem = s.memory[id(kid)]
                 kid_x = Eval.ENTRY_X(s, kid_mem)
-                old_y = Eval.ENTRY_Y(s, {'order': kid_mem['order'] + 1})
-                new_y = Eval.ENTRY_Y(s, kid_mem)
 
-                if big:
-                    bui.buttonwidget(kid, position=(kid_x, new_y))
-                    for i, action in enumerate(kid_mem['actions']):
-                        w = action['button']
-                        action_x = Eval.ENTRY_ACTION_X(s, kid_mem, i)
-                        bui.buttonwidget(w, position=(action_x, new_y))
-                else:
-                    s.anims[id(kid)][which] = Animate(
-                        widget=kid,
+                old_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 2)
+                new_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1)
 
-                        attrs={
-                            'position': ((kid_x, old_y), (kid_x, new_y))
-                        },
-                        duration=s.global_butter
-                    )
-                    for i, action in enumerate(kid_mem['actions']):
-                        w = action['button']
-                        action_x = Eval.ENTRY_ACTION_X(s, kid_mem, i)
-                        s.anims[id(w)][which] = Animate(
-                            widget=w,
-                            attrs={
-                                'position': ((action_x, old_y), (action_x, new_y))
-                            },
-                            duration=s.global_butter
-                        )
+                s.anims[id(kid)][which] = Animate(
+                    widget=kid,
+                    attrs={
+                        'position': ((kid_x, old_y), (kid_x, new_y))
+                    },
+                    duration=s.global_butter
+                )
 
             # shift entries above and including original up by one
             for kid in s.stamp_kids[:original_list_index + 1]:
@@ -4292,31 +3846,13 @@ class Editor:
                 old_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 2)
                 new_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1)
 
-                if big:
-                    bui.buttonwidget(kid, position=(kid_x, new_y))
-                    for i, action in enumerate(kid_mem['actions']):
-                        w = action['button']
-                        action_x = Eval.ENTRY_ACTION_X(s, kid_mem, i)
-                        bui.buttonwidget(w, position=(action_x, new_y))
-                else:
-                    s.anims[id(kid)][which] = Animate(
-                        widget=kid,
-
-                        attrs={
-                            'position': ((kid_x, old_y), (kid_x, new_y))
-                        },
-                        duration=s.global_butter
-                    )
-                    for i, action in enumerate(kid_mem['actions']):
-                        w = action['button']
-                        action_x = Eval.ENTRY_ACTION_X(s, kid_mem, i)
-                        s.anims[id(w)][which] = Animate(
-                            widget=w,
-                            attrs={
-                                'position': ((action_x, old_y), (action_x, new_y))
-                            },
-                            duration=s.global_butter
-                        )
+                s.anims[id(kid)][which] = Animate(
+                    widget=kid,
+                    attrs={
+                        'position': ((kid_x, old_y), (kid_x, new_y))
+                    },
+                    duration=s.global_butter
+                )
 
             # animate new button from original to below
             s.anims[id(btn)][which] = Animate(
@@ -4365,10 +3901,6 @@ class Editor:
 
             # animate fade out
             def cleanup():
-                for action in mem['actions']:
-                    if action['button'].exists():
-                        action['button'].delete()
-
                 # remove from memory
                 del s.memory[id(b)]
 
@@ -4413,20 +3945,6 @@ class Editor:
                         duration=s.global_butter
                     )
 
-                    for i, action in enumerate(kid_mem['actions']):
-                        w = action['button']
-                        action_x = Eval.ENTRY_ACTION_X(s, kid_mem, i)
-                        s.anims[id(w)][which] = Animate(
-                            widget=w,
-                            attrs={
-                                'position': (
-                                    (action_x, current_y),
-                                    (action_x, s.entry_ys_real * idx)
-                                )
-                            },
-                            duration=s.global_butter
-                        )
-
                 # deselect
                 s.sl = None
                 s.hide_tools()
@@ -4453,21 +3971,6 @@ class Editor:
                 on_finish=cleanup
             )
 
-            # actions
-            for action in mem['actions']:
-                if action['button'].exists():
-                    s.anims[id(action['button'])][which] = Animate(
-                        widget=action['button'],
-                        attrs={
-                            'opacity': (Color.OPACITY, 0),
-                            'textcolor': (
-                                (*Color.TEXT, Color.OPACITY),
-                                Color.INVISIBLE
-                            )
-                        },
-                        duration=s.global_butter/2
-                    )
-
             # finally
             s.wrap(2)
             return
@@ -4486,13 +3989,6 @@ class Editor:
                 attrs=new
             )
             Eval.SOUND(Const.OK_SOUND).play()
-        # actions
-        for w,at in new_acts.items():
-            s.anims[id(w)][which] = Animate(
-                widget=w,
-                duration=butter,
-                attrs=at
-            )
 
     def scroll_to(s,b):
         # horizontal
@@ -4760,8 +4256,21 @@ class Strings:
         'Preset':'Load a preset',
         'Custom':'Custom action'
     }
-    # action
-    ACTION_BUTTON = 'Action'
+    # yes
+    ATTR = 'Attr'
+    ATTR_HELP = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
+    EVAL = 'Eval'
+    EVAL_HELP = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
+    TIME = 'Time'
+    TYPE = 'Type'
+    TYPE_HELP = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
+    NAME = 'Name'
+    NAME_HELP = 'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
+    SET = 'Set'
+    POP = 'Pop'
+    KEY = 'Key'
+    DONE = 'Done'
+    # key
     ACTIONS = [
         'Attribute',
         'Callable',
@@ -4770,26 +4279,6 @@ class Strings:
     ]
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
     # global event
-    DONE_BUTTON = 'Done'
-    # node event
-    NODE_TYPE = (
-        'Type',
-        'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
-    )
-    NODE_NAME = (
-        'Name',
-        'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
-    )
-    NODE_ATTR = (
-        'Attr',
-        'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
-    )
-    NODE_EVAL = (
-        'Eval',
-        'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
-    )
-    NODE_SET_BUTTON = 'Set'
-    NODE_POP_BUTTON = 'Pop'
     # camera event
     CAMERA_RESET_BUTTON = 'Reset'
     CAMERA_PREVIEW_BUTTON_OFF = 'Preview'
@@ -4799,16 +4288,11 @@ class Strings:
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
     # errors
-    ERROR_EMPTY = lambda e: (
-        f'Empty {e}!',
-        'Stop leaving empty text boxes around'
-    )
-    ERROR_EVAL = lambda e: (
-        str(e) and f'Eval: {e}' or 'Error evaluating!',
-        isinstance(e,NameError) and
-        'Are you using quotes for str?' or
-        'You\'re on your own pal'
-    )
+    ERROR_EMPTY = 'Empty {}!'
+    ERROR_EMPTY_HELP = 'Stop leaving empty text boxes around'
+    ERROR = 'Error!'
+    ERROR_E = 'Error: {}'
+    ERROR_HELP = 'You\'re on your own pal'
     ERROR_EVENT = lambda t,e: (
         f'{t}: {e}',
         'Your fault, not mine.'
@@ -4845,7 +4329,7 @@ class Strings:
         'Stop playback first!',
         'The playhead is watching, I can\'t.'
     )
-    ERROR_NO_ACTIONS = (
+    NO_ACTIONS = (
         'No actions available!',
         'We\'re stuck with it as is'
     )
@@ -4890,7 +4374,7 @@ class Strings:
         'Preview on',
         'Camera changes are previewed live'
     )
-    INFO_PREVIEW_OFF = (
+    PREVIEW_OFF = (
         'Preview off',
         'Forget I said anything'
     )
@@ -4910,8 +4394,8 @@ class Strings:
         'Playback finished!',
         'The playhead is gone'
     )
-    INFO_ADDED_ACTION = (
-        'Action added!',
+    INFO_ADDED_KEY = (
+        'Key added!',
         'Expands from the same event'
     )
     # confirm
@@ -4923,15 +4407,9 @@ class Strings:
         f'Really delete "{t}"?',
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
     )
-    # debug
-    DEBUG_FOO = 'foo'
-    DEBUG_ONE = '1'
-    DEBUG_NODE_TYPE_INPUT = 'prop'
-    DEBUG_NODE_EVAL_INPUT = 'bs.gettexture(\'logo\')'
-    DEBUG_NODE_ATTR_INPUT = 'color_texture'
     # extra
-    ACTION_ON = lambda t:(
-        f'Action on {t}'
+    KEY_ON = lambda t:(
+        f'Key on {t}'
     )
     BYE = (
         'That\'s a wrap!',
@@ -5019,8 +4497,8 @@ class Const:
         'DPAD_CENTER_BUTTON',
         'PLAY_STATION_CROSS_BUTTON'
     )
-    # actions
-    EVENT_ACTIONS = {
+    # keys
+    EVENT_KEYS = {
         0: (0,1,2),
         2: (3,),
         4: (0,1)
@@ -5102,23 +4580,16 @@ class Eval:
         s.entry_xs_real * (mem['duration'] * s.entries_per_sec) * s.magic_right,
         s.entry_ys_real - s.magic_y
     )
-    ENTRY_ACTION_X = lambda s, mem, action_index: (
-        Eval.ENTRY_X_END(s, mem) +
-        sum(
-            a['duration'] * s.entries_per_sec * s.entry_xs_real 
-            for a in mem['actions'][:action_index]
-        )
+
+class Format:
+    ERROR = lambda e: (
+        str(e) and Strings.ERROR_E.format(e)
+        or Strings.ERROR,
+        Strings.ERROR_HELP
     )
-    ENTRY_ACTION_END_X = lambda s, mem, action_index: (
-        Eval.ENTRY_ACTION_X(s, mem, action_index) +
-        (mem['actions'][action_index]['duration'] * s.entries_per_sec * s.entry_xs_real)
-    )
-    ENTRY_TOTAL_END_X = lambda s, mem: (
-        Eval.ENTRY_X_END(s, mem) +
-        sum(
-            a['duration'] * s.entries_per_sec * s.entry_xs_real 
-            for a in mem['actions']
-        )
+    ERROR_EMPTY = lambda e: (
+        Strings.ERROR_EMPTY.format(e),
+        Strings.ERROR_EMPTY_HELP
     )
 
 class DarkColor:
@@ -5189,3 +4660,4 @@ class MoviSubsystem(ba.AppSubsystem):
 class byBordd(ba.Plugin):
     def __init__(s):
         ba.app.register_subsystem(MoviSubsystem())
+
