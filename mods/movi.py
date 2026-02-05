@@ -974,7 +974,7 @@ class Editor:
             s.key_kids.append((val,1))
             # time text
             bx,by = 100,40
-            tx = Strings.TIME
+            tx = Strings.OFFSET
             t = bui.textwidget(
                 parent=s.root,
                 position=(x,y+37),
@@ -994,22 +994,55 @@ class Editor:
                 description=tx,
                 color=(*Color.TEXT,Color.OPACITY)
             )
-            s.key_kids.append((val,1))
+            s.key_kids.append((time_inp,1))
+            _old_off = None
+            def _off_spy():
+                nonlocal _old_off
+                if not time_inp.exists():
+                    s.off_spy = None
+                    return
+                o = bui.textwidget(query=time_inp)
+                if (
+                    o.replace('.','',1).isdigit()
+                    and (new:=float(o)) != _old_off
+                ):
+                    mem = s.memory[id(s.sl)]
+                    _old_off = new
+                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    if not (0 <= new <= mem['duration']): return
+                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                        parent=s.stamp_scroll_root,
+                        position=(
+                            s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
+                            s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                        ),
+                        size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                        texture=Eval.TEXTURE(Const.KEY),
+                        color=Color.WARM,
+                        opacity=Color.OPACITY
+                    )
+                    mem['prev_off'] = new
+            s.off_spy = bui.AppTimer(
+                0.02, _off_spy, repeat=True
+            )
             # done func
             def do_done():
                 # collect
                 a = bui.textwidget(query=attr)
                 v = bui.textwidget(query=val)
-                t = bui.textwidget(query=time_inp)
+                o = bui.textwidget(query=time_inp)
                 # verify
                 if not a:
                     s.toast(Format.ERROR_EMPTY(Strings.ATTR))
+                    Eval.SOUND(Const.BAD_SOUND).play()
                     return
                 if not v:
                     s.toast(Format.ERROR_EMPTY(Strings.EVAL))
+                    Eval.SOUND(Const.BAD_SOUND).play()
                     return
-                if not t:
-                    s.toast(Format.ERROR_EMPTY(Strings.TIME))
+                if not o:
+                    s.toast(Format.ERROR_EMPTY(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
                     return
                 # evaluate
                 try:
@@ -1017,9 +1050,37 @@ class Editor:
                         v = eval(v)
                 except Exception as e:
                     s.toast(Format.ERROR(e))
+                    Eval.SOUND(Const.BAD_SOUND).play()
                     return
                 # finally
-                # TODO
+                try:
+                    offset_val = float(o)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if not (0 <= offset_val <= mem['duration']):
+                    s.toast(Format.OUT_OF_RANGE(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                actual_time = mem['start'] + offset_val
+                key_x = s.magic_x + s.entry_xs_real * actual_time * s.entries_per_sec - s.entry_ys_real/4
+                key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                key_wid = bui.imagewidget(
+                    parent=s.stamp_scroll_root,
+                    position=(key_x, key_y),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=Color.OPACITY
+                )
+                mem['keys'].append({
+                    'time':actual_time,
+                    'action':i,
+                    'data':(a,v),
+                    'widget':key_wid
+                })
                 s.toast(Strings.INFO_ADDED_KEY)
                 s.window_back()
             # done button
@@ -2022,7 +2083,7 @@ class Editor:
             'data':final,
             'duration':s.object_duration,
             'start':0.0,
-            'actions':[]
+            'keys':[]
         }
         s.build_timeline()
         # push
@@ -2945,6 +3006,7 @@ class Editor:
                 else l.values()
             ): w.delete()
         s.window_trash.clear()
+        getattr(s,'prev_off_wid',None) and s.prev_off_wid.delete()
 
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
         b,call,on_back = s.window_on
@@ -3446,125 +3508,266 @@ class Editor:
         mem = s.memory[id(b)]
         new = {}
         scroll_butter = s.global_butter/2
-        restamp = lambda:(
-            s.wrap(2),
-            s.make_timeline(),
-            s.wrap_timeline()
+        restamp = lambda:(\
+            s.wrap(2),\
+            s.make_timeline(),\
+            s.wrap_timeline()\
         )
         start_size = Eval.ENTRY_SIZE(s,mem)
         start_pos = Eval.ENTRY_POS(s,mem)
 
+        # Helper to animate all key widgets for this entry
+        def animate_key_widgets(anim_key, key_old_positions):
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    
+                    # Calculate NEW position (after time/order update)
+                    new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    new_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                    
+                    # Get OLD position from stored values
+                    start_wid_pos = key_old_positions.get(wid_id, (new_x, new_y))
+                    
+                    # Check for ongoing animation
+                    if wid_id in s.anims and anim_key in s.anims[wid_id]:
+                        if (anim := s.anims[wid_id].get(anim_key, None)) and not anim.finished:
+                            start_wid_pos = anim.attrs_current['position']
+                            anim.cancel()
+                    
+                    # Create animation dict if needed
+                    if wid_id not in s.anims:
+                        s.anims[wid_id] = {}
+                    
+                    # Clear the animation key
+                    s.anims[wid_id].pop(anim_key, None)
+                    
+                    # Create new animation
+                    s.anims[wid_id][anim_key] = Animate(
+                        widget=wid,
+                        attrs={'position': (start_wid_pos, (new_x, new_y))},
+                        duration=s.global_butter
+                    )
+
         # move right
         if which == 0:
-            # cancel all conflicting animations
             for key in [1, 2, 3]:
                 if (anim := s.anims[id(b)].get(key, None)):
                     anim.cancel()
                     s.anims[id(b)].pop(key, None)
 
-            # override if still running
             if (anim := s.anims[id(b)].get(0, None)) and not anim.finished:
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old right animation
             s.anims[id(b)].pop(0, None)
 
-            # math
             mem['start'] += 1/s.entries_per_sec
+
+            # Store old positions before updating times
+            key_old_positions = {}
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    # Calculate position using OLD time (before increment)
+                    old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                    key_old_positions[wid_id] = (old_x, old_y)
+
+            # Update key times
+            for key_data in mem.get('keys', []):
+                key_data['time'] += 1/s.entries_per_sec
+
             end_pos = Eval.ENTRY_POS(s,mem)
             new['position'] = (start_pos, end_pos)
 
-            # finally
             restamp()
+            animate_key_widgets(0, key_old_positions)
+
+            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                wid_id = id(mem['prev_off_wid'])
+
+                for key in [1, 4, 5]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                old_wid_x = s.magic_x + s.entry_xs_real * (mem['start'] - 1/s.entries_per_sec + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                new_wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (old_wid_x, wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(0, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(0, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][0] = Animate(
+                    widget=mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (new_wid_x, wid_y))
+                    },
+                    duration=s.global_butter
+                )
 
         # move left
         if which == 1:
-            # validate minimum
             if mem['start'] < 0.01:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_REACHED_ZERO)
                 return
 
-            # cancel all conflicting animations
             for key in [0, 2, 3]:
                 if (anim := s.anims[id(b)].get(key, None)):
                     anim.cancel()
                     s.anims[id(b)].pop(key, None)
 
-            # override if still running
             if (anim := s.anims[id(b)].get(1, None)) and not anim.finished:
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old left animation
             s.anims[id(b)].pop(1, None)
 
-            # math
             mem['start'] -= 1/s.entries_per_sec
+
+            # Store old positions before updating times
+            key_old_positions = {}
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    # Calculate position using OLD time (before decrement)
+                    old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                    key_old_positions[wid_id] = (old_x, old_y)
+
+            # Update key times
+            for key_data in mem.get('keys', []):
+                key_data['time'] -= 1/s.entries_per_sec
+
             end_pos = Eval.ENTRY_POS(s, mem)
             new['position'] = (start_pos, end_pos)
 
-            # finally
             restamp()
+            animate_key_widgets(1, key_old_positions)
+
+            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                wid_id = id(mem['prev_off_wid'])
+
+                for key in [0, 4, 5]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                old_wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + 1/s.entries_per_sec + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                new_wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (old_wid_x, wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(1, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(1, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][1] = Animate(
+                    widget=mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (new_wid_x, wid_y))
+                    },
+                    duration=s.global_butter
+                )
 
         # expand
         if which == 2:
-            # cancel conflict
             if (shrink := s.anims[id(b)].get(3, None)):
                 shrink.cancel()
                 s.anims[id(b)].pop(3, None)
 
-            # override
             if (anim := s.anims[id(b)].get(2, None)) and not anim.finished:
                 start_size = anim.attrs_current['size']
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old
             s.anims[id(b)].pop(2, None)
 
-            # increment duration
             mem['duration'] += 1 / s.entries_per_sec
 
-            # calculate target
             end_size = Eval.ENTRY_SIZE(s,mem)
             end_pos = Eval.ENTRY_POS(s,mem)
 
-            # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
 
-            # finally
             restamp()
+
+            # Check if we need to show previously hidden keys
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data:
+                    key_offset = key_data['time'] - mem['start']
+                    if key_offset <= mem['duration'] and not key_data['widget'].exists():
+                        key_x = s.magic_x + s.entry_xs_real * (mem['start'] + key_offset) * s.entries_per_sec - s.entry_ys_real/4
+                        key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                        key_data['widget'] = bui.imagewidget(
+                            parent=s.stamp_scroll_root,
+                            position=(key_x, key_y),
+                            size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                            texture=Eval.TEXTURE(Const.KEY),
+                            color=Color.WARM,
+                            opacity=Color.OPACITY
+                        )
+
+            if mem.get('prev_off') is not None and s.window_on and s.window_on[1] == s.key_window:
+                old_duration = mem['duration'] - 1/s.entries_per_sec
+                new_duration = mem['duration']
+
+                if old_duration < mem['prev_off'] and new_duration >= mem['prev_off']:
+                    wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                    wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                        parent=s.stamp_scroll_root,
+                        position=(wid_x, wid_y),
+                        size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                        texture=Eval.TEXTURE(Const.KEY),
+                        color=Color.WARM,
+                        opacity=Color.OPACITY
+                    )
 
         # shrink
         if which == 3:
-            # validate minimum
             current_ticks = round(mem['duration'] * s.entries_per_sec)
             if current_ticks <= 1:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_SMALLEST)
                 return
 
-            # cancel conflicting expand
             if (expand := s.anims[id(b)].get(2, None)):
                 expand.cancel()
                 s.anims[id(b)].pop(2, None)
 
-            # override only if same operation is still running
             if (anim := s.anims[id(b)].get(3, None)) and not anim.finished:
                 start_size = anim.attrs_current['size']
                 start_pos = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old shrink animation
             s.anims[id(b)].pop(3, None)
 
-            # decrement duration
             mem['duration'] -= 1 / s.entries_per_sec
 
-            # calculate target
             new_width_steps = mem['duration'] * s.entries_per_sec
             end_size = (
                 s.entry_xs_real * new_width_steps * s.magic_right,
@@ -3574,16 +3777,29 @@ class Editor:
             end_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
             end_pos = (end_x, end_y)
 
-            # assign
             new['size'] = (start_size, end_size)
             new['position'] = (start_pos, end_pos)
 
-            # finally
             restamp()
+
+            # Delete keys that are now out of range
+            for key_data in mem.get('keys', []):
+                key_time = key_data['time'] - mem['start']
+                if key_time > mem['duration']:
+                    if 'widget' in key_data and key_data['widget'].exists():
+                        key_data['widget'].delete()
+
+            if mem.get('prev_off') is not None and s.window_on and s.window_on[1] == s.key_window:
+                old_duration = mem['duration'] + 1/s.entries_per_sec
+                new_duration = mem['duration']
+
+                if old_duration >= mem['prev_off'] and new_duration < mem['prev_off']:
+                    if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                        mem['prev_off_wid'].delete()
+                        mem['prev_off_wid'] = None
 
         # move up
         if which == 4:
-            # validate bounds
             current_list_index = s.stamp_kids.index(b)
             if current_list_index == 0:
                 Eval.SOUND(Const.BAD_SOUND).play()
@@ -3592,39 +3808,53 @@ class Editor:
 
             Eval.SOUND(Const.OK_SOUND).play()
 
-            # neighbor
             target_list_index = current_list_index - 1
             other_btn = s.stamp_kids[target_list_index]
             other_mem = s.memory[id(other_btn)]
 
-            # old positions
             start_pos_b = Eval.ENTRY_POS(s,mem)
             start_pos_other = Eval.ENTRY_POS(s,other_mem)
             new_y_up = Eval.ENTRY_Y(s,other_mem)
             new_y_down = Eval.ENTRY_Y(s,mem)
 
-            # swap orders
+            # Store old positions before swapping order
+            key_old_positions = {}
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    # Calculate position using OLD order (before swap)
+                    old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                    key_old_positions[wid_id] = (old_x, old_y)
+
+            other_key_old_positions = {}
+            for key_data in other_mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    # Calculate position using OLD order (before swap)
+                    old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                    other_key_old_positions[wid_id] = (old_x, old_y)
+
             mem['order'],other_mem['order'] = other_mem['order'],mem['order']
 
-            # swap list positions
             s.stamp_kids[current_list_index] = other_btn
             s.stamp_kids[target_list_index] = b
 
-            # animate current button moving up
-            # cancel conflicting down
             if (down := s.anims[id(b)].get(5, None)):
                 down.cancel()
                 s.anims[id(b)].pop(5, None)
 
-            # override if still running
             if (anim := s.anims[id(b)].get(4, None)) and not anim.finished:
                 start_pos_b = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old up animation
             s.anims[id(b)].pop(4, None)
 
-            # animate
             end_pos_b = (start_pos_b[0], new_y_up)
             s.anims[id(b)][4] = Animate(
                 widget=b,
@@ -3632,21 +3862,16 @@ class Editor:
                 attrs={'position': (start_pos_b, end_pos_b)}
             )
 
-            # animate other button moving down
-            # cancel conflicting down
             if (down := s.anims[id(other_btn)].get(5, None)):
                 down.cancel()
                 s.anims[id(other_btn)].pop(5, None)
 
-            # override if still running
             if (anim := s.anims[id(other_btn)].get(4, None)) and not anim.finished:
                 start_pos_other = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old up animation
             s.anims[id(other_btn)].pop(4, None)
 
-            # animate
             end_pos_other = (start_pos_other[0], new_y_down)
             s.anims[id(other_btn)][4] = Animate(
                 widget=other_btn,
@@ -3654,9 +3879,104 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
+            # Animate all key widgets for this entry
+            animate_key_widgets(4, key_old_positions)
+            
+            # Animate keys for the other entry
+            for key_data in other_mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    
+                    # Calculate new position based on swapped order
+                    new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    new_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                    
+                    # Get OLD position from stored values
+                    start_wid_pos = other_key_old_positions.get(wid_id, (new_x, new_y))
+                    
+                    if wid_id in s.anims and 4 in s.anims[wid_id]:
+                        if (anim := s.anims[wid_id].get(4, None)) and not anim.finished:
+                            start_wid_pos = anim.attrs_current['position']
+                            anim.cancel()
+                    
+                    if wid_id not in s.anims:
+                        s.anims[wid_id] = {}
+                    
+                    s.anims[wid_id].pop(4, None)
+                    
+                    s.anims[wid_id][4] = Animate(
+                        widget=wid,
+                        attrs={'position': (start_wid_pos, (new_x, new_y))},
+                        duration=s.global_butter
+                    )
+
+            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                wid_id = id(mem['prev_off_wid'])
+
+                for key in [5, 0, 1]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                old_wid_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                new_wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (wid_x, old_wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(4, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(4, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][4] = Animate(
+                    widget=mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (wid_x, new_wid_y))
+                    },
+                    duration=s.global_butter
+                )
+            
+            # Animate prev_off_wid for other entry if it exists
+            if other_mem.get('prev_off_wid') and other_mem['prev_off_wid'].exists():
+                wid_id = id(other_mem['prev_off_wid'])
+
+                for key in [5, 0, 1]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                wid_x = s.magic_x + s.entry_xs_real * (other_mem['start'] + other_mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                old_wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                new_wid_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (wid_x, old_wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(4, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(4, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][4] = Animate(
+                    widget=other_mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (wid_x, new_wid_y))
+                    },
+                    duration=s.global_butter
+                )
+
         # move down
         if which == 5:
-            # validate bounds
             current_list_index = s.stamp_kids.index(b)
             max_list_index = len(s.stamp_kids) - 1
             if current_list_index == max_list_index:
@@ -3666,39 +3986,53 @@ class Editor:
 
             Eval.SOUND(Const.OK_SOUND).play()
 
-            # neighbor
             target_list_index = current_list_index + 1
             other_btn = s.stamp_kids[target_list_index]
             other_mem = s.memory[id(other_btn)]
 
-            # old positions
             start_pos_b = Eval.ENTRY_POS(s,mem)
             start_pos_other = Eval.ENTRY_POS(s,other_mem)
             new_y_down = Eval.ENTRY_Y(s,other_mem)
             new_y_up = Eval.ENTRY_Y(s,mem)
 
-            # swap orders
+            # Store old positions before swapping order
+            key_old_positions = {}
+            for key_data in mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    # Calculate position using OLD order (before swap)
+                    old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                    key_old_positions[wid_id] = (old_x, old_y)
+
+            other_key_old_positions = {}
+            for key_data in other_mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    # Calculate position using OLD order (before swap)
+                    old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                    other_key_old_positions[wid_id] = (old_x, old_y)
+
             mem['order'],other_mem['order'] = other_mem['order'],mem['order']
 
-            # swap list positions
             s.stamp_kids[current_list_index] = other_btn
             s.stamp_kids[target_list_index] = b
 
-            # animate current button moving down
-            # cancel conflicting up
             if (up := s.anims[id(b)].get(4, None)):
                 up.cancel()
                 s.anims[id(b)].pop(4, None)
 
-            # override if still running
             if (anim := s.anims[id(b)].get(5, None)) and not anim.finished:
                 start_pos_b = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old down animation
             s.anims[id(b)].pop(5, None)
 
-            # animate
             end_pos_b = (start_pos_b[0], new_y_down)
             s.anims[id(b)][5] = Animate(
                 widget=b,
@@ -3706,21 +4040,16 @@ class Editor:
                 attrs={'position': (start_pos_b, end_pos_b)}
             )
 
-            # animate other button moving up
-            # cancel conflicting up
             if (up := s.anims[id(other_btn)].get(4, None)):
                 up.cancel()
                 s.anims[id(other_btn)].pop(4, None)
 
-            # override if still running
             if (anim := s.anims[id(other_btn)].get(5, None)) and not anim.finished:
                 start_pos_other = anim.attrs_current['position']
                 anim.cancel()
 
-            # clean old down animation
             s.anims[id(other_btn)].pop(5, None)
 
-            # animate
             end_pos_other = (start_pos_other[0], new_y_up)
             s.anims[id(other_btn)][5] = Animate(
                 widget=other_btn,
@@ -3728,7 +4057,102 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
-        # duplicate
+            # Animate all key widgets for this entry
+            animate_key_widgets(5, key_old_positions)
+            
+            # Animate keys for the other entry
+            for key_data in other_mem.get('keys', []):
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    
+                    # Calculate new position based on swapped order
+                    new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    new_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                    
+                    # Get OLD position from stored values
+                    start_wid_pos = other_key_old_positions.get(wid_id, (new_x, new_y))
+                    
+                    if wid_id in s.anims and 5 in s.anims[wid_id]:
+                        if (anim := s.anims[wid_id].get(5, None)) and not anim.finished:
+                            start_wid_pos = anim.attrs_current['position']
+                            anim.cancel()
+                    
+                    if wid_id not in s.anims:
+                        s.anims[wid_id] = {}
+                    
+                    s.anims[wid_id].pop(5, None)
+                    
+                    s.anims[wid_id][5] = Animate(
+                        widget=wid,
+                        attrs={'position': (start_wid_pos, (new_x, new_y))},
+                        duration=s.global_butter
+                    )
+
+            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                wid_id = id(mem['prev_off_wid'])
+
+                for key in [4, 0, 1]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                old_wid_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+                new_wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (wid_x, old_wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(5, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(5, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][5] = Animate(
+                    widget=mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (wid_x, new_wid_y))
+                    },
+                    duration=s.global_butter
+                )
+            
+            # Animate prev_off_wid for other entry if it exists
+            if other_mem.get('prev_off_wid') and other_mem['prev_off_wid'].exists():
+                wid_id = id(other_mem['prev_off_wid'])
+
+                for key in [4, 0, 1]:
+                    if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                        anim.cancel()
+                        s.anims[wid_id].pop(key, None)
+
+                wid_x = s.magic_x + s.entry_xs_real * (other_mem['start'] + other_mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                old_wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                new_wid_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1) + s.entry_ys_real/8
+
+                start_wid_pos = (wid_x, old_wid_y)
+
+                if (anim := s.anims.get(wid_id, {}).get(5, None)) and not anim.finished:
+                    start_wid_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                if wid_id in s.anims:
+                    s.anims[wid_id].pop(5, None)
+                else:
+                    s.anims[wid_id] = {}
+
+                s.anims[wid_id][5] = Animate(
+                    widget=other_mem['prev_off_wid'],
+                    attrs={
+                        'position': (start_wid_pos, (wid_x, new_wid_y))
+                    },
+                    duration=s.global_butter
+                )
+
         if which == 6:
             Eval.SOUND(Const.OK_SOUND).play()
             if s.can_do != which:
@@ -3739,19 +4163,16 @@ class Editor:
                 return
             s.on_scroll()
 
-            # cancel all existing duplicate animations and fix their state
             for kid in s.stamp_kids:
                 if (anim := s.anims[id(kid)].get(6, None)):
                     anim.cancel()
                     s.anims[id(kid)].pop(6, None)
-                    # reset to final state
                     bui.buttonwidget(
                         kid,
                         opacity=Color.OPACITY,
                         textcolor=(*Color.TEXT, Color.OPACITY)
                     )
 
-            # copy memory data
             original_data = mem.copy()
             original_event = original_data['event']
             original_duration = original_data['duration']
@@ -3764,7 +4185,6 @@ class Editor:
                 ) for i,j in original_data['data'].copy().items()
             }
 
-            # create button
             size = (
                 s.entry_xs_real * (
                     original_duration *
@@ -3784,44 +4204,58 @@ class Editor:
                 button_type='square'
             )
 
-            # insert right after original in list
             original_list_index = s.stamp_kids.index(b)
             s.stamp_kids.insert(original_list_index + 1, btn)
 
-            # new order is right after original
             new_order = original_order + 1
 
-            # setup callback
             call = bui.CallPartial(
                 s.select, btn
             )
             bui.buttonwidget(btn, on_activate_call=call)
 
-            # add to memory
+            # Copy keys from original entry
+            new_keys = []
+            for key_data in original_data.get('keys', []):
+                new_key_data = key_data.copy()
+                # Create new widget for duplicated key
+                key_time = new_key_data['time']
+                key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                key_y = s.entry_ys_real * (len(s.memory) - new_order) + s.entry_ys_real/8
+                
+                new_key_wid = bui.imagewidget(
+                    parent=s.stamp_scroll_root,
+                    position=(key_x, key_y),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=0
+                )
+                new_key_data['widget'] = new_key_wid
+                new_keys.append(new_key_data)
+
             s.memory[id(btn)] = {
                 'order': new_order,
                 'event': original_event,
                 'data': node_data,
                 'duration': original_duration,
-                'start': original_start
+                'start': original_start,
+                'keys': new_keys,
+                'prev_off': original_data.get('prev_off'),
+                'prev_off_wid': None  # Don't duplicate prev_off_wid as it's only for preview
             }
 
-            # shift all entries below down by one
             for kid in s.stamp_kids[original_list_index + 2:]:
                 s.memory[id(kid)]['order'] += 1
 
-            # update layout
             s.wrap([1, 2, 3])
 
-            # calculate positions
             final_x = Eval.ENTRY_X(s, {'start': original_start, 'duration': original_duration})
             orig_y = Eval.ENTRY_Y(s, {'order': original_order})
             final_y = Eval.ENTRY_Y(s, {'order': new_order})
 
-            # place at original position
             bui.buttonwidget(btn, position=(final_x, orig_y))
 
-            # shift entries below duplicate down by one
             for kid in s.stamp_kids[:original_list_index + 1]:
                 kid_mem = s.memory[id(kid)]
                 kid_x = Eval.ENTRY_X(s, kid_mem)
@@ -3837,7 +4271,6 @@ class Editor:
                     duration=s.global_butter
                 )
 
-            # shift entries above and including original up by one
             for kid in s.stamp_kids[:original_list_index + 1]:
                 kid_mem = s.memory[id(kid)]
                 kid_width_steps = kid_mem['duration'] * s.entries_per_sec
@@ -3853,11 +4286,32 @@ class Editor:
                     },
                     duration=s.global_butter
                 )
+                
+                # Animate existing entry's keys
+                for key_data in kid_mem.get('keys', []):
+                    if 'widget' in key_data and key_data['widget'].exists():
+                        wid = key_data['widget']
+                        wid_id = id(wid)
+                        key_time = key_data['time']
+                        
+                        key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                        old_key_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 2) + s.entry_ys_real/8
+                        new_key_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1) + s.entry_ys_real/8
+                        
+                        if wid_id not in s.anims:
+                            s.anims[wid_id] = {}
+                        
+                        s.anims[wid_id][which] = Animate(
+                            widget=wid,
+                            attrs={
+                                'opacity': (Color.OPACITY, Color.OPACITY),
+                                'position': ((key_x, old_key_y), (key_x, new_key_y))
+                            },
+                            duration=s.global_butter
+                        )
 
-            # animate new button from original to below
             s.anims[id(btn)][which] = Animate(
                 widget=btn,
-
                 attrs={
                     'opacity': (0, Color.OPACITY),
                     'textcolor': (
@@ -3868,20 +4322,39 @@ class Editor:
                 },
                 duration=s.global_butter
             )
+            
+            # Animate duplicated entry's keys
+            for key_data in new_keys:
+                if 'widget' in key_data and key_data['widget'].exists():
+                    wid = key_data['widget']
+                    wid_id = id(wid)
+                    key_time = key_data['time']
+                    
+                    key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    key_y = s.entry_ys_real * (len(s.memory) - new_order - 1) + s.entry_ys_real/8
+                    
+                    if wid_id not in s.anims:
+                        s.anims[wid_id] = {}
+                    
+                    s.anims[wid_id][which] = Animate(
+                        widget=wid,
+                        attrs={
+                            'opacity': (0, Color.OPACITY),
+                            'position': ((key_x, orig_y + s.entry_ys_real/8), (key_x, key_y))
+                        },
+                        duration=s.global_butter
+                    )
 
-            # scroll to new button
             s.scroll_to_timer = bui.AppTimer(
                 s.global_butter / 2,
                 bui.CallPartial(s.scroll_to, btn)
             )
 
-            # select and toast
             call()
             s.toast(Strings.INFO_DUPLICATED(node_data["name"]))
             s.build_timeline()
             return
 
-        # delete
         if which == 7:
             Eval.SOUND(Const.OK_SOUND).play()
             if s.can_do != which:
@@ -3891,42 +4364,40 @@ class Editor:
                 s.can_do = which
                 return
 
-            # editing? kill
             if s.window_on and s.window_on[1] == s.edit_window:
                 s.window_back()
 
-            # get the name for toast
             node_name = mem['data']['name']
             deleted_order = mem['order']
 
-            # animate fade out
             def cleanup():
-                # remove from memory
+                # Delete all key widgets for this entry
+                for key_data in mem.get('keys', []):
+                    if 'widget' in key_data and key_data['widget'].exists():
+                        key_data['widget'].delete()
+
+                if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
+                    mem['prev_off_wid'].delete()
+
                 del s.memory[id(b)]
 
-                # remove from kids list
                 s.stamp_kids.remove(b)
 
-                # delete widget
                 if b.exists():
                     b.delete()
 
-                # update orders for remaining items
                 for kid in s.stamp_kids:
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] > deleted_order:
                         kid_mem['order'] -= 1
 
-                # update layout
                 s.wrap([1,2,3])
 
-                # animate remaining items into new positions
                 for idx, kid in enumerate(reversed(s.stamp_kids)):
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] >= deleted_order: continue
                     old_x = Eval.ENTRY_X(s,kid_mem)
 
-                    # current position
                     current_y = s.entry_ys_real*(idx+1)
 
                     end_pos = (
@@ -3945,19 +4416,16 @@ class Editor:
                         duration=s.global_butter
                     )
 
-                # deselect
                 s.sl = None
                 s.hide_tools()
                 if len(s.memory):
                     s.show_controls(up=True)
 
-                # toast
                 s.toast(Strings.INFO_DELETED(
                     node_name
                 ))
                 s.build_timeline()
 
-            # fade out animation
             s.anims[id(b)][which] = Animate(
                 widget=b,
                 attrs={
@@ -3971,11 +4439,9 @@ class Editor:
                 on_finish=cleanup
             )
 
-            # finally
             s.wrap(2)
             return
 
-        # default
         s.build_timeline()
         bui.apptimer(
             scroll_butter,
@@ -4233,8 +4699,8 @@ class Animate:
 
 class Strings:
     # map
-    NAME = 'Movi'
-    DESCRIPTION = 'Movie Maker'
+    MAP_TITLE = 'Movi'
+    MAP_DESCRIPTION = 'Movie Maker'
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
     # UI
@@ -4261,7 +4727,7 @@ class Strings:
     ATTR_HELP = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
     EVAL = 'Eval'
     EVAL_HELP = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
-    TIME = 'Time'
+    OFFSET = 'Offset'
     TYPE = 'Type'
     TYPE_HELP = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
     NAME = 'Name'
@@ -4288,6 +4754,10 @@ class Strings:
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
     # errors
+    ERROR_INVALID = 'Invalid {}!'
+    ERROR_INVALID_HELP = 'Check your input pal'
+    ERROR_OUT_OF_RANGE = '{} out of range!'
+    ERROR_OUT_OF_RANGE_HELP = 'You went too far'
     ERROR_EMPTY = 'Empty {}!'
     ERROR_EMPTY_HELP = 'Stop leaving empty text boxes around'
     ERROR = 'Error!'
@@ -4481,6 +4951,7 @@ class Const:
     SHADOW = 'softRect'
     GLOW = 'uniform'
     ALIGN = 'center'
+    KEY = 'circleZigZag'
     # control charstr
     CONTROLS = (
         ('PLAY_BUTTON','PAUSE_BUTTON'),
@@ -4587,6 +5058,14 @@ class Format:
         or Strings.ERROR,
         Strings.ERROR_HELP
     )
+    INVALID = lambda e: (
+        Strings.ERROR_INVALID.format(e),
+        Strings.ERROR_INVALID_HELP
+    )
+    OUT_OF_RANGE = lambda e: (
+        Strings.ERROR_OUT_OF_RANGE.format(e),
+        Strings.ERROR_OUT_OF_RANGE_HELP
+    )
     ERROR_EMPTY = lambda e: (
         Strings.ERROR_EMPTY.format(e),
         Strings.ERROR_EMPTY_HELP
@@ -4608,8 +5087,8 @@ Color = getattr(Colors,Config.COLOR)
 
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
-    name = Strings.NAME
-    description = Strings.DESCRIPTION
+    name = Strings.MAP_TITLE
+    description = Strings.MAP_DESCRIPTION
     get_availabe_settings = lambda s:[]
     supports_session_type = lambda s:True
     get_supported_maps = lambda s:bs.app.classic.getmaps('melee')
