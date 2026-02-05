@@ -30,7 +30,7 @@ __counter__ = 2
 # config
 class Config:
     THEME = 0
-    AUTOSTART = True
+    AUTOSTART = False
     ANTIKICK = True
     UI_DEBUG = False
 
@@ -625,6 +625,9 @@ class Proto:
                 _say('Socket is not active!')
                 _snd('block')
                 return
+            # delay
+            try: delay = float(bui.textwidget(query=s.delay))
+            except: delay = 0
             # hex head
             out = bytes.fromhex(
                 wrap(
@@ -639,9 +642,13 @@ class Proto:
             )).encode()
             # finally
             s.log(out,Log.ME)
-            _sock.sendto(
-                out,
-                (_info['addr'],int(_info['port']))
+            bui.apptimer(
+                delay,
+                bui.CallPartial(
+                    _sock.sendto,
+                    out,
+                    (_info['addr'],int(_info['port']))
+                )
             )
         py -= dy
         bui.buttonwidget(
