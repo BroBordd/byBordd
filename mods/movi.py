@@ -13,9 +13,12 @@ import bauiv1 as bui
 import _babase as _ba
 import bascenev1 as bs
 
+from re import sub
+from os import listdir
 from random import choice
 from time import perf_counter
 from weakref import WeakMethod
+from os.path import join, dirname
 from collections import defaultdict
 
 __version__ = '1.0'
@@ -60,6 +63,7 @@ class Editor:
         s.timeline = []
         s.timeline_index = 0
         s.active = {}
+        s.active_sounds = {}
         # play
         s.play_timer = None
         s.playing = False
@@ -966,6 +970,7 @@ class Editor:
             s.window_size[0]-150-s.window_marg,
             s.window_size[1]-54
         )
+        had_data = data is not None
         data = data or {}
         # Attribute
         if i == 0:
@@ -1159,7 +1164,11 @@ class Editor:
                     },
                     'widget':key_wid
                 }
-                s.toast(Strings.INFO_ADDED_KEY)
+                s.toast(
+                    had_data and
+                    Strings.INFO_EDITED_KEY or
+                    Strings.INFO_ADDED_KEY
+                )
                 s.window_back()
             # done button
             b = bui.buttonwidget(
@@ -1183,7 +1192,155 @@ class Editor:
             pass
         # Volume
         elif i == 3:
-            pass
+            # volume
+            tx = Strings.VALUE
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            vol_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('volume',''))
+            )
+            s.key_kids.append((vol_inp,1))
+            # offset
+            bx,by = 100,40
+            tx = Strings.OFFSET
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*2-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            time_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*2-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('offset',''))
+            )
+            s.key_kids.append((time_inp,1))
+            _old_off = None
+            def _off_spy():
+                nonlocal _old_off
+                if not time_inp.exists():
+                    s.off_spy = None
+                    return
+                o = bui.textwidget(query=time_inp)
+                if (
+                    o.replace('.','',1).isdigit()
+                    and (new:=float(o)) != _old_off
+                ):
+                    mem = s.memory[id(s.sl)]
+                    _old_off = new
+                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    if not (0 <= new <= mem['duration']): return
+                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                        parent=s.stamp_scroll_root,
+                        position=(
+                            s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
+                            s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                        ),
+                        size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                        texture=Eval.TEXTURE(Const.KEY),
+                        color=Color.TEMP,
+                        opacity=Color.OPACITY
+                    )
+                    mem['prev_off'] = new
+            s.off_spy = bui.AppTimer(
+                0.02, _off_spy, repeat=True
+            )
+            def do_done():
+                v = bui.textwidget(query=vol_inp)
+                o = bui.textwidget(query=time_inp)
+                if not v:
+                    s.toast(Format.ERROR_EMPTY(Strings.VALUE))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not o:
+                    s.toast(Format.ERROR_EMPTY(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    volume_val = round(float(v),2)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.VOLUME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    offset_val = float(o)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if not (0 <= offset_val <= mem['duration']):
+                    s.toast(Format.OUT_OF_RANGE(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                actual_time = mem['start'] + offset_val
+                key_x = s.magic_x + s.entry_xs_real * actual_time * s.entries_per_sec - s.entry_ys_real/4
+                key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1) + s.entry_ys_real/8
+                key_wid = bui.imagewidget(
+                    parent=s.stamp_scroll_root,
+                    position=(key_x, key_y),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=Color.OPACITY
+                )
+                nam = str(volume_val*100)+'%'
+                if nam in mem['keys']:
+                    mem['keys'][nam]['widget'].delete()
+                mem['keys'][nam] = {
+                    'time':actual_time,
+                    'action':i,
+                    'data':{
+                        'volume':volume_val,
+                        'offset':offset_val,
+                        'name':nam
+                    },
+                    'widget':key_wid
+                }
+                s.toast(
+                    had_data and
+                    Strings.INFO_EDITED_KEY or
+                    Strings.INFO_ADDED_KEY
+                )
+                s.window_back()
+            # done button
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+sx-(bx+5),y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_done,
+                enable_sound=False,
+                label=Strings.DONE,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
         # finally
         for k,_ in s.key_kids:
             if _ == 1: continue
@@ -2033,6 +2190,8 @@ class Editor:
         func = (
             i == 0 and s.make_node_window or
             i == 1 and s.make_camera_window or
+            i == 2 and s.make_sound_window or
+            i == 3 and s.make_fx_window or
             (lambda _:s.toast(Strings.COMING_SOON))
         )
         r = func(edit)
@@ -3094,6 +3253,366 @@ class Editor:
         # cleanup on window close
         return lambda: (kill_prev(), stop_preview()) if not virgin else kill_prev()
 
+    def make_sound_window(s, edit=None):
+        # math
+        x, y = s.window_pos
+        sx, sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        data = edit and edit['data']
+
+        # Sample sound list (will be wired to listdir later)
+        sound_files = sorted(listdir(join(Const.BA_DATA,'audio')))
+
+        # State
+        current_sound = data and data['file'] or None
+        current_sound_obj = None
+
+        # Helper to format sound name
+        def format_name(filename):
+            # Remove .ogg extension
+            name = filename.replace('.ogg', '')
+            # Split camelCase: insert space before capitals
+            spaced = sub(r'([a-z])([A-Z])', r'\1 \2', name)
+            return spaced.title()
+
+        # Helper to stop current sound
+        def stop_current():
+            nonlocal current_sound_obj
+            if current_sound_obj:
+                current_sound_obj.stop()
+                current_sound_obj = None
+
+        # Sound scroll
+        size = dx, dy = (sx/2 - s.window_marg*3, sy - s.window_marg*9 - 55)
+        pos = px, py = (s.window_marg - s.window_fix, s.window_marg - s.window_fix + 55)
+        sound_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            size=(dx/2, 0),
+            border_opacity=0
+        )
+        s.window_kids.append((sound_scroll, pos, 20, delay + 0,
+            ('size', ((0, size[1]), size)),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
+        ))
+
+        # Sound root
+        sound_root = bui.containerwidget(
+            parent=sound_scroll,
+            background=False
+        )
+
+        chks = data.get('chks',[False,False])
+        def do_chk(i,v):
+            chks[i] = v
+        # positional check
+        bx, by = 80, 40
+        pos = (s.window_marg-8,s.window_marg)
+        pos_chk = bui.checkboxwidget(
+            parent=s.root,
+            text=Strings.EVERYWHERE,
+            position=pos,
+            color=Color.BASE,
+            textcolor=Const.INVISIBLE,
+            scale=0,
+            maxwidth=bx-s.window_marg,
+            value=chks[0],
+            on_value_change_call=bui.CallPartial(do_chk,0)
+        )
+        s.window_kids.append((pos_chk,pos,text_push,delay+0.12,
+            ('size',((bx/2,by),(bx,by))),
+            ('scale',(0,1))
+        ))
+
+        # loop check
+        bx, by = 80, 40
+        pos = (s.window_marg-3+bx+40,s.window_marg)
+        loop_chk = bui.checkboxwidget(
+            parent=s.root,
+            text=Strings.LOOP,
+            position=pos,
+            color=Color.BASE,
+            textcolor=Const.INVISIBLE,
+            scale=0,
+            maxwidth=bx/2,
+            value=chks[1],
+            on_value_change_call=bui.CallPartial(do_chk,1)
+        )
+        s.window_kids.append((loop_chk,pos,text_push,delay+0.12,
+            ('size',((bx/2,by),(bx,by))),
+            ('scale',(0,1))
+        ))
+
+        text_y = 30
+        sound_texts = []
+
+        # Populate sound list
+        for i, filename in enumerate(sound_files):
+            w = bui.textwidget(
+                parent=sound_root,
+                size=(dx, text_y),
+                position=(0, i * text_y),
+                maxwidth=dx - 15,
+                selectable=True,
+                glow_type=Const.GLOW,
+                click_activate=True,
+                text=filename,
+                color=Const.INVISIBLE,
+                v_align=Const.ALIGN
+            )
+            sound_texts.append(w)
+
+        # Set container size
+        bui.containerwidget(
+            sound_root,
+            size=(dx, max(len(sound_files) * text_y, dy - 15))
+        )
+
+        # Title text position
+        title_pos = (sx/2 + s.window_marg, sy - s.window_marg - 80)
+        title_text = bui.textwidget(
+            parent=s.root,
+            position=title_pos,
+            text=current_sound and format_name(current_sound) or Strings.SOUND_PLACEHOLDER,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            maxwidth=sx/2 - s.window_marg*2,
+            scale=1.2
+        )
+        s.window_kids.append((title_text, title_pos, text_push, delay + 0.1))
+
+        # Position inputs (X, Y, Z)
+        input_width = (sx/2 - s.window_marg*5) / 3 + 5
+        input_height = 35
+        input_y = sy - s.window_marg - 150
+        labels = ['X', 'Y', 'Z']
+        position_inputs = []
+
+        for idx, label in enumerate(labels):
+            # Label
+            label_pos = (sx/2 + s.window_marg + idx * (input_width + s.window_marg), input_y + input_height)
+            label_widget = bui.textwidget(
+                parent=s.root,
+                position=label_pos,
+                text=label,
+                color=Const.INVISIBLE,
+                scale=0.8
+            )
+            s.window_kids.append((label_widget, label_pos, text_push, delay + 0.12))
+
+            # Input
+            input_pos = (sx/2 + s.window_marg + idx * (input_width + s.window_marg) - 5, input_y)
+            input_widget = bui.textwidget(
+                parent=s.root,
+                position=input_pos,
+                editable=True,
+                allow_clear_button=False,
+                color=Const.INVISIBLE,
+                size=(0, 0),
+                text=data and str(data.get(label.lower(), 0)) or '0',
+                glow_type=Const.GLOW,
+                v_align=Const.ALIGN
+            )
+            position_inputs.append(input_widget)
+            s.window_kids.append((input_widget, input_pos, text_push, delay + 0.13,
+                ('size', ((input_width/2, input_height), (input_width, input_height)))
+            ))
+
+        # Volume input
+        vol_label_pos = (sx/2, input_y - 36)
+        vol_label = bui.textwidget(
+            parent=s.root,
+            position=vol_label_pos,
+            text='Volume',
+            color=Const.INVISIBLE,
+            scale=0.8
+        )
+        s.window_kids.append((vol_label, vol_label_pos, text_push, delay + 0.15))
+
+        vol_input_pos = (sx/2 + s.window_marg + 90, input_y - 40)
+        volume_input = bui.textwidget(
+            parent=s.root,
+            position=vol_input_pos,
+            editable=True,
+            allow_clear_button=False,
+            color=Const.INVISIBLE,
+            size=(0, 0),
+            text=data and str(data.get('volume', 1.0)) or '1.0',
+            glow_type=Const.GLOW,
+            v_align=Const.ALIGN
+        )
+        s.window_kids.append((volume_input, vol_input_pos, text_push, delay + 0.16,
+            ('size', ((input_width/2, input_height), (input_width * 1.8, input_height)))
+        ))
+
+        # Select sound function
+        def select_sound(filename):
+            nonlocal current_sound, current_sound_obj
+            stop_current()
+            current_sound = filename
+            bui.textwidget(title_text, text=format_name(filename))
+
+        # Select sound function
+        def select_sound(filename):
+            nonlocal current_sound, current_sound_obj
+            stop_current()
+            current_sound = filename
+            bui.textwidget(title_text, text=format_name(filename))
+
+        # Wire up sound text callbacks
+        all_delay = delay + 0.05 + len(sound_files) * 0.01
+        for i, (filename, w) in enumerate(zip(sound_files, sound_texts)):
+            bui.textwidget(
+                w,
+                on_activate_call=bui.CallPartial(select_sound, filename)
+            )
+            # Animate
+            butter = s.global_butter
+            s.anims[id(w)] = Animate(
+                widget=w,
+                attrs={
+                    'color': (
+                        Const.INVISIBLE,
+                        (*Color.TEXT, Color.OPACITY)
+                    ),
+                    'position': (
+                        (50, i * text_y),
+                        (0, i * text_y)
+                    )
+                },
+                duration=butter,
+                delay=all_delay - i * 0.01
+            )
+
+        s.window_trash = [sound_texts]
+
+        # Button math
+        button_x= sx - (dx + s.window_marg*2)
+        button_y = s.window_marg
+
+        # Play button
+        def do_play():
+            nonlocal current_sound_obj
+            if not current_sound:
+                s.toast(Strings.ERROR_NO_SOUND_SELECTED)
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            stop_current()
+            # Load and play (getsound needs filename without extension)
+            sound_name = current_sound.replace('.ogg', '')
+            sound = Eval.SOUND(sound_name)
+            sound.play()
+            # IMPORTANT: sound.play() returns None, so we store the sound object itself
+            current_sound_obj = sound
+
+        play_pos = (button_x-5, button_y*3+by)
+        play_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=play_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Eval.CHAR(Const.PLAY_BUTTON),
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_play
+        )
+        s.window_kids.append((play_button, play_pos, 50, delay + 0.15,
+            ('size', ((0, by), (dx/2 - s.window_marg/2, by)))
+        ))
+
+
+        # Stop button
+        def do_stop():
+            stop_current()
+
+        stop_pos = (button_x+dx/2+s.window_marg*2, button_y*3+by)
+        stop_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=stop_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Eval.CHAR(Const.PAUSE_BUTTON),
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_stop
+        )
+        s.window_kids.append((stop_button, stop_pos, 50, delay + 0.15,
+            ('size', ((0, by), (dx/2 - s.window_marg/2+2, by)))
+        ))
+
+        # Done button
+        def do_done():
+            if not current_sound:
+                s.toast(Strings.ERROR_NO_SOUND_SELECTED)
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            stop_current()
+
+            # Collect position and volume
+            try:
+                x_val = float(bui.textwidget(query=position_inputs[0]) or '0')
+                y_val = float(bui.textwidget(query=position_inputs[1]) or '0')
+                z_val = float(bui.textwidget(query=position_inputs[2]) or '0')
+                vol_val = float(bui.textwidget(query=volume_input) or '1.0')
+            except ValueError:
+                s.toast(Strings.ERROR_INVALID.format('position/volume'))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            Eval.SOUND(Const.OK_SOUND).play()
+
+            final = {
+                'name': format_name(current_sound),
+                'file': current_sound,
+                'x': x_val,
+                'y': y_val,
+                'z': z_val,
+                'volume': vol_val,
+                'chks':chks.copy(),
+            }
+
+            if edit:
+                data.update(final)
+                bui.buttonwidget(
+                    s.stamp_kids[edit['order']],
+                    label=final['name']
+                )
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else:
+                s.add_entry(final)
+
+        done_pos = (sx - (dx + s.window_marg*2), button_y)
+        done_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=done_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.DONE,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((done_button, done_pos, 50, delay + 0.2,
+            ('size', ((0, by), (sx/2 - s.window_marg*2, by)))
+        ))
+
+        # Cleanup function
+        return lambda: stop_current()
+
+    def make_fx_window(s,edit=None):
+        # position=(x,y,z), velocity=(0,0,0), count=10,
+        # scale=1.0, spread=1.0, chunk_type='rock',
+        # emit_type='chunks', tendril_type='smoke'
+        pass
+
     def window_clean(s):
         for w,*_ in s.window_kids:
             s.anims[id(w)].reverse(
@@ -3473,6 +3992,24 @@ class Editor:
                 if not s.camera_data:
                     s.camera_timer = None
                     man and _ba.set_camera_manual(False)
+        if what == 2:
+            if start:
+                sound_name = data['file'].replace('.ogg', '')
+                position = (data['x'], data['y'], data['z'])
+                volume = data['volume']
+                with bs.get_foreground_host_activity().context:
+                    sound = s.active_sounds[id(data)] = bs.newnode(
+                        'sound',
+                        attrs={
+                            'position':position,
+                            'sound':bs.getsound(sound_name),
+                            'volume':volume,
+                            'positional':not data['chks'][0],
+                            'loop':data['chks'][1]
+                        }
+                    )
+            else:
+                s.active_sounds.pop(id(data)).delete()
 
         # Execute keys for this event
         # Keys are executed based on time, not start/end
@@ -3521,8 +4058,14 @@ class Editor:
 
         # Volume (action 3)
         elif action == 3:
-            # TODO: Implement volume control
-            pass
+            v = key_data['data']['volume']
+            if btn_id in s.active:
+                node = s.active[btn_id]
+                if node.exists():
+                    try: node.volume = v
+                    except Exception as e:
+                        s.toast(Format.ERROR(e))
+                        Eval.SOUND(Const.BAD_SOUND).play()
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
@@ -4967,6 +5510,9 @@ class Strings:
     DONE = 'Done'
     TARGET = 'Traget'
     POSITION = 'Position'
+    VALUE = 'Value'
+    EVERYWHERE = 'Everywhere'
+    LOOP = 'Loop'
     # key
     ACTIONS = [
         'Attribute',
@@ -4975,7 +5521,7 @@ class Strings:
         'Volume'
     ]
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
-    # global event
+    SOUND_PLACEHOLDER = 'Select a sound'
     # camera event
     CAMERA_RESET_BUTTON = 'Reset'
     CAMERA_PREVIEW_BUTTON_OFF = 'Preview'
@@ -4985,6 +5531,10 @@ class Strings:
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
     # errors
+    ERROR_NO_SOUND_SELECTED = (
+        'No sound selected!',
+        'Pick one from the list first'
+    )
     ERROR_INVALID = 'Invalid {}!'
     ERROR_INVALID_HELP = 'Check your input pal'
     ERROR_OUT_OF_RANGE = '{} out of range!'
@@ -5095,7 +5645,11 @@ class Strings:
     )
     INFO_ADDED_KEY = (
         'Key added!',
-        'Expands from the same event'
+        'Yeah, that red dot'
+    )
+    INFO_EDITED_KEY = (
+        'Key edited!',
+        'Now it does something else'
     )
     # confirm
     CONFIRM_DUPLICATE = lambda t:(
@@ -5162,6 +5716,11 @@ class Strings:
     )
 
 class Const:
+    BA_DATA = join(
+        dirname(
+            bui.app.env.cache_directory
+        ), 'ballistica_files', 'ba_data'
+    )
     # scaling
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
@@ -5178,6 +5737,8 @@ class Const:
     GLOW = 'uniform'
     ALIGN = 'center'
     KEY = 'circleZigZag'
+    PLAY_BUTTON = 'PLAY_BUTTON'
+    PAUSE_BUTTON = 'PAUSE_BUTTON'
     # charstr
     CONTROLS = (
         ('PLAY_BUTTON','PAUSE_BUTTON'),
