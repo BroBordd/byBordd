@@ -2750,11 +2750,12 @@ class Art:
         s.anims.clear()
 
 class Waffle:
-    def __init__(s,parent,theme,width,position,opacity=None,**k):
+    def __init__(s,parent,theme,width,position,opacity=None,patch={},**k):
         s.theme = theme
         s.parent = parent
         s.width = width
         s.position = position
+        s.patch = patch
         s.colors = [
             s.theme.SHADOW,
             s.theme.TEXT,
@@ -2774,6 +2775,7 @@ class Waffle:
                 else opacity
             ),
             texture=Eval.TEXTURE(Const.IMG_BASE),
+            **patch,
             **k
         )
         s.waffie()
@@ -2794,7 +2796,8 @@ class Waffle:
                 texture=Eval.TEXTURE(Const.IMG_SHADOW),
                 color=color,
                 size=(width, width),
-                opacity=s.theme.OPACITY
+                opacity=s.theme.OPACITY,
+                **s.patch
             )
             for (row, col), color in zip(
                 ((r, c) for r in range(2) for c in range(2)),
@@ -3729,7 +3732,10 @@ class byBordd(ba.Plugin):
                 width=sx,
                 position=(px,py),
                 id=f"{z.main_window_id_prefix}|board",
-                opacity=0.3
+                opacity=0.3,
+                patch={
+                    'transition_delay':z._tdelay+3*z._t_delay_inc
+                }
             ).waffle), on_activate_call=bui.CallPartial(
                 z.main_window_replace, bui.CallPartial(
                     Board, source=btn
