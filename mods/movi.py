@@ -54,11 +54,12 @@ class Editor:
     def callback(s,cb):
         bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
-    def __init__(s):
+    def __init__(s,map):
         # register
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
         s.ui_clickable = False
+        s.original_map = map
         # timeline
         s.timeline = []
         s.timeline_index = 0
@@ -120,7 +121,6 @@ class Editor:
         s.camera_data = {}
         # extra
         s.sl = None
-        s.sl_main = None
         s.global_butter = 0.3
         s.can_do = False
         s.blame = None
@@ -2259,6 +2259,7 @@ class Editor:
             i == 1 and s.make_camera_window or
             i == 2 and s.make_sound_window or
             i == 3 and s.make_fx_window or
+            i == 4 and s.make_map_window or
             (lambda _:s.toast(Strings.COMING_SOON))
         )
         wait = 0
@@ -2359,10 +2360,13 @@ class Editor:
         )
         s.window_kids.append((w,pos,50,0.35))
 
-    def add_entry(s,final):
+    def add_entry(s,final,smol=False):
         # setup
         nam = final['name']
-        end_size = (
+        end_size = smol and (
+            s.entry_ys_real,
+            s.entry_ys_real - s.magic_y
+        ) or (
             s.entry_xs_real * (
                 s.entries_per_sec *
                 s.object_duration
@@ -2393,9 +2397,10 @@ class Editor:
             'order':len(s.memory),
             'event':s.last_window_i,
             'data':final,
-            'duration':s.object_duration,
+            'duration':s.object_duration/(smol and s.entries_per_sec or 1),
             'start':0.0,
-            'keys':{}
+            'keys':{},
+            'smol':smol
         }
         s.build_timeline()
         # push
@@ -4142,6 +4147,506 @@ class Editor:
                 sync(0)
         return lambda: setattr(s,'prv_fx',None)
 
+    def make_map_window(s,edit=None):
+        # math
+        x,y = s.window_pos
+        sx,sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        data = edit and edit['data']
+        _act = bs.get_foreground_host_activity()
+        # map text
+        pos = (s.window_marg-s.window_fix,sy-88)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=list(Strings.EVENTS)[4],
+            color=Const.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,delay+0.05))
+        # map input
+        pos = (s.window_marg+80-s.window_fix,sy-95)
+        size = (150,40)
+        old_ma = s.original_map
+        map_text = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            maxwidth=size[0],
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            glow_type=Const.GLOW,
+            text=(
+                data and data['map'] or old_ma
+            )
+        )
+        s.window_kids.append((map_text,pos,text_push,delay+0.05,
+            ('size',((0,size[1]),size))
+        ))
+        # separator
+        pos = (s.window_marg-s.window_fix,sy-105)
+        size = (229,2)
+        w = bui.imagewidget(
+            parent=s.root,
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            size=(0,0),
+            opacity=0,
+            color=Color.COLD
+        )
+        s.window_kids.append((w,pos,text_push,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+        # attr text
+        pos = (s.window_marg-s.window_fix,sy-148)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.ATTR,
+            color=Const.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,delay+0.15))
+        # attr input
+        pos = (s.window_marg+80-s.window_fix,sy-155)
+        size = (150,40)
+        attr = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            maxwidth=size[0],
+            description=Strings.MAP_ATTR_HELP,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            glow_type=Const.GLOW
+        )
+        s.window_kids.append((attr,pos,text_push,delay+0.15,
+            ('size',((0,size[1]),size))
+        ))
+        # eval text
+        pos = (s.window_marg-s.window_fix,sy-193)
+        w = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            text=Strings.EVAL,
+            color=Const.INVISIBLE
+        )
+        s.window_kids.append((w,pos,text_push,delay+0.2))
+        # eval input
+        pos = (s.window_marg+80-s.window_fix,sy-200)
+        size = (150,40)
+        val = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            description=Strings.EVAL_HELP,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            maxwidth=size[0],
+            glow_type=Const.GLOW
+        )
+        s.window_kids.append((val,pos,text_push,delay+0.2,
+            ('size',((0,size[1]),size))
+        ))
+        # attr stuff
+        so_far = {}
+        attr_texts = {}
+        bx,by = (215,40)
+        butter = s.global_butter*1.3
+        text_y = 30
+        # attr scroll
+        size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
+        pos = px,py = (sx-dx+5,s.window_marg*2+by+5)
+        w = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            size=(dx/2,0),
+            border_opacity=0
+        )
+        s.window_kids.append((w,pos,20,delay+0,
+            ('size',((0,size[1]),size)),
+            ('border_opacity',(0,Color.OPACITY)),
+            ('color',(Color.COLD,Color.BASE))
+        ))
+        # attr root
+        attr_root = bui.containerwidget(
+            parent=w,
+            background=False
+        )
+        # select attr
+        def select(a):
+            bui.textwidget(attr,text=a)
+            bui.textwidget(val,text=f'{so_far[a]!r}')
+        def valid():
+            # collect
+            a = bui.textwidget(query=attr)
+            v = bui.textwidget(query=val)
+            # verify
+            if not a:
+                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
+                return
+            if not v:
+                s.toast(Format.ERROR_EMPTY(Strings.EVAL))
+                return
+            return a,v
+        # sync
+        sync = lambda i=1: bui.containerwidget(
+            attr_root,
+            size=(dx,max((len(so_far)+i)*text_y,dy-15))
+        )
+        # pop func
+        def do_pop():
+            if not (g:=valid()):
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            a = g[0]
+            if not a in so_far:
+                s.toast(Format.NOT_FOUND(a))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            Eval.SOUND(Const.OK_SOUND).play()
+            so_far.pop(a)
+            _i = list(attr_texts).index(a)
+            _w = attr_texts.pop(a)
+            if (anim:=s.anims[id(_w)]): anim.cancel()
+            # fade
+            s.anims[id(_w)] = Animate(
+                widget=_w,
+                attrs={
+                    'color':(
+                        (*Color.TEXT,Color.OPACITY),
+                        Const.INVISIBLE
+                    ),
+                },
+                on_finish=_w.delete,
+                on_cancel=_w.delete,
+                duration=butter
+            )
+            # slide
+            for i,w in enumerate(
+                list(attr_texts.values())[_i:],
+                start=_i
+            ):
+                start_y = (i+1)*text_y
+                if (anim:=s.anims[id(w)]):
+                    anim.cancel()
+                    start_y = anim.attrs_current['position'][1]
+                s.anims[id(w)] = Animate(
+                    widget=w,
+                    duration=butter,
+                    attrs={
+                        'position':(
+                            (0,start_y),
+                            (0,i*text_y)
+                        )
+                    }
+                )
+            # finally
+            s.toast(Strings.INFO_POPPED(a))
+            sync(0)
+        # new kid
+        def new_kid(a):
+            # make
+            w = bui.textwidget(
+                parent=attr_root,
+                size=(dx,text_y),
+                maxwidth=dx-15,
+                selectable=True,
+                glow_type=Const.GLOW,
+                click_activate=True,
+                on_activate_call=bui.CallPartial(
+                    select, a
+                ),
+                text=a,
+                color=Const.INVISIBLE,
+                v_align=Const.ALIGN
+            )
+            attr_texts[a] = w
+            return w
+        # animate
+        def anim_kid(w,px,py):
+            if (anim:=s.anims[id(w)]): anim.cancel()
+            s.anims[id(w)] = Animate(
+                widget=w,
+
+                attrs={
+                    'color':(
+                        Const.INVISIBLE,
+                        (*Color.TEXT,Color.OPACITY)
+                    ),
+                    'position':(
+                        (px+50,py),
+                        (px,py)
+                    )
+                },
+                duration=butter
+            )
+        # set func
+        def do_set():
+            if not (g:=valid()):
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            Eval.SOUND(Const.OK_SOUND).play()
+            a,v = g
+            # evaluate
+            try:
+                with bs.get_foreground_host_activity().context:
+                    v = eval(v)
+            except Exception as e:
+                s.toast(Format.ERROR(e))
+                return
+            # check
+            if a in so_far:
+                w = attr_texts[a]
+                px,py = (0,list(so_far).index(a)*text_y)
+                s.toast(Strings.INFO_UPDATED(a))
+            else:
+                px,py = (0,len(so_far)*text_y)
+                w = new_kid(a)
+                # finally
+                sync()
+                s.toast(Strings.INFO_ASSIGNED(a))
+            # finally
+            anim_kid(w,px,py)
+            so_far.update({a:v})
+        # pop button
+        pos = (s.window_marg+2-s.window_fix,s.window_marg+50)
+        size = bx/2-s.window_marg+2,by-10
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.POP,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_pop
+        )
+        s.window_kids.append((w,pos,50,delay+0.08,
+            ('size',((0,size[1]),size))
+        ))
+        # set button
+        pos = (
+            pos[0]+size[0]+s.window_marg*3.5,
+            pos[1]
+        )
+        size = (
+            size[0]-s.window_marg,
+            size[1]
+        )
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.SET,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_set
+        )
+        s.window_kids.append((w,pos,50,delay+0.08,
+            ('size',((0,size[1]),size))
+        ))
+        def ready():
+            # collect
+            ma = bui.textwidget(query=map_text)
+            # verify
+            if not ma:
+                s.toast(Format.ERROR_EMPTY(list(Strings.EVENTS)[4]))
+                return
+            return ma
+        # done func
+        def do_done():
+            if not (ma:=ready()):
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            Eval.SOUND(Const.OK_SOUND).play()
+            # construct
+            final = {
+                'map':ma,
+                'attrs':so_far,
+                'name':list(Strings.EVENTS)[4]
+            }
+            if edit:
+                data.update(final)
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else: s.add_entry(final,smol=True)
+        # done button
+        pos = (px+8,s.window_marg)
+        size = bx,by = (dx-15,40)
+        w = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.DONE,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((w,pos,50,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+        prv_on = False
+        # preview button
+        def do_preview():
+            nonlocal prv_on
+            if prv_on:
+                prv_on = False
+                bui.buttonwidget(
+                    prv_btn,
+                    label=Strings.PREVIEW
+                )
+                s.change_map(old_ma)
+                return
+            if not (ma:=ready()):
+                s.toast(Format.ERROR_EMPTY(list(Strings.EVENTS)[4]))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            try: s.change_map(ma,extra=so_far)
+            except AttributeError:
+                Eval.SOUND(Const.BAD_SOUND).play()
+                s.toast(Format.NOT_FOUND(ma))
+                return
+            try:
+                for key,val in so_far.items():
+                    setattr(_act.map.node,key,val)
+            except Exception as e:
+                Eval.SOUND(Const.BAD_SOUND).play()
+                s.toast(Format.ERROR(e))
+                s.change_map(old_ma)
+                return
+            Eval.SOUND(Const.OK_SOUND).play()
+            bui.buttonwidget(
+                prv_btn,
+                label=Strings.STOP
+            )
+            prv_on = True
+
+        pos = (s.window_marg+7-s.window_fix,s.window_marg)
+        size = bx,by = (dx+2,40)
+        prv_btn = bui.buttonwidget(
+            parent=s.root,
+            size=(0,0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.PREVIEW,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_preview
+        )
+        s.window_kids.append((prv_btn,pos,50,delay+0.1,
+            ('size',((0,size[1]),size))
+        ))
+        # finally
+        s.window_trash = [attr_texts]
+        if data:
+            so_far = data['attrs'].copy()
+            if so_far:
+                for i,a in enumerate(so_far):
+                    w = new_kid(a)
+                    pos = 0,i*text_y
+                    anim_kid(w,*pos)
+                sync(0)
+        return lambda: s.change_map(old_ma)
+
+    def change_map(s, ma, extra={}):
+        from bascenev1lib.gameutils import SharedObjects
+        _act = bs.get_foreground_host_activity()
+        old_map = _act.map
+        cls = getattr(__import__('bascenev1lib').maps, ma.title().replace(' ', ''))
+        with _act.context:
+            if type(old_map) in _act.preloads:
+                del _act.preloads[type(old_map)]
+            for attr in dir(old_map):
+                if not attr.startswith('_') and attr not in ['node', 'activity', 'getactivity', 'handlemessage', 'on_expire', 'autoretain', 'is_alive', 'exists']:
+                    try:
+                        val = getattr(old_map, attr)
+                        if not callable(val):
+                            delattr(old_map, attr)
+                    except:
+                        pass
+            _act.preloads[cls] = cls.on_preload()
+            preload = _act.preloads[cls]
+            shared = SharedObjects.get()
+            temp_map = cls()
+            gnode_settings = {}
+            for attr in ['tint', 'ambient_color', 'vignette_outer', 'vignette_inner', 'vr_camera_offset', 'vr_near_clip', 'floor_reflection', 'debris_friction', 'debris_kill_height', 'shadow_ortho', 'shadow_offset', 'happy_thoughts_mode']:
+                try:
+                    gnode_settings[attr] = getattr(_act.globalsnode, attr)
+                except:
+                    pass
+            (temp_map.node and temp_map.node.delete())
+            for node in bs.getnodes():
+                if node.getnodetype() == 'terrain' and node != old_map.node:
+                    try:
+                        node.delete()
+                    except:
+                        pass
+            if hasattr(old_map, 'node') and old_map.node:
+                old_map.node.mesh = preload.get('mesh') or preload.get('mesh_top') or preload.get('meshes', [None])[0]
+                old_map.node.color_texture = preload['tex']
+                old_map.node.collision_mesh = preload['collision_mesh']
+                if 'ice_material' in preload:
+                    old_map.node.materials = [shared.footing_material, preload['ice_material']]
+                else:
+                    old_map.node.materials = [shared.footing_material]
+            for attr in ['bottom', 'floor', 'stands', 'background', 'railing', 'bg_collide', 'stem', 'player_wall', 'bg2', 'node_bottom']:
+                if hasattr(old_map, attr):
+                    try:
+                        getattr(old_map, attr).delete()
+                        delattr(old_map, attr)
+                    except:
+                        pass
+            if 'mesh_bottom' in preload or 'bottom_mesh' in preload:
+                old_map.bottom = bs.newnode('terrain', attrs={'mesh': preload.get('mesh_bottom') or preload.get('bottom_mesh'), 'lighting': False, 'color_texture': preload['tex']})
+            if 'meshes' in preload and len(preload['meshes']) > 1:
+                mats = [shared.footing_material, preload['ice_material']] if 'ice_material' in preload else [shared.footing_material]
+                old_map.floor = bs.newnode('terrain', attrs={'mesh': preload['meshes'][1], 'color_texture': preload['tex'], 'opacity': 0.92, 'opacity_in_low_or_medium_quality': 1.0, 'materials': mats})
+            if 'meshes' in preload and len(preload['meshes']) > 2:
+                old_map.stands = bs.newnode('terrain', attrs={'mesh': preload['meshes'][2], 'visible_in_reflections': False, 'color_texture': preload.get('stands_tex', preload['tex'])})
+            if 'mesh_bg' in preload or 'bgmesh' in preload:
+                old_map.background = bs.newnode('terrain', attrs={'mesh': preload.get('mesh_bg') or preload.get('bgmesh'), 'lighting': False, 'background': True, 'color_texture': preload.get('mesh_bg_tex') or preload.get('bgtex')})
+            if 'railing_collision_mesh' in preload or 'bumper_collision_mesh' in preload:
+                old_map.railing = bs.newnode('terrain', attrs={'collision_mesh': preload.get('railing_collision_mesh') or preload.get('bumper_collision_mesh'), 'materials': [shared.railing_material], 'bumper': True})
+            if 'collide_bg' in preload:
+                old_map.bg_collide = bs.newnode('terrain', attrs={'collision_mesh': preload['collide_bg'], 'materials': [shared.footing_material, preload.get('bg_material'), shared.death_material]})
+            if 'stem_mesh' in preload:
+                old_map.stem = bs.newnode('terrain', attrs={'mesh': preload['stem_mesh'], 'lighting': False, 'color_texture': preload['tex']})
+            old_map.preloaddata = preload
+            old_map.defs = cls.defs
+            old_map.is_hockey = hasattr(cls, 'is_hockey') or cls.name in ['Hockey Stadium', 'Lake Frigid']
+            old_map.is_flying = cls.name == 'Happy Thoughts'
+            gnode = _act.globalsnode
+            aoi_bounds = old_map.get_def_bound_box('area_of_interest_bounds') or (-1, -1, -1, 1, 1, 1)
+            gnode.area_of_interest_bounds = aoi_bounds
+            map_bounds = old_map.get_def_bound_box('map_bounds') or (-30, -10, -30, 30, 100, 30)
+            bs.set_map_bounds(map_bounds)
+            for attr, val in gnode_settings.items():
+                try:
+                    setattr(gnode, attr, val)
+                except:
+                    pass
+            for key, val in extra.items():
+                try:
+                    if hasattr(old_map, key):
+                        setattr(old_map, key, val)
+                    elif hasattr(gnode, key):
+                        setattr(gnode, key, val)
+                except:
+                    pass
+
     def window_clean(s):
         for w,*_ in s.window_kids:
             s.anims[id(w)].reverse(
@@ -4408,6 +4913,7 @@ class Editor:
         s.active_timers.clear()
         shut or s.toast(Strings.INFO_FINISHED)
         s.freeze_scene(False)
+        s.change_map(s.original_map)
         if s.camera_data:
             s.camera_data.clear()
             _ba.set_camera_manual(False)
@@ -4563,6 +5069,10 @@ class Editor:
             else:
                 s.active_timers.pop(key)
 
+        if what == 4:
+            if start:
+                s.change_map(data['map'], extra=data['attrs'])
+
         # Execute keys for this event
         # Keys are executed based on time, not start/end
         if e['type'] == 'start':
@@ -4680,7 +5190,7 @@ class Editor:
         )
 
     @clickable
-    def select(s,b,main=None):
+    def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
         # editing? kill
         if s.window_on and s.window_on[1] in (
@@ -4708,7 +5218,6 @@ class Editor:
         s.hide_controls(up=True)
         s.show_tools()
         s.sl = sl
-        s.sl_main = main
         yes()
 
     def show_tools(s):
@@ -4755,8 +5264,12 @@ class Editor:
     def do_tool(s,which):
         if not s.tools_shown: return
         if not s.sl: return
-        b = s.sl_main or s.sl
+        b =s.sl
         mem = s.memory[id(b)]
+        if mem.get('smol', False) and which in [2, 3]:
+            Eval.SOUND(Const.BAD_SOUND).play()
+            s.toast(Strings.ERROR_SMOL_NO_RESIZE)
+            return
         new = {}
         scroll_butter = s.global_butter/2
         restamp = lambda:(
@@ -6055,6 +6568,7 @@ class Strings:
     ATTR = 'Attr'
     NODE_ATTR_HELP = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
     FX_ATTR_HELP = 'The FX\'s attribute name in attr dict\nbascenev1.emitfx(THIS=value)\nEnter'
+    MAP_ATTR_HELP = 'The Sound\'s attribute name in attr dict\nsetattr(bascenev1.getactivity().map.node,\'THIS\',value)\nEnter'
     EVAL = 'Eval'
     EVAL_HELP = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
     OFFSET = 'Offset'
@@ -6093,6 +6607,10 @@ class Strings:
     ERROR_NO_SOUND_SELECTED = (
         'No sound selected!',
         'Pick one from the list first'
+    )
+    ERROR_SMOL_NO_RESIZE = (
+        'Not resizable!',
+        'This is an instant action blud'
     )
     ERROR_INVALID = 'Invalid {}!'
     ERROR_INVALID_HELP = 'Check your input pal'
@@ -6369,13 +6887,6 @@ class Eval:
         s.entry_xs_real * mem['start'] * s.entries_per_sec +
         (mem['duration'] * s.entries_per_sec * s.magic_left)
     )
-
-    ENTRY_X_END = lambda s, mem: (
-        s.magic_x +
-        s.entry_xs_real * mem['start'] * s.entries_per_sec +
-        (mem['duration'] * s.entries_per_sec * s.entry_xs_real) +
-        s.magic_x
-    )
     ENTRY_Y = lambda s, mem: (
         s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
     )
@@ -6384,8 +6895,11 @@ class Eval:
         Eval.ENTRY_Y(s, mem)
     )
     ENTRY_SIZE = lambda s, mem: (
-        s.entry_xs_real * (mem['duration'] * s.entries_per_sec) * s.magic_right,
-        s.entry_ys_real - s.magic_y
+        (s.entry_ys_real, s.entry_ys_real - s.magic_y) if mem.get('smol', False)
+        else (
+            s.entry_xs_real * (mem['duration'] * s.entries_per_sec) * s.magic_right,
+            s.entry_ys_real - s.magic_y
+        )
     )
 
 class Format:
@@ -6437,9 +6951,9 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
     get_instance_description_short = lambda s: Strings.INSTANCE_DESCRIPTION_SHORT
 
     def __init__(s, settings):
+        s.original_map = settings['map']
         super().__init__(settings)
         s.default_music = bs.MusicType.GRAND_ROMP
-        s.editor = Editor()
 
     def is_master(s,p):
         return p.sessionplayer.inputdevice.client_id == -1
@@ -6462,6 +6976,8 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
             s.kill_ui()
 
     def make_ui(s):
+        if not getattr(s,'editor',None):
+            s.editor = Editor(map=s.original_map)
         ba.pushcall(ba.CallPartial(
             s.editor.make
         ),raw=True)
