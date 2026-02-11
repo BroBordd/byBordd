@@ -2153,7 +2153,6 @@ class Editor:
             s.anims[id(b)]['main'] = (
                 Animate(
                     widget=b,
-
                     attrs={
                         'opacity': (0, Color.OPACITY),
                         'textcolor': (
@@ -2170,7 +2169,7 @@ class Editor:
             bui.buttonwidget(
                 b,
                 on_activate_call=bui.CallPartial(
-                    s.event_window,b,i
+                    s.event_window,i
                 ),
                 position=(
                     s.ev_x,
@@ -2179,7 +2178,7 @@ class Editor:
             )
 
     @clickable
-    def event_window(s,b,i):
+    def event_window(s,i,edit={},load=False):
         if getattr(s,'making_window_kids',False):
             s.toast(Strings.INFO_SLOW_DOWN)
             Eval.SOUND(Const.BAD_SOUND).play()
@@ -2187,7 +2186,8 @@ class Editor:
         if s.window_on: s.window_back()
         else: Eval.SOUND(Const.OK_SOUND).play()
         # disable
-        call = bui.CallPartial(s.event_window,b,i)
+        b = list(s.event_kids)[i]
+        call = bui.CallPartial(s.event_window,i)
         s.window_on = [b,call,None]
         bui.buttonwidget(
             b,
@@ -2243,13 +2243,13 @@ class Editor:
             )
         )
         # make ui
-        s.window_on[2] = s.make_window_kids(i)
+        s.window_on[2] = s.make_window_kids(i,edit=edit,load=load)
 
-    def make_window_kids(s,i,edit={}):
+    def make_window_kids(s,i,edit={},load=False):
         s.making_window_kids = True
         s.make_window_default(
             title=(
-                edit and Strings.EDIT.format(
+                edit and not load and Strings.EDIT.format(
                     edit['data']['name']
                 ) or list(Strings.EVENTS.values())[i]
             )
@@ -2260,7 +2260,8 @@ class Editor:
             i == 2 and s.make_sound_window or
             i == 3 and s.make_fx_window or
             i == 4 and s.make_map_window or
-            (lambda _:s.toast(Strings.COMING_SOON))
+            i == 5 and s.make_preset_window or
+            (lambda *a,**k:s.toast(Strings.COMING_SOON))
         )
         wait = 0
         fin = lambda: (
@@ -2268,7 +2269,7 @@ class Editor:
             s.animate_window_kids(extra_delay=-wait),
             setattr(s,'making_window_kids',False)
         )
-        r = func(edit)
+        r = func(edit,load)
         if isinstance(r,tuple):
             wait,r = r
             bui.apptimer(wait,fin)
@@ -2553,7 +2554,7 @@ class Editor:
             }
         )
 
-    def make_node_window(s,edit=None):
+    def make_node_window(s,edit=None,load=False):
         # math
         x,y = s.window_pos
         sx,sy = s.window_size
@@ -2915,7 +2916,7 @@ class Editor:
                 'name':nam,
                 'attrs':so_far
             }
-            if edit:
+            if edit and not load:
                 data.update(final)
                 bui.buttonwidget(
                     s.stamp_kids[edit['order']],
@@ -2952,7 +2953,7 @@ class Editor:
                     anim_kid(w,*pos)
                 sync(0)
 
-    def make_camera_window(s,edit=None):
+    def make_camera_window(s,edit=None,load=False):
         # math
         x,y = s.window_pos
         x += 1
@@ -3172,7 +3173,7 @@ class Editor:
             kill_prev()
 
             # only reset manual if we changed it and need to go back to False
-            if current_manual and not original_manual:
+            if current_manual:
                 _ba.set_camera_manual(False)
                 current_manual = False
 
@@ -3328,7 +3329,7 @@ class Editor:
                 'target':last_tar
             }
             Eval.SOUND(Const.OK_SOUND).play()
-            if edit:
+            if edit and not load:
                 data.update(final)
                 s.window_back()
                 s.toast(Strings.INFO_SAVED)
@@ -3362,7 +3363,7 @@ class Editor:
         # cleanup on window close
         return lambda: (kill_prev(), stop_preview()) if not virgin else kill_prev()
 
-    def make_sound_window(s, edit=None, wait=0.43):
+    def make_sound_window(s, edit=None, load=False, wait=0.43):
         s.prv_sound = None
         if wait:
             bui.apptimer(
@@ -3709,7 +3710,7 @@ class Editor:
                 'chks':chks.copy(),
             }
 
-            if edit:
+            if edit and not load:
                 data.update(final)
                 bui.buttonwidget(
                     s.stamp_kids[edit['order']],
@@ -3736,7 +3737,7 @@ class Editor:
             ('size', ((0, by), (sx/2 - s.window_marg*2, by)))
         ))
 
-    def make_fx_window(s,edit=None):
+    def make_fx_window(s,edit=None,load=False):
         # math
         x,y = s.window_pos
         sx,sy = s.window_size
@@ -4064,7 +4065,7 @@ class Editor:
                 'name':nam,
                 'attrs':so_far
             }
-            if edit:
+            if edit and not load:
                 data.update(final)
                 bui.buttonwidget(
                     s.stamp_kids[edit['order']],
@@ -4147,7 +4148,7 @@ class Editor:
                 sync(0)
         return lambda: setattr(s,'prv_fx',None)
 
-    def make_map_window(s,edit=None):
+    def make_map_window(s,edit=None,load=False):
         # math
         x,y = s.window_pos
         sx,sy = s.window_size
@@ -4475,7 +4476,7 @@ class Editor:
                 'attrs':so_far,
                 'name':list(Strings.EVENTS)[4]
             }
-            if edit:
+            if edit and not load:
                 data.update(final)
                 s.window_back()
                 s.toast(Strings.INFO_SAVED)
@@ -4646,6 +4647,130 @@ class Editor:
                         setattr(gnode, key, val)
                 except:
                     pass
+
+    def make_preset_window(s,edit=None,load=False):
+        # math
+        x, y = s.window_pos
+        sx, sy = s.window_size
+        text_push = 15
+        delay = 0.35
+
+        # preset scroll
+        size = dx, dy = (sx/2 - s.window_marg*3, sy - s.window_marg*9)
+        pos = px, py = (s.window_marg - s.window_fix, s.window_marg - s.window_fix)
+        preset_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            size=(dx/2, 0),
+            border_opacity=0
+        )
+        s.window_kids.append((preset_scroll, pos, 20, delay + 0,
+            ('size', ((0, size[1]), size)),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
+        ))
+
+        # preset root
+        preset_root = bui.containerwidget(
+            parent=preset_scroll,
+            background=False
+        )
+
+        # select
+        sl = None
+        def do_select(pre,nam,dsc):
+            nonlocal sl
+            sl = pre
+            bui.textwidget(
+                title_text,
+                text=nam
+            )
+            bui.textwidget(
+                desc_text,
+                text=dsc
+            )
+
+        text_y = 30
+        preset_texts = []
+
+        # Populate preset list
+        presets = Const.PRESETS()
+        rsy = max(len(presets) * text_y, dy - 15)
+        for i,g in enumerate(zip(presets,Strings.PRESETS.items()),start=1):
+            pre,g = g
+            nam,dsc = g
+            w = bui.textwidget(
+                parent=preset_root,
+                size=(dx, text_y),
+                position=(0, rsy - i * text_y),
+                maxwidth=dx - 15,
+                selectable=True,
+                glow_type=Const.GLOW,
+                click_activate=True,
+                text=nam,
+                color=(*Color.TEXT,Color.OPACITY),
+                v_align=Const.ALIGN,
+                on_activate_call=bui.CallPartial(
+                    do_select, pre, nam, dsc
+                )
+            )
+            preset_texts.append(w)
+
+        # Set container size
+        bui.containerwidget(
+            preset_root,
+            size=(dx, rsy)
+        )
+
+        # title
+        title_pos = (sx/2 + s.window_marg, sy - s.window_marg - 80)
+        title_text = bui.textwidget(
+            parent=s.root,
+            position=title_pos,
+            text=Strings.PRESET_PLACEHOLDER,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            maxwidth=sx/2 - s.window_marg*2,
+            scale=1.2
+        )
+        s.window_kids.append((title_text, title_pos, text_push, delay + 0.1))
+
+        # desc
+        desc_pos = (sx/2 + s.window_marg, sy - s.window_marg - 120)
+        desc_text = bui.textwidget(
+            parent=s.root,
+            position=desc_pos,
+            text=Strings.DESCRIPTION_HERE,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            maxwidth=sx/2 - s.window_marg*2,
+        )
+        s.window_kids.append((desc_text, desc_pos, text_push, delay + 0.1))
+
+        # load button
+        by = 40
+        def do_load():
+            Eval.SOUND(Const.OK_SOUND).play()
+            s.event_window(sl[0],edit=sl[1],load=True)
+        load_pos = (sx - (dx + s.window_marg*2), s.window_marg)
+        load_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=load_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.LOAD,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_load
+        )
+        s.window_kids.append((load_button, load_pos, 50, delay + 0.2,
+            ('size', ((0, by), (sx/2 - s.window_marg*2, by)))
+        ))
+
+        # finally
+        s.window_trash = [preset_texts]
 
     def window_clean(s):
         for w,*_ in s.window_kids:
@@ -4915,6 +5040,7 @@ class Editor:
         s.freeze_scene(False)
         s.change_map(s.original_map)
         if s.camera_data:
+            s.camera_timer = None
             s.camera_data.clear()
             _ba.set_camera_manual(False)
 
@@ -6586,6 +6712,7 @@ class Strings:
     VALUE = 'Value'
     EVERYWHERE = 'Everywhere'
     LOOP = 'Loop'
+    LOAD = 'Load'
     # key
     ACTIONS = [
         'Attribute',
@@ -6595,6 +6722,7 @@ class Strings:
     ]
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
     SOUND_PLACEHOLDER = 'Select a sound'
+    PRESET_PLACEHOLDER = 'Select a preset'
     # camera event
     CAMERA_RESET_BUTTON = 'Reset'
     PREVIEW = 'Preview'
@@ -6753,11 +6881,18 @@ class Strings:
     )
     EDIT = 'Edit {}'
     WELCOME = '{} joined the studio! Press for more'
+    DESCRIPTION_HERE = 'Description here'
     WELCOME_HELP = 'Movi v{}, what could go wrong?'
     COMING_SOON = (
         'Coming soon!',
         'Aka not implemented yet lmao'
     )
+    # presets
+    PRESETS = {
+        'Spaz': 'A lovely spaz',
+        'TNT': 'A tnt box',
+        'Viewpoint 1': 'Close prespective'
+    }
     # compressed
     BLAME = lambda: (
         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
@@ -6847,6 +6982,24 @@ class Const:
     TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
     BACK = 'BACK'
+    # presets
+    PRESETS = lambda:[
+        (0,{}),
+        (0,{}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(
+                -7,
+                3,
+                2
+            ),
+            'target':(
+                -13,
+                0,
+                -6
+            )
+        }})
+    ]
     # extra
     BLAME = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     DO_NOTHING = lambda:None
