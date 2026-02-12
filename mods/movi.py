@@ -168,6 +168,9 @@ class Editor:
         # on toast
         if not s.can_toast and not shut: return
         if s.can_do and extra<1: s.can_do = False
+        if s.toast_blink:
+            s.toast_blink.cancel()
+            s.toast_blink = None
         if s.toast_zoom: s.toast_zoom.cancel()
         s.can_toast = False
         b = s.toast_bg
@@ -987,7 +990,6 @@ class Editor:
             s.window_size[0]-150-s.window_marg,
             s.window_size[1]-54
         )
-        had_data = data is not None
         data = data or {}
         # Attribute
         if i == 0:
@@ -2224,6 +2226,10 @@ class Editor:
             s.window_back()
             return
         Eval.SOUND(Const.OK_SOUND).play()
+        for kid in s.event_kids:
+            if (fix_anim := s.anims[id(kid)].get('fix', None)):
+                fix_anim.cancel()
+                s.anims[id(kid)].pop('fix', None)
 
         # push everything
         def push():
@@ -4706,8 +4712,14 @@ class Editor:
                 s.toast(Format.NOT_FOUND(ma))
                 return
             try:
-                for key,val in so_far.items():
-                    setattr(_act.map.node,key,val)
+                with _act.context:
+                    for key,val in so_far.items():
+                        if hasattr(_act.map,key):
+                            setattr(_act.map,key,val)
+                        elif hasattr(_act.globalsnode,key):
+                            setattr(_act.globalsnode,key,val)
+                        else:
+                            hasattr(_act.map.node,key)
             except Exception as e:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Format.ERROR(e))
@@ -4865,10 +4877,9 @@ class Editor:
 
         # select
         sl = None
-        def do_select(i):
-            pre,nam,dsc = preset_stuff[i]
+        def do_select(i,j,nam,dsc,data):
             nonlocal sl
-            sl = pre
+            sl = (j,data)
             bui.textwidget(
                 title_text,
                 text=nam
@@ -4880,14 +4891,12 @@ class Editor:
 
         text_y = 30
         preset_texts = []
-        preset_stuff = []
 
         # Populate preset list
-        presets = Const.PRESETS()
+        presets = get_presets()
         rsy = max(len(presets) * text_y, dy - 15)
-        for i,g in enumerate(zip(presets,Strings.PRESETS.items()),start=1):
-            pre,g = g
-            nam,dsc = g
+        for i,g in enumerate(presets,start=1):
+            j,nam,dsc,data = g
             w = bui.textwidget(
                 parent=preset_root,
                 size=(dx, text_y),
@@ -4900,11 +4909,10 @@ class Editor:
                 color=(*Color.TEXT,Color.OPACITY),
                 v_align=Const.ALIGN,
                 on_activate_call=bui.CallPartial(
-                    do_select, i
+                    do_select, i, j, nam, dsc, data
                 )
             )
             preset_texts.append(w)
-            preset_stuff.append((pre,nam,dsc))
 
         # Set container size
         bui.containerwidget(
@@ -4919,7 +4927,6 @@ class Editor:
             position=title_pos,
             text=Strings.PRESET_PLACEHOLDER,
             color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
             maxwidth=sx/2 - s.window_marg*2,
             scale=1.2
         )
@@ -4932,7 +4939,6 @@ class Editor:
             position=desc_pos,
             text=Strings.DESCRIPTION_HERE,
             color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
             maxwidth=sx/2 - s.window_marg*2,
         )
         s.window_kids.append((desc_text, desc_pos, text_push, delay + 0.1))
@@ -4998,6 +5004,7 @@ class Editor:
                 bui.textwidget(
                     parent=code_root,
                     editable=True,
+                    v_align=Const.ALIGN,
                     allow_clear_button=False,
                     size=(dx,text_y),
                     maxwidth=dx-20,
@@ -5194,7 +5201,6 @@ class Editor:
                     ox,oy = (s.ev_x, s.event_top - s.ev_mult * (last_i+1))
                     anim = Animate(
                         widget=b,
-
                         duration=s.global_butter,
                         attrs={
                             'textcolor':(
@@ -5231,7 +5237,6 @@ class Editor:
                 anim = Animate(
                     widget=b,
                     attrs=to(),
-
                     duration=butter,
                     on_finish=fix,
                     on_cancel=fix
@@ -7302,7 +7307,7 @@ class CodeRunner:
         self.host_activity = host_activity
         self.on_error = on_error
         self.parent_runner = parent_runner
-        
+
         # Use parent's namespace if provided, else create new
         if parent_runner:
             self.namespace = parent_runner.namespace
@@ -7310,14 +7315,14 @@ class CodeRunner:
         else:
             self.namespace = {}
             self.created_nodes = []
-        
+
         self.stdout_capture = StringIO()
         self.stderr_capture = StringIO()
         self.running = False
         self.stop_flag = Event()
         self.main_thread = None
         self.original_newnode = None
-        
+
         # Track child runners
         self.children = []
 
@@ -7342,6 +7347,9 @@ class CodeRunner:
         import bascenev1lib as bsl
         import bauiv1 as bui
         import babase as ba
+        import _babase as _ba
+        import math
+        import random
 
         self.original_newnode = bs.newnode
         bs.newnode = self._patched_newnode
@@ -7352,10 +7360,16 @@ class CodeRunner:
             'bascenev1lib': bsl,
             'bauiv1': bui,
             'babase': ba,
+            '_babase': _ba,
             'bs': bs,
             'bsl': bsl,
             'bui': bui,
-            'ba': ba
+            'ba': ba,
+            '_ba': _ba,
+            'Spaz': bsl.actor.spaz.Spaz,
+            'math': math,
+            'random': random,
+            'Bubble': Bubble
         })
 
         try:
@@ -7387,12 +7401,12 @@ class CodeRunner:
 
     def on_start(self, code_string):
         # DON'T call on_end - let existing code keep running
-        
+
         # Only reset if we're the parent starting fresh
         if not self.parent_runner:
             self.namespace = {}
             self.created_nodes = []
-        
+
         self.stdout_capture = StringIO()
         self.stderr_capture = StringIO()
         self.stop_flag.clear()
@@ -7447,7 +7461,7 @@ class CodeRunner:
                         pass
 
             self.namespace.clear()
-        
+
         self.main_thread = None
         self.running = False
 
@@ -7696,31 +7710,6 @@ class Strings:
         'Coming soon!',
         'Aka not implemented yet lmao'
     )
-    # presets
-    PRESETS = {
-        'Pixie Dream': 'Magical pink pixie character',
-        'Shadow Kronk': 'Dark mysterious warrior',
-        'Ember Snake': 'Fire elemental serpent',
-        'Frosty Guardian': 'Icy snowman protector',
-        'Toxic Agent': 'Poisonous secret agent',
-        'Golden Bernard': 'Shining golden knight',
-        'Blood Zoe': 'Crimson vampire queen',
-        'Electric Spaz': 'Lightning powered hero',
-        'Mystic Mel': 'Purple wizard master',
-        'Bone Warrior': 'Undead skeleton fighter',
-        'Cyber Pascal': 'Neon tech warrior',
-        'Robot B-9000': 'Chrome mechanical guardian',
-        'Jolly Santa': 'Festive holiday hero',
-        'Wise Grumbledorf': 'Ancient sage wizard',
-        'Jack Morgan': 'Rugged gunslinger',
-        'Easter Bunny': 'Springtime hopper',
-        'Viewpoint 1': 'Close perspective',
-        'Viewpoint 2': 'Front center view',
-        'Viewpoint 3': 'High diagonal angle',
-        'Viewpoint 4': 'Top down bird\'s eye',
-        'Viewpoint 5': 'Side angle focus',
-        'Viewpoint 6': 'Wide side panorama'
-    }
     # compressed
     BLAME = lambda: (
         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
@@ -7801,7 +7790,7 @@ class Const:
     )
     # keys
     EVENT_KEYS = {
-        0: (0,2),
+        0: (0,),
         2: (3,),
         6: (1,)
     }
@@ -7826,407 +7815,6 @@ class Const:
     TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
     BACK = 'BACK'
-    # presets
-    PRESETS = lambda:[
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Pixie Dream',
-                '# Magical pink pixie',
-                '',
-                'name = "Pixie"',
-                'color = (1.0, 0.75, 0.8)',
-                'highlight = (1.0, 0.0, 1.0)',
-                'position = (0,2,0)',
-                'angle = 1',
-                '',
-                'bot = Spaz(',
-                '    character="Pixel",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Shadow Kronk',
-                '# Dark mysterious warrior',
-                '',
-                'name = "Shadow"',
-                'color = (0.1, 0.1, 0.15)',
-                'highlight = (0.5, 0.0, 0.8)',
-                'position = (-3,2,0)',
-                'angle = 2',
-                '',
-                'bot = Spaz(',
-                '    character="Kronk",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Ember Snake',
-                '# Fire elemental serpent',
-                '',
-                'name = "Ember"',
-                'color = (1.0, 0.3, 0.0)',
-                'highlight = (1.0, 1.0, 0.0)',
-                'position = (3,2,0)',
-                'angle = 4',
-                '',
-                'bot = Spaz(',
-                '    character="Snake Shadow",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Frosty Guardian',
-                '# Icy snowman protector',
-                '',
-                'name = "Frostbite"',
-                'color = (0.6, 0.8, 1.0)',
-                'highlight = (0.0, 0.8, 1.0)',
-                'position = (0,2,-3)',
-                'angle = 0',
-                '',
-                'bot = Spaz(',
-                '    character="Frosty",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Toxic Agent',
-                '# Poisonous secret agent',
-                '',
-                'name = "Venom"',
-                'color = (0.2, 0.8, 0.2)',
-                'highlight = (0.5, 1.0, 0.0)',
-                'position = (-4,2,-2)',
-                'angle = 3',
-                '',
-                'bot = Spaz(',
-                '    character="Agent Johnson",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Golden Bernard',
-                '# Shining golden knight',
-                '',
-                'name = "Aurum"',
-                'color = (1.0, 0.84, 0.0)',
-                'highlight = (1.0, 1.0, 0.8)',
-                'position = (4,2,-2)',
-                'angle = 5',
-                '',
-                'bot = Spaz(',
-                '    character="Bernard",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Blood Zoe',
-                '# Crimson vampire queen',
-                '',
-                'name = "BloodMoon"',
-                'color = (0.6, 0.0, 0.1)',
-                'highlight = (1.0, 0.0, 0.0)',
-                'position = (0,2,3)',
-                'angle = 6',
-                '',
-                'bot = Spaz(',
-                '    character="Zoe",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Electric Spaz',
-                '# Lightning powered hero',
-                '',
-                'name = "Volt"',
-                'color = (0.0, 0.4, 0.9)',
-                'highlight = (0.8, 0.9, 1.0)',
-                'position = (-6,2,0)',
-                'angle = 2.5',
-                '',
-                'bot = Spaz(',
-                '    character="Spaz",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Mystic Mel',
-                '# Purple wizard master',
-                '',
-                'name = "Mystique"',
-                'color = (0.5, 0.0, 0.8)',
-                'highlight = (0.9, 0.5, 1.0)',
-                'position = (6,2,0)',
-                'angle = 4.5',
-                '',
-                'bot = Spaz(',
-                '    character="Mel",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Bone Warrior',
-                '# Undead skeleton fighter',
-                '',
-                'name = "Reaper"',
-                'color = (0.8, 0.8, 0.8)',
-                'highlight = (0.3, 0.3, 0.3)',
-                'position = (2,2,2)',
-                'angle = 1.5',
-                '',
-                'bot = Spaz(',
-                '    character="Bones",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Cyber Pascal',
-                '# Neon tech warrior',
-                '',
-                'name = "CyberPas"',
-                'color = (0.0, 1.0, 0.8)',
-                'highlight = (0.0, 0.8, 1.0)',
-                'position = (-2,2,2)',
-                'angle = 3.5',
-                '',
-                'bot = Spaz(',
-                '    character="Pascal",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Robot B-9000',
-                '# Chrome mechanical guardian',
-                '',
-                'name = "Mech"',
-                'color = (0.7, 0.7, 0.8)',
-                'highlight = (0.3, 0.5, 1.0)',
-                'position = (5,2,1)',
-                'angle = 0.5',
-                '',
-                'bot = Spaz(',
-                '    character="B-9000",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Jolly Santa',
-                '# Festive holiday hero',
-                '',
-                'name = "Kringle"',
-                'color = (0.8, 0.0, 0.0)',
-                'highlight = (1.0, 1.0, 1.0)',
-                'position = (-5,2,1)',
-                'angle = 2.8',
-                '',
-                'bot = Spaz(',
-                '    character="Santa Claus",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Wise Grumbledorf',
-                '# Ancient sage wizard',
-                '',
-                'name = "Grumble"',
-                'color = (0.4, 0.3, 0.6)',
-                'highlight = (0.8, 0.7, 0.9)',
-                'position = (1,2,-2)',
-                'angle = 5.5',
-                '',
-                'bot = Spaz(',
-                '    character="Grumbledorf",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Jack Morgan',
-                '# Rugged gunslinger',
-                '',
-                'name = "Morgan"',
-                'color = (0.5, 0.3, 0.1)',
-                'highlight = (0.9, 0.7, 0.3)',
-                'position = (-1,2,-2)',
-                'angle = 0.8',
-                '',
-                'bot = Spaz(',
-                '    character="Jack Morgan",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (6,{'data':{
-            'code':'\n'.join((
-                '# MOVI Easter Bunny',
-                '# Springtime hopper',
-                '',
-                'name = "Hopster"',
-                'color = (1.0, 0.8, 0.9)',
-                'highlight = (0.9, 0.5, 0.7)',
-                'position = (3,2,-1)',
-                'angle = 4.2',
-                '',
-                'bot = Spaz(',
-                '    character="Easter Bunny",',
-                '    start_invincible=False,',
-                '    color=color,',
-                '    highlight=highlight,',
-                ')',
-                'bot.handlemessage(',
-                '    bs.StandMessage(position,angle)',
-                ')',
-                'bot.node.name = name'
-            ))
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(-7,3,2),
-            'target':(-13,0,-6)
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(0,5,8),
-            'target':(0,0,0)
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(10,8,10),
-            'target':(0,2,0)
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(0,24,1),
-            'target':(0,0,0)
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(-5,2,5),
-            'target':(3,2,-3)
-        }}),
-        (1,{'data':{
-            'chks':[True,True,True],
-            'position':(15,4,0),
-            'target':(0,2,0)
-        }})
-    ]
     # extra
     BLAME = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     DO_NOTHING = lambda:None
@@ -8381,3 +7969,754 @@ class byBordd(ba.Plugin):
     def __init__(s):
         ba.app.register_subsystem(MoviSubsystem())
 
+def get_presets():
+    """
+    Return a list of Movi presets.
+
+    Each entry is a tuple:
+        (event_index, display_name, description, edit_like_dict)
+
+    Where edit_like_dict is shaped exactly like the 'edit' parameter
+    expected by the corresponding make_*_window function:
+        {
+            'data': { ...fields... }
+        }
+    """
+    presets = []
+
+    # ------------------------------------------------------------------
+    # 0) NODE PRESETS  (EVENT INDEX 0)
+    # ------------------------------------------------------------------
+    # These are usable with the "Node" window.
+    # They rely on:
+    #   type -> bascenev1.newnode(type=...)
+    #   name -> bascenev1.newnode(name=...)
+    #   attrs -> dict of attributes (already-evaluated)
+    #
+    # You can drop these straight into Movi's "Preset" window.
+    # ------------------------------------------------------------------
+
+    # Simple omnidirectional light to brighten center area
+    presets.append((
+        0,
+        'Soft Fill Light',
+        'Adds a soft\nomnidirectional light above\ncenter.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'SoftFill',
+                'attrs': {
+                    'intensity': 1.3,
+                    'radius': 3.0,
+                    'color': (1.0, 0.95, 0.9),
+                    'position': (0, 2.0, 0),
+                    'volume_intensity_scale': 0.0
+                }
+            }
+        }
+    ))
+
+    # Colored rim light from the left
+    presets.append((
+        0,
+        'Rim Light Left',
+        'Colored rim light\nfrom the left side.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'RimLeft',
+                'attrs': {
+                    'intensity': 1.0,
+                    'radius': 4.0,
+                    'color': (0.3, 0.5, 1.2),
+                    'position': (-4, 3, 0),
+                    'volume_intensity_scale': 0.0
+                }
+            }
+        }
+    ))
+
+    # Simple spotlight pointing straight down
+    presets.append((
+        0,
+        'Top Spotlight',
+        'A strong spotlight\ndirectly above origin.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'TopSpot',
+                'attrs': {
+                    'intensity': 2.2,
+                    'radius': 2.5,
+                    'color': (1.0, 1.0, 1.0),
+                    'position': (0, 5, 0),
+                    'volume_intensity_scale': 0.0,
+                }
+            }
+        }
+    ))
+
+    # Floating text label at origin
+    presets.append((
+        0,
+        'Title Card',
+        'Center title text in\nthe world.',
+        {
+            'data': {
+                'type': 'text',
+                'name': 'Title',
+                'attrs': {
+                    'text': 'MOVI PRESENTS',
+                    'position': (0, 2.2, 0),
+                    'in_world': True,
+                    'shadow': 1.0,
+                    'flatness': 0.8,
+                    'scale': 0.02,
+                    'color': (2.0, 2.0, 2.0),
+                    'h_align': 'center'
+                }
+            }
+        }
+    ))
+
+    # World anchor invisible node (useful for children/attachments)
+    presets.append((
+        0,
+        'World Anchor',
+        'Invisible dummy node at\norigin for parenting.',
+        {
+            'data': {
+                'type': 'math',
+                'name': 'WorldAnchor',
+                'attrs': {
+                    'input1': (0, 0, 0),
+                    'operation': 'add'
+                }
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # 1) CAMERA PRESETS  (EVENT INDEX 1)
+    # ------------------------------------------------------------------
+    # These presets are meant for the Camera window:
+    #   'chks' -> [position_enabled, target_enabled, manual_mode]
+    #   'position' -> list[3]
+    #   'target' -> list[3]
+    # ------------------------------------------------------------------
+
+    # Classic side shot looking at center
+    presets.append((
+        1,
+        'Side Shot',
+        'Side-on camera, slightly\nzoomed, focused on center.',
+        {
+            'data': {
+                'name': Strings.CAMERA_ENTRY,
+                'chks': [True, True, True],
+                'position': [8.0, 3.0, 0.0],
+                'target': [0.0, 1.5, 0.0]
+            }
+        }
+    ))
+
+    # Low-angle heroic shot from front
+    presets.append((
+        1,
+        'Hero Shot',
+        'Low front angle, looking\nup at center.',
+        {
+            'data': {
+                'name': Strings.CAMERA_ENTRY,
+                'chks': [True, True, True],
+                'position': [0.0, 1.0, -7.5],
+                'target': [0.0, 2.5, 0.0]
+            }
+        }
+    ))
+
+    # Top-down tactical view
+    presets.append((
+        1,
+        'Top Down',
+        'Top-down overview of the map.',
+        {
+            'data': {
+                'name': Strings.CAMERA_ENTRY,
+                'chks': [True, True, True],
+                'position': [0.0, 13.0, 0.01],
+                'target': [0.0, 0.5, 0.0]
+            }
+        }
+    ))
+
+    # Over-the-shoulder camera pre-suited for a “hero” at (0,0,0)
+    presets.append((
+        1,
+        'Over Shoulder',
+        'Over-the-shoulder shot\nfrom behind origin.',
+        {
+            'data': {
+                'name': Strings.CAMERA_ENTRY,
+                'chks': [True, True, True],
+                'position': [0.0, 2.2, -4.5],
+                'target': [0.0, 1.5, 2.0]
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # 2) SOUND PRESETS  (EVENT INDEX 2)
+    # ------------------------------------------------------------------
+    # These are for your Sound window:
+    #   'file'   -> filename under ba_data/audio (with .ogg)
+    #   'name'   -> label for entry button
+    #   'x,y,z'  -> world position
+    #   'volume' -> float
+    #   'chks'   -> [everywhere, loop]
+    # ------------------------------------------------------------------
+
+    # Ambient looping wind
+    presets.append((
+        2,
+        'Wind Loop (Global)',
+        'Soft global looping\nwind ambience.',
+        {
+            'data': {
+                'name': 'Wind Loop',
+                'file': 'skid01.ogg',
+                'x': 0.0,
+                'y': 0.0,
+                'z': 0.0,
+                'volume': 0.7,
+                'chks': [True, True]
+            }
+        }
+    ))
+
+    # Distant explosion positional
+    presets.append((
+        2,
+        'Distant Boom',
+        'Single positional boom\nat the far right.',
+        {
+            'data': {
+                'name': 'Distant Explosion',
+                'file': 'explosion01.ogg',
+                'x': 12.0,
+                'y': 0.5,
+                'z': 0.0,
+                'volume': 1.1,
+                'chks': [False, False]
+            }
+        }
+    ))
+
+    # Musical sting at center
+    presets.append((
+        2,
+        'Cinematic Hit',
+        'Short musical hit at\ncenter, non-positional.',
+        {
+            'data': {
+                'name': 'Cinematic Hit',
+                'file': 'impactHard.ogg',
+                'x': 0.0,
+                'y': 1.0,
+                'z': 0.0,
+                'volume': 1.4,
+                'chks': [True, False]
+            }
+        }
+    ))
+
+    # Low rumble loop from below
+    presets.append((
+        2,
+        'Underground Rumble',
+        'Low looping rumble\nfrom below the arena.',
+        {
+            'data': {
+                'name': 'Rumble',
+                'file': 'rumble01.ogg',
+                'x': 0.0,
+                'y': -4.0,
+                'z': 0.0,
+                'volume': 0.9,
+                'chks': [False, True]
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # 3) FX PRESETS  (EVENT INDEX 3)
+    # ------------------------------------------------------------------
+    # Compatible with FX window:
+    #   'name'  -> label
+    #   'attrs' -> dict of kwargs fed to bs.emitfx(**attrs)
+    # ------------------------------------------------------------------
+
+    # Spark shower at origin
+    presets.append((
+        3,
+        'Spark Shower',
+        'Burst of sparks at the center.',
+        {
+            'data': {
+                'name': 'Spark Shower',
+                'attrs': {
+                    'position': (0, 1.2, 0),
+                    'velocity': (0, 3, 0),
+                    'count': 40,
+                    'scale': 1.0,
+                    'spread': 1.0,
+                    'chunk_type': 'spark',
+                    'emit_type': 'stickers',
+                    'random': 0.4
+                }
+            }
+        }
+    ))
+
+    # Magical ring pulse
+    presets.append((
+        3,
+        'Magic Ring',
+        'Pulsing magic ring\nexplosion around center.',
+        {
+            'data': {
+                'name': 'Magic Ring',
+                'attrs': {
+                    'position': (0, 1.0, 0),
+                    'radius': 3.0,
+                    'chunk_type': 'sweat',
+                    'emit_type': 'distortion',
+                    'count': 20,
+                    'scale': 1.2,
+                    'spread': 0.2
+                }
+            }
+        }
+    ))
+
+    # Rising smoke column
+    presets.append((
+        3,
+        'Smoke Column',
+        'Rising smoke plume for ambience.',
+        {
+            'data': {
+                'name': 'Smoke Column',
+                'attrs': {
+                    'position': (0, 0.1, 0),
+                    'velocity': (0, 2.5, 0),
+                    'count': 25,
+                    'scale': 1.1,
+                    'chunk_type': 'smoke',
+                    'emit_type': 'tendrils',
+                    'spread': 0.4,
+                    'random': 0.5
+                }
+            }
+        }
+    ))
+
+    # Small explosion blast
+    presets.append((
+        3,
+        'Small Blast',
+        'Compact explosive burst.',
+        {
+            'data': {
+                'name': 'Small Blast',
+                'attrs': {
+                    'position': (0, 1.0, 0),
+                    'radius': 2.0,
+                    'chunk_type': 'rock',
+                    'emit_type': 'stickers',
+                    'count': 18,
+                    'scale': 0.9,
+                    'spread': 0.6
+                }
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # 4) MAP PRESETS  (EVENT INDEX 4)
+    # ------------------------------------------------------------------
+    # Map window expects:
+    #   'map'   -> map class name as used by your change_map
+    #   'attrs' -> attributes applied either to map or globalsnode
+    #   'name'  -> just a display label
+    # ------------------------------------------------------------------
+
+    presets.append((
+        4,
+        'Hockey Stadium (Bright)',
+        'Switch to Hockey Stadium\nwith slightly colder lighting.',
+        {
+            'data': {
+                'map': 'Hockey Stadium',
+                'name': list(Strings.EVENTS)[4],
+                'attrs': {
+                    # More bluish ambient
+                    'ambient_color': (0.6, 0.7, 1.0),
+                    'tint': (1.1, 1.2, 1.3),
+                    'vignette_outer': (0.1, 0.1, 0.2),
+                    'vignette_inner': (0.8, 0.9, 1.0)
+                }
+            }
+        }
+    ))
+
+    presets.append((
+        4,
+        'Bridgit (Warm Sunset)',
+        'Bridgit map with warm\nsunset-tinted lighting.',
+        {
+            'data': {
+                'map': 'Bridgit',
+                'name': list(Strings.EVENTS)[4],
+                'attrs': {
+                    'ambient_color': (1.1, 0.8, 0.7),
+                    'tint': (1.3, 1.0, 0.8),
+                    'vignette_outer': (0.2, 0.1, 0.05),
+                    'vignette_inner': (0.9, 0.8, 0.7)
+                }
+            }
+        }
+    ))
+
+    presets.append((
+        4,
+        'Happy Thoughts (Dreamy)',
+        'Even more dreamy\nHappy Thoughts mood.',
+        {
+            'data': {
+                'map': 'Happy Thoughts',
+                'name': list(Strings.EVENTS)[4],
+                'attrs': {
+                    'ambient_color': (1.4, 1.0, 1.4),
+                    'tint': (1.5, 1.0, 1.5),
+                    'happy_thoughts_mode': True
+                }
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # 6) CODE PRESETS  (EVENT INDEX 6)
+    # ------------------------------------------------------------------
+    # Code window presets: we provide 'code' as a string and rely on
+    # your CodeRunner & Code window to interpret it.
+    #
+    # NOTE: these codes assume:
+    #   bs  -> bascenev1
+    #   bsl -> bascenev1lib
+    #   bui -> bauiv1
+    #   ba  -> babase
+    #   Spaz -> bsl.actor.spaz.Spaz
+    #
+    # which you already inject in CodeRunner._execute_code().
+    # ------------------------------------------------------------------
+
+    # 6.0 – Original Pixie Dream (kept & slightly polished)
+    presets.append((
+        6,
+        'Pixie Dream',
+        'Magical pink pixie character.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Pixie Dream',
+                    '# Magical pink pixie',
+                    '',
+                    'name = "Pixie"',
+                    'color = (1.0, 0.75, 0.8)',
+                    'highlight = (1.0, 0.0, 1.0)',
+                    'position = (0, 2, 0)',
+                    'angle = 1',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Pixel",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    # 6.1 – Simple Crowd of Bots around center
+    presets.append((
+        6,
+        'Circle Crowd',
+        'Spawn a circle of\nneutral bots around center.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Circle Crowd',
+                    '# Spawns a ring of neutral bots around center.',
+                    '',
+                    'count = 8',
+                    'radius = 5.0',
+                    'height = 1.0',
+                    '',
+                    'bots = []',
+                    'for i in range(count):',
+                    '    angle = (2.0 * 3.1415926 * i) / count',
+                    '    x = radius * math.cos(angle)',
+                    '    z = radius * math.sin(angle)',
+                    '    pos = (x, height, z)',
+                    '    bot = Spaz(',
+                    '        character="Spaz",',
+                    '        start_invincible=False',
+                    '    )',
+                    '    bot.handlemessage(bs.StandMessage(pos, (3.1415 - angle)))',
+                    '    bot.node.name = f"Extra {i+1}"',
+                    '    bots.append(bot)',
+                ))
+            }
+        }
+    ))
+
+    # 6.2 – Node Visualizer for Terrain / Interesting Nodes
+    # This builds text labels on top of some existing nodes to inspect scene.
+    presets.append((
+        6,
+        'Node Visualizer (Simple)',
+        'Attach labels to key\nscene nodes for debugging\n or visualizing.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Node Visualizer',
+                    '# Places floating labels above key map nodes.',
+                    '',
+                    'act = bs.get_foreground_host_activity()',
+                    'm = getattr(act, "map", None)',
+                    'if not m:',
+                    '    raise RuntimeError("No map available in this activity.")',
+                    '',
+                    'labels = []',
+                    '',
+                    'def _label(node, text, y_off=1.0, color=(1,1,1)):',
+                    '    if not node or not node.exists():',
+                    '        return',
+                    '    t = bs.newnode("text", attrs={',
+                    '        "text": text,',
+                    '        "in_world": True,',
+                    '        "shadow": 1.0,',
+                    '        "flatness": 1.0,',
+                    '        "color": color,',
+                    '        "scale": 0.01,',
+                    '        "h_align": "center"',
+                    '    })',
+                    '    mth = bs.newnode("math", attrs={',
+                    '        "input1": (0, y_off, 0),',
+                    '        "operation": "add"',
+                    '    })',
+                    '    node.connectattr("position", mth, "input2")',
+                    '    mth.connectattr("output", t, "position")',
+                    '    labels.append((t, mth))',
+                    '',
+                    '# Label the map root node (if present)',
+                    'root = getattr(m, "node", None)',
+                    '_label(root, "MAP ROOT", 1.5, (1.2, 1.0, 0.4))',
+                    '',
+                    '# Label some known attrs if they exist',
+                    'for name, c in [',
+                    '    ("floor", (0.5,1,0.5)),',
+                    '    ("stands", (0.5,0.8,1)),',
+                    '    ("player_wall", (1,0.5,0.5)),',
+                    '    ("bg_collide", (0.8,0.8,0.8)),',
+                    ']:',
+                    '    n = getattr(m, name, None)',
+                    '    if n is not None:',
+                    '        _label(n, name.upper(), 1.0, c)',
+                    '',
+                    '# Optional: keep labels around; they will be auto-cleaned',
+                    '# when this CodeRunner finishes.'
+                ))
+            }
+        }
+    ))
+
+    # 6.3 – Simple 2D Graph (sin wave in space)
+    presets.append((
+        6,
+        '2D Graph: Sine Wave',
+        'Visual 2D sine wave\ngraph in 3D space\nusing tiny text nodes.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI 2D Sine Graph',
+                    '# Draws a sine wave using tiny text points.',
+                    '',
+                    'length = 5',
+                    'step = 0.01',
+                    'scale_x = 5',
+                    'scale_y = 5',
+                    'origin = (-10.0, 1.0, 0.0)',
+                    '',
+                    'pts = []',
+                    'all = int(length/step)',
+                    'for i in range(all):',
+                    '    x = i * step',
+                    '    y = math.sin(x) * scale_y',
+                    '    color = (i/all/10, i/all, i/all)',
+                    '    pos = (origin[0] + x * scale_x, origin[1] + y, origin[2])',
+                    '    t = bs.newnode("text", attrs={',
+                    '        "text": ".",',
+                    '        "in_world": True,',
+                    '        "shadow": 0.0,',
+                    '        "flatness": 1.0,',
+                    '        "color": color,',
+                    '        "scale": 0.08,',
+                    '        "position": pos,',
+                    '        "h_align": "center"',
+                    '    })'
+                ))
+            }
+        }
+    ))
+
+    # 6.4 – 3D Point Cloud “Galaxy”
+    presets.append((
+        6,
+        'Party Glitter',
+        'Populate the scene\nwith a small 3D\nglowing points',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Party Glitter',
+                    '# Random 3D points',
+                    '',
+                    'count = 80',
+                    'radius = 20.0',
+                    'height = 4.0',
+                    '',
+                    'stars = []',
+                    'for i in range(count):',
+                    '    x = (random.random() * 2 - 1) * radius',
+                    '    z = (random.random() * 2 - 1) * radius',
+                    '    y = random.random() * height + 2.0',
+                    '    pos = (x, y, z)',
+                    '    r = random.random()',
+                    '    g = random.random()',
+                    '    b = random.random()',
+                    '    color = (r, g, b)',
+                    '    t = bs.newnode("text", attrs={',
+                    '        "text": "•",',
+                    '        "in_world": True,',
+                    '        "shadow": 0.0,',
+                    '        "flatness": 1.0,',
+                    '        "color": color,',
+                    '        "scale": 0.02,',
+                    '        "h_align": "center",',
+                    '        "position": pos',
+                    '    })'
+                ))
+            }
+        }
+    ))
+
+    # 6.5 – Simple Orbit Camera Tool (camera manual fly in a circle)
+    presets.append((
+        6,
+        'Orbit Camera Tool',
+        'Continuously orbit the\ncamera around center\nwhile running.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Orbit Camera Tool',
+                    '# Continuously orbits camera around origin while running.',
+                    '',
+                    'import math',
+                    '',
+                    'act = bs.get_foreground_host_activity()',
+                    '',
+                    '# If main runner stops, __stop_flag__ will be set True.',
+                    'angle = 0.0',
+                    'radius = 10.0',
+                    'height = 4.0',
+                    '_ba.set_camera_manual(True)',
+                    '',
+                    'def _step():',
+                    '    global angle',
+                    '    if __stop_flag__.is_set():',
+                    '        _ba.set_camera_manual(False)',
+                    '        return',
+                    '    angle_step = 0.03',
+                    '    angle_val = angle',
+                    '    angle += angle_step',
+                    '    x = radius * math.cos(angle_val)',
+                    '    z = radius * math.sin(angle_val)',
+                    '    pos = (x, height, z)',
+                    '    _ba.set_camera_position(*pos)',
+                    '    _ba.set_camera_target(0.0, 1.5, 0.0)',
+                    '    bs.timer(0.02, _step)',
+                    '',
+                    'bs.timer(0.02, _step)'
+                ))
+            }
+        }
+    ))
+
+    # 6.6 – Simple “Stage Clear” banner at top with flash FX
+    presets.append((
+        6,
+        'Stage Clear Banner',
+        'Drops a stage-clear-style\nbanner and spark FX.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Stage Clear Banner',
+                    '',
+                    'act = bs.get_foreground_host_activity()',
+                    '',
+                    '# Big text banner',
+                    't = bs.newnode("text", attrs={',
+                    '    "text": "STAGE CLEAR",',
+                    '    "in_world": False,',
+                    '    "shadow": 1.0,',
+                    '    "flatness": 0.8,',
+                    '    "color": (2.0, 1.8, 0.2),',
+                    '    "scale": 1.0,',
+                    '    "h_align": "center",',
+                    '    "position": (0, 200)',
+                    '})',
+                    '',
+                    '# Animate dropping into place',
+                    'bs.animate_array(t, "position", 2, {',
+                    '    0.0: (0, 400),',
+                    '    0.2: (0, 200),',
+                    '    0.25: (0, 220),',
+                    '    0.3: (0, 200)',
+                    '})',
+                    'bs.timer(0.2,bs.getsound("scoreHit01").play)',
+                    '',
+                    '# Flashing spark FX below',
+                    'def _fx():',
+                    '    bs.emitfx(',
+                    '        position=(0, 1, 0),',
+                    '        count=30,',
+                    '        scale=1.0,',
+                    '        spread=1.0,',
+                    '        chunk_type="spark",',
+                    '        emit_type="stickers"',
+                    '    )',
+                    '',
+                    'for i in range(6):',
+                    '    bs.timer(0.2 + i*0.1, _fx)'
+                ))
+            }
+        }
+    ))
+
+    return presets
