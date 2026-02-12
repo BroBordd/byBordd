@@ -14,12 +14,21 @@ import _babase as _ba
 import bascenev1 as bs
 
 from re import sub
+from math import ceil
+from json import loads
 from os import listdir
+from io import StringIO
 from random import choice
+from zlib import decompress
+from base64 import b85decode
 from time import perf_counter
 from weakref import WeakMethod
+from traceback import format_exc
 from os.path import join, dirname
+from threading import Thread, Event
 from collections import defaultdict
+from ctypes import pythonapi, c_long, py_object
+from contextlib import redirect_stdout, redirect_stderr
 
 __version__ = '1.0'
 
@@ -66,6 +75,7 @@ class Editor:
         s.active = {}
         s.active_sounds = {}
         s.active_timers = {}
+        s.active_codes = defaultdict(dict)
         # play
         s.play_timer = None
         s.playing = False
@@ -177,8 +187,8 @@ class Editor:
             )
         )
         # default
-        text_width = t and bui.get_string_width(
-            t,suppress_warning=True
+        text_width = t and Eval.STRING_WIDTH(
+            t,
         ) or 0
         duration = 0.45
         end_size = dx,dy = (text_width+(t and 20 or 0),30)
@@ -1158,8 +1168,10 @@ class Editor:
                     color=Color.WARM,
                     opacity=Color.OPACITY
                 )
+                existed = False
                 if nam in mem['keys']:
                     mem['keys'][nam]['widget'].delete()
+                    existed = True
                 mem['keys'][nam] = {
                     'time':actual_time,
                     'action':i,
@@ -1172,7 +1184,7 @@ class Editor:
                     'widget':key_wid
                 }
                 s.toast(
-                    had_data and
+                    existed and
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
@@ -1191,14 +1203,179 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-        # Callable
+        # Code
         elif i == 1:
-            pass
-        # Bubble
-        elif i == 2:
-            pass
+            if not s.event_on:
+                s.toggle_event(passive=True)
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x+s.window_marg+5,y+sy-30),
+                text=Strings.EXTEND_CODE,
+                scale=1.5,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x+s.window_marg-5,y+sy-70),
+                text=Strings.CODE_HELP,
+                maxwidth=sx-s.window_marg*2,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            # name
+            tx = Strings.NAME
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*4.5+8),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            name_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*4.5+5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=data.get('name','')
+            )
+            s.key_kids.append((name_inp,1))
+            # offset
+            tx = Strings.OFFSET
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*5.5+8),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            time_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*5.5+5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('offset',''))
+            )
+            s.key_kids.append((time_inp,1))
+            _old_off = None
+            def _off_spy():
+                nonlocal _old_off
+                if not time_inp.exists():
+                    s.off_spy = None
+                    return
+                o = bui.textwidget(query=time_inp)
+                if (
+                    o.replace('.','',1).isdigit()
+                    and (new:=float(o)) != _old_off
+                ):
+                    mem = s.memory[id(s.sl)]
+                    _old_off = new
+                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    if not (0 <= new <= mem['duration']): return
+                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                        parent=s.stamp_hscroll_root,
+                        position=(
+                            s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
+                            s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
+                        ),
+                        size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                        texture=Eval.TEXTURE(Const.KEY),
+                        color=Color.TEMP,
+                        opacity=Color.OPACITY
+                    )
+                    mem['prev_off'] = new
+            s.off_spy = bui.AppTimer(
+                0.02, _off_spy, repeat=True
+            )
+            # done func
+            def do_open():
+                o = bui.textwidget(query=time_inp)
+                n = bui.textwidget(query=name_inp)
+                if not n:
+                    s.toast(Format.ERROR_EMPTY(Strings.NAME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not o:
+                    s.toast(Format.ERROR_EMPTY(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    offset_val = float(o)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if not (0 <= offset_val <= mem['duration']):
+                    s.toast(Format.OUT_OF_RANGE(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                s.event_window(
+                    6,
+                    force_title=Strings.CODE_EDITOR,
+                    on_done=lambda final: add_key(final,n,offset_val,mem),
+                    initial_code=data.get('code')
+                )
+            def add_key(final,n,off,mem):
+                actual_time = mem['start'] + off
+                key_x = s.magic_x + s.entry_xs_real * actual_time * s.entries_per_sec - s.entry_ys_real/4
+                key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
+                key_wid = bui.imagewidget(
+                    parent=s.stamp_hscroll_root,
+                    position=(key_x, key_y),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=Color.OPACITY
+                )
+                existed = False
+                if n in mem['keys']:
+                    mem['keys'][n]['widget'].delete()
+                    existed = True
+                mem['keys'][n] = {
+                    'time':actual_time,
+                    'action':i,
+                    'data':{
+                        'offset':off,
+                        'code':final['code'],
+                        'name':n
+                    },
+                    'widget':key_wid
+                }
+                s.toast(
+                    existed and
+                    Strings.INFO_EDITED_KEY or
+                    Strings.INFO_ADDED_KEY
+                )
+            # done button
+            bx,by = sx-s.window_marg*4,40
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+10,y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_open,
+                enable_sound=False,
+                label=Strings.NEXT,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
         # Volume
-        elif i == 3:
+        elif i == 2:
             # volume
             tx = Strings.VALUE
             t = bui.textwidget(
@@ -1343,7 +1520,9 @@ class Editor:
                     color=Color.WARM,
                     opacity=Color.OPACITY
                 )
+                existed = False
                 if nam in mem['keys']:
+                    existed = True
                     mem['keys'][nam]['widget'].delete()
                 mem['keys'][nam] = {
                     'time':actual_time,
@@ -1356,7 +1535,7 @@ class Editor:
                     'widget':key_wid
                 }
                 s.toast(
-                    had_data and
+                    existed and
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
@@ -2040,8 +2219,8 @@ class Editor:
             )
 
     @clickable
-    def toggle_event(s):
-        if s.window_on:
+    def toggle_event(s,passive=False):
+        if s.window_on and not passive:
             s.window_back()
             return
         Eval.SOUND(Const.OK_SOUND).play()
@@ -2074,6 +2253,13 @@ class Editor:
                 start_pos = anim.attrs_current['position']
             else: start_pos = s.event_on and end or start
             end_pos = s.event_on and start or end
+            if s.key_window in s.window_on:
+                s.anims[id(w)]['window'].attrs_start['position'] = end_pos
+                s.anims[id(w)]['shadow'].attrs_start['position'] = end_pos
+                s.anims[id(w)]['push'].attrs_start['position'] = start_pos
+                s.anims[id(w)]['push'].attrs_end['position'] = end_pos
+                s.anims[id(w)]['push'].attrs_current['position'] = end_pos
+                return
             s.anims[id(w)]['push'] = Animate(
                 widget=w,
                 attrs={
@@ -2147,6 +2333,7 @@ class Editor:
         parent_width_progress = dx + (sx - dx) * child_start_progress
         start_width_ratio = (parent_width_progress - 40) / mx
 
+        times = []
         for i,b in enumerate(s.event_kids):
             # animate
             stagger = 0.02 * (num-i)
@@ -2165,6 +2352,7 @@ class Editor:
                     delay=child_delay + stagger
                 )
             )
+            times.append(child_delay + stagger)
             # enable
             bui.buttonwidget(
                 b,
@@ -2178,12 +2366,12 @@ class Editor:
             )
 
     @clickable
-    def event_window(s,i,edit={},load=False):
+    def event_window(s,i,edit={},load=False,passive=False,**kw):
         if getattr(s,'making_window_kids',False):
             s.toast(Strings.INFO_SLOW_DOWN)
             Eval.SOUND(Const.BAD_SOUND).play()
             return
-        if s.window_on: s.window_back()
+        if s.window_on and not passive: s.window_back()
         else: Eval.SOUND(Const.OK_SOUND).play()
         # disable
         b = list(s.event_kids)[i]
@@ -2205,7 +2393,6 @@ class Editor:
         s.anims[id(b)]['window'] = (
             Animate(
                 widget=b,
-
                 duration=butter,
                 attrs={
                     'position':(
@@ -2227,7 +2414,6 @@ class Editor:
         s.anims[id(b)]['shadow'] = (
             Animate(
                 widget=s.event_kids[b]['shadow'],
-
                 attrs={
                     'opacity':(0,Color.OPACITY),
                     'position':(
@@ -2243,12 +2429,12 @@ class Editor:
             )
         )
         # make ui
-        s.window_on[2] = s.make_window_kids(i,edit=edit,load=load)
+        s.window_on[2] = s.make_window_kids(i,edit=edit,load=load,**kw)
 
-    def make_window_kids(s,i,edit={},load=False):
+    def make_window_kids(s,i,edit={},load=False,**kw):
         s.making_window_kids = True
         s.make_window_default(
-            title=(
+            title=kw.pop('force_title',None) or (
                 edit and not load and Strings.EDIT.format(
                     edit['data']['name']
                 ) or list(Strings.EVENTS.values())[i]
@@ -2261,6 +2447,7 @@ class Editor:
             i == 3 and s.make_fx_window or
             i == 4 and s.make_map_window or
             i == 5 and s.make_preset_window or
+            i == 6 and s.make_code_window or
             (lambda *a,**k:s.toast(Strings.COMING_SOON))
         )
         wait = 0
@@ -2269,7 +2456,7 @@ class Editor:
             s.animate_window_kids(extra_delay=-wait),
             setattr(s,'making_window_kids',False)
         )
-        r = func(edit,load)
+        r = func(edit,load,**kw)
         if isinstance(r,tuple):
             wait,r = r
             bui.apptimer(wait,fin)
@@ -2973,7 +3160,6 @@ class Editor:
         old_pos = list(last_pos)
         old_tar = list(last_tar)
         virgin = True
-        original_manual = False
         current_manual = False
 
         # preview nodes
@@ -3357,7 +3543,6 @@ class Editor:
             last_pos = data['position']
             last_tar = data['target']
             chks = data['chks']
-            original_manual = chks[2]
             enforce()
 
         # cleanup on window close
@@ -3612,7 +3797,7 @@ class Editor:
             # Load and play (getsound needs filename without extension)
             sound_name = current_sound.replace('.ogg', '')
             try: pos = collect_pos()
-            except Exception as e:
+            except:
                 s.toast(Strings.ERROR_INVALID.format(Strings.POSITION))
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
@@ -4509,6 +4694,7 @@ class Editor:
                     label=Strings.PREVIEW
                 )
                 s.change_map(old_ma)
+                Eval.SOUND(Const.OK_SOUND).play()
                 return
             if not (ma:=ready()):
                 s.toast(Format.ERROR_EMPTY(list(Strings.EVENTS)[4]))
@@ -4679,7 +4865,8 @@ class Editor:
 
         # select
         sl = None
-        def do_select(pre,nam,dsc):
+        def do_select(i):
+            pre,nam,dsc = preset_stuff[i]
             nonlocal sl
             sl = pre
             bui.textwidget(
@@ -4693,6 +4880,7 @@ class Editor:
 
         text_y = 30
         preset_texts = []
+        preset_stuff = []
 
         # Populate preset list
         presets = Const.PRESETS()
@@ -4712,10 +4900,11 @@ class Editor:
                 color=(*Color.TEXT,Color.OPACITY),
                 v_align=Const.ALIGN,
                 on_activate_call=bui.CallPartial(
-                    do_select, pre, nam, dsc
+                    do_select, i
                 )
             )
             preset_texts.append(w)
+            preset_stuff.append((pre,nam,dsc))
 
         # Set container size
         bui.containerwidget(
@@ -4771,6 +4960,198 @@ class Editor:
 
         # finally
         s.window_trash = [preset_texts]
+
+    def make_code_window(s,edit=None,load=False,on_done=None,initial_code=None):
+        # math
+        x, y = s.window_pos
+        sx, sy = s.window_size
+        delay = 0.35
+        by = 40
+        data = edit and edit['data']
+
+        # code scroll
+        size = dx, dy = (sx+4, sy - s.window_marg*13-by)
+        pos = px, py = (s.window_marg - s.window_fix, s.window_marg*4 - s.window_fix + by)
+        code_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            size=(dx/2, 0),
+            border_opacity=0
+        )
+        s.window_kids.append((code_scroll, pos, 20, delay + 0,
+            ('size', ((0, size[1]), size)),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
+        ))
+
+        # code root
+        code_root = bui.containerwidget(
+            parent=code_scroll,
+            background=False
+        )
+
+        text_y = 30
+        code_texts = []
+        def make_text(**k):
+            code_texts.append(
+                bui.textwidget(
+                    parent=code_root,
+                    editable=True,
+                    allow_clear_button=False,
+                    size=(dx,text_y),
+                    maxwidth=dx-20,
+                    **k
+                )
+            )
+            sync_texts()
+
+        def sync_texts():
+            ry = len(code_texts)*text_y
+            for i,w in enumerate(code_texts,start=1):
+                bui.textwidget(w,position=(0,ry-i*text_y))
+            bui.containerwidget(code_root,size=(dx,ry),visible_child=w)
+
+        make_text()
+
+        def code_spy():
+            t1 = bui.textwidget(query=code_texts[-1])
+            t2 = bui.textwidget(query=code_texts[-2]) if len(code_texts) > 1 else True
+            if t1: make_text()
+            if not t1 and not t2:
+                code_texts.pop(-1).delete()
+                sync_texts()
+
+        start_spy = lambda: bui.AppTimer(
+            0.02, code_spy, repeat=True
+        )
+        code_timer = start_spy()
+
+        def get_code():
+            code = '\n'.join(
+                bui.textwidget(
+                    query=t
+                )
+                for t in code_texts
+            )
+            if not code:
+                Eval.SOUND(Const.BAD_SOUND).play()
+                s.toast(Strings.ERROR_EMPTY_CODE)
+            return code
+        # buttons
+        def load_code(code):
+            if not code: return
+            code = code.split('\n')
+            tail = code_texts[-1]
+            if not bui.textwidget(query=tail):
+                bui.textwidget(tail,text=code.pop(0))
+            for l in code:
+                make_text(text=l)
+        running = False
+        runner = None
+        final = None
+        def do_btn(i,btn):
+            # copy
+            if i == 0:
+                if (code:=get_code()):
+                    bui.clipboard_set_text(code)
+                    Eval.SOUND(Const.GOOD_SOUND).play()
+                    s.toast(Strings.INFO_COPIED)
+            # paste
+            if i == 1:
+                if not (t:=ba.clipboard_get_text()):
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    s.toast(Strings.INFO_NO_CLIPBOARD)
+                    return
+                load_code(t)
+                Eval.SOUND(Const.ACTION_SOUND).play()
+                s.toast(Strings.INFO_PASTED)
+            # run
+            if i == 2:
+                nonlocal running, runner
+                if running:
+                    running = False
+                    bui.buttonwidget(btn,label=Strings.RUN)
+                    runner.on_end()
+                    runner = None
+                    Eval.SOUND(Const.OK_SOUND).play()
+                    return
+                elif (code:=get_code()):
+                    running = True
+                    bui.buttonwidget(btn,label=Strings.STOP)
+                    runner = CodeRunner(
+                        bs.get_foreground_host_activity(),
+                        on_error=lambda e:(
+                            s.toast(
+                                Format.ERROR(e)
+                            )
+                        )
+                    )
+                    runner.on_start(code)
+                    Eval.SOUND(Const.OK_SOUND).play()
+            # done
+            if i == 3:
+                if not (code:=get_code()): return
+                runner and runner.on_end()
+                head = bui.textwidget(query=code_texts[0])
+                na = Strings.CODE
+                if head.startswith(Const.CONFIG_HEAD):
+                    na = head.split(Const.CONFIG_HEAD,1)[1] or na
+                nonlocal final
+                final = {
+                    'code':code,
+                    'name':na
+                }
+                if edit and not load:
+                    data.update(final)
+                    bui.buttonwidget(
+                        s.stamp_kids[edit['order']],
+                        label=na
+                    )
+                    s.window_back()
+                    s.toast(Strings.INFO_SAVED)
+                elif not callable(on_done): s.add_entry(final)
+                else:
+                    s.window_back()
+                    on_done(final)
+        for i,t in enumerate((
+            Strings.COPY,
+            Strings.PASTE,
+            Strings.RUN,
+            Strings.DONE
+        )):
+            btn_pos = (s.window_marg - 4 + (sx/4 + s.window_marg)*i, s.window_marg)
+            btn = bui.buttonwidget(
+                parent=s.root,
+                size=(0, 0),
+                position=btn_pos,
+                texture=Eval.TEXTURE(Const.SKIN),
+                color=Color.BASE,
+                enable_sound=False,
+                label=t,
+                textcolor=Const.INVISIBLE
+            )
+            bui.buttonwidget(
+                btn,
+                on_activate_call=bui.CallPartial(
+                    do_btn, i, btn
+                )
+            )
+            s.window_kids.append((btn, btn_pos, 50, delay + i*0.1,
+                ('size', ((0, by), (sx/4 - s.window_marg*4, by)))
+            ))
+
+        # finally
+        s.window_trash = [code_texts]
+        if data:
+            load_code(data.get('code'))
+        elif initial_code:
+            load_code(initial_code)
+        def cleanup():
+            nonlocal code_timer
+            code_timer = None
+            runner and runner.on_end()
+        return cleanup
 
     def window_clean(s):
         for w,*_ in s.window_kids:
@@ -4906,6 +5287,10 @@ class Editor:
             enable()
         # finally
         s.window_on = ()
+        a = 'on_next_window_back'
+        if hasattr(s,a):
+            callable(f:=getattr(s,a)) and f()
+            delattr(s,a)
 
     def show_controls(s,up=False):
         if s.controls_shown: return
@@ -5036,6 +5421,12 @@ class Editor:
         for _ in s.active_sounds: _.delete()
         s.active_sounds.clear()
         s.active_timers.clear()
+        for _ in s.active_codes.values():
+            (main:=_.get('main')) and main.on_end()
+            (children:=_.get('children')) and [
+                child.on_end() for child in children
+            ]
+        s.active_codes.clear()
         shut or s.toast(Strings.INFO_FINISHED)
         s.freeze_scene(False)
         s.change_map(s.original_map)
@@ -5195,9 +5586,29 @@ class Editor:
             else:
                 s.active_timers.pop(key)
 
+        # map
         if what == 4:
             if start:
                 s.change_map(data['map'], extra=data['attrs'])
+
+        # code
+        if what == 6:
+            if start:
+                s.active_codes[key]['main'] = runner = CodeRunner(
+                    bs.get_foreground_host_activity(),
+                    on_error=lambda e:(
+                        s.toast(
+                            Format.ERROR(e)
+                        )
+                    )
+                )
+                runner.on_start(data['code'])
+                s.active_codes[key]['children'] = []
+            else:
+                codes = s.active_codes.pop(key)
+                codes['main'].on_end()
+                for child in codes['children']:
+                    child.on_end()
 
         # Execute keys for this event
         # Keys are executed based on time, not start/end
@@ -5233,18 +5644,19 @@ class Editor:
                         s.toast(Format.ERROR(e))
                         Eval.SOUND(Const.BAD_SOUND).play()
 
-        # Callable (action 1)
+        # Code (action 1)
         elif action == 1:
-            # TODO: Implement callable execution
-            pass
+            parent_runner = s.active_codes[btn_id]['main']
+            child_runner = CodeRunner(
+                bs.get_foreground_host_activity(),
+                on_error=lambda e: s.toast(Format.ERROR(e)),
+                parent_runner=parent_runner
+            )
+            child_runner.on_start(key_data['data']['code'])
+            s.active_codes[btn_id]['children'].append(child_runner)
 
-        # Bubble (action 2)
+        # Volume (action 2)
         elif action == 2:
-            # TODO: Implement bubble text
-            pass
-
-        # Volume (action 3)
-        elif action == 3:
             da = key_data['data']
             v = da['volume']
             if btn_id in s.active:
@@ -6450,6 +6862,226 @@ class Editor:
         temp.delete()
         s.on_scroll()
 
+class Bubble:
+    __mem__ = {}
+    def __init__(
+        s,
+        node: 'bascenev1.Node',
+        text: str = 'Hello!',
+        color: tuple = (1,1,1),
+        time: float | int = 4,
+        mode: int = 0,
+        res: list = [('█'),('▼')]
+    ) -> None:
+        if not 0 <= mode <= 5 : raise ValueError(f'mode can be an integer from 0 to 5, not {mode}')
+        if not mode: mode = choice([1,2,3,4,5])
+        s.ans,s.kids,s.mats,s.time = [],[],[],time
+        s.node,s.dead,s.text = node,False,text
+        s.color,s.mode,s.res = color,mode,res
+        # destroy existing bubbles if possible
+        s.mem = lambda: s.__class__.__mem__
+        m = s.mem()
+        o = m.get(node,0)
+        if not getattr(o,'dead',1): bs.timer(0.2,bs.CallPartial(o.delete,force=True))
+        s.show()
+        m[node] = s
+    def show(s):
+        q,l,r = s.mats,s.kids,s.ans
+        # offset
+        m = bs.newnode(
+            'math',
+            owner=s.node,
+            attrs={
+                'input1': (0,1.65,0),
+                'operation': 'add'
+            }
+        )
+        q.append(m)
+        # the bubble
+        c = list(s.color)
+        w = Eval.STRING_WIDTH(s.res[0])
+        b = bs.newnode(
+            'text',
+            owner=m,
+            attrs={
+                'text': f'{ceil((Eval.STRING_WIDTH(s.text)+2*w)/w)*s.res[0]}\n{s.res[1]}',
+                'in_world': True,
+                'shadow': 1.0,
+                'flatness': 1.0,
+                'color': (c[0],c[1],c[2],0.2),
+                'scale': 0.01,
+                'h_align': 'center'
+            }
+        )
+        l.append(b)
+        # the text
+        txt = []
+        mat = []
+        kek = -Eval.STRING_WIDTH(s.text)/185
+        sf = 0
+        for i in range(len(s.text)):
+            j = s.text[i]
+            x = Eval.STRING_WIDTH(j)/95.0
+            p1 = bs.newnode(
+                'text',
+                owner=m,
+                attrs={
+                    'text': j,
+                    'in_world': True,
+                    'shadow': 1.0,
+                    'flatness': 1.0,
+                    'color': s.color,
+                    'scale': 0.01,
+                    'h_align': 'left'
+                }
+            )
+            txt.append(p1)
+            ok = kek+sf
+            p2 = bs.newnode(
+                'math',
+                owner=m,
+                attrs={
+                    'input1': (ok,1.65,0),
+                    'operation': 'add'
+                }
+            )
+            mat.append([p2,ok])
+            s.node.connectattr('position',p2,'input2')
+            p2.connectattr('output',p1,'position')
+            sf += x
+        l += txt
+        q += [mat[i][0] for i in range(len(mat))]
+        # connect
+        s.node.connectattr('position',m,'input2')
+        m.connectattr('output',b,'position')
+        # hardcoded animators
+        # conditionally used based on animation
+        z = s.time
+        # scale bubble in out
+        a = bs.animate(
+            b,
+            'scale',
+            {
+                0:0,
+                z*0.041: 0.014,
+                z*0.154: 0.014,
+                z*0.167: 0.010,
+                z*0.98: 0.010,
+                z:0
+            },
+        )
+        r.append(a)
+        # move bubble up down
+        a = bs.animate_array(
+            m,
+            'input1',
+            3,
+            {
+                0:(0,1.2,0),
+                z*0.04:(0,1.65,0),
+                z*0.98:(0,1.65,0),
+                z:(0,1.2,0)
+            }
+        )
+        r.append(a)
+        # scale text in out
+        r += [
+            bs.animate(
+                txt[i],
+                'scale',
+                {
+                    0:0,
+                    z*0.041: 0.015,
+                    z*0.154: 0.015,
+                    z*0.167: 0.010,
+                    z*0.98: 0.010,
+                    z:0
+                },
+            )
+            for i in range(len(mat))
+        ] if s.mode in [1,4] else []
+        # move text up down
+        r += [
+            bs.animate_array(
+                mat[i][0],
+                'input1',
+                3,
+                {
+                    0:(mat[i][1]/4,1.2,0),
+                    z*0.04:(mat[i][1]*1.5,1.65,0),
+                    z*0.154:(mat[i][1]*1.5,1.65,0),
+                    z*0.167:(mat[i][1],1.65,0),
+                    z*0.98:(mat[i][1],1.65,0),
+                    z:(mat[i][1]/4,1.2,0)
+                }
+            )
+            for i in range(len(mat))
+        ] if s.mode in [1,4] else []
+        # slide in overshoot letter by letter
+        ok = (z*0.04*1.6)
+        hm = [0.03,0.05][s.mode==2]
+        r += [
+            bs.animate_array(
+                j[0],
+                'input1',
+                3,
+                {
+                    0.5+i*hm:(j[1],1.4,0),
+                    0.5+i*hm+(ok*0.6):(j[1],1.9,0),
+                    0.5+i*hm+ok:(j[1],1.65,0),
+                    (z-(z*0.02)):(j[1],1.65,0),
+                    z:(j[1],1.2,0)
+                }
+            )
+            for i,j in enumerate(mat)
+        ] if s.mode in [2,5] else []
+        # fade in letter by letter
+        r += [
+            bs.animate(
+                txt[i],
+                'opacity',
+                {
+                    0.5+i*hm:0,
+                    (0.5+i*hm+ok)*0.98:1,
+                    z*0.9:1,
+                    z:0
+                }
+            )
+            for i in range(len(mat))
+        ] if s.mode in [2,4,5] else []
+        # scale slide up text
+        r += [
+            bs.animate(
+                txt[i],
+                'scale',
+                {
+                    0:0,
+                    z*0.154: 0,
+                    z*0.167: 0.010,
+                    z*0.98: 0.010,
+                    z:0
+                },
+            )
+            for i in range(len(mat))
+        ] if s.mode == 3 else []
+        # autokill
+        bs.timer(z,s.delete)
+
+    def delete(s,force=False):
+        if s.dead: return
+        s.dead = True
+        [i.delete() for i in s.ans if hasattr(i,'delete')]
+        bs.timer(0.2,lambda:[i.delete() for i in s.kids+s.mats if hasattr(i,'delete')])
+        if not force: return
+        [bs.animate(
+            i,
+            'opacity',
+            {
+                0:i.opacity,
+                0.2:0
+            }
+        ) for i in s.kids]
+
 class Animate:
     def __init__(s, widget, attrs, duration, on_start=None, on_finish=None, on_cancel=None, delay=0, condition=None, on_reverse=None):
         """
@@ -6665,6 +7297,160 @@ class Animate:
             **new
         )
 
+class CodeRunner:
+    def __init__(self, host_activity, on_error=None, parent_runner=None):
+        self.host_activity = host_activity
+        self.on_error = on_error
+        self.parent_runner = parent_runner
+        
+        # Use parent's namespace if provided, else create new
+        if parent_runner:
+            self.namespace = parent_runner.namespace
+            self.created_nodes = parent_runner.created_nodes
+        else:
+            self.namespace = {}
+            self.created_nodes = []
+        
+        self.stdout_capture = StringIO()
+        self.stderr_capture = StringIO()
+        self.running = False
+        self.stop_flag = Event()
+        self.main_thread = None
+        self.original_newnode = None
+        
+        # Track child runners
+        self.children = []
+
+    def _patched_newnode(self, *args, **kwargs):
+        node = self.original_newnode(*args, **kwargs)
+        self.created_nodes.append(node)
+        return node
+
+    def _terminate_thread(self, thread):
+        if not thread.is_alive():
+            return
+        try:
+            exc = py_object(SystemExit)
+            res = pythonapi.PyThreadState_SetAsyncExc(c_long(thread.ident), exc)
+            if res > 1:
+                pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
+        except:
+            pass
+
+    def _execute_code(self, code_string):
+        import bascenev1 as bs
+        import bascenev1lib as bsl
+        import bauiv1 as bui
+        import babase as ba
+
+        self.original_newnode = bs.newnode
+        bs.newnode = self._patched_newnode
+
+        self.namespace.update({
+            '__stop_flag__': self.stop_flag,
+            'bascenev1': bs,
+            'bascenev1lib': bsl,
+            'bauiv1': bui,
+            'babase': ba,
+            'bs': bs,
+            'bsl': bsl,
+            'bui': bui,
+            'ba': ba
+        })
+
+        try:
+            with self.host_activity.context:
+                with redirect_stdout(self.stdout_capture), redirect_stderr(self.stderr_capture):
+                    exec(code_string, self.namespace)
+        except Exception as e:
+            if callable(self.on_error):
+                self.on_error(e)
+            else:
+                print(f"Error in user code: {e}")
+                print(format_exc())
+        finally:
+            bs.newnode = self.original_newnode
+
+    def _runner(self, code_string):
+        try:
+            bs.pushcall(lambda: self._execute_code(code_string), from_other_thread=True)
+        except SystemExit:
+            pass
+        except Exception as e:
+            if callable(self.on_error):
+                self.on_error(e)
+            else:
+                print(f"Error in user code: {e}")
+                print(format_exc())
+        finally:
+            self.running = False
+
+    def on_start(self, code_string):
+        # DON'T call on_end - let existing code keep running
+        
+        # Only reset if we're the parent starting fresh
+        if not self.parent_runner:
+            self.namespace = {}
+            self.created_nodes = []
+        
+        self.stdout_capture = StringIO()
+        self.stderr_capture = StringIO()
+        self.stop_flag.clear()
+        self.running = True
+        self.main_thread = Thread(target=self._runner, args=(code_string,), daemon=True)
+        self.main_thread.start()
+
+    def spawn_child(self, code_string):
+        """Create and start a child runner that shares this namespace"""
+        child = CodeRunner(
+            self.host_activity,
+            on_error=self.on_error,
+            parent_runner=self
+        )
+        self.children.append(child)
+        child.on_start(code_string)
+        return child
+
+    def on_end(self):
+        if not self.running and self.main_thread is None and not self.children:
+            return
+
+        self.stop_flag.set()
+
+        # Stop own thread
+        if self.main_thread and self.main_thread.is_alive():
+            self.main_thread.join(timeout=0.1)
+        if self.main_thread and self.main_thread.is_alive():
+            self._terminate_thread(self.main_thread)
+            self.main_thread.join(timeout=0.5)
+
+        # Stop all children
+        for child in self.children:
+            child.on_end()
+        self.children.clear()
+
+        # Only cleanup if we're the parent
+        if not self.parent_runner:
+            for node in self.created_nodes:
+                try:
+                    if node.exists():
+                        node.delete()
+                except:
+                    pass
+            self.created_nodes.clear()
+
+            for value in list(self.namespace.values()):
+                if hasattr(value, 'close') and callable(value.close):
+                    try:
+                        value.close()
+                    except:
+                        pass
+
+            self.namespace.clear()
+        
+        self.main_thread = None
+        self.running = False
+
 class Strings:
     # map
     MAP_TITLE = 'Movi'
@@ -6688,10 +7474,18 @@ class Strings:
         'FX':'Emit an effect',
         'Map':'Control the map',
         'Preset':'Load a preset',
-        'Custom':'Custom action'
+        'Code':'Custom code'
     }
-    # yes
+    # random
+    CODE = 'Code'
+    CODE_HELP = "Keyframes continue from the\nevent's code. All variables and\nstate are shared."
+    EXTEND_CODE = 'Extend Code'
+    CODE_EDITOR = 'Code Editor'
+    COPY = 'Copy'
+    RUN = 'Run'
+    PASTE = 'Paste'
     ATTR = 'Attr'
+    NEXT = 'Next'
     NODE_ATTR_HELP = 'The node\'s attribute name in attr dict\nbascenev1.newnode(attrs={\'THIS\':value})\nEnter'
     FX_ATTR_HELP = 'The FX\'s attribute name in attr dict\nbascenev1.emitfx(THIS=value)\nEnter'
     MAP_ATTR_HELP = 'The Sound\'s attribute name in attr dict\nsetattr(bascenev1.getactivity().map.node,\'THIS\',value)\nEnter'
@@ -6716,8 +7510,7 @@ class Strings:
     # key
     ACTIONS = [
         'Attribute',
-        'Callable',
-        'Bubble',
+        'Code',
         'Volume'
     ]
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
@@ -6739,6 +7532,10 @@ class Strings:
     ERROR_SMOL_NO_RESIZE = (
         'Not resizable!',
         'This is an instant action blud'
+    )
+    ERROR_EMPTY_CODE = (
+        'Empty code!',
+        'Enter something bud'
     )
     ERROR_INVALID = 'Invalid {}!'
     ERROR_INVALID_HELP = 'Check your input pal'
@@ -6788,6 +7585,18 @@ class Strings:
         'We\'re stuck with it as is'
     )
     # info
+    INFO_NO_CLIPBOARD = (
+        'Empty clipboard!',
+        'What are you trying to do exactly?'
+    )
+    INFO_COPIED = (
+        'Copied to clipboard!',
+        'Hope it\'s in good hands now'
+    )
+    INFO_PASTED = (
+        'Pasted!',
+        'Let\'s hope you did\'t click this by mistake'
+    )
     INFO_SLOW_DOWN = (
         'Slow down poke',
         'I know you\'re spamming the ui'
@@ -6889,9 +7698,28 @@ class Strings:
     )
     # presets
     PRESETS = {
-        'Spaz': 'A lovely spaz',
-        'TNT': 'A tnt box',
-        'Viewpoint 1': 'Close prespective'
+        'Pixie Dream': 'Magical pink pixie character',
+        'Shadow Kronk': 'Dark mysterious warrior',
+        'Ember Snake': 'Fire elemental serpent',
+        'Frosty Guardian': 'Icy snowman protector',
+        'Toxic Agent': 'Poisonous secret agent',
+        'Golden Bernard': 'Shining golden knight',
+        'Blood Zoe': 'Crimson vampire queen',
+        'Electric Spaz': 'Lightning powered hero',
+        'Mystic Mel': 'Purple wizard master',
+        'Bone Warrior': 'Undead skeleton fighter',
+        'Cyber Pascal': 'Neon tech warrior',
+        'Robot B-9000': 'Chrome mechanical guardian',
+        'Jolly Santa': 'Festive holiday hero',
+        'Wise Grumbledorf': 'Ancient sage wizard',
+        'Jack Morgan': 'Rugged gunslinger',
+        'Easter Bunny': 'Springtime hopper',
+        'Viewpoint 1': 'Close perspective',
+        'Viewpoint 2': 'Front center view',
+        'Viewpoint 3': 'High diagonal angle',
+        'Viewpoint 4': 'Top down bird\'s eye',
+        'Viewpoint 5': 'Side angle focus',
+        'Viewpoint 6': 'Wide side panorama'
     }
     # compressed
     BLAME = lambda: (
@@ -6916,6 +7744,19 @@ class Strings:
         'F*ga;#^a?rEOgo?)H<xv3hAFE>l*mC@H&L_`LBwqpgQQ934D*<v<7`V_P8d%*-894y5ak%'
         'XGm@_Sns?57LUIp!FQBP{HMJc5U&6LwATGxLn1;>00FxQ?G69{MaZMAvBYQl0ssI200dcD'
     )
+    FONT_METRICS = loads(decompress(b85decode(
+        'c$`&KXG0Y+5d13|QHmH-F6}H>Y4+Zpf)znQl&Xlo-DI+P+<v=xvpYMPY~G'
+        'PLC3-KDSIGu9D^80($Y_++CZmxkFeRg7A<u|jcQX1=;Y5a3Hu7vnNvaUhc'
+        '~11kN|Kory_42dW-8ZdsiLa`r#YO-&`IYy57F~%#4NLVp&+H5FRGGJ7jv7'
+        'DWK%H>&5&WpGSo5T81f7Sh9X0Wp`O{i#L#6{d4-{?49y`kM@PSwqgGi4)b'
+        '&hx85~{14a6B!>@eacPxlszN#-^#*EZF8Ow=89E^wj641?4y{Uxl4!uPW1'
+        'lf>5@^aSH;(OoDSTNUoXb&RwX_qpH$4j)2ESsL*OtfiHC46-?U!jJfrcRm'
+        '}Q_&GQ#d;ve5s~h_gl%Y^x4GUi*r$mKs#-|;PL?5LO)bn;syh8(B@(MPS-'
+        'o<LEp#a{4XtqB9MRNTS_Z<R7_X$B(>N5&`dt6_N2g+p)WnHcNI_Oz1YuD1'
+        '-C|73{&HV;B5Z_Bx-M39-W81smf|hN65<dpg+uY7i4u55+q-hJW1Ga1Xzg'
+        'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
+        '1Pc'
+    )))
 
 class Const:
     BA_DATA = join(
@@ -6923,6 +7764,7 @@ class Const:
             bui.app.env.cache_directory
         ), 'ballistica_files', 'ba_data'
     )
+    CONFIG_HEAD = '# MOVI '
     # scaling
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
@@ -6959,9 +7801,9 @@ class Const:
     )
     # keys
     EVENT_KEYS = {
-        0: (0,1,2),
+        0: (0,2),
         2: (3,),
-        4: (0,1)
+        6: (1,)
     }
     # arrows
     CAMERA_TOOLS = (
@@ -6978,26 +7820,411 @@ class Const:
     # sounds
     OK_SOUND = 'deek'
     BAD_SOUND = 'block'
+    ACTION_SOUND = 'gunCocking'
+    GOOD_SOUND = 'dingSmall'
     # based
     TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
     BACK = 'BACK'
     # presets
     PRESETS = lambda:[
-        (0,{}),
-        (0,{}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Pixie Dream',
+                '# Magical pink pixie',
+                '',
+                'name = "Pixie"',
+                'color = (1.0, 0.75, 0.8)',
+                'highlight = (1.0, 0.0, 1.0)',
+                'position = (0,2,0)',
+                'angle = 1',
+                '',
+                'bot = Spaz(',
+                '    character="Pixel",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Shadow Kronk',
+                '# Dark mysterious warrior',
+                '',
+                'name = "Shadow"',
+                'color = (0.1, 0.1, 0.15)',
+                'highlight = (0.5, 0.0, 0.8)',
+                'position = (-3,2,0)',
+                'angle = 2',
+                '',
+                'bot = Spaz(',
+                '    character="Kronk",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Ember Snake',
+                '# Fire elemental serpent',
+                '',
+                'name = "Ember"',
+                'color = (1.0, 0.3, 0.0)',
+                'highlight = (1.0, 1.0, 0.0)',
+                'position = (3,2,0)',
+                'angle = 4',
+                '',
+                'bot = Spaz(',
+                '    character="Snake Shadow",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Frosty Guardian',
+                '# Icy snowman protector',
+                '',
+                'name = "Frostbite"',
+                'color = (0.6, 0.8, 1.0)',
+                'highlight = (0.0, 0.8, 1.0)',
+                'position = (0,2,-3)',
+                'angle = 0',
+                '',
+                'bot = Spaz(',
+                '    character="Frosty",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Toxic Agent',
+                '# Poisonous secret agent',
+                '',
+                'name = "Venom"',
+                'color = (0.2, 0.8, 0.2)',
+                'highlight = (0.5, 1.0, 0.0)',
+                'position = (-4,2,-2)',
+                'angle = 3',
+                '',
+                'bot = Spaz(',
+                '    character="Agent Johnson",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Golden Bernard',
+                '# Shining golden knight',
+                '',
+                'name = "Aurum"',
+                'color = (1.0, 0.84, 0.0)',
+                'highlight = (1.0, 1.0, 0.8)',
+                'position = (4,2,-2)',
+                'angle = 5',
+                '',
+                'bot = Spaz(',
+                '    character="Bernard",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Blood Zoe',
+                '# Crimson vampire queen',
+                '',
+                'name = "BloodMoon"',
+                'color = (0.6, 0.0, 0.1)',
+                'highlight = (1.0, 0.0, 0.0)',
+                'position = (0,2,3)',
+                'angle = 6',
+                '',
+                'bot = Spaz(',
+                '    character="Zoe",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Electric Spaz',
+                '# Lightning powered hero',
+                '',
+                'name = "Volt"',
+                'color = (0.0, 0.4, 0.9)',
+                'highlight = (0.8, 0.9, 1.0)',
+                'position = (-6,2,0)',
+                'angle = 2.5',
+                '',
+                'bot = Spaz(',
+                '    character="Spaz",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Mystic Mel',
+                '# Purple wizard master',
+                '',
+                'name = "Mystique"',
+                'color = (0.5, 0.0, 0.8)',
+                'highlight = (0.9, 0.5, 1.0)',
+                'position = (6,2,0)',
+                'angle = 4.5',
+                '',
+                'bot = Spaz(',
+                '    character="Mel",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Bone Warrior',
+                '# Undead skeleton fighter',
+                '',
+                'name = "Reaper"',
+                'color = (0.8, 0.8, 0.8)',
+                'highlight = (0.3, 0.3, 0.3)',
+                'position = (2,2,2)',
+                'angle = 1.5',
+                '',
+                'bot = Spaz(',
+                '    character="Bones",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Cyber Pascal',
+                '# Neon tech warrior',
+                '',
+                'name = "CyberPas"',
+                'color = (0.0, 1.0, 0.8)',
+                'highlight = (0.0, 0.8, 1.0)',
+                'position = (-2,2,2)',
+                'angle = 3.5',
+                '',
+                'bot = Spaz(',
+                '    character="Pascal",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Robot B-9000',
+                '# Chrome mechanical guardian',
+                '',
+                'name = "Mech"',
+                'color = (0.7, 0.7, 0.8)',
+                'highlight = (0.3, 0.5, 1.0)',
+                'position = (5,2,1)',
+                'angle = 0.5',
+                '',
+                'bot = Spaz(',
+                '    character="B-9000",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Jolly Santa',
+                '# Festive holiday hero',
+                '',
+                'name = "Kringle"',
+                'color = (0.8, 0.0, 0.0)',
+                'highlight = (1.0, 1.0, 1.0)',
+                'position = (-5,2,1)',
+                'angle = 2.8',
+                '',
+                'bot = Spaz(',
+                '    character="Santa Claus",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Wise Grumbledorf',
+                '# Ancient sage wizard',
+                '',
+                'name = "Grumble"',
+                'color = (0.4, 0.3, 0.6)',
+                'highlight = (0.8, 0.7, 0.9)',
+                'position = (1,2,-2)',
+                'angle = 5.5',
+                '',
+                'bot = Spaz(',
+                '    character="Grumbledorf",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Jack Morgan',
+                '# Rugged gunslinger',
+                '',
+                'name = "Morgan"',
+                'color = (0.5, 0.3, 0.1)',
+                'highlight = (0.9, 0.7, 0.3)',
+                'position = (-1,2,-2)',
+                'angle = 0.8',
+                '',
+                'bot = Spaz(',
+                '    character="Jack Morgan",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
+        (6,{'data':{
+            'code':'\n'.join((
+                '# MOVI Easter Bunny',
+                '# Springtime hopper',
+                '',
+                'name = "Hopster"',
+                'color = (1.0, 0.8, 0.9)',
+                'highlight = (0.9, 0.5, 0.7)',
+                'position = (3,2,-1)',
+                'angle = 4.2',
+                '',
+                'bot = Spaz(',
+                '    character="Easter Bunny",',
+                '    start_invincible=False,',
+                '    color=color,',
+                '    highlight=highlight,',
+                ')',
+                'bot.handlemessage(',
+                '    bs.StandMessage(position,angle)',
+                ')',
+                'bot.node.name = name'
+            ))
+        }}),
         (1,{'data':{
             'chks':[True,True,True],
-            'position':(
-                -7,
-                3,
-                2
-            ),
-            'target':(
-                -13,
-                0,
-                -6
-            )
+            'position':(-7,3,2),
+            'target':(-13,0,-6)
+        }}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(0,5,8),
+            'target':(0,0,0)
+        }}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(10,8,10),
+            'target':(0,2,0)
+        }}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(0,24,1),
+            'target':(0,0,0)
+        }}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(-5,2,5),
+            'target':(3,2,-3)
+        }}),
+        (1,{'data':{
+            'chks':[True,True,True],
+            'position':(15,4,0),
+            'target':(0,2,0)
         }})
     ]
     # extra
@@ -7053,6 +8280,10 @@ class Eval:
             s.entry_xs_real * (mem['duration'] * s.entries_per_sec) * s.magic_right,
             s.entry_ys_real - s.magic_y
         )
+    )
+    STRING_WIDTH = lambda s: (
+        bui.get_string_width(s,suppress_warning=True) or
+        sum(Const.FONT_METRICS.get(c, 30) for c in s)
     )
 
 class Format:
