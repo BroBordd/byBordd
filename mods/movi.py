@@ -8218,7 +8218,7 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
     def __init__(s, settings):
         s.original_map = settings['map']
         super().__init__(settings)
-        s.default_music = bs.MusicType.GRAND_ROMP
+        s.default_music = None
 
     def is_master(s,p):
         return p.sessionplayer.inputdevice.client_id == -1
