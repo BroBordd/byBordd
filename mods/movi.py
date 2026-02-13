@@ -1019,6 +1019,7 @@ class Editor:
                 glow_type=Const.GLOW
             )
             s.current_key_texts.append(w)
+        bui.containerwidget(s.current_key_root,size=(150,top))
 
     def key_clean(s):
         for k,_ in s.key_kids:
@@ -1259,6 +1260,35 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
+            # pop button
+            def do_pop():
+                n = bui.textwidget(query=name_inp)
+                if not n:
+                    s.toast(Format.ERROR_EMPTY(Strings.NAME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if n not in mem['keys']:
+                    s.toast(Format.NOT_FOUND(n))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                s.widgets[mem['keys'].pop(n)['widget']].delete()
+                s.toast(Strings.INFO_POPPED(n))
+                Eval.SOUND(Const.OK_SOUND).play()
+                s.fresh_current_key_texts()
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+10,y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_pop,
+                enable_sound=False,
+                label=Strings.POP,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
         # Code
         elif i == 1:
             if not s.event_on:
@@ -1380,6 +1410,7 @@ class Editor:
                     s.toast(Format.OUT_OF_RANGE(Strings.OFFSET))
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
+                s.forgive_prev_off = True
                 s.event_window(
                     6,
                     force_title=Strings.CODE_EDITOR,
@@ -1419,16 +1450,45 @@ class Editor:
                     Strings.INFO_ADDED_KEY
                 )
             # done button
-            bx,by = sx-s.window_marg*4,40
+            bx,by = sx/2-s.window_marg*5,40
             b = bui.buttonwidget(
                 parent=s.root,
-                position=(x+10,y),
+                position=(x+bx+s.window_marg*6+4,y),
                 size=(bx,by),
                 texture=Eval.TEXTURE(Const.SKIN),
                 opacity=0,
                 on_activate_call=do_open,
                 enable_sound=False,
                 label=Strings.NEXT,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
+            # pop button
+            def do_pop():
+                n = bui.textwidget(query=name_inp)
+                if not n:
+                    s.toast(Format.ERROR_EMPTY(Strings.NAME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if n not in mem['keys']:
+                    s.toast(Format.NOT_FOUND(n))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                s.widgets[mem['keys'].pop(n)['widget']].delete()
+                s.toast(Strings.INFO_POPPED(n))
+                Eval.SOUND(Const.OK_SOUND).play()
+                s.fresh_current_key_texts()
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+10,y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_pop,
+                enable_sound=False,
+                label=Strings.POP,
                 color=Color.BASE,
                 textcolor=Const.INVISIBLE
             )
@@ -1666,7 +1726,7 @@ class Editor:
                 duration=butter
             )
 
-    def load_memory(s,memory,shut=False):
+    def clear_memory(s):
         # Clear existing timeline
         for btn in s.stamp_kids[:]:
             # Delete all key widgets
@@ -1679,6 +1739,10 @@ class Editor:
         s.stamp_kids.clear()
         s.memory.clear()
         s.timeline.clear()
+        Config.set('last',None)
+
+    def load_memory(s,memory,shut=False):
+        s.clear_memory()
 
         # Sort by order to restore correct sequence
         sorted_entries = sorted(
@@ -2269,7 +2333,7 @@ class Editor:
     def wrap_menu(s):
         # math
         rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size = Eval.SCALE(240,270)
+        sx,sy = s.menu_size = Eval.SCALE(240,320)
         s.menu_start_size = (sx*0.8,sy*0.8)
         s.menu_yoff, = Eval.SCALE(62)
         s.menu_marg, = Eval.SCALE(10)
@@ -2342,7 +2406,7 @@ class Editor:
         # seed input
         bui.textwidget(
             s.seed_input,
-            position=s.seed_input_pos(1),
+            position=s.seed_input_pos(2),
             size=s.seed_on and s.seed_input_size or (0,0)
         )
 
@@ -2369,8 +2433,8 @@ class Editor:
             (victim:=s.anims[id(s.seed_input)]) and s.seed_on and victim.reverse(duration=butter*0.5)
             s.seed_on = False
             bui.buttonwidget(
-                s.menu_kids[1],
-                label=Strings.MENUS[1]
+                s.menu_kids[2],
+                label=Strings.MENUS[2]
             )
             # event kids
             for i,kid in enumerate(s.menu_kids):
@@ -2406,12 +2470,24 @@ class Editor:
         def menu_action(i):
             # save & exit
             if i == 0:
+                Eval.SOUND(Const.OK_SOUND).play()
                 s.toast(Strings.BYE)
                 s.farewell()
-            # load seed
+            # clear all
             if i == 1:
+                Eval.SOUND(Const.OK_SOUND).play()
+                if s.can_do != 'nuke':
+                    s.toast(Strings.INFO_CONFIRM_CLEAR,extra=2)
+                    s.can_do = 'nuke'
+                    return
+                if s.playing: s.stop()
+                s.clear_memory()
+                s.toast(Strings.INFO_MEMORY_CLEARED)
+                s.toggle_menu()
+            # load seed
+            if i == 2:
                 s.seed_on = not s.seed_on
-                target_label = Strings.DONE if s.seed_on else Strings.MENUS[1]
+                target_label = Strings.DONE if s.seed_on else Strings.MENUS[2]
 
                 based_size = (
                     s.menu_kid_size,
@@ -2425,7 +2501,7 @@ class Editor:
                 )
                 target_pos = (
                     based_pos[s.seed_on],
-                    s.menu_kid_yp(1)
+                    s.menu_kid_yp(2)
                 )
 
                 # animate button shrink/expand
@@ -2433,7 +2509,7 @@ class Editor:
                 start_size = based_size[not s.seed_on]
                 start_pos = (
                     based_pos[not s.seed_on],
-                    s.menu_kid_yp(1)
+                    s.menu_kid_yp(2)
                 )
                 if anim and not anim.finished:
                     start_size = anim.attrs_current['size']
@@ -2442,10 +2518,10 @@ class Editor:
 
                 # boomerang label change (fade out, change, fade back in)
                 def change_label():
-                    bui.buttonwidget(s.menu_kids[1], label=target_label)
+                    bui.buttonwidget(s.menu_kids[2], label=target_label)
                     # fade back in
                     Animate(
-                        widget=s.menu_kids[1],
+                        widget=s.menu_kids[2],
                         attrs={
                             'textcolor': (
                                 Const.INVISIBLE,
@@ -2455,8 +2531,8 @@ class Editor:
                         duration=s.global_butter / 2
                     )
 
-                s.anims[id(s.menu_kids[1])]['seed'] = Animate(
-                    widget=s.menu_kids[1],
+                s.anims[id(s.menu_kids[2])]['seed'] = Animate(
+                    widget=s.menu_kids[2],
                     attrs={
                         'size': (start_size, target_size),
                         'position': (start_pos, target_pos),
@@ -2507,7 +2583,7 @@ class Editor:
                     s.load_memory(memory)
                 Eval.SOUND(Const.OK_SOUND).play()
             # save seed
-            if i == 2:
+            if i == 3:
                 try: seed = Eval.ENCODE(s.memory)
                 except Exception as e:
                     s.toast(Format.ERROR(e))
@@ -2515,13 +2591,18 @@ class Editor:
                     return
                 bui.clipboard_set_text(str(seed))
                 Eval.SOUND(Const.OK_SOUND).play()
+                s.toggle_menu()
             # toggle editor
-            if i == 3:
+            if i == 4:
                 s.toggle_ui()
                 s.toggle_menu()
                 Eval.SOUND(Const.OK_SOUND).play()
             # start recording
-            if i == 4:
+            if i == 5:
+                if not s.stamp_kids:
+                    s.toast(Strings.ERROR_NO_MEMORY)
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
                 Eval.SOUND(Const.OK_SOUND).play()
                 s.save_state()
                 Movi.recreate()
@@ -5521,7 +5602,10 @@ class Editor:
                 else l.values()
             ): w.delete()
         s.window_trash.clear()
-        getattr(s,'prev_off_wid',None) and s.prev_off_wid.delete()
+        if getattr(s,'forgive_prev_off',False):
+            s.forgive_prev_off = False
+        else:
+            getattr(s,'prev_off_wid',None) and s.prev_off_wid.delete()
 
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
         b,call,on_back = s.window_on
@@ -5639,10 +5723,6 @@ class Editor:
             enable()
         # finally
         s.window_on = ()
-        a = 'on_next_window_back'
-        if hasattr(s,a):
-            callable(f:=getattr(s,a)) and f()
-            delattr(s,a)
 
     def show_controls(s,up=False):
         if s.controls_shown: return
@@ -7811,6 +7891,7 @@ class Strings:
     # UI
     MENUS = (
         'Save & Exit',
+        'Clear all',
         'Load Seed',
         'Copy Seed',
         'Toggle Editor',
@@ -7880,6 +7961,10 @@ class Strings:
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
     # errors
+    ERROR_NO_MEMORY = (
+        'There\'s nothing to record!',
+        'Unless you want a blank BRP lol'
+    )
     ERROR_NO_SOUND_SELECTED = (
         'No sound selected!',
         'Pick one from the list first'
@@ -7940,6 +8025,14 @@ class Strings:
         'We\'re stuck with it as is'
     )
     # info
+    INFO_CONFIRM_CLEAR = (
+        'Really clear all memory?',
+        'Press again to remove everything'
+    )
+    INFO_MEMORY_CLEARED = (
+        'Memory Cleared!',
+        'I\'m clean now, regret.'
+    )
     INFO_RECORDING_NOW = (
         'Recording now! Pause to finish.',
         'Just watch your movie silently'
@@ -8153,7 +8246,7 @@ class Const:
     # keys
     EVENT_KEYS = {
         0: (0,),
-        2: (3,),
+        2: (2,),
         6: (1,)
     }
     # arrows
