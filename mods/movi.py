@@ -8468,6 +8468,7 @@ class MoviSubsystem(ba.AppSubsystem):
     def on_ui_scale_change(s):
         Editor._call('on_rescale')
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(ba.Plugin):

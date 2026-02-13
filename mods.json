@@ -80,6 +80,14 @@
         "mod_filename_base": "fontman"
     },
     {
+        "mod_name": "Movi",
+        "mod_fancy_name": "Movie Maker",
+        "mod_version": "1.0",
+        "mod_description": "Experimental.",
+        "api_version": 9,
+        "mod_filename_base": "movi"
+    },
+    {
         "mod_name": "Nuke",
         "mod_fancy_name": "Stupid minigame",
         "mod_version": "1.0",
@@ -318,14 +326,6 @@
         "mod_description": "Simple client that recieves mods from host.\nUsed by me to test faster on my tablet.\nHost: run from commandline or use your own host\nClient: install as plugin and press the button in the newly added dev console tab",
         "api_version": 9,
         "mod_filename_base": "modcast"
-    },
-    {
-        "mod_name": "Movi",
-        "mod_fancy_name": "Movie Maker",
-        "mod_version": "1.0",
-        "mod_description": "Experimental.",
-        "api_version": 9,
-        "mod_filename_base": "movi"
     },
     {
         "mod_name": "NaviBot",
