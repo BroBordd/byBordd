@@ -18,6 +18,8 @@ from math import ceil
 from json import loads
 from os import listdir
 from io import StringIO
+from shutil import copy
+from hashlib import md5
 from random import choice
 from base64 import b85decode
 from time import perf_counter
@@ -32,9 +34,6 @@ from ctypes import pythonapi, c_long, py_object
 from contextlib import redirect_stdout, redirect_stderr
 
 __version__ = '1.0'
-
-class Config:
-    COLOR = 'DarkColor'
 
 class Editor:
     _shared = {'callbacks':[]}
@@ -64,12 +63,13 @@ class Editor:
     def callback(s,cb):
         bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
-    def __init__(s,map):
+    def __init__(s,map,fresh):
         # register
         s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
         s.ui_clickable = False
         s.original_map = map
+        s.was_fresh = fresh
         # timeline
         s.timeline = []
         s.timeline_index = 0
@@ -138,10 +138,15 @@ class Editor:
         s.global_butter = 0.3
         s.can_do = False
         s.blame = None
+        # finally
+        s.schedule_on_ui(
+            s.scan_for_last,
+            lag=0.23
+        )
 
-    def schedule_on_ui(s,f):
+    def schedule_on_ui(s,f,lag=0.3):
         if s.ui_on: f()
-        else: s.pending.append(f)
+        else: s.pending.append((lag,f))
 
     def universal_back(s):
         if s.window_on or s.event_on:
@@ -158,6 +163,9 @@ class Editor:
         s.on_scroll()
         s.wrap_all()
 
+    def save_state(s):
+        Config.set('last',Eval.ENCODE(s.memory))
+
     @ui_safe
     def on_scroll(s):
         if s.event_on:
@@ -166,6 +174,49 @@ class Editor:
                 an = s.anims[id(kid)]
                 for _ in ['extra','to']:
                     (a:=an.get(_,None)) and a.cancel()
+
+    def scan_for_last(s):
+        if not (last:=Config.get('last')): return
+        try: memory = Eval.DECODE(last)
+        except Exception as e:
+            s.toast(Format.ERROR(e))
+            Eval.SOUND(Const.BAD_SOUND).play()
+            return
+        s.load_memory(memory,shut=True)
+        not s.was_fresh and s.start_recording()
+
+    def start_recording(s):
+        s.play()
+        s.toast(Strings.INFO_RECORDING_NOW)
+
+    def export_replay(s,wait=True):
+        if wait:
+            bui.apptimer(
+                Const.BA_LAG_BIG,
+                bui.CallPartial(
+                    s.export_replay,
+                    wait=False
+                )
+            )
+            return
+        name = Const.EXPORT_PREFIX+md5(
+            dumps(
+                s.memory,
+                sort_keys=True
+            ).encode()
+        ).hexdigest()[:8]+Const.EXPORT_SUFFIX
+        copy(
+            join(
+                Const.REPLAYS,
+                Const.STOCK_REPLAY
+            ),
+            join(
+                Const.REPLAYS,
+                name
+            )
+        )
+        s.toast(Format.SAVED_AS(name))
+        Eval.SOUND(Const.GOOD_SOUND).play()
 
     def toast(s,inp=None,shut=1,extra=0):
         shut or Eval.SOUND(Const.OK_SOUND).play()
@@ -194,9 +245,7 @@ class Editor:
             )
         )
         # default
-        text_width = t and Eval.STRING_WIDTH(
-            t,
-        ) or 0
+        text_width = t and Eval.STRING_WIDTH(t) or 0
         duration = 0.45
         end_size = dx,dy = (text_width+(t and 20 or 0),30)
         start_size = (0,dy)
@@ -498,12 +547,11 @@ class Editor:
         s.make_timeline(init=True)
         s.wrap_timeline()
         s.top_left()
-        def on_finish():
-            for call in s.pending: call()
-            s.pending.clear()
-        bui.apptimer(0.3,bui.CallPartial(
-            s.toggle_ui, on_finish
-        ))
+        # push
+        bui.apptimer(0.3,s.toggle_ui)
+        for lag,call in s.pending:
+            bui.apptimer(lag,call)
+        s.pending.clear()
 
     def make_timeline(s,init=False):
         # cleanup
@@ -1618,7 +1666,7 @@ class Editor:
                 duration=butter
             )
 
-    def load_memory(s,memory):
+    def load_memory(s,memory,shut=False):
         # Clear existing timeline
         for btn in s.stamp_kids[:]:
             # Delete all key widgets
@@ -1746,6 +1794,7 @@ class Editor:
             s.show_controls()
 
         # Success feedback
+        if shut: return
         Eval.SOUND(Const.OK_SOUND).play()
         s.toast((
             f'Loaded {len(memory)} entries!',
@@ -2220,7 +2269,7 @@ class Editor:
     def wrap_menu(s):
         # math
         rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size = Eval.SCALE(240,220)
+        sx,sy = s.menu_size = Eval.SCALE(240,270)
         s.menu_start_size = (sx*0.8,sy*0.8)
         s.menu_yoff, = Eval.SCALE(62)
         s.menu_marg, = Eval.SCALE(10)
@@ -2358,14 +2407,7 @@ class Editor:
             # save & exit
             if i == 0:
                 s.toast(Strings.BYE)
-                s.toggle_menu()
-                s.kill(
-                    on_kill=bui.CallPartial(
-                        bui.app.classic.return_to_main_menu_session_gracefully,
-                        reset_ui=False
-                    )
-                )
-                Eval.SOUND(Const.OK_SOUND).play()
+                s.farewell()
             # load seed
             if i == 1:
                 s.seed_on = not s.seed_on
@@ -2478,6 +2520,11 @@ class Editor:
                 s.toggle_ui()
                 s.toggle_menu()
                 Eval.SOUND(Const.OK_SOUND).play()
+            # start recording
+            if i == 4:
+                Eval.SOUND(Const.OK_SOUND).play()
+                s.save_state()
+                Movi.recreate()
         # menu kids
         for i,kid in enumerate(s.menu_kids):
             if (anim:=s.anims[id(kid)].get('main')):
@@ -2508,6 +2555,17 @@ class Editor:
                     menu_action, i
                 )
             )
+
+    def farewell(s):
+        s.toggle_menu()
+        s.kill(
+            on_kill=bui.CallPartial(
+                bui.app.classic.return_to_main_menu_session_gracefully,
+                reset_ui=False
+            )
+        )
+        Eval.SOUND(Const.OK_SOUND).play()
+        s.save_state()
 
     @clickable
     def toggle_event(s,passive=False):
@@ -5728,6 +5786,9 @@ class Editor:
             s.camera_timer = None
             s.camera_data.clear()
             _ba.set_camera_manual(False)
+        if not s.was_fresh:
+            s.was_fresh = True
+            s.export_replay()
 
     def wrap_play(s,init=False):
         s.pause_start = None
@@ -7687,6 +7748,7 @@ class Animate:
         s.timer = None
         if s.delay_timer:
             s.delay_timer = None
+        if not s.widget or not s.widget.exists(): return
         if callable(s.on_cancel) and not s.finished:
             s.on_cancel()
 
@@ -7738,6 +7800,8 @@ class Animate:
             **new
         )
 
+# hardcoded stuff
+
 class Strings:
     # map
     MAP_TITLE = 'Movi'
@@ -7749,7 +7813,8 @@ class Strings:
         'Save & Exit',
         'Load Seed',
         'Copy Seed',
-        'Toggle Editor'
+        'Toggle Editor',
+        'Record BRP'
     )
     EDIT_BUTTON = 'Edit'
     EVENT_BUTTON_OFF = 'Event'
@@ -7764,6 +7829,8 @@ class Strings:
         'Code':'Custom code'
     }
     # random
+    SAVED_AS = 'Saved as {}'
+    SAVED_AS_HELP = 'Full path: {}'
     CODE = 'Code'
     CODE_HELP = "Keyframes continue from the\nevent's code. All variables and\nstate are shared."
     EXTEND_CODE = 'Parallel Code'
@@ -7873,6 +7940,14 @@ class Strings:
         'We\'re stuck with it as is'
     )
     # info
+    INFO_RECORDING_NOW = (
+        'Recording now! Pause to finish.',
+        'Just watch your movie silently'
+    )
+    INFO_RECORDING_SAVED = (
+        'Recording Saved!',
+        'A wild shiny BRP file was created'
+    )
     INFO_NO_CLIPBOARD = (
         'Empty clipboard!',
         'What are you trying to do exactly?'
@@ -8027,9 +8102,21 @@ class Const:
             bui.app.env.cache_directory
         ), 'ballistica_files', 'ba_data'
     )
+    REPLAYS = join(
+        dirname(
+            dirname(
+                bui.app.env.cache_directory
+            )
+        ), 'files', 'bombsquad_config', 'replays'
+    )
+    STOCK_REPLAY = '__lastReplay.brp'
+    EXPORT_PREFIX = 'movi_'
+    EXPORT_SUFFIX = '.brp'
     CONFIG_HEAD = '# MOVI '
+    CONFIG_PREFIX = 'movi_'
     EXIT_BOUNDS = (0,0,0,0,35,0)
     # scaling
+    BA_LAG_BIG = 1.5
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
     INVISIBLE = (0,0,0,0)
@@ -8166,6 +8253,18 @@ class Eval:
             )
         ).decode('utf-8')
     )
+    CONFIG = lambda s,v:(
+        (cfg:=bui.app.config) and (s:=Const.CONFIG_PREFIX+s) and
+        cfg.get(s,v) if v is None else (cfg.__setitem__(s,v),cfg.commit())
+    )
+
+class Config:
+    @staticmethod
+    def get(name):
+        return bui.app.config.get(Const.CONFIG_PREFIX+name)
+    def set(name,value):
+        (config:=bui.app.config)[Const.CONFIG_PREFIX+name] = value
+        config.commit()
 
 class Format:
     ERROR = lambda e: (
@@ -8193,8 +8292,12 @@ class Format:
         Strings.WELCOME.format(n),
         Strings.WELCOME_HELP.format(__version__)
     )
+    SAVED_AS = lambda n: (
+        Strings.SAVED_AS.format(n),
+        Strings.SAVED_AS_HELP.format(join(Const.REPLAYS,n))
+    )
 
-class DarkColor:
+class Color:
     BASE = (0,0,0)
     COLD = (0.5,0.5,0.5)
     WARM = (2,0,0)
@@ -8202,11 +8305,8 @@ class DarkColor:
     TEXT = (2,2,2)
     OPACITY = 0.4
 
-# global
-Color = globals()[Config.COLOR]
-
 # ba_meta export bascenev1.GameActivity
-class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
+class Movi(bs.GameActivity[bs.Player,bs.Team]):
     name = Strings.MAP_TITLE
     description = Strings.MAP_DESCRIPTION
     get_availabe_settings = lambda s:[]
@@ -8215,18 +8315,41 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
     get_instance_description = lambda s: Strings.INSTANCE_DESCRIPTION
     get_instance_description_short = lambda s: Strings.INSTANCE_DESCRIPTION_SHORT
 
-    def __init__(s, settings):
-        s.original_map = settings['map']
-        super().__init__(settings)
-        s.default_music = None
+    @classmethod
+    def recreate(cls):
+        cls.recreating = True
+        bs.new_host_session(cls.sessiontype)
+        session = bs.get_foreground_host_session()
+        with session.context:
+            act = bs.newactivity(Movi,cls.settings)
+            session.setactivity(act)
 
-    def is_master(s,p):
-        return p.sessionplayer.inputdevice.client_id == -1
+    def __init__(s, settings):
+        super().__init__(settings)
+        type(s).settings = settings
+        session = bs.get_foreground_host_session()
+        type(s).sessiontype = (
+            session.use_teams and
+            bs.DualTeamSession or
+            bs.FreeForAllSession
+        )
+        s.default_music = None
+        s.editor = None
+
+    def ensure(s):
+        if not s.editor:
+            fresh = True
+            if hasattr(type(s),'recreating'):
+                del type(s).recreating
+                fresh = False
+            s.editor = Editor(
+                map=type(s).settings['map'],
+                fresh=fresh
+            )
+            s.make_ui()
 
     def on_player_join(s,p):
-        if s.is_master(p):
-            s.master = p
-            s.make_ui()
+        s.ensure()
         s.editor and s.editor.schedule_on_ui(
             lambda: s.editor.toast(
                 Format.WELCOME(
@@ -8235,14 +8358,10 @@ class Movi(bs.TeamGameActivity[bs.Player,bs.Team]):
             )
         )
 
-    def on_player_leave(s,p):
-        if s.is_master(p):
-            s.master = None
-            s.kill_ui()
+    def on_begin(s):
+        s.ensure()
 
     def make_ui(s):
-        if not getattr(s,'editor',None):
-            s.editor = Editor(map=s.original_map)
         ba.pushcall(ba.CallPartial(
             s.editor.make
         ),raw=True)
@@ -8284,30 +8403,6 @@ class CodeRunner:
         self.main_thread = None
         self.children = []
 
-    def _create_patched_bs(self):
-        """Create a patched bascenev1 module that tracks newnode calls."""
-        import bascenev1 as bs_original
-
-        class PatchedBS:
-            def __init__(self, original_bs, created_nodes_list):
-                self._original = original_bs
-                self._created_nodes = created_nodes_list
-
-            def __getattr__(self, name):
-                attr = getattr(self._original, name)
-
-                # Intercept newnode calls
-                if name == 'newnode':
-                    def tracked_newnode(*args, **kwargs):
-                        node = self._original.newnode(*args, **kwargs)
-                        self._created_nodes.append(node)
-                        return node
-                    return tracked_newnode
-
-                return attr
-
-        return PatchedBS(bs_original, self.created_nodes)
-
     def _terminate_thread(self, thread):
         if not thread.is_alive():
             return
@@ -8320,7 +8415,7 @@ class CodeRunner:
             pass
 
     def _execute_code(self, code_string):
-        import bascenev1 as bs_original
+        import bascenev1 as bs
         import bascenev1lib as bsl
         import bauiv1 as bui
         import babase as ba
@@ -8328,17 +8423,26 @@ class CodeRunner:
         import math
         import random
 
-        # Create patched bs module
-        patched_bs = self._create_patched_bs()
+        # Store original newnode
+        original_newnode = bs.newnode
+
+        # Create tracking wrapper
+        def tracked_newnode(*args, **kwargs):
+            node = original_newnode(*args, **kwargs)
+            self.created_nodes.append(node)
+            return node
+
+        # Patch ONLY newnode
+        bs.newnode = tracked_newnode
 
         self.namespace.update({
             '__stop_flag__': self.stop_flag,
-            'bascenev1': patched_bs,
+            'bascenev1': bs,  # Real module, not wrapped
             'bascenev1lib': bsl,
             'bauiv1': bui,
             'babase': ba,
             '_babase': _ba,
-            'bs': patched_bs,  # <-- Patched version
+            'bs': bs,  # Real module
             'bsl': bsl,
             'bui': bui,
             'ba': ba,
@@ -8360,6 +8464,9 @@ class CodeRunner:
             else:
                 print(f"Error in user code: {e}")
                 print(format_exc())
+        finally:
+            # Restore original newnode
+            bs.newnode = original_newnode
 
     def _runner(self, code_string):
         try:
