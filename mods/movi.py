@@ -8694,6 +8694,507 @@ def get_presets():
     presets = []
 
     # ------------------------------------------------------------------
+    # CHARACTER PRESETS (EVENT INDEX 6 - Spaz Characters via Code)
+    # ------------------------------------------------------------------
+
+    presets.append((
+        6,
+        'Basic Spaz',
+        'Standard blue Spaz character\nat center stage.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Basic Spaz',
+                    'name = "Spaz"',
+                    'color = (0.4, 0.5, 0.8)',
+                    'highlight = (1.0, 1.0, 1.0)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Spaz",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Neon Assassin',
+        'Stealthy ninja with\nelectric purple glow.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Neon Assassin',
+                    'name = "Shadow Strike"',
+                    'color = (2.2, 0.0, 0.4)',
+                    'highlight = (2.5, 0.0, 4.0)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Snake Shadow",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Cyber Warrior',
+        'Futuristic agent with\nintense cyan energy.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Cyber Warrior',
+                    'name = "NetRunner"',
+                    'color = (0.0, 0.1, 0.2)',
+                    'highlight = (0.0, 3.5, 5.0)',
+                    'position = (2, 1, 0)',
+                    'angle = 1.5',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Agent Johnson",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Plasma Knight',
+        'Medieval warrior radiating\nblue-white plasma.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Plasma Knight',
+                    'name = "Sir Voltage"',
+                    'color = (0.1, 0.15, 0.3)',
+                    'highlight = (1.5, 2.5, 6.0)',
+                    'position = (-2, 1, 0)',
+                    'angle = 4.7',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Kronk",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Toxic Menace',
+        'Radioactive character with\nsickly green glow.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Toxic Menace',
+                    'name = "Biohazard"',
+                    'color = (0.1, 0.2, 0.0)',
+                    'highlight = (2.0, 5.0, 0.0)',
+                    'position = (0, 1, -2)',
+                    'angle = 3.14',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Mel",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Solar Flare',
+        'Blazing hero with\nintense golden aura.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Solar Flare',
+                    'name = "Sunburst"',
+                    'color = (0.4, 0.3, 0.0)',
+                    'highlight = (6.0, 4.0, 0.5)',
+                    'position = (0, 1, 2)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Spaz",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Crimson Reaper',
+        'Dark warrior with blood-red\nenergy emanating.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Crimson Reaper',
+                    'name = "Blood Moon"',
+                    'color = (0.2, 0.0, 0.0)',
+                    'highlight = (4.5, 0.0, 0.5)',
+                    'position = (3, 1, 0)',
+                    'angle = 1.5',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Jack Morgan",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Arctic Phantom',
+        'Ghostly character with\nice-blue ethereal glow.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Arctic Phantom',
+                    'name = "Frost Wraith"',
+                    'color = (0.6, 0.8, 1.0)',
+                    'highlight = (0.5, 4.0, 6.0)',
+                    'position = (-3, 1, 0)',
+                    'angle = 4.7',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Frosty",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Void Walker',
+        'Mysterious figure with\ndark purple void energy.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Void Walker',
+                    'name = "Oblivion"',
+                    'color = (0.1, 0.0, 0.15)',
+                    'highlight = (1.5, 0.0, 3.5)',
+                    'position = (0, 1, -3)',
+                    'angle = 3.14',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Bernard",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Inferno Demon',
+        'Hellish character burning\nwith orange-red flames.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Inferno Demon',
+                    'name = "Pyro"',
+                    'color = (0.3, 0.05, 0.0)',
+                    'highlight = (5.0, 1.5, 0.0)',
+                    'position = (0, 1, 3)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Snake Shadow",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Lightning Striker',
+        'Electric character with\nwhite-blue electricity.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Lightning Striker',
+                    'name = "Thunderbolt"',
+                    'color = (0.7, 0.8, 1.0)',
+                    'highlight = (3.0, 4.0, 8.0)',
+                    'position = (2, 1, -2)',
+                    'angle = 2.3',
+                    '',
+                    'bot = Spaz(',
+                    '    character="B-9000",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Emerald Guardian',
+        'Nature warrior with\nbrilliant green life energy.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Emerald Guardian',
+                    'name = "Forest Spirit"',
+                    'color = (0.0, 0.3, 0.1)',
+                    'highlight = (0.5, 5.0, 1.0)',
+                    'position = (-2, 1, 2)',
+                    'angle = 3.9',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Grumbledorf",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Pink Nightmare',
+        'Cute but deadly with\nhot pink glow.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Pink Nightmare',
+                    'name = "Bubblegum Death"',
+                    'color = (0.4, 0.1, 0.3)',
+                    'highlight = (5.0, 0.5, 4.0)',
+                    'position = (-2, 1, -2)',
+                    'angle = 3.9',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Pixel",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Quantum Glitch',
+        'Reality-bending character\nwith prismatic glow.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Quantum Glitch',
+                    'name = "Glitchmaster"',
+                    'color = (0.3, 0.2, 0.4)',
+                    'highlight = (3.0, 2.0, 5.0)',
+                    'position = (2, 1, 2)',
+                    'angle = 0.8',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Taobao Mascot",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Gold Rush',
+        'Wealthy character dripping\nwith golden radiance.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Gold Rush',
+                    'name = "Midas"',
+                    'color = (0.5, 0.4, 0.0)',
+                    'highlight = (8.0, 6.0, 0.0)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Todd McBurton",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Midnight Specter',
+        'Dark figure with\ndeep blue-black aura.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Midnight Specter',
+                    'name = "Eclipse"',
+                    'color = (0.0, 0.05, 0.15)',
+                    'highlight = (0.0, 1.0, 3.0)',
+                    'position = (4, 1, 0)',
+                    'angle = 1.5',
+                    '',
+                    'bot = Spaz(',
+                    '    character="Zoe",',
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Neon Rainbow Squad',
+        'Group of 5 characters in\nvibrant rainbow formation.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Rainbow Squad',
+                    'characters = [',
+                    '    ("Spaz", (0.4, 0.5, 0.8), (6.0, 0.0, 0.0)),     # Red glow',
+                    '    ("Kronk", (0.4, 0.5, 0.8), (0.0, 6.0, 0.0)),    # Green glow',
+                    '    ("Pixel", (0.4, 0.5, 0.8), (0.0, 0.0, 6.0)),    # Blue glow',
+                    '    ("Bernard", (0.4, 0.5, 0.8), (6.0, 0.0, 6.0)),  # Purple glow',
+                    '    ("Agent Johnson", (0.4, 0.5, 0.8), (6.0, 6.0, 0.0)), # Yellow glow',
+                    ']',
+                    '',
+                    'for i, (char, color, hl) in enumerate(characters):',
+                    '    x = (i - 2) * 1.5',
+                    '    bot = Spaz(',
+                    '        character=char,',
+                    '        start_invincible=False,',
+                    '        color=color,',
+                    '        highlight=hl,',
+                    '    )',
+                    '    bot.handlemessage(',
+                    '        bs.StandMessage((x, 1, 0), 0)',
+                    '    )',
+                    '    bot.node.name = f"Rainbow {i+1}"'
+                ))
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
     # 0) NODE PRESETS  (EVENT INDEX 0)
     # ------------------------------------------------------------------
     presets.append((
