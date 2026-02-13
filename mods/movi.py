@@ -8486,9 +8486,11 @@ class CodeRunner:
         if parent_runner:
             self.namespace = parent_runner.namespace
             self.created_nodes = parent_runner.created_nodes
+            self.created_actors = parent_runner.created_actors
         else:
             self.namespace = {}
             self.created_nodes = []
+            self.created_actors = []
 
         self.stdout_capture = StringIO()
         self.stderr_capture = StringIO()
@@ -8511,37 +8513,52 @@ class CodeRunner:
     def _execute_code(self, code_string):
         import bascenev1 as bs
         import bascenev1lib as bsl
+        from bascenev1lib.actor.spaz import Spaz as OriginalSpaz
         import bauiv1 as bui
         import babase as ba
         import _babase as _ba
         import math
         import random
 
-        # Store original newnode
+        # Store REAL original newnode
         original_newnode = bs.newnode
 
-        # Create tracking wrapper
+        # Create wrapper that tracks nodes
         def tracked_newnode(*args, **kwargs):
             node = original_newnode(*args, **kwargs)
             self.created_nodes.append(node)
             return node
 
-        # Patch ONLY newnode
-        bs.newnode = tracked_newnode
+        # Create wrapper for Spaz to track actors
+        class TrackedSpaz(OriginalSpaz):
+            def __init__(inner_self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.created_actors.append(inner_self)
+
+        # Create a wrapper module that looks like bs but with patched newnode
+        class BSWrapper:
+            def __init__(self, original_module, newnode_func):
+                self._original = original_module
+                self.newnode = newnode_func
+            
+            def __getattr__(self, name):
+                return getattr(self._original, name)
+
+        bs_wrapped = BSWrapper(bs, tracked_newnode)
 
         self.namespace.update({
             '__stop_flag__': self.stop_flag,
-            'bascenev1': bs,  # Real module, not wrapped
+            'bascenev1': bs_wrapped,
             'bascenev1lib': bsl,
             'bauiv1': bui,
             'babase': ba,
             '_babase': _ba,
-            'bs': bs,  # Real module
+            'bs': bs_wrapped,
             'bsl': bsl,
             'bui': bui,
             'ba': ba,
             '_ba': _ba,
-            'Spaz': bsl.actor.spaz.Spaz,
+            'Spaz': TrackedSpaz,  # Use tracked version
             'math': math,
             'random': random,
             'Bubble': Bubble,
@@ -8558,9 +8575,34 @@ class CodeRunner:
             else:
                 print(f"Error in user code: {e}")
                 print(format_exc())
-        finally:
-            # Restore original newnode
-            bs.newnode = original_newnode
+
+    def _cleanup_all(self):
+        """Delete all tracked actors and nodes within the activity context"""
+        import bascenev1 as bs
+        
+        try:
+            with self.host_activity.context:
+                # Kill actors first (they handle their own cleanup)
+                for actor in self.created_actors:
+                    try:
+                        if actor.is_alive():
+                            actor.handlemessage(bs.DieMessage(immediate=True))
+                    except:
+                        pass
+                self.created_actors.clear()
+                
+                # Then delete remaining nodes
+                for node in self.created_nodes:
+                    try:
+                        if node.exists():
+                            node.delete()
+                    except:
+                        pass
+                self.created_nodes.clear()
+        except:
+            # If context is dead, just clear the lists
+            self.created_actors.clear()
+            self.created_nodes.clear()
 
     def _runner(self, code_string):
         try:
@@ -8577,12 +8619,11 @@ class CodeRunner:
             self.running = False
 
     def on_start(self, code_string):
-        # DON'T call on_end - let existing code keep running
-
         # Only reset if we're the parent starting fresh
         if not self.parent_runner:
             self.namespace = {}
             self.created_nodes = []
+            self.created_actors = []
 
         self.stdout_capture = StringIO()
         self.stderr_capture = StringIO()
@@ -8622,14 +8663,8 @@ class CodeRunner:
 
         # Only cleanup if we're the parent
         if not self.parent_runner:
-            # Delete all created nodes
-            for node in self.created_nodes:
-                try:
-                    if node.exists():
-                        node.delete()
-                except:
-                    pass
-            self.created_nodes.clear()
+            # Clean up actors and nodes within context using pushcall
+            bs.pushcall(self._cleanup_all)
 
             for value in list(self.namespace.values()):
                 if hasattr(value, 'close') and callable(value.close):
@@ -8922,7 +8957,6 @@ def get_presets():
                 'name': 'Magic Ring',
                 'attrs': {
                     'position': (0, 1.0, 0),
-                    'radius': 3.0,
                     'chunk_type': 'sweat',
                     'emit_type': 'distortion',
                     'count': 20,
@@ -8963,7 +8997,6 @@ def get_presets():
                 'name': 'Small Blast',
                 'attrs': {
                     'position': (0, 1.0, 0),
-                    'radius': 2.0,
                     'chunk_type': 'rock',
                     'emit_type': 'stickers',
                     'count': 18,
@@ -9419,7 +9452,6 @@ def get_presets():
                     '',
                     'timers.append(bs.AppTimer(3.0, lambda: bs.emitfx(',
                     '    position=(0, 2, 0),',
-                    '    radius=8.0,',
                     '    count=150,',
                     '    chunk_type="spark",',
                     '    emit_type="distortion"',
