@@ -10982,7 +10982,7 @@ def get_presets():
                     '# The Bass Line (Wub Wub using ShieldUp)',
                     'for i in range(16):',
                     '    t = start_drop + i * (bpm/2)',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shieldUp"), "volume":0.4, "pitch": 0.8})))',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shieldUp"), "volume":0.4})))',
                     '',
                     '# Beat Pattern: Kick - Hat - Snare - Hat - Kick - Kick - Snare - Roll',
                     'pattern_times = [0, 0.5, 1.0, 1.5, 2.0, 2.25, 3.0, 3.5, 3.75]',
