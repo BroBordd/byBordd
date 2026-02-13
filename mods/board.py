@@ -3713,6 +3713,7 @@ def delete_comment(secret, comment_id, post_id):
 
     return _forge(subject, payload)
 
+# brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(ba.Plugin):

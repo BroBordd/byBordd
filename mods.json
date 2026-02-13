@@ -16,6 +16,14 @@
         "mod_filename_base": "beam"
     },
     {
+        "mod_name": "Board",
+        "mod_fancy_name": "The Board",
+        "mod_version": "1.0",
+        "mod_description": "A silly board made for fun",
+        "api_version": 9,
+        "mod_filename_base": "board"
+    },
+    {
         "mod_name": "BSM",
         "mod_fancy_name": "The BombSquadMedia Library",
         "mod_version": "2.1",
@@ -158,14 +166,6 @@
         "mod_description": "Blud aims to always move to the left\nHis memory is saved to mods folder. Advanced.",
         "api_version": 9,
         "mod_filename_base": "blud"
-    },
-    {
-        "mod_name": "Board",
-        "mod_fancy_name": "The Board",
-        "mod_version": "1.0",
-        "mod_description": "A silly board made for fun",
-        "api_version": 9,
-        "mod_filename_base": "board"
     },
     {
         "mod_name": "BSV",
