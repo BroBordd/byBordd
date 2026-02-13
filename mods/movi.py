@@ -19,14 +19,15 @@ from json import loads
 from os import listdir
 from io import StringIO
 from random import choice
-from zlib import decompress
 from base64 import b85decode
 from time import perf_counter
+from json import dumps, loads
 from weakref import WeakMethod
 from traceback import format_exc
 from os.path import join, dirname
 from threading import Thread, Event
 from collections import defaultdict
+from zlib import decompress, compress
 from ctypes import pythonapi, c_long, py_object
 from contextlib import redirect_stdout, redirect_stderr
 
@@ -75,6 +76,7 @@ class Editor:
         s.active = {}
         s.active_sounds = {}
         s.active_timers = {}
+        s.active_key_schedule = {}
         s.active_codes = defaultdict(dict)
         # play
         s.play_timer = None
@@ -88,6 +90,7 @@ class Editor:
         # menu
         s.menu_root = None
         s.menu_on = False
+        s.seed_on = False
         s.menu_kids = []
         # event
         s.event_root = None
@@ -116,6 +119,7 @@ class Editor:
         s.object_duration = 1
         # memory
         s.memory = {}
+        s.widgets = {}
         s.anims = defaultdict(dict)
         s.in_anims = []
         s.out_anims = []
@@ -1098,9 +1102,9 @@ class Editor:
                 ):
                     mem = s.memory[id(s.sl)]
                     _old_off = new
-                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    mem.get('prev_off_wid') and s.widgets.pop(mem.pop('prev_off_wid')).delete()
                     if not (0 <= new <= mem['duration']): return
-                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                    s.prev_off_wid = bui.imagewidget(
                         parent=s.stamp_hscroll_root,
                         position=(
                             s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
@@ -1112,6 +1116,8 @@ class Editor:
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
+                    mem['prev_off_wid'] = id(s.prev_off_wid)
+                    s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
             s.off_spy = bui.AppTimer(
                 0.02, _off_spy, repeat=True
             )
@@ -1172,7 +1178,7 @@ class Editor:
                 )
                 existed = False
                 if nam in mem['keys']:
-                    mem['keys'][nam]['widget'].delete()
+                    s.widgets.pop(mem['keys'][nam]['widget']).delete()
                     existed = True
                 mem['keys'][nam] = {
                     'time':actual_time,
@@ -1180,11 +1186,11 @@ class Editor:
                     'data':{
                         'attr':a,
                         'eval':ov,
-                        'offset':o,
-                        'value':v
+                        'offset':o
                     },
-                    'widget':key_wid
+                    'widget':id(key_wid)
                 }
+                s.widgets[id(key_wid)] = key_wid
                 s.toast(
                     existed and
                     Strings.INFO_EDITED_KEY or
@@ -1284,9 +1290,9 @@ class Editor:
                 ):
                     mem = s.memory[id(s.sl)]
                     _old_off = new
-                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    mem.get('prev_off_wid') and s.widgets.pop(mem.pop('prev_off_wid')).delete()
                     if not (0 <= new <= mem['duration']): return
-                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                    s.prev_off_wid = bui.imagewidget(
                         parent=s.stamp_hscroll_root,
                         position=(
                             s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
@@ -1298,6 +1304,8 @@ class Editor:
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
+                    mem['prev_off_wid'] = id(s.prev_off_wid)
+                    s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
             s.off_spy = bui.AppTimer(
                 0.02, _off_spy, repeat=True
             )
@@ -1344,7 +1352,7 @@ class Editor:
                 )
                 existed = False
                 if n in mem['keys']:
-                    mem['keys'][n]['widget'].delete()
+                    s.widgets.pop(mem['keys'][n]['widget']).delete()
                     existed = True
                 mem['keys'][n] = {
                     'time':actual_time,
@@ -1354,8 +1362,9 @@ class Editor:
                         'code':final['code'],
                         'name':n
                     },
-                    'widget':key_wid
+                    'widget':id(key_wid)
                 }
+                s.widgets[id(key_wid)] = key_wid
                 s.toast(
                     existed and
                     Strings.INFO_EDITED_KEY or
@@ -1461,9 +1470,9 @@ class Editor:
                 ):
                     mem = s.memory[id(s.sl)]
                     _old_off = new
-                    mem.get('prev_off_wid') and mem['prev_off_wid'].delete()
+                    mem.get('prev_off_wid') and s.widgets.pop(mem.pop('prev_off_wid')).delete()
                     if not (0 <= new <= mem['duration']): return
-                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                    s.prev_off_wid = bui.imagewidget(
                         parent=s.stamp_hscroll_root,
                         position=(
                             s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
@@ -1475,6 +1484,8 @@ class Editor:
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
+                    mem['prev_off_wid'] = id(s.prev_off_wid)
+                    s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
             s.off_spy = bui.AppTimer(
                 0.02, _off_spy, repeat=True
             )
@@ -1525,7 +1536,7 @@ class Editor:
                 existed = False
                 if nam in mem['keys']:
                     existed = True
-                    mem['keys'][nam]['widget'].delete()
+                    s.widgets.pop(mem['keys'][nam]['widget']).delete()
                 mem['keys'][nam] = {
                     'time':actual_time,
                     'action':i,
@@ -1534,8 +1545,9 @@ class Editor:
                         'offset':offset_val,
                         'name':nam
                     },
-                    'widget':key_wid
+                    'widget':id(key_wid)
                 }
+                s.widgets[id(key_wid)] = key_wid
                 s.toast(
                     existed and
                     Strings.INFO_EDITED_KEY or
@@ -1568,7 +1580,7 @@ class Editor:
                     s.toast(Format.NOT_FOUND(t))
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
-                mem['keys'].pop(t)['widget'].delete()
+                s.widgets.pop(mem['keys'].pop(t)['widget']).delete()
                 s.toast(Strings.INFO_POPPED(t))
                 Eval.SOUND(Const.OK_SOUND).play()
                 s.fresh_current_key_texts()
@@ -1605,6 +1617,140 @@ class Editor:
                 attrs=attrs,
                 duration=butter
             )
+
+    def load_memory(s,memory):
+        # Clear existing timeline
+        for btn in s.stamp_kids[:]:
+            # Delete all key widgets
+            if id(btn) in s.memory:
+                for key_data in s.memory[id(btn)].get('keys', {}).values():
+                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                        s.widgets.pop(key_data['widget']).delete()
+            btn.delete()
+
+        s.stamp_kids.clear()
+        s.memory.clear()
+        s.timeline.clear()
+
+        # Sort by order to restore correct sequence
+        sorted_entries = sorted(
+            memory.items(),
+            key=lambda x: x[1]['order']
+        )
+
+        total_count = len(sorted_entries)
+
+        for idx, (old_id, mem_data) in enumerate(sorted_entries):
+            data = mem_data['data'].copy()
+            smol = mem_data.get('smol', False)
+
+            # Calculate size based on duration
+            if smol:
+                size = (
+                    s.entry_ys_real,
+                    s.entry_ys_real - s.magic_y
+                )
+            else:
+                size = (
+                    s.entry_xs_real * (
+                        mem_data['duration'] * s.entries_per_sec
+                    ) * s.magic_right,
+                    s.entry_ys_real - s.magic_y
+                )
+
+            # Create button directly
+            btn = bui.buttonwidget(
+                parent=s.stamp_hscroll_root,
+                texture=Eval.TEXTURE(Const.SKIN),
+                label=data['name'],
+                textcolor=(*Color.TEXT, Color.OPACITY),
+                color=Color.BASE,
+                opacity=Color.OPACITY,
+                enable_sound=False,
+                size=size,
+                button_type='square'
+            )
+
+            # Set activate callback
+            bui.buttonwidget(
+                btn,
+                on_activate_call=bui.CallPartial(s.select, btn)
+            )
+
+            # Add to stamp_kids
+            s.stamp_kids.append(btn)
+
+            # Create memory entry with NEW order based on current index
+            new_mem = {
+                'order': idx,
+                'event': mem_data['event'],
+                'data': data,
+                'duration': mem_data['duration'],
+                'start': mem_data['start'],
+                'keys': {},
+                'smol': smol
+            }
+
+            # Store memory
+            s.memory[id(btn)] = new_mem
+
+            # Calculate Y position using TOTAL count, not current len(s.memory)
+            y_pos = s.entry_ys_real * (total_count - idx - 1)
+
+            # Recreate keys with new widgets
+            for key_name, key_data_orig in mem_data.get('keys', {}).items():
+                key_data = key_data_orig.copy()
+
+                # Remove old widget reference
+                if 'widget' in key_data:
+                    del key_data['widget']
+
+                key_time = key_data['time']
+                key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+
+                # Create key widget with correct Y
+                key_wid = bui.imagewidget(
+                    parent=s.stamp_hscroll_root,
+                    position=(key_x, y_pos),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=Color.OPACITY
+                )
+
+                # Store in new memory
+                new_mem['keys'][key_name] = {
+                    **key_data,
+                    'widget': id(key_wid)
+                }
+                s.widgets[id(key_wid)] = key_wid
+
+            # Position button
+            width_in_steps = mem_data['duration'] * s.entries_per_sec
+            x_pos = s.magic_x + s.entry_xs_real * mem_data['start'] * s.entries_per_sec + (
+                width_in_steps * s.magic_left
+            )
+
+            bui.buttonwidget(btn, position=(x_pos, y_pos))
+
+        # Rebuild timeline
+        s.build_timeline()
+
+        # Update UI
+        s.wrap([1, 2, 3], on_finish=s.bottom_left)
+        s.make_timeline()
+        s.wrap_timeline()
+
+        # Show controls if we have entries
+        if len(s.memory):
+            s.show_controls()
+
+        # Success feedback
+        Eval.SOUND(Const.OK_SOUND).play()
+        s.toast((
+            f'Loaded {len(memory)} entries!',
+            'Your timeline has been restored'
+        ))
 
     def wrap(s,what=0,on_finish=None,init=False):
         # global math
@@ -2011,6 +2157,7 @@ class Editor:
         )
         s.ui_on = False
         s.ui_clickable = False
+        bs.get_foreground_host_activity().globalsnode.area_of_interest_bounds = Const.EXIT_BOUNDS
 
     def hard_cleanup(s):
         for attr in s.__dict__.copy():
@@ -2039,6 +2186,18 @@ class Editor:
                 texture=Eval.TEXTURE(Const.SKIN)
             )
             s.menu_kids.append(w)
+        # seed input (hidden by default)
+        s.seed_input = bui.textwidget(
+            parent=s.root,
+            position=(0,0),
+            size=(0,0),
+            editable=True,
+            allow_clear_button=False,
+            color=(*Color.TEXT,Color.OPACITY),
+            v_align=Const.ALIGN,
+            glow_type=Const.GLOW,
+            description=Strings.SEED
+        )
 
     def complete_all(s):
         for widget_id, anim_dict in s.anims.items():
@@ -2087,6 +2246,13 @@ class Editor:
             s.menu_button_xp,
             s.menu_kid_yp(i)
         )
+        # seed math
+        s.seed_button_shrunk_size = (s.menu_kid_size[0]*0.3, s.menu_kid_size[1])
+        s.seed_input_size = (s.menu_kid_size[0]*0.7-s.menu_marg, s.menu_kid_size[1])
+        s.seed_input_pos = lambda i: (
+            s.menu_button_xp,
+            s.menu_kid_yp(i)
+        )
         # menu background
         bui.imagewidget(
             s.menu_bg,
@@ -2115,15 +2281,28 @@ class Editor:
                 text_scale=one
             )
             if s.menu_on:
-                a = s.anims[id(kid)].attrs_start
+                a = s.anims[id(kid)]['main'].attrs_start
                 a['size'] = s.menu_kid_start_size
                 a['position'] = s.menu_kid_start_pos(i)
-                a = s.anims[id(kid)].attrs_current
+                a = s.anims[id(kid)]['main'].attrs_current
                 a['size'] = s.menu_kid_size
                 a['position'] = s.menu_kid_pos(i)
-                a = s.anims[id(kid)].attrs_end
+                a = s.anims[id(kid)]['main'].attrs_end
                 a['size'] = s.menu_kid_size
                 a['position'] = s.menu_kid_pos(i)
+        # seed input
+        bui.textwidget(
+            s.seed_input,
+            position=s.seed_input_pos(1),
+            size=s.seed_on and s.seed_input_size or (0,0)
+        )
+
+        # Update animation if menu is being repositioned
+        if s.menu_on and (anim := s.anims.get(id(s.seed_input))):
+            if s.seed_on:
+                anim.attrs_end['position'] = pos
+                anim.attrs_current['position'] = pos
+
 
     def toggle_menu(s):
         Eval.SOUND(Const.OK_SOUND).play()
@@ -2136,10 +2315,18 @@ class Editor:
             s.anims[id(s.menu_bg)] = anim.reverse(
                 duration=butter
             )
+            # instant
+            (victim:=s.anims[id(s.menu_kids[1])].pop('seed',None)) and victim.cancel()
+            (victim:=s.anims[id(s.seed_input)]) and s.seed_on and victim.reverse(duration=butter*0.5)
+            s.seed_on = False
+            bui.buttonwidget(
+                s.menu_kids[1],
+                label=Strings.MENUS[1]
+            )
             # event kids
             for i,kid in enumerate(s.menu_kids):
-                anim = s.anims[id(kid)]
-                s.anims[id(kid)] = anim.reverse(
+                anim = s.anims[id(kid)]['main']
+                s.anims[id(kid)]['main'] = anim.reverse(
                     duration=butter*0.7
                 )
                 # disable
@@ -2153,7 +2340,6 @@ class Editor:
             anim.cancel()
         s.anims[id(s.menu_bg)] = Animate(
             widget=s.menu_bg,
-
             duration=butter,
             attrs={
                 'opacity':(0,Color.OPACITY),
@@ -2169,7 +2355,6 @@ class Editor:
         )
         # menu action
         def menu_action(i):
-            Eval.SOUND(Const.OK_SOUND).play()
             # save & exit
             if i == 0:
                 s.toast(Strings.BYE)
@@ -2180,21 +2365,125 @@ class Editor:
                         reset_ui=False
                     )
                 )
+                Eval.SOUND(Const.OK_SOUND).play()
             # load seed
-            if i == 1: pass
+            if i == 1:
+                s.seed_on = not s.seed_on
+                target_label = Strings.DONE if s.seed_on else Strings.MENUS[1]
+
+                based_size = (
+                    s.menu_kid_size,
+                    s.seed_button_shrunk_size
+                )
+                target_size = based_size[s.seed_on]
+
+                based_pos = (
+                    s.menu_button_xp,
+                    s.menu_button_xp + (s.menu_kid_size[0] - s.seed_button_shrunk_size[0]) + 5
+                )
+                target_pos = (
+                    based_pos[s.seed_on],
+                    s.menu_kid_yp(1)
+                )
+
+                # animate button shrink/expand
+                anim = s.anims[id(s.menu_kids[1])].get('main')
+                start_size = based_size[not s.seed_on]
+                start_pos = (
+                    based_pos[not s.seed_on],
+                    s.menu_kid_yp(1)
+                )
+                if anim and not anim.finished:
+                    start_size = anim.attrs_current['size']
+                    start_pos = anim.attrs_current['position']
+                    anim.cancel()
+
+                # boomerang label change (fade out, change, fade back in)
+                def change_label():
+                    bui.buttonwidget(s.menu_kids[1], label=target_label)
+                    # fade back in
+                    Animate(
+                        widget=s.menu_kids[1],
+                        attrs={
+                            'textcolor': (
+                                Const.INVISIBLE,
+                                (*Color.TEXT, Color.OPACITY)
+                            )
+                        },
+                        duration=s.global_butter / 2
+                    )
+
+                s.anims[id(s.menu_kids[1])]['seed'] = Animate(
+                    widget=s.menu_kids[1],
+                    attrs={
+                        'size': (start_size, target_size),
+                        'position': (start_pos, target_pos),
+                        'textcolor': (
+                            (*Color.TEXT, Color.OPACITY),
+                            Const.INVISIBLE
+                        )
+                    },
+                    duration=s.global_butter / 2,
+                    on_finish=change_label
+                )
+
+                # animate textbox appear/disappear
+                anim_input = s.anims.get(id(s.seed_input))
+                start_input_size = (0, s.menu_kid_size[1])
+                if anim_input and not anim_input.finished:
+                    start_input_size = anim_input.attrs_current['size']
+                    anim_input.cancel()
+
+                s.anims[id(s.seed_input)] = Animate(
+                    widget=s.seed_input,
+                    attrs={
+                        'size': (
+                            start_input_size if s.seed_on else s.seed_input_size,
+                            s.seed_input_size if s.seed_on else (0, s.menu_kid_size[1])
+                        ),
+                        'color': (
+                            Const.INVISIBLE if s.seed_on else (*Color.TEXT,Color.OPACITY),
+                            (*Color.TEXT,Color.OPACITY) if s.seed_on else Const.INVISIBLE
+                        )
+                    },
+                    duration=s.global_butter
+                )
+
+                # if closing, process seed
+                if not s.seed_on:
+                    seed_text = bui.textwidget(query=s.seed_input)
+                    if not seed_text:
+                        s.toast(Format.ERROR_EMPTY(Strings.SEED))
+                        Eval.SOUND(Const.BAD_SOUND).play()
+                        return
+                    bui.textwidget(s.seed_input, text='')
+                    try: memory = Eval.DECODE(int(seed_text))
+                    except Exception as e:
+                        s.toast(Format.ERROR(e))
+                        Eval.SOUND(Const.BAD_SOUND).play()
+                        return
+                    s.load_memory(memory)
+                Eval.SOUND(Const.OK_SOUND).play()
             # save seed
-            if i == 2: pass
+            if i == 2:
+                try: seed = Eval.ENCODE(s.memory)
+                except Exception as e:
+                    s.toast(Format.ERROR(e))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                bui.clipboard_set_text(str(seed))
+                Eval.SOUND(Const.OK_SOUND).play()
             # toggle editor
             if i == 3:
                 s.toggle_ui()
                 s.toggle_menu()
+                Eval.SOUND(Const.OK_SOUND).play()
         # menu kids
         for i,kid in enumerate(s.menu_kids):
-            if (anim:=s.anims[id(kid)]):
+            if (anim:=s.anims[id(kid)].get('main')):
                 anim.cancel()
-            s.anims[id(kid)] = Animate(
+            s.anims[id(kid)]['main'] = Animate(
                 widget=kid,
-
                 delay=delay+0.08-0.03*i,
                 duration=butter,
                 attrs={
@@ -2262,9 +2551,10 @@ class Editor:
             if s.key_window in s.window_on:
                 s.anims[id(w)]['window'].attrs_start['position'] = end_pos
                 s.anims[id(w)]['shadow'].attrs_start['position'] = end_pos
-                s.anims[id(w)]['push'].attrs_start['position'] = start_pos
-                s.anims[id(w)]['push'].attrs_end['position'] = end_pos
-                s.anims[id(w)]['push'].attrs_current['position'] = end_pos
+                if 'push' in s.anims[id(w)]:
+                    s.anims[id(w)]['push'].attrs_start['position'] = start_pos
+                    s.anims[id(w)]['push'].attrs_end['position'] = end_pos
+                    s.anims[id(w)]['push'].attrs_current['position'] = end_pos
                 return
             s.anims[id(w)]['push'] = Animate(
                 widget=w,
@@ -2625,8 +2915,8 @@ class Editor:
 
                 # Animate all key widgets for this entry
                 for key_data in kid_mem.get('keys', {}).values():
-                    if 'widget' in key_data and key_data['widget'].exists():
-                        wid = key_data['widget']
+                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                        wid = s.widgets[key_data['widget']]
                         wid_id = id(wid)
                         key_time = key_data['time']
 
@@ -2909,7 +3199,7 @@ class Editor:
         # select attr
         def select(a):
             bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=f'{so_far[a]!r}')
+            bui.textwidget(val,text=str(so_far[a]))
         def valid():
             # collect
             a = bui.textwidget(query=attr)
@@ -2945,7 +3235,6 @@ class Editor:
             # fade
             s.anims[id(_w)] = Animate(
                 widget=_w,
-
                 attrs={
                     'color':(
                         (*Color.TEXT,Color.OPACITY),
@@ -3003,7 +3292,6 @@ class Editor:
             if (anim:=s.anims[id(w)]): anim.cancel()
             s.anims[id(w)] = Animate(
                 widget=w,
-
                 attrs={
                     'color':(
                         Const.INVISIBLE,
@@ -3021,14 +3309,14 @@ class Editor:
             if not (g:=valid()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            Eval.SOUND(Const.OK_SOUND).play()
-            a,v = g
+            a,ov = g
             # evaluate
             try:
                 with bs.get_foreground_host_activity().context:
-                    v = eval(v)
+                    eval(ov)
             except Exception as e:
                 s.toast(Format.ERROR(e))
+                Eval.SOUND(Const.BAD_SOUND).play()
                 return
             # check
             if a in so_far:
@@ -3043,7 +3331,8 @@ class Editor:
                 s.toast(Strings.INFO_ASSIGNED(a))
             # finally
             anim_kid(w,px,py)
-            so_far.update({a:v})
+            so_far.update({a:ov})
+            Eval.SOUND(Const.OK_SOUND).play()
         # pop button
         pos = (s.window_marg+7-s.window_fix,s.window_marg)
         size = bx/2-s.window_marg,by
@@ -4062,7 +4351,7 @@ class Editor:
         # select attr
         def select(a):
             bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=f'{so_far[a]!r}')
+            bui.textwidget(val,text=str(so_far[a]))
         def valid():
             # collect
             a = bui.textwidget(query=attr)
@@ -4175,11 +4464,11 @@ class Editor:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             Eval.SOUND(Const.OK_SOUND).play()
-            a,v = g
+            a,ov = g
             # evaluate
             try:
                 with bs.get_foreground_host_activity().context:
-                    v = eval(v)
+                    eval(ov)
             except Exception as e:
                 s.toast(Format.ERROR(e))
                 return
@@ -4196,7 +4485,7 @@ class Editor:
                 s.toast(Strings.INFO_ASSIGNED(a))
             # finally
             anim_kid(w,px,py)
-            so_far.update({a:v})
+            so_far.update({a:ov})
         # pop button
         pos = (s.window_marg+2-s.window_fix,s.window_marg+50)
         size = bx/2-s.window_marg+2,by-10
@@ -4474,7 +4763,7 @@ class Editor:
         # select attr
         def select(a):
             bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=f'{so_far[a]!r}')
+            bui.textwidget(val,text=str(so_far[a]))
         def valid():
             # collect
             a = bui.textwidget(query=attr)
@@ -4585,11 +4874,11 @@ class Editor:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             Eval.SOUND(Const.OK_SOUND).play()
-            a,v = g
+            a,ov = g
             # evaluate
             try:
                 with bs.get_foreground_host_activity().context:
-                    v = eval(v)
+                    eval(ov)
             except Exception as e:
                 s.toast(Format.ERROR(e))
                 return
@@ -4606,7 +4895,7 @@ class Editor:
                 s.toast(Strings.INFO_ASSIGNED(a))
             # finally
             anim_kid(w,px,py)
-            so_far.update({a:v})
+            so_far.update({a:ov})
         # pop button
         pos = (s.window_marg+2-s.window_fix,s.window_marg+50)
         size = bx/2-s.window_marg+2,by-10
@@ -4901,7 +5190,7 @@ class Editor:
                 parent=preset_root,
                 size=(dx, text_y),
                 position=(0, rsy - i * text_y),
-                maxwidth=dx - 15,
+                maxwidth=dx - 25,
                 selectable=True,
                 glow_type=Const.GLOW,
                 click_activate=True,
@@ -5474,6 +5763,8 @@ class Editor:
         ) if s.pause_start else (
             perf_counter() - s.play_start - s.paused_time
         )
+
+        # Execute timeline events
         while (
             s.timeline_index < len(s.timeline) and
             s.timeline[s.timeline_index]['time'] <= s.play_elapsed
@@ -5487,9 +5778,34 @@ class Editor:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             s.timeline_index += 1
+
+        # Execute scheduled keys
+        for btn_id, keys in list(s.active_key_schedule.items()):
+            for key_info in keys[:]:  # Copy to safely remove during iteration
+                if s.play_elapsed >= key_info['time']:
+                    try:
+                        s.execute_key(
+                            key_info['data'],
+                            key_info['btn_id'],
+                            key_info['event_type']
+                        )
+                    except Exception as e:
+                        mem = s.memory.get(btn_id)
+                        name = mem['data']['name'] if mem else 'Unknown'
+                        s.toast(Strings.ERROR_EVENT(f"{name} (Key)", e))
+                        Eval.SOUND(Const.BAD_SOUND).play()
+
+                    keys.remove(key_info)
+
+            # Clean up empty schedules
+            if not keys:
+                del s.active_key_schedule[btn_id]
+
+        # Check if playback finished
         if s.play_elapsed >= s.max_time:
             s.stop()
             return
+
         s.move_playhead()
 
     def execute_event(s,e):
@@ -5616,17 +5932,15 @@ class Editor:
                     child.on_end()
 
         # Execute keys for this event
-        # Keys are executed based on time, not start/end
         if e['type'] == 'start':
-            for key_data in mem.get('keys', {}).values():
-                key_time = key_data['time']
-
-                # Schedule key execution at the right time
-                delay = key_time - s.play_elapsed
-                if delay >= 0:
-                    bui.apptimer(delay, bui.CallPartial(
-                        s.execute_key, key_data, key, what
-                    ))
+            s.active_key_schedule[key] = []
+            for key_name, key_data in mem.get('keys', {}).items():
+                s.active_key_schedule[key].append({
+                    'time': key_data['time'],
+                    'data': key_data,
+                    'btn_id': key,
+                    'event_type': what
+                })
 
         # finally
         callable(call) and call()
@@ -5637,14 +5951,14 @@ class Editor:
         # Attribute (action 0)
         if action == 0:
             da = key_data['data']
-            attr_name, attr_value = da['attr'],da['value']
+            attr_name, attr_eval = da['attr'],da['eval']
 
             # Get the node from active entries
             if btn_id in s.active:
                 node = s.active[btn_id]
                 if node.exists():
                     try:
-                        setattr(node, attr_name, attr_value)
+                        setattr(node, attr_name, eval(attr_eval))
                     except Exception as e:
                         s.toast(Format.ERROR(e))
                         Eval.SOUND(Const.BAD_SOUND).play()
@@ -5826,8 +6140,8 @@ class Editor:
         # Helper to animate all key widgets for this entry
         def animate_key_widgets(anim_key, key_old_positions):
             for key_data in mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
@@ -5876,8 +6190,8 @@ class Editor:
             # Store old positions - check for ongoing animations!
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     # Check if animating from LEFT movement (key 1)
@@ -5907,8 +6221,8 @@ class Editor:
 
             animate_key_widgets(0, key_old_positions)
 
-            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                wid_id = id(mem['prev_off_wid'])
+            if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                wid_id = mem['prev_off_wid']
 
                 for key in [1, 4, 5]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -5931,7 +6245,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][0] = Animate(
-                    widget=mem['prev_off_wid'],
+                    widget=s.widgets[mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (new_wid_x, wid_y))
                     },
@@ -5963,8 +6277,8 @@ class Editor:
             # Store old positions - check for ongoing animations!
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     # Check if animating from RIGHT movement (key 0)
@@ -5994,8 +6308,8 @@ class Editor:
 
             animate_key_widgets(1, key_old_positions)
 
-            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                wid_id = id(mem['prev_off_wid'])
+            if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                wid_id = mem['prev_off_wid']
 
                 for key in [0, 4, 5]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -6018,7 +6332,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][1] = Animate(
-                    widget=mem['prev_off_wid'],
+                    widget=s.widgets[mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (new_wid_x, wid_y))
                     },
@@ -6054,11 +6368,11 @@ class Editor:
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data:
                     key_offset = key_data['time'] - mem['start']
-                    if key_offset <= mem['duration'] and not key_data['widget'].exists():
+                    if key_offset <= mem['duration'] and not s.widgets[key_data['widget']].exists():
                         key_x = s.magic_x + s.entry_xs_real * (mem['start'] + key_offset) * s.entries_per_sec - s.entry_ys_real/4
                         key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
 
-                        key_data['widget'] = bui.imagewidget(
+                        key_w = bui.imagewidget(
                             parent=s.stamp_hscroll_root,
                             position=(key_x, key_y),
                             size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
@@ -6066,6 +6380,8 @@ class Editor:
                             color=Color.WARM,
                             opacity=Color.OPACITY
                         )
+                        key_data['widget'] = id(key_w)
+                        s.widgets[id(key_w)] = key_w
 
             if mem.get('prev_off') is not None and s.window_on and s.window_on[1] == s.key_window:
                 old_duration = mem['duration'] - 1/s.entries_per_sec
@@ -6075,7 +6391,7 @@ class Editor:
                     wid_x = s.magic_x + s.entry_xs_real * (mem['start'] + mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
                     wid_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
 
-                    mem['prev_off_wid'] = s.prev_off_wid = bui.imagewidget(
+                    s.prev_off_wid = bui.imagewidget(
                         parent=s.stamp_hscroll_root,
                         position=(wid_x, wid_y),
                         size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
@@ -6083,6 +6399,8 @@ class Editor:
                         color=Color.WARM,
                         opacity=Color.OPACITY
                     )
+                    mem['prev_off_wid'] = id(s.prev_off_wid)
+                    s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
 
         # shrink
         if which == 3:
@@ -6123,17 +6441,16 @@ class Editor:
             for key_data in mem.get('keys', {}).values():
                 key_time = key_data['time'] - mem['start']
                 if key_time > mem['duration']:
-                    if 'widget' in key_data and key_data['widget'].exists():
-                        key_data['widget'].delete()
+                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                        s.widgets.pop(key_data['widget']).delete()
 
             if mem.get('prev_off') is not None and s.window_on and s.window_on[1] == s.key_window:
                 old_duration = mem['duration'] + 1/s.entries_per_sec
                 new_duration = mem['duration']
 
                 if old_duration >= mem['prev_off'] and new_duration < mem['prev_off']:
-                    if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                        mem['prev_off_wid'].delete()
-                        mem['prev_off_wid'] = None
+                    if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                        s.widgets.pop(mem.pop('prev_off_wid')).delete()
 
         # move up
         if which == 4:
@@ -6156,8 +6473,8 @@ class Editor:
 
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     found = False
@@ -6180,8 +6497,8 @@ class Editor:
             # Same for OTHER entry - check for keys 4 AND 5!
             other_key_old_positions = {}
             for key_data in other_mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     found = False
@@ -6244,8 +6561,8 @@ class Editor:
 
             # Animate keys for the other entry
             for key_data in other_mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
@@ -6272,8 +6589,8 @@ class Editor:
                         duration=s.global_butter
                     )
 
-            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                wid_id = id(mem['prev_off_wid'])
+            if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                wid_id = mem['prev_off_wid']
 
                 for key in [5, 0, 1]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -6296,7 +6613,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][4] = Animate(
-                    widget=mem['prev_off_wid'],
+                    widget=s.widgets[mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (wid_x, new_wid_y))
                     },
@@ -6304,8 +6621,8 @@ class Editor:
                 )
 
             # Animate prev_off_wid for other entry if it exists
-            if other_mem.get('prev_off_wid') and other_mem['prev_off_wid'].exists():
-                wid_id = id(other_mem['prev_off_wid'])
+            if other_mem.get('prev_off_wid') and s.widgets[other_mem['prev_off_wid']].exists():
+                wid_id = other_mem['prev_off_wid']
 
                 for key in [5, 0, 1]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -6328,7 +6645,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][4] = Animate(
-                    widget=other_mem['prev_off_wid'],
+                    widget=s.widgets[other_mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (wid_x, new_wid_y))
                     },
@@ -6357,8 +6674,8 @@ class Editor:
 
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     found = False
@@ -6381,8 +6698,8 @@ class Editor:
             # Same for OTHER entry - check for keys 4 AND 5!
             other_key_old_positions = {}
             for key_data in other_mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
                     found = False
@@ -6446,8 +6763,8 @@ class Editor:
 
             # Animate keys for the other entry
             for key_data in other_mem.get('keys', {}).values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
@@ -6474,8 +6791,8 @@ class Editor:
                         duration=s.global_butter
                     )
 
-            if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                wid_id = id(mem['prev_off_wid'])
+            if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                wid_id = mem['prev_off_wid']
 
                 for key in [4, 0, 1]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -6498,7 +6815,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][5] = Animate(
-                    widget=mem['prev_off_wid'],
+                    widget=s.widgets[mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (wid_x, new_wid_y))
                     },
@@ -6506,8 +6823,8 @@ class Editor:
                 )
 
             # Animate prev_off_wid for other entry if it exists
-            if other_mem.get('prev_off_wid') and other_mem['prev_off_wid'].exists():
-                wid_id = id(other_mem['prev_off_wid'])
+            if other_mem.get('prev_off_wid') and s.widgets[other_mem['prev_off_wid']].exists():
+                wid_id = other_mem['prev_off_wid']
 
                 for key in [4, 0, 1]:
                     if (anim := s.anims.get(wid_id, {}).get(key, None)):
@@ -6530,7 +6847,7 @@ class Editor:
                     s.anims[wid_id] = {}
 
                 s.anims[wid_id][5] = Animate(
-                    widget=other_mem['prev_off_wid'],
+                    widget=s.widgets[other_mem['prev_off_wid']],
                     attrs={
                         'position': (start_wid_pos, (wid_x, new_wid_y))
                     },
@@ -6615,7 +6932,8 @@ class Editor:
                     color=Color.WARM,
                     opacity=0
                 )
-                new_key_data['widget'] = new_key_wid
+                new_key_data['widget'] = id(new_key_wid)
+                s.widgets[id(new_key_wid)] = new_key_wid
                 new_keys[nam] = new_key_data
 
             s.memory[id(btn)] = {
@@ -6673,8 +6991,8 @@ class Editor:
 
                 # Animate existing entry's keys
                 for key_data in kid_mem.get('keys', {}).values():
-                    if 'widget' in key_data and key_data['widget'].exists():
-                        wid = key_data['widget']
+                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                        wid = s.widgets[key_data['widget']]
                         wid_id = id(wid)
                         key_time = key_data['time']
 
@@ -6709,8 +7027,8 @@ class Editor:
 
             # Animate duplicated entry's keys
             for key_data in new_keys.values():
-                if 'widget' in key_data and key_data['widget'].exists():
-                    wid = key_data['widget']
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
@@ -6755,22 +7073,77 @@ class Editor:
             node_name = mem['data']['name']
             deleted_order = mem['order']
 
-            def cleanup():
-                # Delete all key widgets for this entry
-                for key_data in mem.get('keys', {}).values():
-                    if 'widget' in key_data and key_data['widget'].exists():
-                        key_data['widget'].delete()
+            # Store old positions for keys BEFORE any changes
+            deleted_key_old_positions = {}
+            for key_data in mem.get('keys', {}).values():
+                if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                    wid = s.widgets[key_data['widget']]
+                    wid_id = id(wid)
+                    key_time = key_data['time']
 
-                if mem.get('prev_off_wid') and mem['prev_off_wid'].exists():
-                    mem['prev_off_wid'].delete()
+                    # Calculate current position
+                    old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                    old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
+                    deleted_key_old_positions[wid_id] = (old_x, old_y)
+
+            def cleanup():
+                # Fade out and delete all key widgets for the DELETED entry
+                for key_data in mem.get('keys', {}).values():
+                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                        wid = s.widgets.pop(key_data['widget'])
+                        wid_id = id(wid)
+
+                        # Get starting position
+                        start_pos = deleted_key_old_positions.get(wid_id, (0, 0))
+
+                        # Check for ongoing animation
+                        if wid_id in s.anims and which in s.anims[wid_id]:
+                            if (anim := s.anims[wid_id].get(which, None)) and not anim.finished:
+                                start_pos = anim.attrs_current['position']
+                                anim.cancel()
+
+                        # Create animation dict if needed
+                        if wid_id not in s.anims:
+                            s.anims[wid_id] = {}
+
+                        # Clear the animation key
+                        s.anims[wid_id].pop(which, None)
+
+                        # Fade out animation
+                        s.anims[wid_id][which] = Animate(
+                            widget=wid,
+                            attrs={
+                                'opacity': (Color.OPACITY, 0),
+                                'position': (start_pos, start_pos)  # Don't move, just fade
+                            },
+                            duration=s.global_butter / 2,
+                            on_finish=wid.delete
+                        )
+
+                # Delete prev_off_wid if it exists
+                if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
+                    wid = s.widgets.pop(mem['prev_off_wid'])
+                    wid_id = id(wid)
+
+                    # Fade it out too
+                    if wid_id not in s.anims:
+                        s.anims[wid_id] = {}
+
+                    s.anims[wid_id][which] = Animate(
+                        widget=wid,
+                        attrs={'opacity': (Color.OPACITY, 0)},
+                        duration=s.global_butter / 2,
+                        on_finish=wid.delete
+                    )
+                    mem.pop('prev_off_wid')
 
                 del s.memory[id(b)]
-
                 s.stamp_kids.remove(b)
 
                 if b.exists():
                     b.delete()
 
+                # Update orders for remaining entries
                 for kid in s.stamp_kids:
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] > deleted_order:
@@ -6778,49 +7151,112 @@ class Editor:
 
                 s.wrap([1,2,3])
 
+                # Animate remaining entries sliding up
                 for idx, kid in enumerate(reversed(s.stamp_kids)):
                     kid_mem = s.memory[id(kid)]
-                    if kid_mem['order'] >= deleted_order: continue
-                    old_x = Eval.ENTRY_X(s,kid_mem)
+                    if kid_mem['order'] >= deleted_order: 
+                        continue
 
-                    current_y = s.entry_ys_real*(idx+1)
-
-                    end_pos = (
-                        old_x,
-                        s.entry_ys_real*idx
-                    )
+                    old_x = Eval.ENTRY_X(s, kid_mem)
+                    current_y = s.entry_ys_real * (idx + 1)
+                    end_pos = (old_x, s.entry_ys_real * idx)
 
                     s.anims[id(kid)][which] = Animate(
                         widget=kid,
                         attrs={
-                            'position':(
-                                (old_x, current_y),
-                                end_pos
-                            )
+                            'position': ((old_x, current_y), end_pos)
                         },
                         duration=s.global_butter
                     )
+
+                    # Animate keys for entries that are sliding up
+                    for key_data in kid_mem.get('keys', {}).values():
+                        if 'widget' in key_data and s.widgets[key_data['widget']].exists():
+                            wid = s.widgets[key_data['widget']]
+                            wid_id = id(wid)
+                            key_time = key_data['time']
+
+                            # Calculate positions
+                            new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
+                            old_key_y = s.entry_ys_real * (idx + 1)  # Current Y (before slide)
+                            new_key_y = s.entry_ys_real * idx         # Target Y (after slide)
+
+                            start_wid_pos = (new_x, old_key_y)
+
+                            # Check for ongoing animation
+                            if wid_id in s.anims and which in s.anims[wid_id]:
+                                if (anim := s.anims[wid_id].get(which, None)) and not anim.finished:
+                                    start_wid_pos = anim.attrs_current['position']
+                                    anim.cancel()
+
+                            # Create animation dict if needed
+                            if wid_id not in s.anims:
+                                s.anims[wid_id] = {}
+
+                            # Clear the animation key
+                            s.anims[wid_id].pop(which, None)
+
+                            # Animate the key sliding up
+                            s.anims[wid_id][which] = Animate(
+                                widget=wid,
+                                attrs={
+                                    'position': (start_wid_pos, (new_x, new_key_y))
+                                },
+                                duration=s.global_butter
+                            )
+
+                    # Animate prev_off_wid for entries that are sliding up
+                    if kid_mem.get('prev_off_wid') and s.widgets[kid_mem['prev_off_wid']].exists():
+                        wid_id = kid_mem['prev_off_wid']
+
+                        # Cancel any ongoing animations on this prev_off_wid
+                        for key in [4, 5, 0, 1]:
+                            if (anim := s.anims.get(wid_id, {}).get(key, None)):
+                                anim.cancel()
+                                s.anims[wid_id].pop(key, None)
+
+                        wid_x = s.magic_x + s.entry_xs_real * (kid_mem['start'] + kid_mem['prev_off']) * s.entries_per_sec - s.entry_ys_real/4
+                        old_wid_y = s.entry_ys_real * (idx + 1)
+                        new_wid_y = s.entry_ys_real * idx
+
+                        start_wid_pos = (wid_x, old_wid_y)
+
+                        if (anim := s.anims.get(wid_id, {}).get(which, None)) and not anim.finished:
+                            start_wid_pos = anim.attrs_current['position']
+                            anim.cancel()
+
+                        if wid_id in s.anims:
+                            s.anims[wid_id].pop(which, None)
+                        else:
+                            s.anims[wid_id] = {}
+
+                        s.anims[wid_id][which] = Animate(
+                            widget=s.widgets[kid_mem['prev_off_wid']],
+                            attrs={
+                                'position': (start_wid_pos, (wid_x, new_wid_y))
+                            },
+                            duration=s.global_butter
+                        )
 
                 s.sl = None
                 s.hide_tools()
                 if len(s.memory):
                     s.show_controls(up=True)
 
-                s.toast(Strings.INFO_DELETED(
-                    node_name
-                ))
+                s.toast(Strings.INFO_DELETED(node_name))
                 s.build_timeline()
 
+            # Animate the entry button fading out
             s.anims[id(b)][which] = Animate(
                 widget=b,
                 attrs={
-                    'opacity':(Color.OPACITY, 0),
-                    'textcolor':(
+                    'opacity': (Color.OPACITY, 0),
+                    'textcolor': (
                         (*Color.TEXT, Color.OPACITY),
                         Const.INVISIBLE
                     )
                 },
-                duration=s.global_butter/2,
+                duration=s.global_butter / 2,
                 on_finish=cleanup
             )
 
@@ -7302,169 +7738,6 @@ class Animate:
             **new
         )
 
-class CodeRunner:
-    def __init__(self, host_activity, on_error=None, parent_runner=None):
-        self.host_activity = host_activity
-        self.on_error = on_error
-        self.parent_runner = parent_runner
-
-        # Use parent's namespace if provided, else create new
-        if parent_runner:
-            self.namespace = parent_runner.namespace
-            self.created_nodes = parent_runner.created_nodes
-        else:
-            self.namespace = {}
-            self.created_nodes = []
-
-        self.stdout_capture = StringIO()
-        self.stderr_capture = StringIO()
-        self.running = False
-        self.stop_flag = Event()
-        self.main_thread = None
-        self.original_newnode = None
-
-        # Track child runners
-        self.children = []
-
-    def _patched_newnode(self, *args, **kwargs):
-        node = self.original_newnode(*args, **kwargs)
-        self.created_nodes.append(node)
-        return node
-
-    def _terminate_thread(self, thread):
-        if not thread.is_alive():
-            return
-        try:
-            exc = py_object(SystemExit)
-            res = pythonapi.PyThreadState_SetAsyncExc(c_long(thread.ident), exc)
-            if res > 1:
-                pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
-        except:
-            pass
-
-    def _execute_code(self, code_string):
-        import bascenev1 as bs
-        import bascenev1lib as bsl
-        import bauiv1 as bui
-        import babase as ba
-        import _babase as _ba
-        import math
-        import random
-
-        self.original_newnode = bs.newnode
-        bs.newnode = self._patched_newnode
-
-        self.namespace.update({
-            '__stop_flag__': self.stop_flag,
-            'bascenev1': bs,
-            'bascenev1lib': bsl,
-            'bauiv1': bui,
-            'babase': ba,
-            '_babase': _ba,
-            'bs': bs,
-            'bsl': bsl,
-            'bui': bui,
-            'ba': ba,
-            '_ba': _ba,
-            'Spaz': bsl.actor.spaz.Spaz,
-            'math': math,
-            'random': random,
-            'Bubble': Bubble
-        })
-
-        try:
-            with self.host_activity.context:
-                with redirect_stdout(self.stdout_capture), redirect_stderr(self.stderr_capture):
-                    exec(code_string, self.namespace)
-        except Exception as e:
-            if callable(self.on_error):
-                self.on_error(e)
-            else:
-                print(f"Error in user code: {e}")
-                print(format_exc())
-        finally:
-            bs.newnode = self.original_newnode
-
-    def _runner(self, code_string):
-        try:
-            bs.pushcall(lambda: self._execute_code(code_string), from_other_thread=True)
-        except SystemExit:
-            pass
-        except Exception as e:
-            if callable(self.on_error):
-                self.on_error(e)
-            else:
-                print(f"Error in user code: {e}")
-                print(format_exc())
-        finally:
-            self.running = False
-
-    def on_start(self, code_string):
-        # DON'T call on_end - let existing code keep running
-
-        # Only reset if we're the parent starting fresh
-        if not self.parent_runner:
-            self.namespace = {}
-            self.created_nodes = []
-
-        self.stdout_capture = StringIO()
-        self.stderr_capture = StringIO()
-        self.stop_flag.clear()
-        self.running = True
-        self.main_thread = Thread(target=self._runner, args=(code_string,), daemon=True)
-        self.main_thread.start()
-
-    def spawn_child(self, code_string):
-        """Create and start a child runner that shares this namespace"""
-        child = CodeRunner(
-            self.host_activity,
-            on_error=self.on_error,
-            parent_runner=self
-        )
-        self.children.append(child)
-        child.on_start(code_string)
-        return child
-
-    def on_end(self):
-        if not self.running and self.main_thread is None and not self.children:
-            return
-
-        self.stop_flag.set()
-
-        # Stop own thread
-        if self.main_thread and self.main_thread.is_alive():
-            self.main_thread.join(timeout=0.1)
-        if self.main_thread and self.main_thread.is_alive():
-            self._terminate_thread(self.main_thread)
-            self.main_thread.join(timeout=0.5)
-
-        # Stop all children
-        for child in self.children:
-            child.on_end()
-        self.children.clear()
-
-        # Only cleanup if we're the parent
-        if not self.parent_runner:
-            for node in self.created_nodes:
-                try:
-                    if node.exists():
-                        node.delete()
-                except:
-                    pass
-            self.created_nodes.clear()
-
-            for value in list(self.namespace.values()):
-                if hasattr(value, 'close') and callable(value.close):
-                    try:
-                        value.close()
-                    except:
-                        pass
-
-            self.namespace.clear()
-
-        self.main_thread = None
-        self.running = False
-
 class Strings:
     # map
     MAP_TITLE = 'Movi'
@@ -7493,10 +7766,11 @@ class Strings:
     # random
     CODE = 'Code'
     CODE_HELP = "Keyframes continue from the\nevent's code. All variables and\nstate are shared."
-    EXTEND_CODE = 'Extend Code'
+    EXTEND_CODE = 'Parallel Code'
     CODE_EDITOR = 'Code Editor'
     COPY = 'Copy'
     RUN = 'Run'
+    SEED = 'Seed'
     PASTE = 'Paste'
     ATTR = 'Attr'
     NEXT = 'Next'
@@ -7754,6 +8028,7 @@ class Const:
         ), 'ballistica_files', 'ba_data'
     )
     CONFIG_HEAD = '# MOVI '
+    EXIT_BOUNDS = (0,0,0,0,35,0)
     # scaling
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
@@ -7873,6 +8148,24 @@ class Eval:
         bui.get_string_width(s,suppress_warning=True) or
         sum(Const.FONT_METRICS.get(c, 30) for c in s)
     )
+    ENCODE = lambda data: int.from_bytes(
+        compress(
+            dumps(
+                data,
+                separators=(',', ':'),
+                sort_keys=True
+            ).encode('utf-8')
+        ),
+        byteorder='big'
+    )
+    DECODE = lambda n: loads(
+        decompress(
+            n.to_bytes(
+                (n.bit_length() + 7) // 8,
+                byteorder='big'
+            )
+        ).decode('utf-8')
+    )
 
 class Format:
     ERROR = lambda e: (
@@ -7969,6 +8262,186 @@ class byBordd(ba.Plugin):
     def __init__(s):
         ba.app.register_subsystem(MoviSubsystem())
 
+class CodeRunner:
+    _SHARED = {}
+    def __init__(self, host_activity, on_error=None, parent_runner=None):
+        self.host_activity = host_activity
+        self.on_error = on_error
+        self.parent_runner = parent_runner
+
+        # Use parent's namespace if provided, else create new
+        if parent_runner:
+            self.namespace = parent_runner.namespace
+            self.created_nodes = parent_runner.created_nodes
+        else:
+            self.namespace = {}
+            self.created_nodes = []
+
+        self.stdout_capture = StringIO()
+        self.stderr_capture = StringIO()
+        self.running = False
+        self.stop_flag = Event()
+        self.main_thread = None
+        self.children = []
+
+    def _create_patched_bs(self):
+        """Create a patched bascenev1 module that tracks newnode calls."""
+        import bascenev1 as bs_original
+
+        class PatchedBS:
+            def __init__(self, original_bs, created_nodes_list):
+                self._original = original_bs
+                self._created_nodes = created_nodes_list
+
+            def __getattr__(self, name):
+                attr = getattr(self._original, name)
+
+                # Intercept newnode calls
+                if name == 'newnode':
+                    def tracked_newnode(*args, **kwargs):
+                        node = self._original.newnode(*args, **kwargs)
+                        self._created_nodes.append(node)
+                        return node
+                    return tracked_newnode
+
+                return attr
+
+        return PatchedBS(bs_original, self.created_nodes)
+
+    def _terminate_thread(self, thread):
+        if not thread.is_alive():
+            return
+        try:
+            exc = py_object(SystemExit)
+            res = pythonapi.PyThreadState_SetAsyncExc(c_long(thread.ident), exc)
+            if res > 1:
+                pythonapi.PyThreadState_SetAsyncExc(thread.ident, None)
+        except:
+            pass
+
+    def _execute_code(self, code_string):
+        import bascenev1 as bs_original
+        import bascenev1lib as bsl
+        import bauiv1 as bui
+        import babase as ba
+        import _babase as _ba
+        import math
+        import random
+
+        # Create patched bs module
+        patched_bs = self._create_patched_bs()
+
+        self.namespace.update({
+            '__stop_flag__': self.stop_flag,
+            'bascenev1': patched_bs,
+            'bascenev1lib': bsl,
+            'bauiv1': bui,
+            'babase': ba,
+            '_babase': _ba,
+            'bs': patched_bs,  # <-- Patched version
+            'bsl': bsl,
+            'bui': bui,
+            'ba': ba,
+            '_ba': _ba,
+            'Spaz': bsl.actor.spaz.Spaz,
+            'math': math,
+            'random': random,
+            'Bubble': Bubble,
+            '_SHARED': CodeRunner._SHARED
+        })
+
+        try:
+            with self.host_activity.context:
+                with redirect_stdout(self.stdout_capture), redirect_stderr(self.stderr_capture):
+                    exec(code_string, self.namespace)
+        except Exception as e:
+            if callable(self.on_error):
+                self.on_error(e)
+            else:
+                print(f"Error in user code: {e}")
+                print(format_exc())
+
+    def _runner(self, code_string):
+        try:
+            bs.pushcall(lambda: self._execute_code(code_string), from_other_thread=True)
+        except SystemExit:
+            pass
+        except Exception as e:
+            if callable(self.on_error):
+                self.on_error(e)
+            else:
+                print(f"Error in user code: {e}")
+                print(format_exc())
+        finally:
+            self.running = False
+
+    def on_start(self, code_string):
+        # DON'T call on_end - let existing code keep running
+
+        # Only reset if we're the parent starting fresh
+        if not self.parent_runner:
+            self.namespace = {}
+            self.created_nodes = []
+
+        self.stdout_capture = StringIO()
+        self.stderr_capture = StringIO()
+        self.stop_flag.clear()
+        self.running = True
+        self.main_thread = Thread(target=self._runner, args=(code_string,), daemon=True)
+        self.main_thread.start()
+
+    def spawn_child(self, code_string):
+        """Create and start a child runner that shares this namespace"""
+        child = CodeRunner(
+            self.host_activity,
+            on_error=self.on_error,
+            parent_runner=self
+        )
+        self.children.append(child)
+        child.on_start(code_string)
+        return child
+
+    def on_end(self):
+        if not self.running and self.main_thread is None and not self.children:
+            return
+
+        self.stop_flag.set()
+
+        # Stop own thread
+        if self.main_thread and self.main_thread.is_alive():
+            self.main_thread.join(timeout=0.1)
+        if self.main_thread and self.main_thread.is_alive():
+            self._terminate_thread(self.main_thread)
+            self.main_thread.join(timeout=0.5)
+
+        # Stop all children
+        for child in self.children:
+            child.on_end()
+        self.children.clear()
+
+        # Only cleanup if we're the parent
+        if not self.parent_runner:
+            # Delete all created nodes
+            for node in self.created_nodes:
+                try:
+                    if node.exists():
+                        node.delete()
+                except:
+                    pass
+            self.created_nodes.clear()
+
+            for value in list(self.namespace.values()):
+                if hasattr(value, 'close') and callable(value.close):
+                    try:
+                        value.close()
+                    except:
+                        pass
+
+            self.namespace.clear()
+
+        self.main_thread = None
+        self.running = False
+
 def get_presets():
     """
     Return a list of Movi presets.
@@ -7987,16 +8460,6 @@ def get_presets():
     # ------------------------------------------------------------------
     # 0) NODE PRESETS  (EVENT INDEX 0)
     # ------------------------------------------------------------------
-    # These are usable with the "Node" window.
-    # They rely on:
-    #   type -> bascenev1.newnode(type=...)
-    #   name -> bascenev1.newnode(name=...)
-    #   attrs -> dict of attributes (already-evaluated)
-    #
-    # You can drop these straight into Movi's "Preset" window.
-    # ------------------------------------------------------------------
-
-    # Simple omnidirectional light to brighten center area
     presets.append((
         0,
         'Soft Fill Light',
@@ -8016,7 +8479,6 @@ def get_presets():
         }
     ))
 
-    # Colored rim light from the left
     presets.append((
         0,
         'Rim Light Left',
@@ -8036,7 +8498,6 @@ def get_presets():
         }
     ))
 
-    # Simple spotlight pointing straight down
     presets.append((
         0,
         'Top Spotlight',
@@ -8056,7 +8517,6 @@ def get_presets():
         }
     ))
 
-    # Floating text label at origin
     presets.append((
         0,
         'Title Card',
@@ -8079,7 +8539,6 @@ def get_presets():
         }
     ))
 
-    # World anchor invisible node (useful for children/attachments)
     presets.append((
         0,
         'World Anchor',
@@ -8099,13 +8558,7 @@ def get_presets():
     # ------------------------------------------------------------------
     # 1) CAMERA PRESETS  (EVENT INDEX 1)
     # ------------------------------------------------------------------
-    # These presets are meant for the Camera window:
-    #   'chks' -> [position_enabled, target_enabled, manual_mode]
-    #   'position' -> list[3]
-    #   'target' -> list[3]
-    # ------------------------------------------------------------------
 
-    # Classic side shot looking at center
     presets.append((
         1,
         'Side Shot',
@@ -8120,7 +8573,6 @@ def get_presets():
         }
     ))
 
-    # Low-angle heroic shot from front
     presets.append((
         1,
         'Hero Shot',
@@ -8135,7 +8587,6 @@ def get_presets():
         }
     ))
 
-    # Top-down tactical view
     presets.append((
         1,
         'Top Down',
@@ -8150,7 +8601,6 @@ def get_presets():
         }
     ))
 
-    # Over-the-shoulder camera pre-suited for a “hero” at (0,0,0)
     presets.append((
         1,
         'Over Shoulder',
@@ -8168,15 +8618,7 @@ def get_presets():
     # ------------------------------------------------------------------
     # 2) SOUND PRESETS  (EVENT INDEX 2)
     # ------------------------------------------------------------------
-    # These are for your Sound window:
-    #   'file'   -> filename under ba_data/audio (with .ogg)
-    #   'name'   -> label for entry button
-    #   'x,y,z'  -> world position
-    #   'volume' -> float
-    #   'chks'   -> [everywhere, loop]
-    # ------------------------------------------------------------------
 
-    # Ambient looping wind
     presets.append((
         2,
         'Wind Loop (Global)',
@@ -8194,7 +8636,6 @@ def get_presets():
         }
     ))
 
-    # Distant explosion positional
     presets.append((
         2,
         'Distant Boom',
@@ -8212,7 +8653,6 @@ def get_presets():
         }
     ))
 
-    # Musical sting at center
     presets.append((
         2,
         'Cinematic Hit',
@@ -8230,7 +8670,6 @@ def get_presets():
         }
     ))
 
-    # Low rumble loop from below
     presets.append((
         2,
         'Underground Rumble',
@@ -8251,12 +8690,7 @@ def get_presets():
     # ------------------------------------------------------------------
     # 3) FX PRESETS  (EVENT INDEX 3)
     # ------------------------------------------------------------------
-    # Compatible with FX window:
-    #   'name'  -> label
-    #   'attrs' -> dict of kwargs fed to bs.emitfx(**attrs)
-    # ------------------------------------------------------------------
 
-    # Spark shower at origin
     presets.append((
         3,
         'Spark Shower',
@@ -8278,7 +8712,6 @@ def get_presets():
         }
     ))
 
-    # Magical ring pulse
     presets.append((
         3,
         'Magic Ring',
@@ -8299,7 +8732,6 @@ def get_presets():
         }
     ))
 
-    # Rising smoke column
     presets.append((
         3,
         'Smoke Column',
@@ -8321,7 +8753,6 @@ def get_presets():
         }
     ))
 
-    # Small explosion blast
     presets.append((
         3,
         'Small Blast',
@@ -8345,11 +8776,6 @@ def get_presets():
     # ------------------------------------------------------------------
     # 4) MAP PRESETS  (EVENT INDEX 4)
     # ------------------------------------------------------------------
-    # Map window expects:
-    #   'map'   -> map class name as used by your change_map
-    #   'attrs' -> attributes applied either to map or globalsnode
-    #   'name'  -> just a display label
-    # ------------------------------------------------------------------
 
     presets.append((
         4,
@@ -8360,7 +8786,6 @@ def get_presets():
                 'map': 'Hockey Stadium',
                 'name': list(Strings.EVENTS)[4],
                 'attrs': {
-                    # More bluish ambient
                     'ambient_color': (0.6, 0.7, 1.0),
                     'tint': (1.1, 1.2, 1.3),
                     'vignette_outer': (0.1, 0.1, 0.2),
@@ -8407,21 +8832,9 @@ def get_presets():
 
     # ------------------------------------------------------------------
     # 6) CODE PRESETS  (EVENT INDEX 6)
-    # ------------------------------------------------------------------
-    # Code window presets: we provide 'code' as a string and rely on
-    # your CodeRunner & Code window to interpret it.
-    #
-    # NOTE: these codes assume:
-    #   bs  -> bascenev1
-    #   bsl -> bascenev1lib
-    #   bui -> bauiv1
-    #   ba  -> babase
-    #   Spaz -> bsl.actor.spaz.Spaz
-    #
-    # which you already inject in CodeRunner._execute_code().
+    # All use bs.Timer or bs.AppTimer which are cancelable
     # ------------------------------------------------------------------
 
-    # 6.0 – Original Pixie Dream (kept & slightly polished)
     presets.append((
         6,
         'Pixie Dream',
@@ -8430,8 +8843,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Pixie Dream',
-                    '# Magical pink pixie',
-                    '',
                     'name = "Pixie"',
                     'color = (1.0, 0.75, 0.8)',
                     'highlight = (1.0, 0.0, 1.0)',
@@ -8453,7 +8864,6 @@ def get_presets():
         }
     ))
 
-    # 6.1 – Simple Crowd of Bots around center
     presets.append((
         6,
         'Circle Crowd',
@@ -8462,8 +8872,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Circle Crowd',
-                    '# Spawns a ring of neutral bots around center.',
-                    '',
                     'count = 8',
                     'radius = 5.0',
                     'height = 1.0',
@@ -8486,8 +8894,6 @@ def get_presets():
         }
     ))
 
-    # 6.2 – Node Visualizer for Terrain / Interesting Nodes
-    # This builds text labels on top of some existing nodes to inspect scene.
     presets.append((
         6,
         'Node Visualizer (Simple)',
@@ -8496,8 +8902,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Node Visualizer',
-                    '# Places floating labels above key map nodes.',
-                    '',
                     'act = bs.get_foreground_host_activity()',
                     'm = getattr(act, "map", None)',
                     'if not m:',
@@ -8525,11 +8929,9 @@ def get_presets():
                     '    mth.connectattr("output", t, "position")',
                     '    labels.append((t, mth))',
                     '',
-                    '# Label the map root node (if present)',
                     'root = getattr(m, "node", None)',
                     '_label(root, "MAP ROOT", 1.5, (1.2, 1.0, 0.4))',
                     '',
-                    '# Label some known attrs if they exist',
                     'for name, c in [',
                     '    ("floor", (0.5,1,0.5)),',
                     '    ("stands", (0.5,0.8,1)),',
@@ -8539,15 +8941,11 @@ def get_presets():
                     '    n = getattr(m, name, None)',
                     '    if n is not None:',
                     '        _label(n, name.upper(), 1.0, c)',
-                    '',
-                    '# Optional: keep labels around; they will be auto-cleaned',
-                    '# when this CodeRunner finishes.'
                 ))
             }
         }
     ))
 
-    # 6.3 – Simple 2D Graph (sin wave in space)
     presets.append((
         6,
         '2D Graph: Sine Wave',
@@ -8556,8 +8954,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI 2D Sine Graph',
-                    '# Draws a sine wave using tiny text points.',
-                    '',
                     'length = 5',
                     'step = 0.01',
                     'scale_x = 5',
@@ -8580,13 +8976,13 @@ def get_presets():
                     '        "scale": 0.08,',
                     '        "position": pos,',
                     '        "h_align": "center"',
-                    '    })'
+                    '    })',
+                    '    pts.append(t)',
                 ))
             }
         }
     ))
 
-    # 6.4 – 3D Point Cloud “Galaxy”
     presets.append((
         6,
         'Party Glitter',
@@ -8595,8 +8991,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Party Glitter',
-                    '# Random 3D points',
-                    '',
                     'count = 80',
                     'radius = 20.0',
                     'height = 4.0',
@@ -8620,13 +9014,13 @@ def get_presets():
                     '        "scale": 0.02,',
                     '        "h_align": "center",',
                     '        "position": pos',
-                    '    })'
+                    '    })',
+                    '    stars.append(t)',
                 ))
             }
         }
     ))
 
-    # 6.5 – Simple Orbit Camera Tool (camera manual fly in a circle)
     presets.append((
         6,
         'Orbit Camera Tool',
@@ -8635,13 +9029,10 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Orbit Camera Tool',
-                    '# Continuously orbits camera around origin while running.',
-                    '',
                     'import math',
                     '',
                     'act = bs.get_foreground_host_activity()',
                     '',
-                    '# If main runner stops, __stop_flag__ will be set True.',
                     'angle = 0.0',
                     'radius = 10.0',
                     'height = 4.0',
@@ -8660,15 +9051,14 @@ def get_presets():
                     '    pos = (x, height, z)',
                     '    _ba.set_camera_position(*pos)',
                     '    _ba.set_camera_target(0.0, 1.5, 0.0)',
-                    '    bs.timer(0.02, _step)',
+                    '    bs.AppTimer(0.02, _step)',
                     '',
-                    'bs.timer(0.02, _step)'
+                    'bs.AppTimer(0.02, _step)'
                 ))
             }
         }
     ))
 
-    # 6.6 – Simple “Stage Clear” banner at top with flash FX
     presets.append((
         6,
         'Stage Clear Banner',
@@ -8677,10 +9067,8 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Stage Clear Banner',
-                    '',
                     'act = bs.get_foreground_host_activity()',
                     '',
-                    '# Big text banner',
                     't = bs.newnode("text", attrs={',
                     '    "text": "STAGE CLEAR",',
                     '    "in_world": False,',
@@ -8692,16 +9080,14 @@ def get_presets():
                     '    "position": (0, 200)',
                     '})',
                     '',
-                    '# Animate dropping into place',
                     'bs.animate_array(t, "position", 2, {',
                     '    0.0: (0, 400),',
                     '    0.2: (0, 200),',
                     '    0.25: (0, 220),',
                     '    0.3: (0, 200)',
                     '})',
-                    'bs.timer(0.2,bs.getsound("scoreHit01").play)',
+                    'bs.AppTimer(0.2, lambda: bs.getsound("scoreHit01").play())',
                     '',
-                    '# Flashing spark FX below',
                     'def _fx():',
                     '    bs.emitfx(',
                     '        position=(0, 1, 0),',
@@ -8713,10 +9099,2037 @@ def get_presets():
                     '    )',
                     '',
                     'for i in range(6):',
-                    '    bs.timer(0.2 + i*0.1, _fx)'
+                    '    bs.AppTimer(0.2 + i*0.1, _fx)'
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Twinkle Star (Music Box)',
+        'Classic lullaby with\nsoft bell sounds.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Twinkle Twinkle Little Star',
+                    'q = 0.5',
+                    'h = 1.0',
+                    '',
+                    'melody = [',
+                    '    ("ding", q), ("ding", q), ("dingSmallHigh", q), ("dingSmallHigh", q),',
+                    '    ("dingSmallHigh", q), ("dingSmallHigh", q), ("dingSmallHigh", h),',
+                    '    ("dingSmall", q), ("dingSmall", q), ("dingSmall", q), ("dingSmall", q),',
+                    '    ("ding", q), ("ding", q), ("ding", h),',
+                    ']',
+                    '',
+                    'timers = []',
+                    't = 0.0',
+                    'for sound_name, duration in melody:',
+                    '    def play(snd):',
+                    '        bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(snd),',
+                    '            "volume": 0.6,',
+                    '            "loop": False',
+                    '        })',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: play(s)))',
+                    '    t += duration',
+                    '',
+                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("sparkle01"),',
+                    '    "volume": 0.5,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Happy Birthday Song',
+        'The iconic birthday tune\nwith party sounds.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Happy Birthday',
+                    'q = 0.4',
+                    'h = 0.8',
+                    '',
+                    'melody = [',
+                    '    ("bellLow", q), ("bellLow", q), ("bellMed", q), ("bellLow", q),',
+                    '    ("bellHigh", q), ("bellHigh", h),',
+                    '    ("bellLow", q), ("bellLow", q), ("bellMed", q), ("bellLow", q),',
+                    '    ("bellHigh", q), ("bellHigh", h),',
+                    ']',
+                    '',
+                    'timers = []',
+                    't = 0.0',
+                    'for sound_name, duration in melody:',
+                    '    def play(snd, vol=0.7):',
+                    '        bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(snd),',
+                    '            "volume": vol,',
+                    '            "loop": False',
+                    '        })',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: play(s)))',
+                    '    t += duration',
+                    '',
+                    'timers.append(bs.AppTimer(t + 0.2, lambda: play("cheer", 0.7)))',
+                    'timers.append(bs.AppTimer(t + 0.2, lambda: play("corkPop", 0.8)))',
+                    'timers.append(bs.AppTimer(t + 0.2, lambda: bs.emitfx(',
+                    '    position=(0, 3, 0),',
+                    '    velocity=(0, 5, 0),',
+                    '    count=50,',
+                    '    spread=2.0,',
+                    '    chunk_type="spark"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Epic Orchestral Swell',
+        'Dramatic Hollywood-style\nbuildup and climax.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Epic Orchestral Swell',
+                    'sequence = [',
+                    '    (0.0, "orchestraHit", 0.3),',
+                    '    (0.6, "orchestraHit", 0.4),',
+                    '    (1.2, "orchestraHit2", 0.5),',
+                    '    (1.8, "orchestraHit3", 0.6),',
+                    '    (2.4, "orchestraHit4", 0.7),',
+                    '    (3.0, "orchestraHitBig1", 1.0),',
+                    '    (3.05, "orchestraHitBig2", 1.0),',
+                    '    (3.5, "orchestraHit3", 0.3),',
+                    '    (4.0, "orchestraHit2", 0.2),',
+                    ']',
+                    '',
+                    'timers = []',
+                    'for time, sound, vol in sequence:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound, v=vol: bs.newnode(',
+                    '        "sound",',
+                    '        attrs={"sound": bs.getsound(s), "volume": v, "loop": False}',
+                    '    )))',
+                    '',
+                    'timers.append(bs.AppTimer(3.0, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    radius=8.0,',
+                    '    count=150,',
+                    '    chunk_type="spark",',
+                    '    emit_type="distortion"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Jaws Theme (Suspense)',
+        'DUN-dun... building to\npure panic!',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Jaws Theme',
+                    'intervals = [0.8, 0.8, 0.6, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.08]',
+                    '',
+                    'timers = []',
+                    't = 0.0',
+                    'for gap in intervals:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tick"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + gap/2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '    t += gap',
+                    '',
+                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("alarm"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(t, lambda: bs.emitfx(',
+                    '    position=(0, 1, 0),',
+                    '    velocity=(0, 4, 0),',
+                    '    count=60,',
+                    '    chunk_type="sweat",',
+                    '    spread=2.0',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Imperial March',
+        'Darth Vader\'s theme\nwith deep bass.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Imperial March',
+                    'q = 0.4',
+                    '',
+                    'notes = [',
+                    '    (0.0, "dingSmall"), (0.4, "dingSmall"), (0.8, "dingSmall"),',
+                    '    (1.2, "dingSmall"), (1.8, "dingSmall"),',
+                    '    (2.4, "dingSmall"),',
+                    ']',
+                    '',
+                    'bass_times = [0.0, 0.4, 0.8, 1.6, 3.2]',
+                    '',
+                    'timers = []',
+                    'for time, sound in notes:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'for bt in bass_times:',
+                    '    timers.append(bs.AppTimer(bt, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("gong"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'timers.append(bs.AppTimer(3.2, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("cymbal"),',
+                    '    "volume": 0.3,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Nokia Ringtone (Classic)',
+        'The legendary phone tune\neveryone knows.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Nokia Ringtone',
+                    'n = 0.13',
+                    '',
+                    'pattern = [',
+                    '    ("dingSmallHigh", n), ("blip", n),',
+                    '    ("dingSmallHigh", n*2), ("blip", n*2),',
+                    ']',
+                    '',
+                    'timers = []',
+                    't = 0.0',
+                    'for _ in range(4):',
+                    '    for sound, duration in pattern:',
+                    '        timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": 0.6,',
+                    '            "loop": False',
+                    '        })))',
+                    '        t += duration',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Final Countdown Beeps',
+        'Tense 10-second countdown\nwith visual numbers.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Final Countdown',
+                    'timers = []',
+                    '',
+                    'for i in range(10, 0, -1):',
+                    '    t = (10 - i) * 0.9',
+                    '    sound = "raceBeep2" if i > 3 else "raceBeep1"',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound, n=i: (',
+                    '        bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": 0.8,',
+                    '            "loop": False',
+                    '        }),',
+                    '        Bubble(',
+                    '            bs.get_foreground_host_activity().globalsnode,',
+                    '            str(n),',
+                    '            color=(2, 2, 0) if n > 3 else (2, 0, 0),',
+                    '            time=0.8',
+                    '        )',
+                    '    )))',
+                    '',
+                    'timers.append(bs.AppTimer(9.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("foghorn"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(9.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion04"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(9.0, lambda: Bubble(',
+                    '    bs.get_foreground_host_activity().globalsnode,',
+                    '    "LAUNCH!",',
+                    '    color=(2, 1, 0),',
+                    '    time=2.0',
+                    ')))',
+                    'timers.append(bs.AppTimer(9.0, lambda: bs.emitfx(',
+                    '    position=(0, 0.5, 0),',
+                    '    velocity=(0, 8, 0),',
+                    '    count=120,',
+                    '    scale=2.5,',
+                    '    spread=1.5,',
+                    '    chunk_type="spark"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Horror Movie Atmosphere',
+        'Creeping dread with\nscary background music.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Horror Atmosphere',
+                    'timers = []',
+                    '',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("scaryMusic"),',
+                    '    "volume": 0.4,',
+                    '    "loop": False',
+                    '})',
+                    '',
+                    'for i in range(5):',
+                    '    timers.append(bs.AppTimer(i * 1.2 + 0.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("hiss"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("gasp"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'timers.append(bs.AppTimer(6.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("spazScream01"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(6.0, lambda: bs.emitfx(',
+                    '    position=(0, 1.5, 0),',
+                    '    count=80,',
+                    '    chunk_type="sweat",',
+                    '    spread=2.0',
+                    ')))',
+                    '',
+                    'ghost = bs.newnode("text", attrs={',
+                    '    "text": "BOO!",',
+                    '    "in_world": True,',
+                    '    "position": (0, 2, 0),',
+                    '    "shadow": 1.0,',
+                    '    "color": (0.5, 0, 0.5),',
+                    '    "scale": 0.001,',
+                    '    "h_align": "center"',
+                    '})',
+                    'bs.animate(ghost, "scale", {5.9: 0.001, 6.0: 0.03, 6.2: 0.025, 7.0: 0})',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Victory Fanfare',
+        'Triumphant win celebration\nwith fanfare and cheers.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Victory Fanfare',
+                    'timers = []',
+                    '',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("fanfare"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})',
+                    '',
+                    'for i in range(5):',
+                    '    timers.append(bs.AppTimer(i * 0.2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("score"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'timers.append(bs.AppTimer(1.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("cheer"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("woo"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("yeah"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'for i in range(10):',
+                    '    timers.append(bs.AppTimer(i * 0.3, lambda: bs.emitfx(',
+                    '        position=(0, 5, 0),',
+                    '        velocity=(0, 3, 0),',
+                    '        count=20,',
+                    '        spread=3.0,',
+                    '        chunk_type="spark"',
+                    '    )))',
+                    '',
+                    'victory = bs.newnode("text", attrs={',
+                    '    "text": "VICTORY!",',
+                    '    "in_world": True,',
+                    '    "position": (0, 3, 0),',
+                    '    "shadow": 1.0,',
+                    '    "color": (2, 2, 0),',
+                    '    "scale": 0.025,',
+                    '    "h_align": "center"',
+                    '})',
+                    'bs.animate(victory, "scale", {0: 0, 0.3: 0.03, 3.0: 0.025, 4.0: 0})',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Boxing Match Intro',
+        'Classic boxing bell\nand crowd atmosphere.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Boxing Match',
+                    'timers = []',
+                    '',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("drumRoll"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})',
+                    '',
+                    'timers.append(bs.AppTimer(1.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("crowdChant"),',
+                    '    "volume": 0.5,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("refWhistle"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("boxingBell"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: Bubble(',
+                    '    bs.get_foreground_host_activity().globalsnode,',
+                    '    "FIGHT!",',
+                    '    color=(2, 0, 0),',
+                    '    time=2.0',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Space Laser Battle',
+        'Sci-fi pew-pew action\nwith laser sounds.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Space Laser Battle',
+                    'timers = []',
+                    '',
+                    'for i in range(8):',
+                    '    delay = i * 0.15',
+                    '    timers.append(bs.AppTimer(delay, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("laser"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '    if i % 2 == 0:',
+                    '        timers.append(bs.AppTimer(delay, lambda: bs.emitfx(',
+                    '            position=(0, 2, 0),',
+                    '            velocity=(5, 0, 0),',
+                    '            count=5,',
+                    '            scale=0.5,',
+                    '            chunk_type="spark"',
+                    '        )))',
+                    '',
+                    'for i in range(4):',
+                    '    t = 1.5 + i * 0.2',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("laserReverse"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("shieldHit"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion03"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    count=60,',
+                    '    scale=1.5,',
+                    '    spread=1.5,',
+                    '    chunk_type="spark"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Magic Spell Sequence',
+        'Mystical incantation with\nsparkles and whooshes.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Magic Spell',
+                    'timers = []',
+                    '',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("powerup01"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})',
+                    '',
+                    'sparkles = ["sparkle01", "sparkle02", "sparkle03"]',
+                    'for i, s in enumerate(sparkles):',
+                    '    timers.append(bs.AppTimer(0.5 + i * 0.5, lambda snd=s, idx=i: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(snd),',
+                    '        "volume": 0.4 + idx * 0.1,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'for i in range(6):',
+                    '    timers.append(bs.AppTimer(i * 0.3, lambda: bs.emitfx(',
+                    '        position=(0, 1, 0),',
+                    '        count=10,',
+                    '        scale=0.3,',
+                    '        chunk_type="spark"',
+                    '    )))',
+                    '',
+                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("swish"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("freeze"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.0, lambda: bs.emitfx(',
+                    '    position=(0, 1.5, 0),',
+                    '    velocity=(0, 0, 5),',
+                    '    count=80,',
+                    '    scale=1.0,',
+                    '    spread=0.5,',
+                    '    chunk_type="spark",',
+                    '    emit_type="tendrils"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Cartoon Chase Music',
+        'Frantic run-away tune\nwith comedic sounds.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Cartoon Chase',
+                    'timers = []',
+                    '',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("runAwayMusic"),',
+                    '    "volume": 0.5,',
+                    '    "loop": False',
+                    '})',
+                    '',
+                    'for i in range(6):',
+                    '    timers.append(bs.AppTimer(i * 0.4, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("scamper01"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("skid01"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bunnyJump"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
+                    '    position=(0, 0.5, 0),',
+                    '    velocity=(-3, 0, 0),',
+                    '    count=30,',
+                    '    chunk_type="sweat",',
+                    '    spread=1.0',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Reveille Wake-Up Call',
+        'Military bugle call to\nstart the day!',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Reveille',
+                    'notes = [',
+                    '    ("ding", 0.3), ("ding", 0.3), ("ding", 0.3),',
+                    '    ("dingSmall", 0.6), ("dingSmallHigh", 0.6),',
+                    '    ("ding", 0.3), ("dingSmall", 0.3), ("dingSmallHigh", 0.3),',
+                    '    ("dingSmall", 0.6), ("ding", 0.6),',
+                    ']',
+                    '',
+                    'timers = []',
+                    't = 0.0',
+                    'for sound, duration in notes:',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '    t += duration',
+                    '',
+                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("forwardMarchMusic"),',
+                    '    "volume": 0.5,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    # ------------------------------------------------------------------
+    # CREATIVE MUSIC COMPOSITIONS
+    # ------------------------------------------------------------------
+
+    presets.append((
+        6,
+        'Retro 8-bit Game',
+        'Classic 8-bit video game\nmelody with beeps.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Retro 8-bit Game',
+                    'timers = []',
+                    '',
+                    '# Main melody using dingSmallHigh',
+                    'melody = [',
+                    '    (0.0, "dingSmallHigh", 0.2), (0.2, "dingSmallHigh", 0.2),',
+                    '    (0.4, "dingSmallHigh", 0.2), (0.6, "dingSmallHigh", 0.4),',
+                    '    (1.0, "dingSmall", 0.2), (1.2, "dingSmall", 0.2),',
+                    '    (1.4, "dingSmall", 0.2), (1.6, "dingSmall", 0.4),',
+                    '    (2.0, "dingSmallHigh", 0.2), (2.2, "dingSmallHigh", 0.2),',
+                    '    (2.4, "dingSmallHigh", 0.2), (2.6, "dingSmallHigh", 0.4),',
+                    '    (3.0, "bellHigh", 0.2), (3.2, "bellHigh", 0.2),',
+                    '    (3.4, "bellHigh", 0.2), (3.6, "bellHigh", 0.6),',
+                    ']',
+                    '',
+                    'for time, sound, duration in melody:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Loop it a few times',
+                    'for loop in range(1, 3):',
+                    '    for time, sound, duration in melody:',
+                    '        timers.append(bs.AppTimer(4.2 + loop * 4.2 + time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": 0.6,',
+                    '            "loop": False',
+                    '        })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Spooky Manor Waltz',
+        'Eerie organ-like waltz\nwith ghostly effects.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Spooky Manor Waltz',
+                    'timers = []',
+                    '',
+                    '# 3/4 waltz pattern',
+                    'waltz = [',
+                    '    (0.0, "bellLow", 0.6),   # Beat 1',
+                    '    (0.6, "bellMed", 0.3),   # Beat 2',
+                    '    (0.9, "bellMed", 0.3),   # Beat 3',
+                    '    (1.2, "bellLow", 0.6),',
+                    '    (1.8, "bellMed", 0.3),',
+                    '    (2.1, "bellMed", 0.3),',
+                    '    (2.4, "bellHigh", 0.6),  # Higher note',
+                    '    (3.0, "bellMed", 0.3),',
+                    '    (3.3, "bellMed", 0.3),',
+                    ']',
+                    '',
+                    'for time, sound, duration in waltz:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Spooky background hisses',
+                    'for i in range(5):',
+                    '    timers.append(bs.AppTimer(i * 0.8, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("hiss"),',
+                    '        "volume": 0.2,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Retro Chiptune Boss',
+        'High-energy 8-bit boss\nfight theme.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Retro Chiptune Boss',
+                    'timers = []',
+                    '',
+                    '# Fast, intense melody',
+                    'boss_theme = [',
+                    '    (0.0, "bellHigh", 0.1), (0.1, "bellHigh", 0.1),',
+                    '    (0.2, "bellMed", 0.1), (0.3, "bellMed", 0.1),',
+                    '    (0.4, "bellHigh", 0.1), (0.5, "bellHigh", 0.1),',
+                    '    (0.6, "bellLow", 0.2),',
+                    '    (0.8, "bellHigh", 0.1), (0.9, "bellHigh", 0.1),',
+                    '    (1.0, "bellMed", 0.1), (1.1, "bellMed", 0.1),',
+                    '    (1.2, "bellHigh", 0.1), (1.3, "bellHigh", 0.1),',
+                    '    (1.4, "bellLow", 0.2),',
+                    '    (1.6, "dingSmallHigh", 0.15), (1.75, "dingSmallHigh", 0.15),',
+                    '    (1.9, "dingSmall", 0.3),',
+                    ']',
+                    '',
+                    'for time, sound, duration in boss_theme:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Tension drums',
+                    'for i in range(8):',
+                    '    timers.append(bs.AppTimer(i * 0.25, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Tropical Disco',
+        'Groovy disco beat with\ntropical flair.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Tropical Disco',
+                    'timers = []',
+                    '',
+                    '# Disco bassline',
+                    'beat = 0.4',
+                    'for measure in range(4):',
+                    '    t = measure * (beat * 4)',
+                    '    # Bass',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                    '    # Snare on 2 and 4',
+                    '    timers.append(bs.AppTimer(t + beat, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + beat*2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + beat*3, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Hi-hat on 16ths',
+                    'for i in range(16):',
+                    '    t = i * (beat/4)',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tick"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Tropical stabs',
+                    'for i in range(4):',
+                    '    timers.append(bs.AppTimer(i * 1.6, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Sci-Fi Alert System',
+        'Futuristic alarm with\nrobotic elements.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Sci-Fi Alert System',
+                    'timers = []',
+                    '',
+                    '# Ascending warning tones',
+                    'alert = [',
+                    '    ("dingSmall", 0.2), ("dingSmallHigh", 0.2),',
+                    '    ("bellHigh", 0.2), ("dingSmallHigh", 0.2),',
+                    '    ("bellHigh", 0.2), ("bellHigh", 0.2),',
+                    ']',
+                    '',
+                    'for cycle in range(3):',
+                    '    for i, (sound, duration) in enumerate(alert):',
+                    '        t = cycle * 1.5 + i * 0.25',
+                    '        timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": 0.7,',
+                    '            "loop": False',
+                    '        })))',
+                    '',
+                    '# Descending alert at end',
+                    'for i in range(4):',
+                    '    t = 4.5 + i * 0.15',
+                    '    sound = "bellHigh" if i % 2 == 0 else "dingSmallHigh"',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Cowboy Showdown',
+        'Western duel with dramatic\ntrumpet and drums.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Cowboy Showdown',
+                    'timers = []',
+                    '',
+                    '# Western drama build',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("drumRoll"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Tension notes',
+                    'for i in range(6):',
+                    '    t = i * 0.3',
+                    '    sound = "bellLow" if i % 2 == 0 else "bellMed"',
+                    '    timers.append(bs.AppTimer(t + 0.5, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# THE SHOT!',
+                    'timers.append(bs.AppTimer(2.3, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("gunCocking"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Impact and explosion',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion01"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
+                    '    position=(0, 1, 0),',
+                    '    count=50,',
+                    '    chunk_type="spark",',
+                    '    spread=1.5',
+                    ')))',
+                    '',
+                    '# Victory',
+                    'timers.append(bs.AppTimer(3.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("fanfare"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Submarine Depths',
+        'Eerie underwater sonar\nand metallic pings.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Submarine Depths',
+                    'timers = []',
+                    '',
+                    '# Sonar pings at irregular intervals',
+                    'sonar_pattern = [0.0, 0.8, 1.3, 2.1, 2.9, 3.2, 4.5, 5.1]',
+                    '',
+                    'for t in sonar_pattern:',
+                    '    # Main ping',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '    # Echo',
+                    '    timers.append(bs.AppTimer(t + 0.15, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Metal creaks',
+                    'for i in range(4):',
+                    '    timers.append(bs.AppTimer(i * 1.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("metalHit"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Distant alarm',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("alarm"),',
+                    '    "volume": 0.3,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Forest Birds Morning',
+        'Peaceful nature ambience\nwith bell sounds.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Forest Birds Morning',
+                    'timers = []',
+                    '',
+                    '# Gentle bell melody (C major chord progression)',
+                    'birds = [',
+                    '    (0.0, "bellMed", 0.4),',
+                    '    (0.5, "bellHigh", 0.4),',
+                    '    (1.0, "bellMed", 0.4),',
+                    '    (1.5, "bellLow", 0.4),',
+                    '    (2.0, "bellMed", 0.4),',
+                    '    (2.5, "bellHigh", 0.4),',
+                    '    (3.0, "bellMed", 0.6),',
+                    ']',
+                    '',
+                    'for cycle in range(2):',
+                    '    for time, sound, duration in birds:',
+                    '        timers.append(bs.AppTimer(cycle * 3.5 + time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": 0.5,',
+                    '            "loop": False',
+                    '        })))',
+                    '',
+                    '# Random light pings',
+                    'import random',
+                    'for i in range(6):',
+                    '    t = random.uniform(0, 7)',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("dingSmallHigh"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Arcade Game Over',
+        'Classic sad 8-bit game\nover melody.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Arcade Game Over',
+                    'timers = []',
+                    '',
+                    '# Descending sad melody',
+                    'game_over = [',
+                    '    (0.0, "bellHigh", 0.3),',
+                    '    (0.4, "bellMed", 0.3),',
+                    '    (0.8, "bellLow", 0.3),',
+                    '    (1.2, "dingSmall", 0.3),',
+                    '    (1.6, "bellLow", 0.3),',
+                    '    (2.0, "bellLow", 0.6),',
+                    ']',
+                    '',
+                    'for time, sound, duration in game_over:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Sad echo',
+                    'timers.append(bs.AppTimer(2.7, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bellLow"),',
+                    '    "volume": 0.3,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Robot Dance Party',
+        'Robotic rhythm with\nmechanical beats.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Robot Dance Party',
+                    'timers = []',
+                    '',
+                    '# 4-on-the-floor beat',
+                    'beat_len = 0.25',
+                    'for measure in range(8):',
+                    '    base_t = measure * beat_len * 4',
+                    '    # Kick (bass)',
+                    '    timers.append(bs.AppTimer(base_t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.9,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base_t + beat_len*2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.9,',
+                    '        "loop": False',
+                    '    })))',
+                    '    # Hi-hat (hi)',
+                    '    timers.append(bs.AppTimer(base_t + beat_len, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base_t + beat_len*3, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Synth melody',
+                    'synth = [(0, "bellHigh"), (1, "bellMed"), (2, "bellHigh"), (3, "bellLow")]',
+                    'for i, (beat, sound) in enumerate(synth):',
+                    '    timers.append(bs.AppTimer(beat, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Eerie Bell Tower',
+        'Haunting bell tolls at\ndusk.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Eerie Bell Tower',
+                    'timers = []',
+                    '',
+                    '# Slow bell tolls',
+                    'tolls = [0, 1.5, 3.2, 5.1, 7.2, 9.5]',
+                    'for t in tolls:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("gong"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '    # Reverb (quieter second toll)',
+                    '    timers.append(bs.AppTimer(t + 0.3, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.2,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Eerie wind',
+                    'for i in range(3):',
+                    '    timers.append(bs.AppTimer(i * 2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("hiss"),',
+                    '        "volume": 0.2,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Cha-Cha-Cha Latin',
+        'Lively Latin dance rhythm\nwith brass-like bells.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Cha-Cha-Cha Latin',
+                    'timers = []',
+                    '',
+                    '# Cha-cha-cha pattern (quick-quick-slow)',
+                    'step = 0.3',
+                    'for measure in range(4):',
+                    '    t = measure * (step * 5)',
+                    '    # Cha cha cha (quick)',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + step, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + step*2, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '    # Slow beat',
+                    '    timers.append(bs.AppTimer(t + step*3.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellHigh"),',
+                    '        "volume": 0.6,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Background bass',
+                    'for i in range(8):',
+                    '    timers.append(bs.AppTimer(i * 0.75, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Trap Beat Drop',
+        'Modern trap with 808 bass,\nhi-hats, and snare rolls.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Trap Beat Drop',
+                    'timers = []',
+                    '',
+                    '# 808 Sub Bass (deep, punchy)',
+                    'beat = 0.25',
+                    'for bar in range(2):',
+                    '    t = bar * 2',
+                    '    # Drop the bass',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 1.0,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + 0.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 1.0,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + 1.0, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.9,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Snare on 2 and 4 (trap snare)',
+                    'for bar in range(4):',
+                    '    t = bar * 1.0',
+                    '    timers.append(bs.AppTimer(t + 0.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("punchStrong01"),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Rapid hi-hat rolls (16th notes)',
+                    'for i in range(32):',
+                    '    t = i * 0.125',
+                    '    if i % 4 != 0:  # Skip on main beats',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound("tick"),',
+                    '            "volume": 0.35,',
+                    '            "loop": False',
+                    '        })))',
+                    '',
+                    '# Cymbal crash buildup',
+                    'for i in range(4):',
+                    '    t = 3.5 + i * 0.15',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("cymbal"),',
+                    '        "volume": 0.6 + i * 0.1,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# THE DROP with all bells',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bellLow"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bellMed"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    velocity=(0, 5, 0),',
+                    '    count=100,',
+                    '    scale=1.5,',
+                    '    spread=2.0,',
+                    '    chunk_type="spark"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'Funk Groove Supreme',
+        'Funky synth bass with\nsyncopated rhythms and\nbrass stabs.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Funk Groove Supreme',
+                    'timers = []',
+                    '',
+                    '# Classic funk drum pattern (kick on 1, 3, and +)',
+                    'kick_times = [0.0, 0.75, 1.5, 1.75, 2.25, 3.0, 3.75]',
+                    'for t in kick_times:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.95,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Snare/clap hits (tight, on 2 and 4)',
+                    'snare_times = [0.75, 2.25]',
+                    'for t in snare_times:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("punchStrong01"),',
+                    '        "volume": 0.8,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Tight closed hi-hats (8th notes, every beat)',
+                    'for i in range(32):',
+                    '    t = i * 0.1875',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tick"),',
+                    '        "volume": 0.45,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Funky bass guitar riff (syncopated groove)',
+                    'bass_riff = [',
+                    '    (0.0, "bellMed", 0.95),',
+                    '    (0.375, "bellLow", 0.95),',
+                    '    (0.75, "bellMed", 0.85),',
+                    '    (1.125, "bellLow", 0.9),',
+                    '    (1.5, "bellMed", 0.95),',
+                    '    (1.875, "bellLow", 0.85),',
+                    '    (2.25, "bellHigh", 0.8),',
+                    '    (2.625, "bellMed", 0.9),',
+                    '    (3.0, "bellLow", 0.95),',
+                    '    (3.375, "bellMed", 0.85),',
+                    '    (3.75, "bellLow", 0.9),',
+                    ']',
+                    '',
+                    'for time, sound, vol in bass_riff:',
+                    '    timers.append(bs.AppTimer(time, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": v,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Brass horn stabs (horn hits on upbeats)',
+                    'horn_stabs = [0.375, 1.125, 2.625, 3.375]',
+                    'for t in horn_stabs:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellHigh"),',
+                    '        "volume": 0.88,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Percussive lock-in hits (clave rhythm)',
+                    'clave = [0.0, 0.5, 1.25, 2.0, 2.75, 3.5]',
+                    'for t in clave:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tap"),',
+                    '        "volume": 0.35,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Loop the groove 2x for that groove feel',
+                    'for loop in range(1, 2):',
+                    '    offset = loop * 4.0',
+                    '    for time, sound, vol in bass_riff:',
+                    '        timers.append(bs.AppTimer(offset + time, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
+                    '            "sound": bs.getsound(s),',
+                    '            "volume": v,',
+                    '            "loop": False',
+                    '        })))',
+                    '',
+                    '# Build to climax with layered brass',
+                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bellHigh"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bellMed"),',
+                    '    "volume": 0.85,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("punchStrong02"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(7.5, lambda: bs.emitfx(',
+                    '    position=(0, 1.5, 0),',
+                    '    velocity=(0, 2.5, 0),',
+                    '    count=60,',
+                    '    scale=1.0,',
+                    '    spread=1.5,',
+                    '    chunk_type="spark"',
+                    ')))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'BombSquad Swag Banger',
+        'Ultimate BombSquad remix using\ngame sounds for maximum\nenergy and nostalgia.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI BombSquad Swag Banger',
+                    'timers = []',
+                    'nice_nodes = []',
+                    '',
+                    '# INTRO: Tension build with ascending tones',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("alarm"),',
+                    '    "volume": 0.4,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Slow countdown announces (generous spacing)',
+                    'announces = ["Five", "Four", "Three", "Two", "One"]',
+                    'for i, num_name in enumerate(announces):',
+                    '    t = 1.0 + i * 1.5',
+                    '    sound_name = f"announce{num_name}"',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.85,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Background pattern: bellLow - bellMed alternating',
+                    'for cycle in range(4):',
+                    '    t = 1.2 + cycle * 1.2',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellLow"),',
+                    '        "volume": 0.25,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + 0.6, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellMed"),',
+                    '        "volume": 0.25,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Sci-fi tension: ascending then descending',
+                    'for cycle in range(2):',
+                    '    base = 2.0 + cycle * 3.0',
+                    '    timers.append(bs.AppTimer(base, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("dingSmall"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base + 0.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("dingSmallHigh"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base + 1.0, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("bellHigh"),',
+                    '        "volume": 0.35,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base + 1.5, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("dingSmallHigh"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(base + 2.0, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("dingSmall"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# MOMENT OF SILENCE (8.0-8.5)',
+                    '',
+                    '# BASS DROP EXPLOSION',
+                    'timers.append(bs.AppTimer(8.5, lambda: bs.emitfx(',
+                    '    position=(0, 0, 0),',
+                    '    velocity=(0, 6, 0),',
+                    '    count=120,',
+                    '    scale=2.5,',
+                    '    spread=2.0,',
+                    '    chunk_type="spark"',
+                    ')))',
+                    '',
+                    '# KICK PATTERN: explosion - bellLow alternating',
+                    'kick_times = [8.5, 9.0, 9.5, 10.2, 10.9]',
+                    'for i, t in enumerate(kick_times):',
+                    '    sound = "explosion01" if i % 2 == 0 else "bellLow"',
+                    '    vol = 0.75 if i % 2 == 0 else 0.8',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": v,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# SPAZ ATTACK sequence with spacing',
+                    'spaz_attacks = ["spazAttack01", "spazAttack02", "spazAttack03", "spazAttack04"]',
+                    'spaz_times = [8.8, 9.5, 10.3, 11.1]',
+                    'for i, t in enumerate(spaz_times):',
+                    '    sound = spaz_attacks[i % 4]',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# PUNCH SWISH pattern (sparse)',
+                    'for i in range(8):',
+                    '    t = 8.5 + i * 0.6',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("punchSwish"),',
+                    '        "volume": 0.3,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# ORCHESTRA HIT stabs (moments of impact)',
+                    'stab_times = [9.0, 10.0, 11.0]',
+                    'for t in stab_times:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("orchestraHitBig1"),',
+                    '        "volume": 0.9,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# HYPE reactions (spaced)',
+                    'hype_times = [9.3, 10.5]',
+                    'hype_sounds = ["cheer", "woo"]',
+                    'for t, sound in zip(hype_times, hype_sounds):',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.65,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# BOMB DROP signature',
+                    'timers.append(bs.AppTimer(9.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bombDrop01"),',
+                    '    "volume": 0.75,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# SPAZ IMPACT layering',
+                    'impact_times = [8.7, 9.8, 10.8, 11.5]',
+                    'impacts = ["spazImpact01", "spazImpact02", "spazImpact03", "spazImpact04"]',
+                    'for t, impact in zip(impact_times, impacts):',
+                    '    timers.append(bs.AppTimer(t, lambda s=impact: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": 0.65,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# CLIMAX: Gather energy',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("powerup01"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# NICE stutter with proper cutoff/spacing',
+                    '# First "Nice!"',
+                    'timers.append(bs.AppTimer(12.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("nice"),',
+                    '    "volume": 0.85,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Second "Nice!" (cut off first)',
+                    'timers.append(bs.AppTimer(12.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("nice"),',
+                    '    "volume": 0.85,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Rapid stutter: "Ni- Ni- Ni-"',
+                    'for i in range(3):',
+                    '    t = 13.1 + i * 0.25',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("nice"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Full "Nice!" finale',
+                    'timers.append(bs.AppTimer(13.85, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("nice"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# ORCHESTRAL finale stabs',
+                    'timers.append(bs.AppTimer(13.6, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHitBig2"),',
+                    '    "volume": 0.95,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(13.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHit"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# MASSIVE FINAL EXPLOSION',
+                    'timers.append(bs.AppTimer(13.6, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    velocity=(0, 8, 0),',
+                    '    count=200,',
+                    '    scale=3.0,',
+                    '    spread=2.8,',
+                    '    chunk_type="spark",',
+                    '    emit_type="distortion"',
+                    ')))',
+                    '',
+                    '# Victory sting (final bow)',
+                    'timers.append(bs.AppTimer(14.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("victoryMusic"),',
+                    '    "volume": 0.85,',
+                    '    "loop": False',
+                    '})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'THE REAL BANGER',
+        'Heavily layered trap remix.\nSyncopated rhythms and\nglitch FX.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI: THE REAL BANGER',
+                    'timers = []',
+                    '',
+                    '# --- HELPER: BEAT MAKER ---',
+                    '# Function to layer sounds for "thick" drums',
+                    'def drum(t, type="kick"):',
+                    '    if type == "kick":',
+                    '        # Sub + Thud + Click layer',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("bombDrop01"), "volume":1.0})))',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("footImpact03"), "volume":0.8})))',
+                    '    elif type == "snare":',
+                    '        # Punch + Pop + High freq layer',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("punchStrong01"), "volume":1.0})))',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("corkPop"), "volume":0.6})))',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shatter"), "volume":0.3})))',
+                    '    elif type == "hat":',
+                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("tick"), "volume":0.5})))',
+                    '',
+                    '# --- INTRO: ATMOSPHERE (0-4s) ---',
+                    'timers.append(bs.AppTimer(0.1, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("orchestraHitBig2"), "volume":1.0})))',
+                    'timers.append(bs.AppTimer(0.1, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("crowdChant"), "volume":0.6})))',
+                    '',
+                    '# Clock ticking speed up',
+                    'for i in range(8):',
+                    '    t = 0.5 + i * 0.4',
+                    '    drum(t, "hat")',
+                    '',
+                    '# --- THE BUILD (4-6s) ---',
+                    '# Rising tension using reverse laser',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("laserReverse"), "volume":0.8})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("fuse01"), "volume":0.5})))',
+                    '',
+                    '# Pre-drop Vocal chop',
+                    'timers.append(bs.AppTimer(5.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceThree"), "volume":0.9})))',
+                    'timers.append(bs.AppTimer(5.4, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceTwo"), "volume":0.9})))',
+                    'timers.append(bs.AppTimer(5.8, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceOne"), "volume":0.9})))',
+                    '',
+                    '# Silence right before drop for impact',
+                    '',
+                    '# --- THE DROP (6.0s) - TRAP BEAT ---',
+                    'bpm = 0.45',
+                    'start_drop = 6.2',
+                    '',
+                    '# The Bass Line (Wub Wub using ShieldUp)',
+                    'for i in range(16):',
+                    '    t = start_drop + i * (bpm/2)',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shieldUp"), "volume":0.4, "pitch": 0.8})))',
+                    '',
+                    '# Beat Pattern: Kick - Hat - Snare - Hat - Kick - Kick - Snare - Roll',
+                    'pattern_times = [0, 0.5, 1.0, 1.5, 2.0, 2.25, 3.0, 3.5, 3.75]',
+                    'pattern_types = ["kick", "hat", "snare", "hat", "kick", "kick", "snare", "hat", "hat"]',
+                    '',
+                    '# Loop the beat twice',
+                    'for loop in range(2):',
+                    '    offset = start_drop + (loop * bpm * 4)',
+                    '    for p_time, p_type in zip(pattern_times, pattern_types):',
+                    '        drum(offset + (p_time * bpm), p_type)',
+                    '',
+                    '    # Add "Nice" vocal stutter on the 1st beat of loop',
+                    '    timers.append(bs.AppTimer(offset, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("nice"), "volume":0.8})))',
+                    '    timers.append(bs.AppTimer(offset + 0.15, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("nice"), "volume":0.6})))',
+                    '',
+                    '# --- GLITCH BREAK (9.8s) ---',
+                    '# Rapid fire gun cocking (Drill style roll)',
+                    'for i in range(8):',
+                    '    timers.append(bs.AppTimer(9.8 + i*0.06, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("gunCocking"), "volume":0.7})))',
+                    '',
+                    '# --- SECOND DROP (10.5s) ---',
+                    '# Heavier, with visual FX',
+                    'timers.append(bs.AppTimer(10.5, lambda: bs.emitfx(position=(0, 2, 0), velocity=(0,5,0), count=100, scale=3.0, spread=1.0, chunk_type="spark")))',
+                    'drum(10.5, "kick")',
+                    'timers.append(bs.AppTimer(10.5, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("orchestraHitBig1"), "volume":1.0})))',
+                    '',
+                    '# "Laser" melody',
+                    'mel_notes = [10.5, 10.8, 11.1, 11.4]',
+                    'for t in mel_notes:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("laser"), "volume":0.6})))',
+                    '',
+                    '# --- OUTRO (12.0s) ---',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("powerdown01"), "volume":1.0})))',
+                    'timers.append(bs.AppTimer(13.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("scamper01"), "volume":1.0}))) # Scratch sound',
+                    'timers.append(bs.AppTimer(13.5, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("ooh"), "volume":1.0})))',
+                ))
+            }
+        }
+    ))
+
+    presets.append((
+        6,
+        'ABSOLUTE CHAOS',
+        'Heavy dubstep drop with\nvocal chops, explosion bass,\nand drill-style rolls.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI: ABSOLUTE CHAOS - THE REAL DEAL',
+                    'timers = []',
+                    '',
+                    '# === INTRO: TENSION BUILD (0-4s) ===',
+                    '# Alarm + crowd building anticipation',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("alarm"),',
+                    '    "volume": 0.5,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(0.2, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("crowdChant"),',
+                    '    "volume": 0.4,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Rising laser tension',
+                    'timers.append(bs.AppTimer(1.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("laserReverse"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Countdown with character vocal chops (aggressive)',
+                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("announceThree"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("announceTwo"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("announceOne"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Fuse burning for extra tension',
+                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("fuse01"),',
+                    '    "volume": 0.6,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Pre-drop silence at 3.8s',
+                    '',
+                    '# === THE DROP (4.0s) - MASSIVE EXPLOSION BASS ===',
+                    '# TRIPLE LAYER BASS HIT',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion05"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bombDrop01"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("impactHard3"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Massive visual explosion',
+                    'timers.append(bs.AppTimer(4.0, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    velocity=(0, 8, 0),',
+                    '    count=150,',
+                    '    scale=3.5,',
+                    '    spread=2.5,',
+                    '    chunk_type="spark",',
+                    '    emit_type="distortion"',
+                    ')))',
+                    '',
+                    '# === MAIN BEAT PATTERN (4.0-8.0s) ===',
+                    'beat = 0.42  # ~142 BPM',
+                    '',
+                    '# Kick pattern with explosion bass',
+                    'kick_times = [4.0, 4.5, 5.2, 5.8, 6.4, 6.65, 7.3, 7.8]',
+                    'for t in kick_times:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("explosion01"),',
+                    '        "volume": 0.85,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("impactHard"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Snare hits (punchStrong + shatter combo)',
+                    'snare_times = [4.84, 5.68, 6.52, 7.36]',
+                    'for t in snare_times:',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("punchStrong02"),',
+                    '        "volume": 1.0,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("shatter"),',
+                    '        "volume": 0.4,',
+                    '        "loop": False',
+                    '    })))',
+                    '    timers.append(bs.AppTimer(t + 0.05, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("metalHit"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Hi-hats (rapid ticking pattern)',
+                    'for i in range(32):',
+                    '    t = 4.0 + i * 0.125',
+                    '    vol = 0.4 if i % 4 == 0 else 0.25',
+                    '    timers.append(bs.AppTimer(t, lambda v=vol: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("tick"),',
+                    '        "volume": v,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# === VOCAL CHOP MELODY (spaz/ninja vocals) ===',
+                    'vocal_pattern = [',
+                    '    (4.2, "spazAttack01", 0.8),',
+                    '    (4.6, "ninjaAttack3", 0.7),',
+                    '    (5.0, "spazAttack02", 0.8),',
+                    '    (5.4, "ninjaAttack5", 0.75),',
+                    '    (5.8, "spazAttack03", 0.8),',
+                    '    (6.2, "ninjaAttack7", 0.7),',
+                    '    (6.6, "spazAttack04", 0.85),',
+                    '    (7.0, "ninjaAttack1", 0.75),',
+                    ']',
+                    'for t, sound, vol in vocal_pattern:',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(s),',
+                    '        "volume": v,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# === ORCHESTRA STABS (epic moments) ===',
+                    'timers.append(bs.AppTimer(5.26, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHitBig1"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(6.94, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHitBig2"),',
+                    '    "volume": 0.95,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# === DRILL ROLL BREAKDOWN (8.0-8.8s) ===',
+                    '# Rapid gunCocking drill pattern',
+                    'for i in range(16):',
+                    '    t = 8.0 + i * 0.05',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("gunCocking"),',
+                    '        "volume": 0.7 + (i * 0.015),',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Layered punch swishes for intensity',
+                    'for i in range(8):',
+                    '    t = 8.0 + i * 0.1',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("punchSwish"),',
+                    '        "volume": 0.5,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# === SECOND DROP (8.8s) - EVEN HEAVIER ===',
+                    '# QUAD LAYER MEGA BASS',
+                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion05"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion04"),',
+                    '    "volume": 0.95,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bombDrop02"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("bigImpact2"),',
+                    '    "volume": 0.85,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Massive explosion FX',
+                    'timers.append(bs.AppTimer(8.8, lambda: bs.emitfx(',
+                    '    position=(0, 2, 0),',
+                    '    velocity=(0, 10, 0),',
+                    '    count=200,',
+                    '    scale=4.0,',
+                    '    spread=3.0,',
+                    '    chunk_type="spark",',
+                    '    emit_type="distortion"',
+                    ')))',
+                    '',
+                    '# Laser rips (aggressive high freq)',
+                    'for i in range(6):',
+                    '    t = 8.9 + i * 0.15',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("laser"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# === "NICE" VOCAL STUTTER (10.0-10.8s) ===',
+                    '# Clean "Nice" starter',
+                    'timers.append(bs.AppTimer(10.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("nice"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Rapid stutter',
+                    'for i in range(5):',
+                    '    t = 10.3 + i * 0.08',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound("nice"),',
+                    '        "volume": 0.7,',
+                    '        "loop": False',
+                    '    })))',
+                    '',
+                    '# Final clean "Nice"',
+                    'timers.append(bs.AppTimer(10.7, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("nice"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# === HYPE SECTION (11.0-12.0s) ===',
+                    '# Crowd reactions',
+                    'timers.append(bs.AppTimer(11.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("cheer"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(11.3, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("woo2"),',
+                    '    "volume": 0.7,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(11.6, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("yeah"),',
+                    '    "volume": 0.75,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# === FINAL CLIMAX (12.0s) ===',
+                    '# Everything at once',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHitBig2"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion05"),',
+                    '    "volume": 1.0,',
+                    '    "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("superPunch"),',
+                    '    "volume": 0.9,',
+                    '    "loop": False',
+                    '})))',
+                    '',
+                    '# Ultimate FX finale',
+                    'timers.append(bs.AppTimer(12.0, lambda: bs.emitfx(',
+                    '    position=(0, 3, 0),',
+                    '    velocity=(0, 12, 0),',
+                    '    count=250,',
+                    '    scale=5.0,',
+                    '    spread=3.5,',
+                    '    chunk_type="spark",',
+                    '    emit_type="distortion"',
+                    ')))',
+                    '',
+                    '# Victory sting',
+                    'timers.append(bs.AppTimer(13.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("victoryMusic"),',
+                    '    "volume": 0.8,',
+                    '    "loop": False',
+                    '})))',
                 ))
             }
         }
     ))
 
     return presets
+
+# You have hit the EOF -- Thanks for trying Movi!
+# I'm sorry the code may seem dirty or unreadable
+# But I'm sure it was made with love and tea
+# - BroBordd
