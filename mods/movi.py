@@ -8463,6 +8463,8 @@ class Color:
     TEXT = (2,2,2)
     OPACITY = 0.4
 
+print('yay')
+
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.GameActivity[bs.Player,bs.Team]):
     name = Strings.MAP_TITLE
