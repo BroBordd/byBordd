@@ -2667,6 +2667,7 @@ class Editor:
                 s.toggle_menu()
                 Eval.SOUND(Const.OK_SOUND).play()
                 s.play()
+                s.wrap_controls()
                 s.is_wide = True
         # menu kids
         for i,kid in enumerate(s.menu_kids):
