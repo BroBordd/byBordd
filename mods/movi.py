@@ -36,7 +36,7 @@ from contextlib import redirect_stdout, redirect_stderr
 __version__ = '1.0'
 
 class Editor:
-    _shared = {'callbacks':[]}
+    _shared = {'callbacks':[],'on_create':[]}
 
     @staticmethod
     def ui_safe(f):
@@ -50,7 +50,12 @@ class Editor:
     def clickable(f):
         return lambda s,*a,**k: (
             f(s,*a,**k) if s.ui_clickable else
-            s.toast(Strings.ERROR_PAUSE_FIRST) or
+            None if not s.ui_on else
+            s.toast(
+                s.ui_clickable is None and
+                Strings.INFO_SLOW_DOWN or
+                Strings.ERROR_PAUSE_FIRST
+            ) or
             Eval.SOUND(Const.BAD_SOUND).play()
         )
 
@@ -63,13 +68,13 @@ class Editor:
     def callback(s,cb):
         bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
-    def __init__(s,map,fresh):
+    def __init__(s,map):
         # register
-        s.__class__._shared['callbacks'].append(WeakMethod(s.callback))
+        _shared = type(s)._shared
+        type(s)._shared['callbacks'].append(WeakMethod(s.callback))
         s.ui_on = False
         s.ui_clickable = False
         s.original_map = map
-        s.was_fresh = fresh
         # timeline
         s.timeline = []
         s.timeline_index = 0
@@ -140,7 +145,7 @@ class Editor:
         s.blame = None
         # finally
         s.schedule_on_ui(
-            s.scan_for_last,
+            s.on_ui_ready,
             lag=0.23
         )
 
@@ -175,17 +180,21 @@ class Editor:
                 for _ in ['extra','to']:
                     (a:=an.get(_,None)) and a.cancel()
 
-    def scan_for_last(s):
-        if not (last:=Config.get('last')): return
-        try: memory = Eval.DECODE(last)
-        except Exception as e:
-            s.toast(Format.ERROR(e))
-            Eval.SOUND(Const.BAD_SOUND).play()
-            return
-        s.load_memory(memory,shut=True)
-        not s.was_fresh and s.start_recording()
+    def on_ui_ready(s):
+        if (last:=Config.get('last')):
+            try: memory = Eval.DECODE(last)
+            except Exception as e:
+                s.toast(Format.ERROR(e))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            s.load_memory(memory,shut=True)
+        bui.apptimer(Const.BA_LAG_BIG,s.on_rescale)
+        on_create = type(s)._shared['on_create']
+        for call,args in on_create: call(s,*args)
+        on_create.clear()
 
     def start_recording(s):
+        s.export_flag = True
         s.play()
         s.toast(Strings.INFO_RECORDING_NOW)
 
@@ -1727,23 +1736,9 @@ class Editor:
             )
 
     def clear_memory(s):
-        # Clear existing timeline
-        for btn in s.stamp_kids[:]:
-            # Delete all key widgets
-            if id(btn) in s.memory:
-                for key_data in s.memory[id(btn)].get('keys', {}).values():
-                    if 'widget' in key_data and s.widgets[key_data['widget']].exists():
-                        s.widgets.pop(key_data['widget']).delete()
-            btn.delete()
-
-        s.stamp_kids.clear()
-        s.memory.clear()
-        s.timeline.clear()
-        Config.set('last',None)
+        Config.set('last', None)
 
     def load_memory(s,memory,shut=False):
-        s.clear_memory()
-
         # Sort by order to restore correct sequence
         sorted_entries = sorted(
             memory.items(),
@@ -2256,6 +2251,10 @@ class Editor:
         )
 
     def on_square(s):
+        if s.ui_clickable is None:
+            s.toast(Strings.INFO_SLOW_DOWN)
+            Eval.SOUND(Const.BAD_SOUND)
+            return
         s.toggle_menu()
 
     def on_triangle(s):
@@ -2384,25 +2383,39 @@ class Editor:
             a['position'] = s.menu_pos
         # menu kids
         for i,kid in enumerate(s.menu_kids):
+            # Check if this is the seed button (index 2) and it's shrunk
+            if i == 2 and s.seed_on:
+                # Use shrunk size and position
+                kid_size = s.seed_button_shrunk_size
+                kid_pos = (
+                    s.menu_button_xp + (s.menu_kid_size[0] - s.seed_button_shrunk_size[0]) + 5,
+                    s.menu_kid_yp(i)
+                )
+            else:
+                # Use normal size and position
+                kid_size = (bx, by)
+                kid_pos = (
+                    s.menu_button_xp,
+                    s.menu_kid_yp(i)
+                )
+            
             bui.buttonwidget(
                 kid,
-                size=(bx,by),
-                position=(
-                    s.menu_button_xp,
-                    y+s.menu_marg*1.5+(by+s.menu_marg)*i
-                ),
+                size=kid_size,
+                position=kid_pos,
                 text_scale=one
             )
+            
             if s.menu_on:
                 a = s.anims[id(kid)]['main'].attrs_start
                 a['size'] = s.menu_kid_start_size
                 a['position'] = s.menu_kid_start_pos(i)
                 a = s.anims[id(kid)]['main'].attrs_current
-                a['size'] = s.menu_kid_size
-                a['position'] = s.menu_kid_pos(i)
+                a['size'] = kid_size
+                a['position'] = kid_pos
                 a = s.anims[id(kid)]['main'].attrs_end
-                a['size'] = s.menu_kid_size
-                a['position'] = s.menu_kid_pos(i)
+                a['size'] = kid_size
+                a['position'] = kid_pos
         # seed input
         bui.textwidget(
             s.seed_input,
@@ -2413,12 +2426,14 @@ class Editor:
         # Update animation if menu is being repositioned
         if s.menu_on and (anim := s.anims.get(id(s.seed_input))):
             if s.seed_on:
-                anim.attrs_end['position'] = pos
-                anim.attrs_current['position'] = pos
+                try:
+                    anim.attrs_end['position'] = s.seed_input_pos(2)
+                    anim.attrs_current['position'] = s.seed_input_pos(2)
+                except NameError:
+                    return
 
-
-    def toggle_menu(s):
-        Eval.SOUND(Const.OK_SOUND).play()
+    def toggle_menu(s,on_finish=None,shut=False):
+        shut or Eval.SOUND(Const.OK_SOUND).play()
         delay = 0.1
         butter = s.global_butter*0.7
         if s.menu_on:
@@ -2429,8 +2444,9 @@ class Editor:
                 duration=butter
             )
             # instant
-            (victim:=s.anims[id(s.menu_kids[1])].pop('seed',None)) and victim.cancel()
-            (victim:=s.anims[id(s.seed_input)]) and s.seed_on and victim.reverse(duration=butter*0.5)
+            (victim:=s.anims[id(s.menu_kids[2])].pop('seed',None)) and victim.cancel()
+            (victim:=s.anims[id(s.seed_input)]) and s.seed_on and victim.cancel()
+            bui.textwidget(s.seed_input,size=(0,0))
             s.seed_on = False
             bui.buttonwidget(
                 s.menu_kids[2],
@@ -2475,101 +2491,96 @@ class Editor:
                 s.farewell()
             # clear all
             if i == 1:
-                Eval.SOUND(Const.OK_SOUND).play()
                 if s.can_do != 'nuke':
                     s.toast(Strings.INFO_CONFIRM_CLEAR,extra=2)
+                    Eval.SOUND(Const.OK_SOUND).play()
                     s.can_do = 'nuke'
                     return
                 if s.playing: s.stop()
                 s.clear_memory()
-                s.toast(Strings.INFO_MEMORY_CLEARED)
-                s.toggle_menu()
+                type(s)._shared['on_create'].append((
+                    lambda z: (
+                        z.toast(Strings.INFO_MEMORY_CLEARED) or
+                        Eval.SOUND(Const.ACTION_SOUND).play()
+                    ), ()
+                ))
+                Movi.recreate()
             # load seed
             if i == 2:
                 s.seed_on = not s.seed_on
                 target_label = Strings.DONE if s.seed_on else Strings.MENUS[2]
 
-                based_size = (
-                    s.menu_kid_size,
-                    s.seed_button_shrunk_size
-                )
-                target_size = based_size[s.seed_on]
-
-                based_pos = (
-                    s.menu_button_xp,
-                    s.menu_button_xp + (s.menu_kid_size[0] - s.seed_button_shrunk_size[0]) + 5
-                )
+                target_size = s.seed_button_shrunk_size
                 target_pos = (
-                    based_pos[s.seed_on],
+                    s.menu_button_xp + (s.menu_kid_size[0] - s.seed_button_shrunk_size[0]) + 5,
                     s.menu_kid_yp(2)
                 )
 
-                # animate button shrink/expand
-                anim = s.anims[id(s.menu_kids[1])].get('main')
-                start_size = based_size[not s.seed_on]
-                start_pos = (
-                    based_pos[not s.seed_on],
-                    s.menu_kid_yp(2)
-                )
-                if anim and not anim.finished:
-                    start_size = anim.attrs_current['size']
-                    start_pos = anim.attrs_current['position']
-                    anim.cancel()
+                # animate button shrink only
+                if s.seed_on:
+                    anim = s.anims[id(s.menu_kids[1])].get('main')
+                    start_size = s.menu_kid_size
+                    start_pos = (s.menu_button_xp, s.menu_kid_yp(2))
+                    if anim and not anim.finished:
+                        start_size = anim.attrs_current['size']
+                        start_pos = anim.attrs_current['position']
+                        anim.cancel()
 
-                # boomerang label change (fade out, change, fade back in)
-                def change_label():
-                    bui.buttonwidget(s.menu_kids[2], label=target_label)
-                    # fade back in
-                    Animate(
+                    # boomerang label change (fade out, change, fade back in)
+                    def change_label():
+                        bui.buttonwidget(s.menu_kids[2], label=target_label)
+                        # fade back in
+                        Animate(
+                            widget=s.menu_kids[2],
+                            attrs={
+                                'textcolor': (
+                                    Const.INVISIBLE,
+                                    (*Color.TEXT, Color.OPACITY)
+                                )
+                            },
+                            duration=s.global_butter / 2
+                        )
+
+                    s.anims[id(s.menu_kids[2])]['seed'] = Animate(
                         widget=s.menu_kids[2],
                         attrs={
+                            'size': (start_size, target_size),
+                            'position': (start_pos, target_pos),
                             'textcolor': (
-                                Const.INVISIBLE,
-                                (*Color.TEXT, Color.OPACITY)
+                                (*Color.TEXT, Color.OPACITY),
+                                Const.INVISIBLE
                             )
                         },
-                        duration=s.global_butter / 2
+                        duration=s.global_butter / 2,
+                        on_finish=change_label
                     )
-
-                s.anims[id(s.menu_kids[2])]['seed'] = Animate(
-                    widget=s.menu_kids[2],
-                    attrs={
-                        'size': (start_size, target_size),
-                        'position': (start_pos, target_pos),
-                        'textcolor': (
-                            (*Color.TEXT, Color.OPACITY),
-                            Const.INVISIBLE
-                        )
-                    },
-                    duration=s.global_butter / 2,
-                    on_finish=change_label
-                )
+                else:
+                    bui.buttonwidget(s.menu_kids[2], label=target_label)
 
                 # animate textbox appear/disappear
-                anim_input = s.anims.get(id(s.seed_input))
-                start_input_size = (0, s.menu_kid_size[1])
-                if anim_input and not anim_input.finished:
-                    start_input_size = anim_input.attrs_current['size']
-                    anim_input.cancel()
+                if s.seed_on:
+                    anim_input = s.anims.get(id(s.seed_input))
+                    start_input_size = (0, s.menu_kid_size[1])
+                    if anim_input and not anim_input.finished:
+                        start_input_size = anim_input.attrs_current['size']
+                        anim_input.cancel()
 
-                s.anims[id(s.seed_input)] = Animate(
-                    widget=s.seed_input,
-                    attrs={
-                        'size': (
-                            start_input_size if s.seed_on else s.seed_input_size,
-                            s.seed_input_size if s.seed_on else (0, s.menu_kid_size[1])
-                        ),
-                        'color': (
-                            Const.INVISIBLE if s.seed_on else (*Color.TEXT,Color.OPACITY),
-                            (*Color.TEXT,Color.OPACITY) if s.seed_on else Const.INVISIBLE
-                        )
-                    },
-                    duration=s.global_butter
-                )
+                    s.anims[id(s.seed_input)] = Animate(
+                        widget=s.seed_input,
+                        attrs={
+                            'size': (start_input_size, s.seed_input_size),
+                            'color': (Const.INVISIBLE, (*Color.TEXT,Color.OPACITY))
+                        },
+                        duration=s.global_butter
+                    )
+                else:
+                    # instantly set to zero
+                    bui.textwidget(s.seed_input, size=(0, s.menu_kid_size[1]), color=Const.INVISIBLE)
 
                 # if closing, process seed
                 if not s.seed_on:
                     seed_text = bui.textwidget(query=s.seed_input)
+                    s.toggle_menu(shut=True)
                     if not seed_text:
                         s.toast(Format.ERROR_EMPTY(Strings.SEED))
                         Eval.SOUND(Const.BAD_SOUND).play()
@@ -2580,7 +2591,12 @@ class Editor:
                         s.toast(Format.ERROR(e))
                         Eval.SOUND(Const.BAD_SOUND).play()
                         return
-                    s.load_memory(memory)
+                    s.clear_memory()
+                    type(s)._shared['on_create'].append((
+                        lambda z,mem: z.load_memory(mem),
+                        (memory,)
+                    ))
+                    Movi.recreate()
                 Eval.SOUND(Const.OK_SOUND).play()
             # save seed
             if i == 3:
@@ -2606,6 +2622,10 @@ class Editor:
                     return
                 Eval.SOUND(Const.OK_SOUND).play()
                 s.save_state()
+                type(s)._shared['on_create'].append((
+                    lambda z: z.start_recording(),
+                    ()
+                ))
                 Movi.recreate()
         # menu kids
         for i,kid in enumerate(s.menu_kids):
@@ -5532,7 +5552,6 @@ class Editor:
                     running = True
                     bui.buttonwidget(btn,label=Strings.STOP)
                     runner = CodeRunner(
-                        bs.get_foreground_host_activity(),
                         on_error=lambda e:(
                             s.toast(
                                 Format.ERROR(e)
@@ -5883,8 +5902,8 @@ class Editor:
             s.camera_timer = None
             s.camera_data.clear()
             _ba.set_camera_manual(False)
-        if not s.was_fresh:
-            s.was_fresh = True
+        if getattr(s,'export_flag',False):
+            s.export_flag = False
             s.export_replay()
 
     def wrap_play(s,init=False):
@@ -6074,7 +6093,6 @@ class Editor:
         if what == 6:
             if start:
                 s.active_codes[key]['main'] = runner = CodeRunner(
-                    bs.get_foreground_host_activity(),
                     on_error=lambda e:(
                         s.toast(
                             Format.ERROR(e)
@@ -7912,7 +7930,7 @@ class Strings:
     # UI
     MENUS = (
         'Save & Exit',
-        'Clear all',
+        'Clear Session',
         'Load Seed',
         'Copy Seed',
         'Toggle Editor',
@@ -8431,7 +8449,6 @@ class Movi(bs.GameActivity[bs.Player,bs.Team]):
 
     @classmethod
     def recreate(cls):
-        cls.recreating = True
         bs.new_host_session(cls.sessiontype)
         session = bs.get_foreground_host_session()
         with session.context:
@@ -8452,13 +8469,8 @@ class Movi(bs.GameActivity[bs.Player,bs.Team]):
 
     def ensure(s):
         if not s.editor:
-            fresh = True
-            if hasattr(type(s),'recreating'):
-                del type(s).recreating
-                fresh = False
             s.editor = Editor(
-                map=type(s).settings['map'],
-                fresh=fresh
+                map=type(s).settings['map']
             )
             s.make_ui()
 
