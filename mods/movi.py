@@ -8,7 +8,7 @@ Movi v1.0 - Movie Maker
 Experimental.
 """
 
-print('yok 2')
+print('yok 3')
 
 import babase as ba
 import bauiv1 as bui
@@ -3121,10 +3121,7 @@ class Editor:
                         )
         push()
         # wrap
-        s.wrap([1,2,3],on_finish=lambda:(
-            s.bottom_left(),
-            bui.apptimer(Const.BA_LAG_BIG,s.wrap_all)
-        ))
+        s.wrap([1,2,3],on_finish=s.bottom_left)
         # appear
         def appear():
             bui.buttonwidget(
@@ -3137,6 +3134,7 @@ class Editor:
             )
             if not s.tools_shown:
                 s.show_controls()
+            s.wrap()
         # math
         half_size = hx,hy = tuple(_/2 for _ in s.window_size)
         half_pos = (hx*3,hy*2.5)
