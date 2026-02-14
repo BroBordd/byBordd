@@ -71,7 +71,8 @@ class Editor:
     def __init__(s,map):
         # register
         _shared = type(s)._shared
-        type(s)._shared['callbacks'].append(WeakMethod(s.callback))
+        s.shared_callback = WeakMethod(s.callback)
+        type(s)._shared['callbacks'].append(s.shared_callback)
         s.ui_on = False
         s.ui_clickable = False
         s.original_map = map
@@ -87,6 +88,7 @@ class Editor:
         s.play_timer = None
         s.playing = False
         s.playhead = None
+        s.is_wide = False
         # toast
         s.can_toast = True
         s.toast_zoom = None
@@ -171,6 +173,10 @@ class Editor:
     def save_state(s):
         Config.set('last',Eval.ENCODE(s.memory))
 
+    def recreate(s):
+        type(s)._shared['callbacks'].remove(s.shared_callback)
+        Movi.recreate()
+
     @ui_safe
     def on_scroll(s):
         if s.event_on:
@@ -197,6 +203,12 @@ class Editor:
         s.export_flag = True
         s.play()
         s.toast(Strings.INFO_RECORDING_NOW)
+        bui.buttonwidget(
+            s.controls[0],
+            label=Eval.CHAR(
+                Const.STOP_RECORDING
+            )
+        )
 
     def export_replay(s,wait=True):
         if wait:
@@ -2350,7 +2362,7 @@ class Editor:
     def wrap_menu(s):
         # math
         rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size = Eval.SCALE(240,320)
+        sx,sy = s.menu_size = Eval.SCALE(240,370)
         s.menu_start_size = (sx*0.8,sy*0.8)
         s.menu_yoff, = Eval.SCALE(62)
         s.menu_marg, = Eval.SCALE(10)
@@ -2522,7 +2534,7 @@ class Editor:
                         Eval.SOUND(Const.ACTION_SOUND).play()
                     ), ()
                 ))
-                Movi.recreate()
+                s.recreate()
             # load seed
             if i == 2:
                 s.seed_on = not s.seed_on
@@ -2614,7 +2626,7 @@ class Editor:
                         lambda z,mem: z.load_memory(mem),
                         (memory,)
                     ))
-                    Movi.recreate()
+                    s.recreate()
                 Eval.SOUND(Const.OK_SOUND).play()
             # save seed
             if i == 3:
@@ -2644,7 +2656,18 @@ class Editor:
                     lambda z: z.start_recording(),
                     ()
                 ))
-                Movi.recreate()
+                s.recreate()
+            # Wide Preview
+            if i == 6:
+                if not s.ui_on:
+                    s.toast(Strings.ERROR_ALREADY_WIDE)
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                s.toggle_ui()
+                s.toggle_menu()
+                Eval.SOUND(Const.OK_SOUND).play()
+                s.play()
+                s.is_wide = True
         # menu kids
         for i,kid in enumerate(s.menu_kids):
             if (anim:=s.anims[id(kid)].get('main')):
@@ -4309,7 +4332,6 @@ class Editor:
             ('size', ((0, by), (dx/2 - s.window_marg/2, by)))
         ))
 
-
         # Stop button
         def do_stop():
             stop_current()
@@ -5924,6 +5946,10 @@ class Editor:
         if getattr(s,'export_flag',False):
             s.export_flag = False
             s.export_replay()
+        if s.is_wide:
+            s.is_wide = False
+            if not s.ui_on:
+                s.toggle_ui()
 
     def wrap_play(s,init=False):
         s.pause_start = None
@@ -7965,7 +7991,8 @@ class Strings:
         'Load Seed',
         'Copy Seed',
         'Toggle Editor',
-        'Record BRP'
+        'Record BRP',
+        'Wide Preview'
     )
     EDIT_BUTTON = 'Edit'
     EVENT_BUTTON_OFF = 'Event'
@@ -8031,6 +8058,10 @@ class Strings:
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
     # errors
+    ERROR_ALREADY_WIDE = (
+        'Already wide!',
+        'UI is already collapsed blud'
+    )
     ERROR_NO_MEMORY = (
         'There\'s nothing to record!',
         'Unless you want a blank BRP lol'
@@ -8104,7 +8135,7 @@ class Strings:
         'I\'m clean now, regret.'
     )
     INFO_RECORDING_NOW = (
-        'Recording now! Pause to finish.',
+        'Recording now! Press circle to finish',
         'Just watch your movie silently'
     )
     INFO_RECORDING_SAVED = (
@@ -8297,6 +8328,7 @@ class Const:
     KEY = 'circleZigZag'
     PLAY_BUTTON = 'PLAY_BUTTON'
     PAUSE_BUTTON = 'PAUSE_BUTTON'
+    STOP_RECORDING = 'PLAY_STATION_CIRCLE_BUTTON'
     # charstr
     CONTROLS = (
         ('PLAY_BUTTON','PAUSE_BUTTON'),
