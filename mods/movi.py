@@ -8495,7 +8495,7 @@ class Movi(bs.GameActivity[bs.Player,bs.Team]):
 
     def ensure(s):
         if not s.editor:
-            s.editor = Editor(
+            s.editor = type(s).INS = Editor(
                 map=type(s).settings['map']
             )
             s.make_ui()
