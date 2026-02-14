@@ -2002,13 +2002,13 @@ class Editor:
                 s.stamp_scroll,
                 size=s.stamp_size
             )
-            # FIXED: Check if values actually changed instead of comparing to screen size
+
             height_changed = old_deep_y != s.stamp_deep_y
             width_changed = old_deep_x != s.stamp_deep_x
-            
+
             if height_changed or width_changed:
                 butter = s.global_butter/2
-                
+
                 # Define callback to fix timeline AFTER resize completes
                 def fix_timeline_after_resize():
                     for i, (t, l) in enumerate(s.stamp_timeline):
@@ -2020,9 +2020,9 @@ class Editor:
                             position=(px + 4, -s.stamp_deep_y / 2),
                             size=(2, s.stamp_deep_y * 2)
                         )
-                    if callable(on_finish): 
+                    if callable(on_finish):
                         on_finish()
-                
+
                 # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
                     widget=s.stamp_scroll_root,
@@ -3119,7 +3119,10 @@ class Editor:
                         )
         push()
         # wrap
-        s.wrap([1,2,3],on_finish=s.bottom_left)
+        s.wrap([1,2,3],on_finish=lambda:(
+            s.bottom_left(),
+            s.wrap_timeline()
+        ))
         # appear
         def appear():
             bui.buttonwidget(
