@@ -7822,7 +7822,12 @@ class Animate:
             s.delay_timer = None
             s.cancelled = True
             return
-        s.func(s.widget, **kwargs)
+        try: s.func(s.widget, **kwargs)
+        except:
+            s.timer = None
+            s.delay_timer = None
+            s.cancelled = True
+            return
 
         # done
         if progress >= 1.0:
