@@ -5151,8 +5151,12 @@ class Editor:
                         else:
                             setattr(_act.map.node,key,v)
             except Exception as e:
-                Eval.SOUND(Const.BAD_SOUND).play()
-                s.toast(Format.ERROR(e))
+                bui.pushcall(
+                    bui.CallPartial(
+                        s.error,
+                        e
+                    )
+                )
                 s.change_map(old_ma)
                 return
             Eval.SOUND(Const.OK_SOUND).play()
@@ -5189,6 +5193,10 @@ class Editor:
                     anim_kid(w,*pos)
                 sync(0)
         return lambda: s.change_map(old_ma)
+
+    def error(s,e):
+        Eval.SOUND(Const.BAD_SOUND).play()
+        s.toast(Format.ERROR(e))
 
     def change_map(s, ma, extra={}):
         from bascenev1lib.gameutils import SharedObjects
@@ -5277,8 +5285,11 @@ class Editor:
                     else:
                         setattr(old_map.node,key,v)
                 except Exception as e:
-                    Eval.SOUND(Const.BAD_SOUND).play()
-                    s.toast(Format.ERROR(e))
+                    bui.pushcall(
+                        bui.CallPartial(
+                            s.error, e
+                        ), raw=True
+                    )
 
     def make_preset_window(s,edit=None,load=False):
         # math
@@ -6114,7 +6125,6 @@ class Editor:
         elif action == 1:
             parent_runner = s.active_codes[btn_id]['main']
             child_runner = CodeRunner(
-                bs.get_foreground_host_activity(),
                 on_error=lambda e: s.toast(Format.ERROR(e)),
                 parent_runner=parent_runner
             )
@@ -8483,8 +8493,7 @@ class byBordd(ba.Plugin):
 
 class CodeRunner:
     _SHARED = {}
-    def __init__(self, host_activity, on_error=None, parent_runner=None):
-        self.host_activity = host_activity
+    def __init__(self, on_error=None, parent_runner=None):
         self.on_error = on_error
         self.parent_runner = parent_runner
 
@@ -8572,7 +8581,7 @@ class CodeRunner:
         })
 
         try:
-            with self.host_activity.context:
+            with bs.get_foreground_host_activity().context:
                 with redirect_stdout(self.stdout_capture), redirect_stderr(self.stderr_capture):
                     exec(code_string, self.namespace)
         except Exception as e:
@@ -8587,7 +8596,7 @@ class CodeRunner:
         import bascenev1 as bs
         
         try:
-            with self.host_activity.context:
+            with bs.get_foreground_host_activity().context:
                 # Kill actors first (they handle their own cleanup)
                 for actor in self.created_actors:
                     try:
@@ -8641,7 +8650,6 @@ class CodeRunner:
     def spawn_child(self, code_string):
         """Create and start a child runner that shares this namespace"""
         child = CodeRunner(
-            self.host_activity,
             on_error=self.on_error,
             parent_runner=self
         )
@@ -9643,8 +9651,7 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Node Visualizer',
-                    'act = bs.get_foreground_host_activity()',
-                    'm = getattr(act, "map", None)',
+                    'm = getattr(bs.get_foreground_host_activity(), "map", None)',
                     'if not m:',
                     '    raise RuntimeError("No map available in this activity.")',
                     '',
@@ -9772,8 +9779,6 @@ def get_presets():
                     '# MOVI Orbit Camera Tool',
                     'import math',
                     '',
-                    'act = bs.get_foreground_host_activity()',
-                    '',
                     'angle = 0.0',
                     'radius = 10.0',
                     'height = 4.0',
@@ -9808,7 +9813,6 @@ def get_presets():
             'data': {
                 'code': '\n'.join((
                     '# MOVI Stage Clear Banner',
-                    'act = bs.get_foreground_host_activity()',
                     '',
                     't = bs.newnode("text", attrs={',
                     '    "text": "STAGE CLEAR",',
@@ -10078,62 +10082,6 @@ def get_presets():
                     '            "loop": False',
                     '        })))',
                     '        t += duration',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Final Countdown Beeps',
-        'Tense 10-second countdown\nwith visual numbers.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Final Countdown',
-                    'timers = []',
-                    '',
-                    'for i in range(10, 0, -1):',
-                    '    t = (10 - i) * 0.9',
-                    '    sound = "raceBeep2" if i > 3 else "raceBeep1"',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound, n=i: (',
-                    '        bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": 0.8,',
-                    '            "loop": False',
-                    '        }),',
-                    '        Bubble(',
-                    '            bs.get_foreground_host_activity().globalsnode,',
-                    '            str(n),',
-                    '            color=(2, 2, 0) if n > 3 else (2, 0, 0),',
-                    '            time=0.8',
-                    '        )',
-                    '    )))',
-                    '',
-                    'timers.append(bs.AppTimer(9.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("foghorn"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(9.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion04"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(9.0, lambda: Bubble(',
-                    '    bs.get_foreground_host_activity().globalsnode,',
-                    '    "LAUNCH!",',
-                    '    color=(2, 1, 0),',
-                    '    time=2.0',
-                    ')))',
-                    'timers.append(bs.AppTimer(9.0, lambda: bs.emitfx(',
-                    '    position=(0, 0.5, 0),',
-                    '    velocity=(0, 8, 0),',
-                    '    count=120,',
-                    '    scale=2.5,',
-                    '    spread=1.5,',
-                    '    chunk_type="spark"',
-                    ')))',
                 ))
             }
         }
