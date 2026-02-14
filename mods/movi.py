@@ -8,6 +8,8 @@ Movi v1.0 - Movie Maker
 Experimental.
 """
 
+print('yessir')
+
 import babase as ba
 import bauiv1 as bui
 import _babase as _ba
@@ -8465,8 +8467,6 @@ class Color:
     TEMP = (0,0,1)
     TEXT = (2,2,2)
     OPACITY = 0.4
-
-print('yay')
 
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.GameActivity[bs.Player,bs.Team]):
