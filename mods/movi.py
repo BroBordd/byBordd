@@ -5269,12 +5269,16 @@ class Editor:
                     pass
             for key, val in extra.items():
                 try:
+                    v = eval(val)
                     if hasattr(old_map, key):
-                        setattr(old_map, key, val)
+                        setattr(old_map, key, v)
                     elif hasattr(gnode, key):
-                        setattr(gnode, key, val)
-                except:
-                    pass
+                        setattr(gnode, key, v)
+                    else:
+                        setattr(old_map.node,key,v)
+                except Exception as e:
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    s.toast(Format.ERROR(e))
 
     def make_preset_window(s,edit=None,load=False):
         # math
