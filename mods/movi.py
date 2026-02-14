@@ -7799,6 +7799,11 @@ class Animate:
             kwargs[attr_name] = current_val
 
         # apply to widget
+        if not s.widget.exists():
+            s.timer = None
+            s.delay_timer = None
+            s.cancelled = True
+            return
         s.func(s.widget, **kwargs)
 
         # done
