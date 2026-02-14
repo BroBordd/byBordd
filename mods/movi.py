@@ -6015,7 +6015,10 @@ class Editor:
         # node
         if what == 0:
             if start:
-                attrs = data['attrs'].copy()
+                attrs = {
+                    attr:eval(val)
+                    for attr,val in data['attrs'].items()
+                }
                 if data['type'] == 'spaz' and 'position' in data['attrs']:
                     position = attrs.pop('position')
                     call = lambda: n.handlemessage(
@@ -6092,13 +6095,16 @@ class Editor:
         # fx
         if what == 3:
             if start:
-                at = data['attrs']
+                at = {
+                    attr:eval(val)
+                    for attr,val in data['attrs'].items()
+                }
+                delay = at.pop('delay',0.1)
                 def _emit():
                     with bs.get_foreground_host_activity().context:
                         bs.emitfx(**at)
                 s.active_timers[key] = bs.AppTimer(
-                    data.get('delay',0.1),
-                    _emit, repeat=True
+                    delay, _emit, repeat=True
                 )
             else:
                 s.active_timers.pop(key)
