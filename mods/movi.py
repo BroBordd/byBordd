@@ -2710,6 +2710,7 @@ class Editor:
         )
         Eval.SOUND(Const.OK_SOUND).play()
         s.save_state()
+        _ba.set_camera_manual(False)
 
     @clickable
     def toggle_event(s,passive=False):
