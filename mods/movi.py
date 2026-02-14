@@ -8,7 +8,7 @@ Movi v1.0 - Movie Maker
 Experimental.
 """
 
-print('yessir')
+print('yok 2')
 
 import babase as ba
 import bauiv1 as bui
@@ -3123,10 +3123,7 @@ class Editor:
         # wrap
         s.wrap([1,2,3],on_finish=lambda:(
             s.bottom_left(),
-            s.wrap_all(),
-#            bui.apptimer(Const.BA_LAG_BIG,s.wrap),
-            print('wohooo'),
-#            bui.apptimer(5,s.wrap),
+            bui.apptimer(Const.BA_LAG_BIG,s.wrap_all)
         ))
         # appear
         def appear():
