@@ -2002,11 +2002,27 @@ class Editor:
                 s.stamp_scroll,
                 size=s.stamp_size
             )
+            # FIXED: Check if values actually changed instead of comparing to screen size
             height_changed = old_deep_y != s.stamp_deep_y
             width_changed = old_deep_x != s.stamp_deep_x
-
+            
             if height_changed or width_changed:
                 butter = s.global_butter/2
+                
+                # Define callback to fix timeline AFTER resize completes
+                def fix_timeline_after_resize():
+                    for i, (t, l) in enumerate(s.stamp_timeline):
+                        px = i * s.entry_xs_real
+                        py = s.stamp_deep_y - 20
+                        bui.textwidget(t, position=(px, py))
+                        bui.imagewidget(
+                            l,
+                            position=(px + 4, -s.stamp_deep_y / 2),
+                            size=(2, s.stamp_deep_y * 2)
+                        )
+                    if callable(on_finish): 
+                        on_finish()
+                
                 # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
                     widget=s.stamp_scroll_root,
@@ -2039,7 +2055,7 @@ class Editor:
                         )
                     },
                     duration=butter,
-                    on_finish=on_finish
+                    on_finish=fix_timeline_after_resize
                 )
             else:
                 # stamp scroll root
@@ -2058,18 +2074,6 @@ class Editor:
                     size=(s.stamp_deep_x,s.stamp_deep_y)
                 )
                 if callable(on_finish): on_finish()
-            if height_changed:
-                for i, (t, l) in enumerate(s.stamp_timeline):
-                    px = i * s.entry_xs_real
-                    py = s.stamp_deep_y - 20
-                    # Update text position
-                    bui.textwidget(t, position=(px, py))
-                    # Update line size and position to match new height
-                    bui.imagewidget(
-                        l,
-                        position=(px + 4, -s.stamp_deep_y / 2),
-                        size=(2, s.stamp_deep_y * 2)
-                    )
         # stamp
         if yes or 3 in what:
             if not init: s.wrap_timeline()
