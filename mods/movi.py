@@ -2590,7 +2590,8 @@ class Editor:
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
                 bui.clipboard_set_text(str(seed))
-                Eval.SOUND(Const.OK_SOUND).play()
+                Eval.SOUND(Const.GOOD_SOUND).play()
+                s.toast(Strings.INFO_COPIED)
                 s.toggle_menu()
             # toggle editor
             if i == 4:
@@ -5142,12 +5143,13 @@ class Editor:
             try:
                 with _act.context:
                     for key,val in so_far.items():
+                        v = eval(val)
                         if hasattr(_act.map,key):
-                            setattr(_act.map,key,val)
+                            setattr(_act.map,key,v)
                         elif hasattr(_act.globalsnode,key):
-                            setattr(_act.globalsnode,key,val)
+                            setattr(_act.globalsnode,key,v)
                         else:
-                            hasattr(_act.map.node,key)
+                            setattr(_act.map.node,key,v)
             except Exception as e:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Format.ERROR(e))
