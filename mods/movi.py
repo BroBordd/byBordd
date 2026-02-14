@@ -2300,6 +2300,7 @@ class Editor:
         s.ui_on = False
         s.ui_clickable = False
         bs.get_foreground_host_activity().globalsnode.area_of_interest_bounds = Const.EXIT_BOUNDS
+        _ba.set_camera_manual(False)
 
     def hard_cleanup(s):
         for attr in s.__dict__.copy():
@@ -2710,7 +2711,6 @@ class Editor:
         )
         Eval.SOUND(Const.OK_SOUND).play()
         s.save_state()
-        _ba.set_camera_manual(False)
 
     @clickable
     def toggle_event(s,passive=False):
