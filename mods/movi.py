@@ -3119,8 +3119,9 @@ class Editor:
                         )
         push()
         # wrap
-        s.wrap(on_finish=lambda:(
-            s.bottom_left()
+        s.wrap([1,2,3],on_finish=lambda:(
+            s.bottom_left(),
+            s.wrap()
         ))
         # appear
         def appear():
