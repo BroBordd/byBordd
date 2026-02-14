@@ -3121,7 +3121,7 @@ class Editor:
         # wrap
         s.wrap([1,2,3],on_finish=lambda:(
             s.bottom_left(),
-            s.wrap()
+            bui.apptimer(Const.BA_LAG,s.wrap)
         ))
         # appear
         def appear():
