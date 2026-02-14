@@ -8,7 +8,7 @@ Movi v1.0 - Movie Maker
 Experimental.
 """
 
-print('yok 3')
+print('yok 4')
 
 import babase as ba
 import bauiv1 as bui
@@ -7251,6 +7251,7 @@ class Editor:
             call()
             s.toast(Strings.INFO_DUPLICATED(node_data["name"]))
             s.build_timeline()
+            bui.apptimer(s.global_butter*1.5,s.wrap)
             return
 
         # delete
