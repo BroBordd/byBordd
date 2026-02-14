@@ -624,10 +624,6 @@ class Editor:
         s.max_time = s.timeline[-1]['time'] if s.timeline else 0
 
     def wrap_timeline(s):
-        bui.containerwidget(
-            s.stamp_hscroll_root,
-            size=(s.stamp_deep_x,s.stamp_deep_y)
-        )
         for i,g in enumerate(s.stamp_timeline):
             t,l = g
             px = i*s.entry_xs_real
@@ -2006,7 +2002,10 @@ class Editor:
                 s.stamp_scroll,
                 size=s.stamp_size
             )
-            if bigy or bigx:
+            height_changed = old_deep_y != s.stamp_deep_y
+            width_changed = old_deep_x != s.stamp_deep_x
+
+            if height_changed or width_changed:
                 butter = s.global_butter/2
                 # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
@@ -2022,7 +2021,6 @@ class Editor:
                 # stamp hscroll
                 s.anims[id(s.stamp_hscroll)] = Animate(
                     widget=s.stamp_hscroll,
-
                     attrs={
                         'size':(
                             (sx,old_deep_y),
@@ -2060,6 +2058,18 @@ class Editor:
                     size=(s.stamp_deep_x,s.stamp_deep_y)
                 )
                 if callable(on_finish): on_finish()
+            if height_changed:
+                for i, (t, l) in enumerate(s.stamp_timeline):
+                    px = i * s.entry_xs_real
+                    py = s.stamp_deep_y - 20
+                    # Update text position
+                    bui.textwidget(t, position=(px, py))
+                    # Update line size and position to match new height
+                    bui.imagewidget(
+                        l,
+                        position=(px + 4, -s.stamp_deep_y / 2),
+                        size=(2, s.stamp_deep_y * 2)
+                    )
         # stamp
         if yes or 3 in what:
             if not init: s.wrap_timeline()
