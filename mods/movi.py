@@ -624,6 +624,10 @@ class Editor:
         s.max_time = s.timeline[-1]['time'] if s.timeline else 0
 
     def wrap_timeline(s):
+        bui.containerwidget(
+            s.stamp_hscroll_root,
+            size=(s.stamp_deep_x,s.stamp_deep_y)
+        )
         for i,g in enumerate(s.stamp_timeline):
             t,l = g
             px = i*s.entry_xs_real
