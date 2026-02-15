@@ -15,7 +15,6 @@ import bascenev1 as bs
 
 from re import sub
 from math import ceil
-from json import loads
 from os import listdir
 from io import StringIO
 from shutil import copy
@@ -70,7 +69,6 @@ class Editor:
 
     def __init__(s,map):
         # register
-        _shared = type(s)._shared
         s.shared_callback = WeakMethod(s.callback)
         type(s)._shared['callbacks'].append(s.shared_callback)
         s.ui_on = False
@@ -146,8 +144,8 @@ class Editor:
         s.can_do = False
         s.blame = None
         # info
-        s.info_fps_was_on = bui.app.config.get(Const.CONFIG_FPS_KEY)
-        s.info_dev_was_on = bui.app.config.get(Const.CONFIG_DEV_KEY)
+        s.info_fps_was_on = bui.app.config.get(Const.CONFIG_FPS_KEY,False)
+        s.info_dev_was_on = bui.app.config.get(Const.CONFIG_DEV_KEY,False)
         # finally
         s.schedule_on_ui(
             s.on_ui_ready,
@@ -257,8 +255,8 @@ class Editor:
         # update
         if not s.blame:
             s.blame = Eval.BLAME(
-                Strings.BLAME(),
-                Const.BLAME
+                Const.BLAME(),
+                Const.BLAME_CHARSET
             )
         desc and bui.buttonwidget(
             b,on_activate_call=bui.CallPartial(
@@ -1233,7 +1231,7 @@ class Editor:
                 # evaluate
                 try:
                     with bs.get_foreground_host_activity().context:
-                        v = eval(ov)
+                        eval(ov)
                 except Exception as e:
                     s.toast(Format.ERROR(e))
                     Eval.SOUND(Const.BAD_SOUND).play()
@@ -1894,12 +1892,10 @@ class Editor:
         smoly = sy-s.stamp_hack
         # deep y
         old_deep_y = getattr(s,'stamp_deep_y',smoly)
-        bigy = old_deep_y > sy
         s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smoly)
         # deep x
         smolx = sx-s.stamp_hack
         old_deep_x = getattr(s,'stamp_deep_x',smolx)
-        bigx = old_deep_x > sx
         if hasattr(s, 'timeline') and s.timeline:
             s.max_time = s.timeline[-1]['time']
         else:
@@ -7555,7 +7551,7 @@ class Bubble:
     __mem__ = {}
     def __init__(
         s,
-        node: 'bascenev1.Node',
+        node: 'bs.Node',
         text: str = 'Hello!',
         color: tuple = (1,1,1),
         time: float | int = 4,
@@ -8274,42 +8270,6 @@ class Strings:
         'Coming soon!',
         'Aka not implemented yet lmao'
     )
-    # compressed
-    BLAME = lambda: (
-        '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
-        'GCU|nmj0kz<}AdtfLdZb6+!sQ4OUYK6Q8uy*r^_3`Pcu$YW|C=9;{Y(LL1VnyQ*>B{gpqX'
-        'dk#@9?UBPn;2%V#jMSPv_1XgyAJ^ZvYCOsN&;+crKe;d^f*1&xO5^OsH3p{1PWZr2DvZX#'
-        'Q(asi+>+1LJ3~Qw$fLY?PWe0Gz8+_A7Di@~MP;^#5AkfTHb%IeI)Caw!BokT0(B=(PBwFM'
-        'J`y4mX1FWa8Uc<=Zf?~Q^yB!g9w1-Ks>f=OJA!hqouOgMGKK+K<}ReB;Y*XYGvVu?pxK;0'
-        '%D0$KY!tzmUe!969j2GtKACX6T0Rc4wuI|fIo}Q1><Z{CT{od3#5&02lWo)$FCe_<5~*HM'
-        'nBlD2qayQnlBUHBT2XsgCZQ-dx;buhBS@YyKW+~KQcCm;IByjf3-we{=2u*1Y^0M(j$HWk'
-        'IWHE~yH_D-wLG~_mX1L<IjBf}soW?)??_d_qs|=35NNufR(c#fv2qnAeqdmdp}`G&t)0;}'
-        'WJ6k?{Y40s)mPa;Q<@j?s#eLU9MD~%Tr+YWPZ^zHI(Xo|4k(=>mcXg)cg(+@UNr_t_FI@@'
-        'K-z`vn!j^;vk3jjV~X?AF#}P5-lM@%Cm(E@*d0FbkeodJ^wCY=H}(suiou^zL}})0AxqiM'
-        'f9o>9`gZTUUMFRuXQ1^80Sed9lNtj1TBkASgF`=Ob9Ll~2$YYYb#|Q;&`99IjGc~in__wo'
-        'iPNw?$28MM-FVrS%b&Y$h9=Oi+t0%a%YIX}>Gr<z#Z*yz@R_tj1}<W_b-_in?%9}es&E?D'
-        '=q4#J*EC_<r^XPK>?}vc^toT;Juz3GE5ivr@NgN<cUK!%@DZ@{GS$|%XxMcfYB1jY3T5JB'
-        'D1S;;wio{syRoRdt419oa!bUns%Gg)eg~VvuoY>aO&Jl5l2R;2eGynkua*2)$i2kE1SDu&'
-        '{fQ=D7ZZ?YLF;Krit7Y<MW5FOq6{vVcevZZe2FQrD6=6^U@8{nV!zCzo?W`fILCS@mqZbM'
-        'HC&KLY9KG=cD&Wy#o@6(s#)Tr9YTqDuP6-uhb|nzWe>FA*F^Ze6aAM--qkd2l<g|iWz%f!'
-        'AIwz9Spi%I@Cg`YO=Sz7LLh*<Y+=mRh4i=-43mqK4X1FQ=02y(=9;{9%4hj%g#`2bbmz<&'
-        'V(K(f_Hg+bOH4LG7M2GOC&q>cLC{U{DR)fW57r#Z@fs1Nb(eQY`_!vq?shD>Bk5E?lhEEM'
-        'F*ga;#^a?rEOgo?)H<xv3hAFE>l*mC@H&L_`LBwqpgQQ934D*<v<7`V_P8d%*-894y5ak%'
-        'XGm@_Sns?57LUIp!FQBP{HMJc5U&6LwATGxLn1;>00FxQ?G69{MaZMAvBYQl0ssI200dcD'
-    )
-    FONT_METRICS = loads(decompress(b85decode(
-        'c$`&KXG0Y+5d13|QHmH-F6}H>Y4+Zpf)znQl&Xlo-DI+P+<v=xvpYMPY~G'
-        'PLC3-KDSIGu9D^80($Y_++CZmxkFeRg7A<u|jcQX1=;Y5a3Hu7vnNvaUhc'
-        '~11kN|Kory_42dW-8ZdsiLa`r#YO-&`IYy57F~%#4NLVp&+H5FRGGJ7jv7'
-        'DWK%H>&5&WpGSo5T81f7Sh9X0Wp`O{i#L#6{d4-{?49y`kM@PSwqgGi4)b'
-        '&hx85~{14a6B!>@eacPxlszN#-^#*EZF8Ow=89E^wj641?4y{Uxl4!uPW1'
-        'lf>5@^aSH;(OoDSTNUoXb&RwX_qpH$4j)2ESsL*OtfiHC46-?U!jJfrcRm'
-        '}Q_&GQ#d;ve5s~h_gl%Y^x4GUi*r$mKs#-|;PL?5LO)bn;syh8(B@(MPS-'
-        'o<LEp#a{4XtqB9MRNTS_Z<R7_X$B(>N5&`dt6_N2g+p)WnHcNI_Oz1YuD1'
-        '-C|73{&HV;B5Z_Bx-M39-W81smf|hN65<dpg+uY7i4u55+q-hJW1Ga1Xzg'
-        'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
-        '1Pc'
-    )))
 
 class Const:
     BA_DATA = join(
@@ -8396,8 +8356,44 @@ class Const:
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
     BACK = 'BACK'
     # extra
-    BLAME = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+    BLAME_CHARSET = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     DO_NOTHING = lambda:None
+    # compressed
+    BLAME = lambda: (
+        '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
+        'GCU|nmj0kz<}AdtfLdZb6+!sQ4OUYK6Q8uy*r^_3`Pcu$YW|C=9;{Y(LL1VnyQ*>B{gpqX'
+        'dk#@9?UBPn;2%V#jMSPv_1XgyAJ^ZvYCOsN&;+crKe;d^f*1&xO5^OsH3p{1PWZr2DvZX#'
+        'Q(asi+>+1LJ3~Qw$fLY?PWe0Gz8+_A7Di@~MP;^#5AkfTHb%IeI)Caw!BokT0(B=(PBwFM'
+        'J`y4mX1FWa8Uc<=Zf?~Q^yB!g9w1-Ks>f=OJA!hqouOgMGKK+K<}ReB;Y*XYGvVu?pxK;0'
+        '%D0$KY!tzmUe!969j2GtKACX6T0Rc4wuI|fIo}Q1><Z{CT{od3#5&02lWo)$FCe_<5~*HM'
+        'nBlD2qayQnlBUHBT2XsgCZQ-dx;buhBS@YyKW+~KQcCm;IByjf3-we{=2u*1Y^0M(j$HWk'
+        'IWHE~yH_D-wLG~_mX1L<IjBf}soW?)??_d_qs|=35NNufR(c#fv2qnAeqdmdp}`G&t)0;}'
+        'WJ6k?{Y40s)mPa;Q<@j?s#eLU9MD~%Tr+YWPZ^zHI(Xo|4k(=>mcXg)cg(+@UNr_t_FI@@'
+        'K-z`vn!j^;vk3jjV~X?AF#}P5-lM@%Cm(E@*d0FbkeodJ^wCY=H}(suiou^zL}})0AxqiM'
+        'f9o>9`gZTUUMFRuXQ1^80Sed9lNtj1TBkASgF`=Ob9Ll~2$YYYb#|Q;&`99IjGc~in__wo'
+        'iPNw?$28MM-FVrS%b&Y$h9=Oi+t0%a%YIX}>Gr<z#Z*yz@R_tj1}<W_b-_in?%9}es&E?D'
+        '=q4#J*EC_<r^XPK>?}vc^toT;Juz3GE5ivr@NgN<cUK!%@DZ@{GS$|%XxMcfYB1jY3T5JB'
+        'D1S;;wio{syRoRdt419oa!bUns%Gg)eg~VvuoY>aO&Jl5l2R;2eGynkua*2)$i2kE1SDu&'
+        '{fQ=D7ZZ?YLF;Krit7Y<MW5FOq6{vVcevZZe2FQrD6=6^U@8{nV!zCzo?W`fILCS@mqZbM'
+        'HC&KLY9KG=cD&Wy#o@6(s#)Tr9YTqDuP6-uhb|nzWe>FA*F^Ze6aAM--qkd2l<g|iWz%f!'
+        'AIwz9Spi%I@Cg`YO=Sz7LLh*<Y+=mRh4i=-43mqK4X1FQ=02y(=9;{9%4hj%g#`2bbmz<&'
+        'V(K(f_Hg+bOH4LG7M2GOC&q>cLC{U{DR)fW57r#Z@fs1Nb(eQY`_!vq?shD>Bk5E?lhEEM'
+        'F*ga;#^a?rEOgo?)H<xv3hAFE>l*mC@H&L_`LBwqpgQQ934D*<v<7`V_P8d%*-894y5ak%'
+        'XGm@_Sns?57LUIp!FQBP{HMJc5U&6LwATGxLn1;>00FxQ?G69{MaZMAvBYQl0ssI200dcD'
+    )
+    FONT_METRICS = loads(decompress(b85decode(
+        'c$`&KXG0Y+5d13|QHmH-F6}H>Y4+Zpf)znQl&Xlo-DI+P+<v=xvpYMPY~G'
+        'PLC3-KDSIGu9D^80($Y_++CZmxkFeRg7A<u|jcQX1=;Y5a3Hu7vnNvaUhc'
+        '~11kN|Kory_42dW-8ZdsiLa`r#YO-&`IYy57F~%#4NLVp&+H5FRGGJ7jv7'
+        'DWK%H>&5&WpGSo5T81f7Sh9X0Wp`O{i#L#6{d4-{?49y`kM@PSwqgGi4)b'
+        '&hx85~{14a6B!>@eacPxlszN#-^#*EZF8Ow=89E^wj641?4y{Uxl4!uPW1'
+        'lf>5@^aSH;(OoDSTNUoXb&RwX_qpH$4j)2ESsL*OtfiHC46-?U!jJfrcRm'
+        '}Q_&GQ#d;ve5s~h_gl%Y^x4GUi*r$mKs#-|;PL?5LO)bn;syh8(B@(MPS-'
+        'o<LEp#a{4XtqB9MRNTS_Z<R7_X$B(>N5&`dt6_N2g+p)WnHcNI_Oz1YuD1'
+        '-C|73{&HV;B5Z_Bx-M39-W81smf|hN65<dpg+uY7i4u55+q-hJW1Ga1Xzg'
+        'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
+        '1Pc'
+    )))
 
 class Eval:
     CHAR = lambda a: bui.charstr(getattr(bui.SpecialChar,a))
