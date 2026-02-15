@@ -2320,7 +2320,6 @@ class Editor:
         for attr in s.__dict__.copy():
             isinstance(attr,list) and attr.clear()
             delattr(s,attr)
-        _ba.set_camera_manual(False)
 
     def make_menu(s):
         # menu background
@@ -2719,12 +2718,16 @@ class Editor:
     def farewell(s):
         s.restore_infos()
         s.toggle_menu()
-        s.kill(
-            on_kill=bui.CallPartial(
-                bui.app.classic.return_to_main_menu_session_gracefully,
-                reset_ui=False
+        def on_kill():
+            bui.app.classic.return_to_main_menu_session_gracefully(reset_ui=False)
+            bui.apptimer(
+                Const.BA_LAG+Const.BA_LAG_SMALL*16,
+                bui.CallPartial(
+                    _ba.set_camera_manual,
+                    False
+                )
             )
-        )
+        s.kill(on_kill=on_kill)
         Eval.SOUND(Const.OK_SOUND).play()
         s.save_state()
 
