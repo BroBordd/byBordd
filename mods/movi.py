@@ -145,6 +145,9 @@ class Editor:
         s.global_butter = 0.3
         s.can_do = False
         s.blame = None
+        # info
+        s.info_fps_was_on = bui.app.config.get(Const.CONFIG_FPS_KEY)
+        s.info_dev_was_on = bui.app.config.get(Const.CONFIG_DEV_KEY)
         # finally
         s.schedule_on_ui(
             s.on_ui_ready,
@@ -658,6 +661,18 @@ class Editor:
             s.animate_in(on_finish=on_finish)
             s.ui_on = True
             s.ui_clickable = True
+        if s.ui_on: s.restore_infos()
+        else: s.set_infos(False)
+
+    def set_infos(s,b):
+        bui.app.config[Const.CONFIG_FPS_KEY] = b
+        bui.app.config[Const.CONFIG_DEV_KEY] = b
+        bui.app.config.apply_and_commit()
+
+    def restore_infos(s):
+        bui.app.config[Const.CONFIG_FPS_KEY] = s.info_fps_was_on
+        bui.app.config[Const.CONFIG_DEV_KEY] = s.info_dev_was_on
+        bui.app.config.apply_and_commit()
 
     def animate_in(s,on_finish=None):
         # instant
@@ -2300,12 +2315,12 @@ class Editor:
         s.ui_on = False
         s.ui_clickable = False
         bs.get_foreground_host_activity().globalsnode.area_of_interest_bounds = Const.EXIT_BOUNDS
-        _ba.set_camera_manual(False)
 
     def hard_cleanup(s):
         for attr in s.__dict__.copy():
             isinstance(attr,list) and attr.clear()
             delattr(s,attr)
+        _ba.set_camera_manual(False)
 
     def make_menu(s):
         # menu background
@@ -2702,6 +2717,7 @@ class Editor:
             )
 
     def farewell(s):
+        s.restore_infos()
         s.toggle_menu()
         s.kill(
             on_kill=bui.CallPartial(
@@ -8310,6 +8326,8 @@ class Const:
     EXPORT_SUFFIX = '.brp'
     CONFIG_HEAD = '# MOVI '
     CONFIG_PREFIX = 'movi_'
+    CONFIG_DEV_KEY = 'Show Dev Console Button'
+    CONFIG_FPS_KEY = 'Show FPS'
     EXIT_BOUNDS = (0,0,0,0,35,0)
     # scaling
     BA_LAG_BIG = 1.5
