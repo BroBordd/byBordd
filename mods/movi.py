@@ -7508,7 +7508,7 @@ class Editor:
             return
 
         s.build_timeline()
-        bui.apptimer(
+        what not in [2,3] and bui.apptimer(
             scroll_butter,
             bui.CallPartial(s.scroll_to,b)
         )
@@ -8647,6 +8647,7 @@ class CodeRunner:
         class TrackedSpaz(OriginalSpaz):
             def __init__(inner_self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
+                self.node = None
                 self.created_actors.append(inner_self)
 
         # Create a wrapper module that looks like bs but with patched newnode
