@@ -1878,12 +1878,10 @@ class Editor:
             s.show_controls()
 
         # Success feedback
+        s.top_left()
         if shut: return
         Eval.SOUND(Const.OK_SOUND).play()
-        s.toast((
-            f'Loaded {len(memory)} entries!',
-            'Your timeline has been restored'
-        ))
+        s.toast(Format.LOADED_ENTRIES(len(memory)))
 
     def wrap(s,what=0,on_finish=None,init=False):
         # global math
@@ -7508,7 +7506,7 @@ class Editor:
             return
 
         s.build_timeline()
-        what not in [2,3] and bui.apptimer(
+        which not in [2,3] and bui.apptimer(
             scroll_butter,
             bui.CallPartial(s.scroll_to,b)
         )
@@ -8024,6 +8022,8 @@ class Strings:
         'Code':'Custom code'
     }
     # random
+    LOADED_ENTRIES = 'Loaded {} entries!'
+    LOADED_ENTRIES_HELP = 'Seeds are useful aren\'t they?'
     SAVED_AS = 'Saved as {}'
     SAVED_AS_HELP = 'Full path: {}'
     CODE = 'Code'
@@ -8509,6 +8509,10 @@ class Format:
     SAVED_AS = lambda n: (
         Strings.SAVED_AS.format(n),
         Strings.SAVED_AS_HELP.format(join(Const.REPLAYS,n))
+    )
+    LOADED_ENTRIES = lambda t: (
+        Strings.LOADED_ENTRIES.format(t),
+        Strings.LOADED_ENTRIES_HELP
     )
 
 class Color:
