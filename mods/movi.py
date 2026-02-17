@@ -34,6 +34,16 @@ from contextlib import redirect_stdout, redirect_stderr
 
 __version__ = '1.0'
 
+class Tracker:
+    def __init__(self):
+        self.active = {}
+        self.active_sounds = {}
+        self.active_timers = {}
+        self.active_codes = defaultdict(dict)
+        self.active_seeds = {}
+        self.internal_timers = []
+        self.active_key_schedule = {}
+
 class Editor:
     _shared = {'callbacks':[],'on_create':[]}
 
@@ -82,6 +92,7 @@ class Editor:
         s.active_timers = {}
         s.active_key_schedule = {}
         s.active_codes = defaultdict(dict)
+        s.active_seeds = {}
         # play
         s.play_timer = None
         s.playing = False
@@ -2437,14 +2448,14 @@ class Editor:
                     s.menu_button_xp,
                     s.menu_kid_yp(i)
                 )
-            
+
             bui.buttonwidget(
                 kid,
                 size=kid_size,
                 position=kid_pos,
                 text_scale=one
             )
-            
+
             if s.menu_on:
                 a = s.anims[id(kid)]['main'].attrs_start
                 a['size'] = s.menu_kid_start_size
@@ -2960,6 +2971,7 @@ class Editor:
             i == 4 and s.make_map_window or
             i == 5 and s.make_preset_window or
             i == 6 and s.make_code_window or
+            i == 7 and s.make_seed_window or
             (lambda *a,**k:s.toast(Strings.COMING_SOON))
         )
         wait = 0
@@ -5680,6 +5692,79 @@ class Editor:
             runner and runner.on_end()
         return cleanup
 
+    def make_seed_window(s,edit=None,load=False):
+        # math
+        x, y = s.window_pos
+        sx, sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        data = edit and edit['data']
+        bx = sx - s.window_marg*8
+        by = 40
+
+        # tip
+        pos = (s.window_marg,sy-(by+s.window_marg*10))
+        tip = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            maxwidth=sx-s.window_marg*4,
+            max_height=sy-(by*2+s.window_marg*14),
+            text=Strings.SEED_TIP,
+            color=Const.INVISIBLE
+        )
+        s.window_kids.append((tip,pos,text_push,delay+0))
+
+        # seed input
+        pos = (s.window_marg*2+2,s.window_marg*4+by)
+        seed_inp = bui.textwidget(
+            parent=s.root,
+            position=pos,
+            editable=True,
+            allow_clear_button=False,
+            size=(0,0),
+            maxwidth=(bx+20)-s.window_marg*2,
+            description=Strings.SEED_HELP,
+            color=Const.INVISIBLE,
+            v_align=Const.ALIGN,
+            glow_type=Const.GLOW,
+            text=data and data['seed'] or ''
+        )
+        s.window_kids.append((seed_inp,pos,text_push,delay+0,
+            ('size',((bx/2,by),(bx+20,by)))
+        ))
+
+        # load button
+        def do_done():
+            seed = bui.textwidget(query=seed_inp)
+            if not seed:
+                Eval.SOUND(Const.BAD_SOUND).play()
+                s.toast(Format.ERROR_EMPTY(Strings.SEED))
+                return
+            final = {
+                'seed':seed,
+                'name':Strings.SEED
+            }
+            if edit:
+                data.update(final)
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else: s.add_entry(final)
+        done_pos = (s.window_marg*4, s.window_marg)
+        done_button = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=done_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.DONE,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((done_button, done_pos, 50, delay + 0.2,
+            ('size', ((bx/2, by), (bx, by)))
+        ))
+
     def window_clean(s):
         for w,*_ in s.window_kids:
             s.anims[id(w)].reverse(
@@ -5940,17 +6025,44 @@ class Editor:
         s.kill_playhead()
         s.wrap_play()
         s.wrap_controls()
-        for _ in s.active.values(): _.delete()
-        s.active.clear()
-        for _ in s.active_sounds: _.delete()
-        s.active_sounds.clear()
-        s.active_timers.clear()
-        for _ in s.active_codes.values():
-            (main:=_.get('main')) and main.on_end()
-            (children:=_.get('children')) and [
-                child.on_end() for child in children
-            ]
-        s.active_codes.clear()
+
+        # Helper to recursively clean trackers
+        def clean_tracker(tracker):
+            # Clean items
+            for _ in tracker.active.values():
+                if _.exists(): _.delete()
+            tracker.active.clear()
+
+            # Clean sounds
+            for _ in tracker.active_sounds:
+                if _.exists(): _.delete()
+            tracker.active_sounds.clear()
+
+            # Clean timers
+            tracker.active_timers.clear() # bascenev1 timers die automatically
+
+            # Clean internal timers (scheduling)
+            for t in getattr(tracker, 'internal_timers', []):
+                t = None # Dereference
+            if hasattr(tracker, 'internal_timers'):
+                tracker.internal_timers.clear()
+
+            # Clean codes
+            for _ in tracker.active_codes.values():
+                (main:=_.get('main')) and main.on_end()
+                (children:=_.get('children')) and [
+                    child.on_end() for child in children
+                ]
+            tracker.active_codes.clear()
+
+            # Recursively clean seeds
+            for seed_tracker in tracker.active_seeds.values():
+                clean_tracker(seed_tracker)
+            tracker.active_seeds.clear()
+
+        # Clean self (acting as main tracker)
+        clean_tracker(s)
+
         shut or s.toast(Strings.INFO_FINISHED)
         s.freeze_scene(False)
         s.change_map(s.original_map)
@@ -6045,7 +6157,10 @@ class Editor:
 
         s.move_playhead()
 
-    def execute_event(s,e):
+    def execute_event(s,e,tracker=None):
+        # Default to self if no tracker provided (Main Timeline)
+        tracker = tracker or s
+
         mem = e['memory']
         key = e['btn_id']
         start = e['type'] == 'start'
@@ -6067,15 +6182,20 @@ class Editor:
                         position
                     )
                 with bs.get_foreground_host_activity().context:
-                    s.active[key] = n = bs.newnode(
+                    tracker.active[key] = n = bs.newnode(
                         type=data['type'],
                         name=data['name'],
                         attrs=attrs
                     )
-            else: s.active.pop(key).delete()
+            else:
+                if key in tracker.active:
+                    tracker.active.pop(key).delete()
 
         # camera
         if what == 1:
+            # Camera is global, so we still access s.camera_data
+            # but we track the active state per tracker if needed,
+            # though usually camera overrides everything.
             if start:
                 has_pos,has_tar,man = data['chks']
                 s.camera_data[key] = (
@@ -6086,6 +6206,7 @@ class Editor:
                 # wake up
                 if not s.camera_timer:
                     def apply():
+                        if not s.camera_data: return
                         pos,tar,man = next(
                             reversed(
                                 s.camera_data.values()
@@ -6106,10 +6227,11 @@ class Editor:
                     )
                     apply() # initial
             else:
-                man = s.camera_data.pop(key)[2]
-                if not s.camera_data:
-                    s.camera_timer = None
-                    man and _ba.set_camera_manual(False)
+                if key in s.camera_data:
+                    man = s.camera_data.pop(key)[2]
+                    if not s.camera_data:
+                        s.camera_timer = None
+                        man and _ba.set_camera_manual(False)
         # volume
         if what == 2:
             if start:
@@ -6117,7 +6239,7 @@ class Editor:
                 position = (data['x'], data['y'], data['z'])
                 volume = data['volume']
                 with bs.get_foreground_host_activity().context:
-                    s.active[key] = n = bs.newnode(
+                    tracker.active[key] = n = bs.newnode(
                         'sound',
                         attrs={
                             'position':position,
@@ -6127,11 +6249,13 @@ class Editor:
                             'loop':data['chks'][1]
                         }
                     )
-                    s.active_sounds[n] = volume
+                    tracker.active_sounds[n] = volume
             else:
-                n = s.active.pop(key)
-                s.active_sounds.pop(n)
-                n.delete()
+                if key in tracker.active:
+                    n = tracker.active.pop(key)
+                    if n in tracker.active_sounds:
+                        tracker.active_sounds.pop(n)
+                    n.delete()
 
         # fx
         if what == 3:
@@ -6144,11 +6268,12 @@ class Editor:
                 def _emit():
                     with bs.get_foreground_host_activity().context:
                         bs.emitfx(**at)
-                s.active_timers[key] = bs.AppTimer(
+                tracker.active_timers[key] = bs.AppTimer(
                     delay, _emit, repeat=True
                 )
             else:
-                s.active_timers.pop(key)
+                if key in tracker.active_timers:
+                    tracker.active_timers.pop(key)
 
         # map
         if what == 4:
@@ -6158,7 +6283,7 @@ class Editor:
         # code
         if what == 6:
             if start:
-                s.active_codes[key]['main'] = runner = CodeRunner(
+                tracker.active_codes[key]['main'] = runner = CodeRunner(
                     on_error=lambda e:(
                         s.toast(
                             Format.ERROR(e)
@@ -6166,18 +6291,112 @@ class Editor:
                     )
                 )
                 runner.on_start(data['code'])
-                s.active_codes[key]['children'] = []
+                tracker.active_codes[key]['children'] = []
             else:
-                codes = s.active_codes.pop(key)
-                codes['main'].on_end()
-                for child in codes['children']:
-                    child.on_end()
+                if key in tracker.active_codes:
+                    codes = tracker.active_codes.pop(key)
+                    codes['main'].on_end()
+                    for child in codes['children']:
+                        child.on_end()
 
-        # Execute keys for this event
-        if e['type'] == 'start':
-            s.active_key_schedule[key] = []
+        # seed
+        if what == 7:
+            if start:
+                # 1. Decode memory
+                try:
+                    seed_mem = Eval.DECODE(int(data['seed']))
+                except Exception as ex:
+                    s.toast(Format.ERROR(ex))
+                    return
+
+                # 2. Create scope for this seed
+                sub_tracker = Tracker()
+                tracker.active_seeds[key] = sub_tracker
+
+                # 3. Schedule events relative to NOW
+                # Since this function is called at the exact start time of the entry,
+                # we schedule the seed's contents using AppTimers relative to this moment.
+
+                # We need unique IDs for the seed's contents so they don't clash
+                # strictly within the sub_tracker dicts, though reusing the string IDs from memory is fine
+                # because sub_tracker is isolated.
+
+                for seed_key, seed_entry in seed_mem.items():
+                    # Create virtual event objects
+                    start_ev = {
+                        'memory': seed_entry,
+                        'btn_id': seed_key, # Use original ID as key in sub_tracker
+                        'type': 'start'
+                    }
+                    end_ev = {
+                        'memory': seed_entry,
+                        'btn_id': seed_key,
+                        'type': 'end'
+                    }
+
+                    # Schedule Start
+                    t_start = bui.AppTimer(
+                        seed_entry['start'],
+                        bui.CallPartial(s.execute_event, start_ev, tracker=sub_tracker)
+                    )
+                    sub_tracker.internal_timers.append(t_start)
+
+                    # Schedule End
+                    t_end = bui.AppTimer(
+                        seed_entry['start'] + seed_entry['duration'],
+                        bui.CallPartial(s.execute_event, end_ev, tracker=sub_tracker)
+                    )
+                    sub_tracker.internal_timers.append(t_end)
+
+                    # Schedule Keys
+                    for k_name, k_data in seed_entry.get('keys', {}).items():
+                        t_key = bui.AppTimer(
+                            k_data['time'], # time in memory is absolute to the seed start
+                            bui.CallPartial(
+                                s.execute_key,
+                                k_data,
+                                seed_key, # btn_id
+                                seed_entry['event'], # event_type
+                                sub_tracker # tracker
+                            )
+                        )
+                        sub_tracker.internal_timers.append(t_key)
+
+            else:
+                # Cleanup the seed
+                if key in tracker.active_seeds:
+                    sub_tracker = tracker.active_seeds.pop(key)
+
+                    # 1. Cancel future events
+                    sub_tracker.internal_timers.clear() # Deref
+
+                    # 2. Kill active objects (recursive cleanup similar to stop())
+                    def kill_scope(t):
+                        for _ in t.active.values():
+                            if _.exists(): _.delete()
+                        t.active.clear()
+                        for _ in t.active_sounds:
+                            if _.exists(): _.delete()
+                        t.active_sounds.clear()
+                        t.active_timers.clear()
+                        for _ in t.active_codes.values():
+                            (m:=_.get('main')) and m.on_end()
+                            (c:=_.get('children')) and [x.on_end() for x in c]
+                        t.active_codes.clear()
+                        # Recursively kill nested seeds
+                        for k, v in t.active_seeds.items():
+                            kill_scope(v)
+                        t.active_seeds.clear()
+
+                    kill_scope(sub_tracker)
+
+        # Execute keys for this event (Main Timeline or Recursive)
+        # We only schedule keys here if we are the MAIN editor loop calling this.
+        # If we are inside a seed (tracker != s), the keys were already scheduled via AppTimer in 'seed start' block above.
+        if e['type'] == 'start' and tracker == s:
+            tracker.active_key_schedule[key] = []
             for key_name, key_data in mem.get('keys', {}).items():
-                s.active_key_schedule[key].append({
+                tracker.active_key_schedule[key].append({
                     'time': key_data['time'],
                     'data': key_data,
                     'btn_id': key,
@@ -6187,7 +6406,8 @@ class Editor:
         # finally
         callable(call) and call()
 
-    def execute_key(s, key_data, btn_id, event_type):
+    def execute_key(s, key_data, btn_id, event_type, tracker=None):
+        tracker = tracker or s
         action = key_data['action']
 
         # Attribute (action 0)
@@ -6195,9 +6415,9 @@ class Editor:
             da = key_data['data']
             attr_name, attr_eval = da['attr'],da['eval']
 
-            # Get the node from active entries
-            if btn_id in s.active:
-                node = s.active[btn_id]
+            # Get the node from active entries in current scope
+            if btn_id in tracker.active:
+                node = tracker.active[btn_id]
                 if node.exists():
                     try:
                         setattr(node, attr_name, eval(attr_eval))
@@ -6207,27 +6427,28 @@ class Editor:
 
         # Code (action 1)
         elif action == 1:
-            parent_runner = s.active_codes[btn_id]['main']
-            child_runner = CodeRunner(
-                on_error=lambda e: s.toast(Format.ERROR(e)),
-                parent_runner=parent_runner
-            )
-            child_runner.on_start(key_data['data']['code'])
-            s.active_codes[btn_id]['children'].append(child_runner)
+            if btn_id in tracker.active_codes:
+                parent_runner = tracker.active_codes[btn_id]['main']
+                child_runner = CodeRunner(
+                    on_error=lambda e: s.toast(Format.ERROR(e)),
+                    parent_runner=parent_runner
+                )
+                child_runner.on_start(key_data['data']['code'])
+                tracker.active_codes[btn_id]['children'].append(child_runner)
 
         # Volume (action 2)
         elif action == 2:
             da = key_data['data']
             v = da['volume']
-            if btn_id in s.active:
-                node = s.active[btn_id]
+            if btn_id in tracker.active:
+                node = tracker.active[btn_id]
                 if node.exists():
                     if not s.paused:
                         try: node.volume = v
                         except Exception as e:
                             s.toast(Format.ERROR(e))
                             Eval.SOUND(Const.BAD_SOUND).play()
-                    s.active_sounds[node] = v
+                    tracker.active_sounds[node] = v
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
@@ -7396,7 +7617,7 @@ class Editor:
                 # Animate remaining entries sliding up
                 for idx, kid in enumerate(reversed(s.stamp_kids)):
                     kid_mem = s.memory[id(kid)]
-                    if kid_mem['order'] >= deleted_order: 
+                    if kid_mem['order'] >= deleted_order:
                         continue
 
                     old_x = Eval.ENTRY_X(s, kid_mem)
@@ -8019,7 +8240,8 @@ class Strings:
         'FX':'Emit an effect',
         'Map':'Control the map',
         'Preset':'Load a preset',
-        'Code':'Custom code'
+        'Code':'Custom code',
+        'Seed':'Project seed'
     }
     # random
     LOADED_ENTRIES = 'Loaded {} entries!'
@@ -8044,8 +8266,11 @@ class Strings:
     OFFSET = 'Offset'
     TYPE = 'Type'
     TYPE_HELP = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
+    SEED_HELP = 'The Movi\'s project seed. Get it from Square -> Copy Seed\nEnter'
     NAME = 'Name'
     NODE_NAME_HELP = 'The node\'s name kwarg\nbascenev1.newnode(name=\'THIS\')\nEnter'
+    SEED_TIP = 'A Movi seed contains all the memory of\nthe project, which is basically a dict of\nentry data. Get your seed by pressing on\nCopy Seed option in the square menu.'
+    SEED = 'Seed'
     FX_NAME_HELP = 'The FX name, used only for recognition\nEnter'
     SET = 'Set'
     POP = 'Pop'
@@ -8659,7 +8884,7 @@ class CodeRunner:
             def __init__(self, original_module, newnode_func):
                 self._original = original_module
                 self.newnode = newnode_func
-            
+
             def __getattr__(self, name):
                 return getattr(self._original, name)
 
@@ -8698,7 +8923,7 @@ class CodeRunner:
     def _cleanup_all(self):
         """Delete all tracked actors and nodes within the activity context"""
         import bascenev1 as bs
-        
+
         try:
             with bs.get_foreground_host_activity().context:
                 # Kill actors first (they handle their own cleanup)
@@ -8709,7 +8934,7 @@ class CodeRunner:
                     except:
                         pass
                 self.created_actors.clear()
-                
+
                 # Then delete remaining nodes
                 for node in self.created_nodes:
                     try:
