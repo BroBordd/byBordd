@@ -462,5 +462,13 @@
         "mod_description": "Simple up down arrows in party window\nUseful for repeating messages or something",
         "api_version": 9,
         "mod_filename_base": "updown"
+    },
+    {
+        "mod_name": "Viewer",
+        "mod_fancy_name": "KTX Viewer",
+        "mod_version": "1.0",
+        "mod_description": "For debugging purposes",
+        "api_version": 9,
+        "mod_filename_base": "viewer"
     }
 ]
