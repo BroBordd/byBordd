@@ -1569,7 +1569,7 @@ class Board(bui.MainWindow):
             bord = weak_s()
             if err:
                 Eval.DOUBLE_DING(0,0)
-                bord.toast(Eval.FORMAT_ERROR(err))
+                bord.toast(String.ERROR_WITH.format(err))
                 return
             Eval.DOUBLE_DING(0,1)
             bord.toast(String.SENT.format(String.COMMENT))
@@ -3253,7 +3253,7 @@ class Animate:
         # apply to widget
         s.func(s.widget, **kwargs)
 
-        # done
+        # done yay
         if progress >= 1.0:
             s.timer = None
             s.finish()
@@ -3368,6 +3368,9 @@ class Data(Enum):
     API_URL = 'XmoUNb2=|CVQ^_KXK8e3bz&}KZ*2'
     GRAPHQL = 'XmoUNb2=|CVQ^_KXK8e3bz&}KZ*4DUa$#_2acl'
 
+RSA_N = 27321016455872970153435061322102843068117802788066857575354989798581441304368333543812172900582339893414374885719022106941726835586910186382053285180800941118539011913752707750584159208680749389405539123498054393651075075550524228812884595667618312831826500182658930289453617762268344437866179838283517261669120873221350569059077320630684008926266200390117790096706692563539867158289318647413060959988455869497749819138508236022241206137457419764137231146887704843917014609242446616024201982853364800053373812825990901307811948186971166417741287726307239433990417229351072712410502988786339036772898038762461642017093
+RSA_E = 65537
+
 def _get_headers():
     return {
         "Authorization": f"Bearer github_pat_{Data.KEY.real}"
@@ -3375,6 +3378,33 @@ def _get_headers():
 
 def _seal(secret):
     return sha256(secret.encode()).hexdigest()[:12]
+
+def _mgf1(seed, length):
+    out = b''
+    i = 0
+    while len(out) < length:
+        out += sha256(seed + i.to_bytes(4, 'big')).digest()
+        i += 1
+    return out[:length]
+
+def _oaep_pad(msg, k):
+    h_len = 32
+    l_hash = sha256(b'').digest()
+    ps = bytes(k - 2*h_len - 2 - len(msg))
+    db = l_hash + ps + b'\x01' + msg
+    seed = os.urandom(h_len)
+    db_mask = _mgf1(seed, k - h_len - 1)
+    masked_db = bytes(a ^ b for a, b in zip(db, db_mask))
+    seed_mask = _mgf1(masked_db, h_len)
+    masked_seed = bytes(a ^ b for a, b in zip(seed, seed_mask))
+    return b'\x00' + masked_seed + masked_db
+
+def _encrypt_password(password, context):
+    k = (RSA_N.bit_length() + 7) // 8
+    padded = _oaep_pad(f"{password}:{context}".encode(), k)
+    m = int.from_bytes(padded, 'big')
+    c = pow(m, RSA_E, RSA_N)
+    return b64encode(c.to_bytes(k, 'big')).decode()
 
 def _upload_to_temp_host(filepath):
     """Upload file to catbox.moe and return URL"""
@@ -3573,10 +3603,13 @@ def upload(secret, title, description, filepaths_or_urls):
     else:
         method = "mixed"  # Has multiple types
 
+    ts = str(int(__import__('time').time()))
     payload_data = {
         "title": title,
         "description": description,
         "user_hash": stamp,
+        "timestamp": ts,
+        "password": _encrypt_password(secret, ts),
         "files": files_data,
         "method": method
     }
@@ -3657,6 +3690,7 @@ def comment(secret, post_id, text):
     payload_data = {
         "post_id": post_id,
         "user_hash": stamp,
+        "password": _encrypt_password(secret, post_id),
         "text": text
     }
 
@@ -3690,7 +3724,8 @@ def delete_post(secret, post_id):
 
     payload_data = {
         "post_id": post_id,
-        "user_hash": stamp
+        "user_hash": stamp,
+        "password": _encrypt_password(secret, f"delete_post:{post_id}"),
     }
 
     payload = f"DELETE_POST:{dumps(payload_data)}"
@@ -3705,7 +3740,8 @@ def delete_comment(secret, comment_id, post_id):
     payload_data = {
         "comment_id": comment_id,
         "post_id": post_id,
-        "user_hash": stamp
+        "user_hash": stamp,
+        "password": _encrypt_password(secret, f"delete_comment:{comment_id}"),
     }
 
     payload = f"DELETE_COMMENT:{dumps(payload_data)}"
