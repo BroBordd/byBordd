@@ -1352,7 +1352,7 @@ class Board(bui.MainWindow):
             root,
             text=String.DELETE_ID.format(post['id']),
             position=(px+marg*2,py+marg),
-            maxwidth=dx-(marg*4+bx),
+            maxwidth=dx-(marg*6+bx),
             v_align=Const.ALIGN_CENTER
         )
         # capture
