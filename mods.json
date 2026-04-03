@@ -24,6 +24,14 @@
         "mod_filename_base": "board"
     },
     {
+        "mod_name": "BSDoom",
+        "mod_fancy_name": "DOOM!",
+        "mod_version": "1.0",
+        "mod_description": "Play DOOM under ballistica.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "bsdoom"
+    },
+    {
         "mod_name": "BSM",
         "mod_fancy_name": "The BombSquadMedia Library",
         "mod_version": "2.1",
