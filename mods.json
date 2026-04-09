@@ -27,7 +27,7 @@
         "mod_name": "BSDoom",
         "mod_fancy_name": "DOOM!",
         "mod_version": "1.0",
-        "mod_description": "Play DOOM under ballistica.\nExperimental.",
+        "mod_description": "Play DOOM under ballistica BombSquad.\nAdds an AppMode in dev console.\nExperimental.",
         "api_version": 9,
         "mod_filename_base": "bsdoom"
     },
