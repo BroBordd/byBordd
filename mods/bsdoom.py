@@ -665,7 +665,7 @@ class DoomAppMode(AppMode):
             self._lib.bs_add_key(dk, state)
 
     def _btn(self, parent, pos: tuple, size: tuple, label: str, key: str,
-             color: tuple = (0.25, 0.25, 0.25), repeat: bool = False) -> None:
+             color: tuple = (0.25, 0.25, 0.25), repeat: bool = False, opacity: float = 1) -> None:
         def _tap():
             self._on_input(key, "press")
             def _release():
@@ -675,6 +675,7 @@ class DoomAppMode(AppMode):
 
         bui.buttonwidget(parent=parent, position=pos, size=size, label=label,
                          color=color, textcolor=(1, 1, 1),
+                         opacity=opacity,
                          texture=bui.gettexture("white"),
                          enable_sound=False, repeat=repeat,
                          on_activate_call=_tap)
@@ -711,20 +712,20 @@ class DoomAppMode(AppMode):
         tl = bui.containerwidget(parent=self.root, background=False,
                                   size=(bs * 3 + gap * 2, bs),
                                   position=(margin, top_y))
-        self._btn(tl, (0,          0), (bs, bs), "Map", "MAP",   col_map)
-        self._btn(tl, (bs + gap,   0), (bs, bs), "Run", "RUN",   col_run, repeat=True)
-        self._btn(tl, ((bs+gap)*2, 0), (bs, bs), "||",  "PAUSE", col_pause)
+        self._btn(tl, (0,          0), (bs, bs), "Map", "MAP",   col_map, opacity=0.4)
+        self._btn(tl, (bs + gap,   0), (bs, bs), "Run", "RUN",   col_run, repeat=True, opacity=0.4)
+        self._btn(tl, ((bs+gap)*2, 0), (bs, bs), "||",  "PAUSE", col_pause, opacity=0.4)
 
         # ── BOTTOM-LEFT: Movement D-pad (unchanged) ─────────────────────────
         dpad_size = bs * 3 + gap * 2
         dpad = bui.containerwidget(parent=self.root, background=False,
                                     size=(dpad_size, dpad_size),
                                     position=(margin, margin))
-        self._btn(dpad, (bs + gap,   (bs+gap)*2), (bs, bs), "Fwd",  "UP",       col_move, repeat=True)
-        self._btn(dpad, (bs + gap,   0),           (bs, bs), "Back", "DOWN",     col_move, repeat=True)
-        self._btn(dpad, (0,          bs + gap),    (bs, bs), "<St",  "STRAFE_L", col_move, repeat=True)
-        self._btn(dpad, ((bs+gap)*2, bs + gap),    (bs, bs), "St>",  "STRAFE_R", col_move, repeat=True)
-        self._btn(dpad, (bs + gap,   bs + gap),    (bs, bs), "USE",  "USE",      col_use)
+        self._btn(dpad, (bs + gap,   (bs+gap)*2), (bs, bs), "Fwd",  "UP",       col_move, repeat=True, opacity=0.4)
+        self._btn(dpad, (bs + gap,   0),           (bs, bs), "Back", "DOWN",     col_move, repeat=True, opacity=0.4)
+        self._btn(dpad, (0,          bs + gap),    (bs, bs), "<St",  "STRAFE_L", col_move, repeat=True, opacity=0.4)
+        self._btn(dpad, ((bs+gap)*2, bs + gap),    (bs, bs), "St>",  "STRAFE_R", col_move, repeat=True, opacity=0.4)
+        self._btn(dpad, (bs + gap,   bs + gap),    (bs, bs), "USE",  "USE",      col_use, opacity=0.4)
 
         # ── BOTTOM-RIGHT: Aim pad + Fire (unchanged) ────────────────────────
         fire_w = bs * 2 + gap
@@ -736,9 +737,9 @@ class DoomAppMode(AppMode):
         aim_pad = bui.containerwidget(parent=self.root, background=False,
                                        size=(fire_w, bs * 2 + gap + 10),
                                        position=(aim_x, margin))
-        self._btn(aim_pad, (0,        bs + gap + 10), (bs, bs), "<Aim", "TURN_L", col_aim, repeat=True)
-        self._btn(aim_pad, (bs + gap, bs + gap + 10), (bs, bs), "Aim>", "TURN_R", col_aim, repeat=True)
-        self._btn(aim_pad, (0,        0),              (fire_w, bs), "FIRE", "FIRE", col_fire, repeat=True)
+        self._btn(aim_pad, (0,        bs + gap + 10), (bs, bs), "<Aim", "TURN_L", col_aim, repeat=True, opacity=0.4)
+        self._btn(aim_pad, (bs + gap, bs + gap + 10), (bs, bs), "Aim>", "TURN_R", col_aim, repeat=True, opacity=0.4)
+        self._btn(aim_pad, (0,        0),              (fire_w, bs), "FIRE", "FIRE", col_fire, repeat=True, opacity=0.4)
 
         # ── RIGHT-MID vertical column: Weapons 1-7 + Enter ──────────────────
         # Positioned just left of the f-key column.
@@ -751,11 +752,11 @@ class DoomAppMode(AppMode):
         wcol_top = sh - margin - bs // 2
         for i, (wk, wl) in enumerate(zip(wkeys, wlbls)):
             y = wcol_top - i * (wsz + wgap)
-            self._btn(self.root, (wcol_x, y), (wsz, wsz), wl, wk, col_wpn)
+            self._btn(self.root, (wcol_x, y), (wsz, wsz), wl, wk, col_wpn, opacity=0.4)
 
         # Enter below weapons
         enter_y = wcol_top - len(wkeys) * (wsz + wgap) - gap
-        self._btn(self.root, (wcol_x, enter_y), (wsz, wsz + 10), "ENTER", "ENTER", col_enter)
+        self._btn(self.root, (wcol_x, enter_y), (wsz, wsz + 10), "ENTER", "ENTER", col_enter, opacity=0.4)
 
         # ── FAR-RIGHT vertical column: F-keys + Esc ─────────────────────────
         # [Help(F1)] [Save(F2)] [Load(F3)] [Gamma(F5)] [Esc]
@@ -766,7 +767,7 @@ class DoomAppMode(AppMode):
         for i, (lbl, key) in enumerate(f_labels):
             y = fcol_top - i * (wsz + wgap)
             c = col_esc if key == "ESCAPE" else col_util
-            self._btn(self.root, (fcol_x, y), (wsz, wsz), lbl, key, c)
+            self._btn(self.root, (fcol_x, y), (wsz, wsz), lbl, key, c, opacity=0.4)
 
     def _tick(self) -> None:
         if not self._lib or not self.root.exists():
