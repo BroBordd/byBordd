@@ -96,6 +96,14 @@
         "mod_filename_base": "fontman"
     },
     {
+        "mod_name": "KYS",
+        "mod_fancy_name": "Death at its finest",
+        "mod_version": "1.0",
+        "mod_description": "Adds minigame of a series of random levels.\nThe goal is to die, can't be easier, right?\nKYS switches between its own activities.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "kys"
+    },
+    {
         "mod_name": "Movi",
         "mod_fancy_name": "Movie Maker",
         "mod_version": "1.0",
