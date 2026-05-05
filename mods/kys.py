@@ -7,6 +7,7 @@ KYS v1.0 - Death at its finest
 
 Adds minigame of a series of random levels.
 The goal is to die, can't be easier, right?
+supports unlimited players, i hope.
 KYS switches between its own activities.
 Experimental.
 """
@@ -15,8 +16,8 @@ import bauiv1 as bui
 import bascenev1 as bs
 import bascenev1lib as bslib
 
-from math import dist
 from weakref import ref
+from math import dist, ceil
 from collections import defaultdict
 from random import choice, random, uniform
 from bascenev1lib.activity.multiteamscore import MultiTeamScoreScreenActivity
@@ -155,7 +156,7 @@ class Strings:
         'The Round Has Spoken',
         'They Fell',
         'All According to Plan',
-        'Gravity Wins Again',
+        'Fate Wins Again',
         'Certified Fumble',
         'That Happened',
         'Moving On',
@@ -176,6 +177,77 @@ class Strings:
         'The sky is not the limit.',
         'Rise above. Literally.',
         'Gravity is a suggestion.',
+    ]
+
+    # zoe
+    ZOE_PASSIVE_MSGS = [
+        'why are you so close?',
+        'do you not know what personal space is?',
+        'i can see you.',
+        'give me some room.',
+        'go away.',
+        'leave me alone.',
+    ]
+    ZOE_HIT_MSGS = [
+        'OW!',
+        'STOP THAT',
+        'did you just',
+        'excuse me??',
+        'i felt that.',
+    ]
+    ZOE_PICKUP_MSGS = [
+        'PUT ME DOWN',
+        'LET GO OF ME',
+        'excuse me?!',
+        'i am not a toy',
+        'HELP',
+    ]
+    ZOE_DROP_MSGS = [
+        'i am going to LOSE IT',
+        'that was NOT okay',
+        'you threw me.',
+        'unbelievable.',
+    ]
+    ZOE_ENRAGE_MSG = 'THAT IS IT.'
+    ZOE_JUMP_MSG = 'STOP JUMPING'
+    ZOE_CALM_MSGS = [
+        'fine. FINE.',
+        'i need a moment.',
+        'are you happy now.',
+        'do not test me again.',
+    ]
+
+    # ritual
+    RITUAL_NAME = 'Ritual'
+    RITUAL_DESC = 'Trade your soul to the daemon'
+    RITUAL_TIPS = [
+        'Do exactly what it asks.',
+        'Wrong move. Start over.',
+        'The daemon remembers.',
+    ]
+    RITUAL_WIZARD_LINES = [
+        'the void remembers your name',
+        'something watches from behind your eyes',
+        'you were never meant to be here',
+        'offer it. you know what it wants.',
+        'stillness is a lie they told you',
+        'it does not forgive. it simply forgets.',
+        'you are already inside it',
+        'the ground knows what you have done',
+        'close. not close enough.',
+        'the daemon is patient. are you?',
+    ]
+    RITUAL_RESET_MSGS = ['wrong.', 'again.', 'you hesitated.', 'it saw that.']
+    RITUAL_COMPLETE_LAST = 'another soul claimed. rest in the void.'
+    RITUAL_COMPLETE_OTHER = '...so be it.'
+    RITUAL_COWARD = '{} tried to run away.'
+    RITUAL_DISPLAY_DONE = '{}/{} completed'
+    RITUAL_DISPLAY_STEP = '{}/{}  {}'
+    RITUAL_SAY_WORDS = [
+        'void', 'blood', 'bones', 'ash', 'shadow', 'stone', 'fire', 'dust',
+        'hollow', 'grave', 'rust', 'smoke', 'iron', 'veil', 'dusk', 'mud',
+        'rot', 'thorn', 'crow', 'salt', 'pale', 'dark', 'sink', 'lost',
+        'cold', 'fade', 'gone', 'husk', 'wilt', 'grim',
     ]
 
 # the main level class
@@ -258,7 +330,7 @@ class Level(bs.GameActivity[bs.Player, bs.Team]):
             'scale': 0.7,
             'text': f'/ {limit}s',
         })
-        s._limit_timer = bs.Timer(limit, s._on_time_limit)
+        s._limit_timer = bs.Timer(limit, bs.WeakCallStrict(s._on_time_limit))
         s.spawn_points = s.map.get_def_points('spawn')
         yay = lambda i: bs.CallPartial(s.on_key, p, i)
         for p in s.players:
@@ -590,10 +662,972 @@ class SkyBox(
         s._box.node.gravity_scale = -4.0
         s._box.node.velocity = (0, 8, 0)
 
+class Zoe(
+    Level,
+    name='Zoe',
+    desc='Make her mad. Get killed. Win.',
+    tips=[
+        'She has limits.',
+        'Everyone has a breaking point.',
+        'The angrier she gets, the faster you win.',
+    ],
+    can_bomb=False
+):
+    ANGER_MAX = 100.0
+    ANGER_DECAY = 0.5
+
+    def on_begin(s):
+        super().on_begin()
+
+        shared = bslib.gameutils.SharedObjects.get()
+        spawn = s.map.ffa_spawn_points[0]
+        cx, cy, cz = spawn[0] + 2, spawn[1], spawn[2]
+
+        s._anger = 0.0
+        s._top_annoyer = None
+        s._anger_contrib = {}
+        s._enraged = False
+        s._zoe = ZoeBot(
+            position=(cx, cy, cz),
+            color=(1, 0.6, 0.8),
+            highlight=(0.8, 0.3, 0.6),
+            character='Zoe',
+        )
+        s._zoe.node.name = 'Zoe'
+        s._zoe.node.name_color = (1, 0.4, 0.7)
+        s._zoe.node.invincible = True
+
+        s._bubble = None
+        s._patrol_timer = bs.Timer(4.0, bs.WeakCallStrict(s._patrol), repeat=True)
+        s._anger_timer = bs.Timer(1.0, bs.WeakCallStrict(s._tick_anger), repeat=True)
+        s._check_timer = bs.Timer(0.1, bs.WeakCallStrict(s._check_annoyances), repeat=True)
+
+        s._meter_node = bs.newnode('text', attrs={
+            'in_world': True,
+            'h_align': 'center',
+            'scale': 0.012,
+            'color': (1, 0.3, 0.3, 1),
+            'text': '',
+        })
+        mnode = bs.newnode('math', owner=s._zoe.node, attrs={
+            'input1': (0, 2.0, 0),
+            'operation': 'add',
+        })
+        s._zoe.node.connectattr('position', mnode, 'input2')
+        mnode.connectattr('output', s._meter_node, 'position')
+
+        s._bar_bg = bs.newnode('image', attrs={
+            'texture': bs.gettexture('white'),
+            'scale': (420, 18),
+            'color': (0.15, 0.05, 0.05),
+            'opacity': 0.85,
+            'attach': 'topCenter',
+            'position': (0, -20),
+        })
+
+        s._bar_fg = bs.newnode('image', attrs={
+            'texture': bs.gettexture('white'),
+            'scale': (1, 18),
+            'color': (0.2, 1.0, 0.2),
+            'opacity': 1.0,
+            'attach': 'topCenter',
+            'position': (-210, -20),
+        })
+        s._bar_label = bs.newnode('text', attrs={
+            'v_attach': 'top',
+            'h_attach': 'center',
+            'h_align': 'center',
+            'position': (0, -5),
+            'scale': 0.6,
+            'color': (1, 1, 1, 1),
+            'text': "Zoe's Patience",
+            'flatness': 1.0,
+            'shadow': 0.5,
+        })
+
+        s._zoe_orig_hm = s._zoe.bot.handlemessage
+        _self = ref(s)
+        def _zoe_hm(m):
+            self = _self()
+            if self is None: return
+            if isinstance(m, bs.HitMessage):
+                self._on_punch(m)
+                return
+            if isinstance(m, bs.PickedUpMessage):
+                self._on_pickup(m)
+            elif isinstance(m, bs.DroppedMessage):
+                self._on_drop(m)
+            if self._zoe_orig_hm:
+                self._zoe_orig_hm(m)
+        s._zoe.bot.handlemessage = _zoe_hm
+
+    def spawn_player(s, p):
+        spaz = super().spawn_player(p)
+        def _on_jump():
+            s._on_player_jump(p)
+            spaz.on_jump_press()
+        p.assigninput(bs.InputType.JUMP_PRESS, _on_jump)
+        return spaz
+
+    def _on_player_jump(s, p):
+        if not s._zoe.node.exists(): return
+        pp = p.actor.node.position
+        zp = s._zoe.node.position
+        dist = ((pp[0]-zp[0])**2 + (pp[2]-zp[2])**2) ** 0.5
+        if dist < 3.0:
+            s._add_anger(2.0, p)
+            if uniform(0, 1) < 0.1:
+                s._say(Strings.ZOE_JUMP_MSG)
+
+    def _say(s, msg):
+        if not s._zoe.node.exists(): return
+        bs.timer(0.001, lambda: setattr(s, '_bubble', Bubble(node=s._zoe.node, text=msg, time=4)))
+
+    def _add_anger(s, amount, player=None):
+        if s._enraged: return
+        s._anger = min(s.ANGER_MAX, s._anger + amount)
+        if random() < 0.001 and not s._enraged:
+            bs.timer(0.001, lambda: s._say(choice(Strings.ZOE_PASSIVE_MSGS)))
+        if player:
+            name = player.getname() if hasattr(player, 'getname') else str(player)
+            s._anger_contrib[name] = s._anger_contrib.get(name, 0) + amount
+            s._top_annoyer = max(s._anger_contrib, key=s._anger_contrib.get)
+        s._update_meter()
+        if s._anger >= s.ANGER_MAX:
+            s._enrage()
+
+    def _update_meter(s):
+        ratio = s._anger / s.ANGER_MAX
+        width = max(1.0, 420 * ratio)
+        s._bar_fg.scale = (width, 18)
+        s._bar_fg.position = (-210 + width / 2, -20)
+        s._bar_fg.color = (ratio, 1.0 - ratio, 0.0)
+
+    def _on_punch(s, m):
+        try:
+            src = m.get_source_player(bs.Player)
+        except Exception:
+            src = None
+        s._add_anger(8.0, src)
+        s._zoe_orig_hm(bs.HitMessage(
+            pos=s._zoe.node.position,
+            velocity=(0, 0, 0),
+            magnitude=0.001,
+            hit_type='punch',
+            source_player=None,
+        ))
+        not s._enraged and s._say(choice(Strings.ZOE_HIT_MSGS))
+
+    def _on_pickup(s, m):
+        try:
+            src = m.node.source_player
+        except Exception:
+            src = None
+        s._add_anger(20.0, src)
+        not s._enraged and s._say(choice(Strings.ZOE_PICKUP_MSGS))
+
+    def _on_drop(s, m):
+        vel = s._zoe.node.velocity
+        speed = (vel[0]**2 + vel[1]**2 + vel[2]**2) ** 0.5
+        bonus = min(30.0, speed * 3.0)
+        s._add_anger(10.0 + bonus)
+        not s._enraged and s._say(choice(Strings.ZOE_DROP_MSGS))
+
+    def _check_annoyances(s):
+        if not s._zoe.node.exists(): return
+        zp = s._zoe.node.position
+
+        for p in s.players:
+            if not p.actor or not p.actor.node or not p.actor.node.exists(): continue
+            pp = p.actor.node.position
+            dist = ((pp[0]-zp[0])**2 + (pp[2]-zp[2])**2) ** 0.5
+
+            if dist < 2:
+                s._add_anger(0.1,p)
+
+            if dist < 1.5:
+                s._add_anger(0.15, p)
+
+    def _tick_anger(s):
+        if s._enraged: return
+        if s._anger > 0:
+            s._anger = max(0, s._anger - s.ANGER_DECAY)
+            s._update_meter()
+
+    def _patrol(s):
+        if s._enraged or not s._zoe.node.exists(): return
+        living = [p for p in s.players if p.actor and p.actor.node and p.actor.node.exists()]
+        if not living: return
+        target = choice(living)
+        pos = target.actor.node.position
+        s._zoe.move_to((pos[0] + uniform(-2, 2), pos[1], pos[2] + uniform(-2, 2)), time=3.5)
+
+    def _enrage(s):
+        s._enraged = True
+        s._patrol_timer = None
+        s._check_timer = None
+        s._zoe.bot.node.invincible = False
+        bs.getsound('orchestraHit4').play()
+        s._say(Strings.ZOE_ENRAGE_MSG)
+
+        top = s._top_annoyer
+        target_node = None
+        for p in s.players:
+            if p.actor and p.actor.node and p.actor.node.exists():
+                if hasattr(p, 'getname') and p.getname() == top:
+                    target_node = p.actor.node
+                    break
+        if target_node is None:
+            living = [p for p in s.players if p.actor and p.actor.node and p.actor.node.exists()]
+            if living:
+                target_node = choice(living).actor.node
+
+        _self = ref(s)
+
+        def _think():
+            self = _self()
+            if self is None or not self._enraged: return
+            if not self._zoe or not self._zoe.node.exists(): return
+
+            zp = self._zoe.node.position
+            living = [p for p in self.players if p.actor and p.actor.node and p.actor.node.exists() and p.actor.node.hurt != 1]
+            if not living:
+                bs.timer(0.15, _think)
+                return
+
+            target = min(living, key=lambda p: (
+                (p.actor.node.position[0]-zp[0])**2 +
+                (p.actor.node.position[2]-zp[2])**2
+            ))
+            t_node = target.actor.node
+            t_pos = t_node.position
+            dx = t_pos[0] - zp[0]
+            dz = t_pos[2] - zp[2]
+            d = (dx**2 + dz**2) ** 0.5
+
+            if self._zoe.node.hold_node == t_node:
+                self._zoe.on_run(0)
+                self._zoe.move(0, 0)
+                if not getattr(self._zoe, '_skill1_timer', None):
+                    self._zoe._start_combos()
+                bs.timer(0.15, _think)
+                return
+
+            if self._zoe.node.hold_node and self._zoe.node.hold_node != t_node:
+                self._zoe._stop_combos()
+                self._zoe.on(2)
+                self._zoe.move(0, 0)
+                bs.timer(0.15, _think)
+                return
+
+            self._zoe._stop_combos()
+
+            if d < 1.35:
+                self._zoe.move(0, 0)
+                self._zoe.skill2()
+            else:
+                vl = d or 1
+                self._zoe.on_run(0)
+                bs.timer(0.02, lambda: self._zoe.on_run(1) or self._zoe.move(dx/vl, -dz/vl))
+
+            bs.timer(0.15, _think)
+        bs.timer(0.5, _think)
+        s._rage_timer = bs.Timer(0.5, bs.WeakCallStrict(s._rage_tick), repeat=True)
+
+    def _rage_tick(s):
+        if not s._zoe.node.exists(): return
+        zp = s._zoe.node.position
+        for p in s.players:
+            if not p.actor or not p.actor.node: continue
+            pp = p.actor.node.position
+            dist = ((pp[0]-zp[0])**2 + (pp[2]-zp[2])**2) ** 0.5
+            if dist < 2.0 and p.actor.node.hurt > 0.1:
+                s._anger = max(0, s._anger - 10.0)
+                s._update_meter()
+                if s._anger <= 0:
+                    s._calm_down()
+
+    def _calm_down(s):
+        s._enraged = False
+        s._anger = 0.0
+        s._anger_contrib = {}
+        s._top_annoyer = None
+        s._zoe.node.invincible = True
+        s._patrol_timer = bs.Timer(4.0, bs.WeakCallStrict(s._patrol), repeat=True)
+        s._check_timer = bs.Timer(0.1, bs.WeakCallStrict(s._check_annoyances), repeat=True)
+        s._say(choice(Strings.ZOE_CALM_MSGS))
+        s._update_meter()
+
+    def _end_round(s):
+        s._zoe_orig_hm = None
+        s._rage_timer = None
+        s._patrol_timer = None
+        s._check_timer = None
+        s._anger_timer = None
+        try:
+            s._zoe.bot.handlemessage(bs.DieMessage())
+        except Exception:
+            pass
+        s._zoe = None
+        super()._end_round()
+
+class Ritual(
+    Level,
+    name=Strings.RITUAL_NAME,
+    desc=Strings.RITUAL_DESC,
+    tips=Strings.RITUAL_TIPS,
+    exclude=['Hockey Stadium', 'Happy Thoughts', 'Lake Frigid'],
+    can_bomb=False
+):
+    TASKS = ['jump', 'punch', 'pickup', 'dizzy', 'offer', 'still', 'punchwiz', 'holdwiz', 'say']
+    TASK_LABELS = {
+        'jump':     f'{bui.charstr(bui.SpecialChar.BOTTOM_BUTTON)} leap up into nothing',
+        'punch':    f'{bui.charstr(bui.SpecialChar.LEFT_BUTTON)} strike the air',
+        'pickup':   f'{bui.charstr(bui.SpecialChar.TOP_BUTTON)} lift what remains',
+        'dizzy':    f'{bui.charstr(bui.SpecialChar.DPAD_CENTER_BUTTON)} turn until you fall',
+        'offer':    f'{bui.charstr(bui.SpecialChar.PLAY_STATION_TRIANGLE_BUTTON)} bring it to him',
+        'still':    f'{bui.charstr(bui.SpecialChar.PLAY_STATION_SQUARE_BUTTON)} do not move',
+        'punchwiz': f'{bui.charstr(bui.SpecialChar.LEFT_BUTTON)} strike the daemon',
+        'holdwiz':  f'{bui.charstr(bui.SpecialChar.TOP_BUTTON)} lift and cast him aside',
+        'say':      'auto'
+    }
+
+    def __init__(s, settings):
+        super().__init__(settings)
+        s._wizard = None
+        s._wizard_node = None
+        s._wizard_speech_timer = None
+        s._wizard_move_timer = None
+        s._stillness_timer = None
+        s._offer_node = None
+        s._offer_actor = None
+        s._player_rituals = {}
+        s._chat_last_len = 0
+        s._chat_poll_timer = None
+
+    def on_begin(s):
+        super().on_begin()
+        s._spawn_wizard()
+        s._spawn_offer_object()
+        s._wizard_speech_timer = bs.Timer(12.0, bs.WeakCallStrict(s._wizard_speak), repeat=True)
+        s._wizard_move_timer = bs.Timer(3.0, bs.WeakCallStrict(s._wizard_wander), repeat=True)
+        s._stillness_timer = bs.Timer(0.5, bs.WeakCallStrict(s._check_stillness), repeat=True)
+        gn = bs.getactivity().globalsnode
+        bs.animate_array(gn, 'tint', 3, {0: (1,1,1), 3: (0.6, 0.4, 0.8)})
+        bs.animate_array(gn, 'vignette_outer', 3, {0: (0.7,0.7,0.7), 3: (0.2, 0.1, 0.3)})
+        s._total_players = len(s.players)
+        for p in s.players:
+            s._init_ritual(p)
+        s._chat_last_len = len(bs.get_chat_messages())
+        s._chat_poll_timer = bs.Timer(0.5, bs.WeakCallStrict(s._poll_chat), repeat=True)
+
+    def _spawn_offer_object(s):
+        from bascenev1lib.actor.bomb import Bomb
+        pos = choice(s.spawn_points)
+        s._offer_actor = Bomb(position=(pos[0], pos[1]+1, pos[2]), bomb_type='tnt')
+        s._offer_node = s._offer_actor.node
+        _orig_hm = s._offer_actor.handlemessage
+        _self = ref(s)
+        def _bomb_hm(m):
+            if isinstance(m, bs.OutOfBoundsMessage):
+                act = _self()
+                if act is not None and act._offer_node and act._offer_node.exists():
+                    rpos = choice(act.spawn_points)
+                    act._offer_node.position = (rpos[0], rpos[1]+1, rpos[2])
+                return
+            _orig_hm(m)
+        s._offer_actor.handlemessage = _bomb_hm
+
+    def _update_ritual_display(s, player):
+        r = s._player_rituals.get(player)
+        if not r or not r['label_node']:
+            return
+        step = r['step']
+        seq = r['seq']
+        if player.actor and player.actor.node and player.actor.node.exists():
+            player.actor.node.connectattr('position', r['math_node'], 'input2')
+        total = len(seq)
+        if step >= total:
+            r['label_node'].text = Strings.RITUAL_DISPLAY_DONE.format(total, total)
+            r['label_node'].color = (0.2, 1.0, 0.2)
+            return
+        task = seq[step]
+        if task == 'say':
+            words = r.get('say_words', {}).get(step, '???')
+            label = f'{bui.charstr(bui.SpecialChar.LOGO_FLAT)} say: {words}'
+        else:
+            label = s.TASK_LABELS.get(task, task)
+        r['label_node'].text = Strings.RITUAL_DISPLAY_STEP.format(step, total, label)
+        r['label_node'].color = (1.0, 0.8, 0.2)
+
+    def _advance_ritual(s, player):
+        r = s._player_rituals.get(player)
+        if not r:
+            return
+        r['step'] += 1
+        r['still_time'] = 0.0
+        r['wizard_held'] = False
+        r['watching_knockout'] = False
+        s._update_ritual_display(player)
+        if r['step'] >= len(r['seq']):
+            s._ritual_complete(player)
+
+    def _reset_ritual(s, player):
+        r = s._player_rituals.get(player)
+        if not r:
+            return
+        was_zero = (r['step'] == 0)
+        r['step'] = 0
+        r['still_time'] = 0.0
+        r['wizard_held'] = False
+        r['watching_knockout'] = False
+        s._update_ritual_display(player)
+        if not was_zero:
+            if player.actor and player.actor.node and player.actor.node.exists():
+                player.actor.node.handlemessage('flash')
+            s._wizard_say(choice(Strings.RITUAL_RESET_MSGS))
+
+    def _ritual_complete(s, player):
+        r = s._player_rituals.get(player)
+        if r:
+            r['step'] = 999
+        alive_count = sum(
+            1 for p in s.players
+            if p.actor and p.actor.node and p.actor.node.exists() and p not in s._death_order
+        )
+        gn = bs.getactivity().globalsnode
+        if alive_count <= 1:
+            s._wizard_say(Strings.RITUAL_COMPLETE_LAST)
+            bs.animate_array(gn, 'tint', 3, {0.0: (0.6, 0.4, 0.8), 1.5: (1.0, 0.0, 0.0)})
+        else:
+            s._wizard_say(Strings.RITUAL_COMPLETE_OTHER)
+            bs.animate_array(gn, 'tint', 3, {0.0: (0.6, 0.4, 0.8), 1.5: (1.0, 0.0, 0.0), 4.5: (0.6, 0.4, 0.8)})
+        if s._wizard_node and s._wizard_node.exists():
+            if player.actor and player.actor.node and player.actor.node.exists():
+                diff = bs.Vec3(player.actor.node.position) - bs.Vec3(s._wizard_node.position)
+                s._wizard_node.move_left_right = diff.x
+                s._wizard_node.move_up_down = -diff.z
+        _p = ref(player)
+        def _kill():
+            p = _p()
+            if p is None:
+                return
+            if p.actor and p.actor.node and p.actor.node.exists():
+                p.actor.node.shattered = 2
+                s.stats.player_scored(p, 50, screenmessage=False)
+                p.actor.handlemessage(bs.DieMessage())
+            elif p not in s._death_order:
+                s._death_times[p] = bs.time()
+                s._death_order.append(p)
+                if len(s._death_order) == s._total_players:
+                    bs.timer(1.0, bs.WeakCallStrict(s._end_round))
+        bs.timer(2.0, _kill)
+
+    def _poll_chat(s):
+        msgs = bs.get_chat_messages()
+        new_count = len(msgs)
+        if new_count <= s._chat_last_len:
+            s._chat_last_len = new_count
+            return
+        new_msgs = msgs[s._chat_last_len:]
+        s._chat_last_len = new_count
+        for msg in new_msgs:
+            s._on_chat_message(msg)
+
+    def _on_chat_message(s, msg: str):
+        parts = msg.split(': ', 1)
+        if len(parts) < 2:
+            return
+        sender_name = parts[0]
+        said = parts[1].strip().lower()
+        for p in list(s._player_rituals.keys()):
+            if p.getname() != sender_name:
+                continue
+            r = s._player_rituals.get(p)
+            if not r or r['step'] >= len(r['seq']):
+                continue
+            if r['seq'][r['step']] != 'say':
+                continue
+            required = r.get('say_words', {}).get(r['step'], '')
+            if said == required.lower():
+                s._advance_ritual(p)
+
+    def _stop_chat_poll(s):
+        s._chat_poll_timer = None
+
+    def _end_round(s):
+        if getattr(s, '_round_ended', False): return
+        s._round_ended = True
+        s._stop_chat_poll()
+        settings = s.cache['settings']
+        game_num = settings.get('_game_num', 1)
+        total = int(settings.get('Games', 5))
+
+        sorted_players = sorted(
+            s._death_order,
+            key=lambda p: s._death_times.get(p, float('inf'))
+        )
+        for i, p in enumerate(sorted_players):
+            try:
+                pts = max(1, s._total_players - i)
+                s.stats.player_scored(p, pts, screenmessage=False)
+            except Exception:
+                pass
+
+        new_settings = dict(settings)
+        new_settings['_game_num'] = game_num + 1
+        with bs.getsession().context:
+            bs.getsession().setactivity(
+                bs.newactivity(KYSScoreScreen, {
+                    **new_settings,
+                    'game_num': game_num,
+                    'total_games': total,
+                    'next_settings': new_settings,
+                    '_round_death_times': {p.getname(): s._death_times[p] for p in s._death_order},
+                    '_round_survivors': [p.getname() for p in s.players if p not in s._death_order],
+                })
+            )
+
+    def _wizard_speak(s):
+        s._wizard_say(choice(Strings.RITUAL_WIZARD_LINES))
+
+    def _wizard_wander(s):
+        if not s._wizard_node or not s._wizard_node.exists():
+            return
+        target = choice(s.spawn_points)
+        pos = bs.Vec3(s._wizard_node.position)
+        diff = bs.Vec3(target[0], target[1], target[2]) - pos
+        if diff.length() > 0.1:
+            d = diff.normalized()
+            s._wizard_node.move_left_right = d.x * 0.4
+            s._wizard_node.move_up_down = -d.z * 0.4
+        _s = ref(s)
+        def _stop_wander():
+            act = _s()
+            if act and act._wizard_node and act._wizard_node.exists():
+                act._wizard_node.move_left_right = 0
+                act._wizard_node.move_up_down = 0
+        bs.timer(1.5, _stop_wander)
+
+    def _check_offer(s, player):
+        if not s._wizard_node or not s._wizard_node.exists():
+            return False
+        if not s._offer_node or not s._offer_node.exists():
+            return False
+        if not player.actor or not player.actor.node or not player.actor.node.exists():
+            return False
+        held = player.actor.node.hold_node
+        if held and held == s._offer_node:
+            wpos = bs.Vec3(s._wizard_node.position)
+            ppos = bs.Vec3(player.actor.node.position)
+            if (wpos - ppos).length() < 2.5:
+                player.actor.node.hold_node = None
+                s._wizard_node.hold_body = 0
+                s._wizard_node.hold_node = s._offer_node
+                s._offer_node = None
+                bs.timer(2.5, bs.WeakCallStrict(s._wizard_drop_offer))
+                return True
+        return False
+
+    _WIZARD_DROP_LINES = [
+        'it reeks of the living.',
+        'i have no use for this.',
+        'the void does not keep offerings.',
+        'take it back. it means nothing.',
+        'your gift is returned. your soul is not.',
+    ]
+
+    def _wizard_drop_offer(s):
+        if not s._wizard_node or not s._wizard_node.exists():
+            return
+        held = s._wizard_node.hold_node
+        if held and held.exists():
+            s._offer_node = held
+            s._wizard_node.hold_node = None
+        s._wizard_say(choice(s._WIZARD_DROP_LINES))
+
+    def _check_stillness(s):
+        for p, r in s._player_rituals.items():
+            if r['step'] >= len(r['seq']): continue
+            if r['seq'][r['step']] != 'still': continue
+            if not p.actor or not p.actor.node or not p.actor.node.exists(): continue
+            v = p.actor.node.velocity
+            if abs(v[0]) < 0.2 and abs(v[2]) < 0.2:
+                r['still_time'] = r.get('still_time', 0.0) + 0.5
+                if r['still_time'] >= 2.0:
+                    s._advance_ritual(p)
+            else:
+                if r.get('still_time', 0.0) > 0.5:
+                    s._reset_ritual(p)
+
+    def _on_wizard_punched(s, player):
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']): return
+        if r['seq'][r['step']] == 'punchwiz':
+            s._advance_ritual(player)
+
+    def _on_wizard_picked_up(s, player):
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']): return
+        if r['seq'][r['step']] == 'holdwiz':
+            r['wizard_held'] = True
+
+    def _on_wizard_dropped(s, player):
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']): return
+        if r['seq'][r['step']] == 'holdwiz' and r.get('wizard_held'):
+            r['wizard_held'] = False
+            s._advance_ritual(player)
+
+    def on_player_join(s, player):
+        player.playerspaztype = RitualSpaz
+        s.spawn_player_spaz(player)
+        s._init_ritual(player)
+
+    def _on_spin(s, player, value):
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']): return
+        if r['seq'][r['step']] != 'dizzy': return
+        if r['watching_knockout']: return
+        if not player.actor or not player.actor.node or not player.actor.node.exists(): return
+        if player.actor.node.knockout > 0:
+            r['watching_knockout'] = True
+            bs.timer(0.2, bs.WeakCallStrict(s._wait_for_wakeup, player))
+
+    def _wait_for_wakeup(s, player):
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']) or r['seq'][r['step']] != 'dizzy': return
+        if not player.actor or not player.actor.node or not player.actor.node.exists(): return
+        if player.actor.node.knockout > 0:
+            bs.timer(0.2, bs.WeakCallStrict(s._wait_for_wakeup, player))
+        else:
+            s._advance_ritual(player)
+
+    def _on_input(s, player, action):
+        if not player.actor or not player.actor.node or not player.actor.node.exists(): return
+        if player.actor.node.knockout > 0: return
+        r = s._player_rituals.get(player)
+        if not r or r['step'] >= len(r['seq']): return
+        current = r['seq'][r['step']]
+        if action == 'pickup' and current == 'offer':
+            if s._check_offer(player):
+                s._advance_ritual(player)
+            return
+        if action in ('punch', 'pickup') and current in ('punchwiz', 'holdwiz'):
+            return
+        if action == 'still':
+            return
+        if current == 'say':
+            return
+        if action == current and action not in ('dizzy', 'punchwiz', 'holdwiz', 'offer'):
+            s._advance_ritual(player)
+        elif action != current and action in ('jump', 'punch', 'pickup'):
+            s._reset_ritual(player)
+
+    def _init_ritual(s, player):
+        pool = list(s.TASKS)
+        if s._offer_node is None or not s._offer_node.exists():
+            if 'offer' in pool: pool.remove('offer')
+        seq = []
+        while len(seq) < 6:
+            t = choice(pool)
+            if not seq or seq[-1] != t:
+                seq.append(t)
+        from random import sample, shuffle as rshuffle
+        word_pool = list(Strings.RITUAL_SAY_WORDS)
+        rshuffle(word_pool)
+        say_words = {}
+        wi = 0
+        for i, t in enumerate(seq):
+            if t == 'say':
+                w1 = word_pool[wi % len(word_pool)]
+                w2 = word_pool[(wi + 1) % len(word_pool)]
+                say_words[i] = f'{w1} {w2}'
+                wi += 2
+        if player in s._player_rituals:
+            old_r = s._player_rituals[player]
+            if old_r.get('label_node') and old_r['label_node'].exists():
+                old_r['label_node'].delete()
+            if old_r.get('math_node') and old_r['math_node'].exists():
+                old_r['math_node'].delete()
+        node = bs.newnode('text', attrs=dict(
+            text='',
+            scale=0.012,
+            h_attach='center',
+            v_attach='center',
+            in_world=True,
+            shadow=1.0,
+            flatness=1.0,
+        ))
+        mnode = bs.newnode('math', owner=node, attrs={
+            'input1': (0, 1.6, 0),
+            'input2': (0, 0, 0),
+            'operation': 'add'
+        })
+        if player.actor and player.actor.node and player.actor.node.exists():
+            player.actor.node.connectattr('position', mnode, 'input2')
+        mnode.connectattr('output', node, 'position')
+        s._player_rituals[player] = {
+            'seq': seq,
+            'step': 0,
+            'label_node': node,
+            'math_node': mnode,
+            'still_time': 0.0,
+            'wizard_held': False,
+            'watching_knockout': False,
+            'say_words': say_words,
+        }
+        s._update_ritual_display(player)
+
+    def _spawn_wizard(s):
+        pos = choice(s.spawn_points)
+        s._wizard = WizardSpaz(
+            color=(0.1, 0.0, 0.15),
+            highlight=(0.4, 0.0, 0.6),
+            character='Grumbledorf',
+        )
+        s._wizard_node = s._wizard.node
+        s._wizard_node.name = ''
+        s._wizard_node.handlemessage(bs.StandMessage(pos))
+        s._wizard.impact_scale = 0.0
+        s._wizard_node.invincible = True
+
+    def _wizard_say(s, text):
+        if not s._wizard_node or not s._wizard_node.exists():
+            return
+        bs.timer(0.001, lambda: setattr(s, '_bubble', Bubble(node=s._wizard_node, text=text, color=(0.8, 0.5, 1.0), time=4)))
+
+    def handlemessage(s, m):
+        if isinstance(m, bs.PlayerDiedMessage):
+            player = m.getplayer(bs.Player)
+            if player not in s._death_times:
+                s._death_times[player] = bs.time()
+            if player not in s._death_order:
+                s._death_order.append(player)
+            r = s._player_rituals.pop(player, None)
+            if r:
+                if r.get('label_node') and r['label_node'].exists():
+                    r['label_node'].delete()
+                if r.get('math_node') and r['math_node'].exists():
+                    r['math_node'].delete()
+            if len(s._death_order) == s._total_players:
+                bs.timer(4.0, bs.WeakCallStrict(s._end_round))
+            super().handlemessage(m)
+        else:
+            super().handlemessage(m)
+
 # extra dependencies
 # stuff used by various levels
 
 class Bubble:
+    __mem__ = {}
+    def __init__(
+        s,
+        node: 'bascenev1.Node',
+        text: str = 'what',
+        color: tuple = (1,1,1),
+        time: float | int = 4,
+        mode: int = 0,
+        res: list = [('█'),('▼')]
+    ) -> None:
+        if not 0 <= mode <= 5 : raise ValueError(f'mode can be an integer from 0 to 5, not {mode}')
+        if not mode: mode = choice([1,2,3,4,5])
+        s.gsw = lambda what: (
+            (bui.get_string_width(what,1) or (len(what)*30))
+            if what else 0
+        )
+        s.ans,s.kids,s.mats,s.time = [],[],[],time
+        s.node,s.dead,s.text = node,False,text
+        s.color,s.mode,s.res = color,mode,res
+        s.mem = lambda: s.__class__.__mem__
+        m = s.mem()
+        o = m.get(node,0)
+        if not getattr(o,'dead',1): bs.timer(0.2,bs.CallPartial(o.delete,force=True))
+        s.show()
+        m[node] = s
+    def show(s):
+        q,l,r = s.mats,s.kids,s.ans
+        m = bs.newnode(
+            'math',
+            owner=s.node,
+            attrs={
+                'input1': (0,1.65,0),
+                'operation': 'add'
+            }
+        )
+        q.append(m)
+        c = list(s.color)
+        w = s.gsw(s.res[0])
+        b = bs.newnode(
+            'text',
+            owner=m,
+            attrs={
+                'text': f'{ceil((s.gsw(s.text)+2*w)/w)*s.res[0]}\n{s.res[1]}',
+                'in_world': True,
+                'shadow': 1.0,
+                'flatness': 1.0,
+                'color': (c[0],c[1],c[2],0.2),
+                'scale': 0.01,
+                'h_align': 'center'
+            }
+        )
+        l.append(b)
+        txt = []
+        mat = []
+        kek = -s.gsw(s.text)/185
+        sf = 0
+        for i in range(len(s.text)):
+            j = s.text[i]
+            x = s.gsw(j)/95.0
+            p1 = bs.newnode(
+                'text',
+                owner=m,
+                attrs={
+                    'text': j,
+                    'in_world': True,
+                    'shadow': 1.0,
+                    'flatness': 1.0,
+                    'color': s.color,
+                    'scale': 0.01,
+                    'h_align': 'left'
+                }
+            )
+            txt.append(p1)
+            ok = kek+sf
+            p2 = bs.newnode(
+                'math',
+                owner=m,
+                attrs={
+                    'input1': (ok,1.65,0),
+                    'operation': 'add'
+                }
+            )
+            mat.append([p2,ok])
+            s.node.connectattr('position',p2,'input2')
+            p2.connectattr('output',p1,'position')
+            sf += x
+        l += txt
+        q += [mat[i][0] for i in range(len(mat))]
+        s.node.connectattr('position',m,'input2')
+        m.connectattr('output',b,'position')
+        z = s.time
+        a = bs.animate(
+            b,
+            'scale',
+            {
+                0:0,
+                z*0.041: 0.014,
+                z*0.154: 0.014,
+                z*0.167: 0.010,
+                z*0.98: 0.010,
+                z:0
+            },
+        )
+        r.append(a)
+        a = bs.animate_array(
+            m,
+            'input1',
+            3,
+            {
+                0:(0,1.2,0),
+                z*0.04:(0,1.65,0),
+                z*0.98:(0,1.65,0),
+                z:(0,1.2,0)
+            }
+        )
+        r.append(a)
+        r += [
+            bs.animate(
+                txt[i],
+                'scale',
+                {
+                    0:0,
+                    z*0.041: 0.015,
+                    z*0.154: 0.015,
+                    z*0.167: 0.010,
+                    z*0.98: 0.010,
+                    z:0
+                },
+            )
+            for i in range(len(mat))
+        ] if s.mode in [1,4] else []
+        r += [
+            bs.animate_array(
+                mat[i][0],
+                'input1',
+                3,
+                {
+                    0:(mat[i][1]/4,1.2,0),
+                    z*0.04:(mat[i][1]*1.5,1.65,0),
+                    z*0.154:(mat[i][1]*1.5,1.65,0),
+                    z*0.167:(mat[i][1],1.65,0),
+                    z*0.98:(mat[i][1],1.65,0),
+                    z:(mat[i][1]/4,1.2,0)
+                }
+            )
+            for i in range(len(mat))
+        ] if s.mode in [1,4] else []
+        ok = (z*0.04*1.6)
+        hm = [0.03,0.05][s.mode==2]
+        r += [
+            bs.animate_array(
+                j[0],
+                'input1',
+                3,
+                {
+                    0.5+i*hm:(j[1],1.4,0),
+                    0.5+i*hm+(ok*0.6):(j[1],1.9,0),
+                    0.5+i*hm+ok:(j[1],1.65,0),
+                    (z-(z*0.02)):(j[1],1.65,0),
+                    z:(j[1],1.2,0)
+                }
+            )
+            for i,j in enumerate(mat)
+        ] if s.mode in [2,5] else []
+        r += [
+            bs.animate(
+                txt[i],
+                'opacity',
+                {
+                    0.5+i*hm:0,
+                    (0.5+i*hm+ok)*0.98:1,
+                    z*0.9:1,
+                    z:0
+                }
+            )
+            for i in range(len(mat))
+        ] if s.mode in [2,4,5] else []
+        r += [
+            bs.animate(
+                txt[i],
+                'scale',
+                {
+                    0:0,
+                    z*0.154: 0,
+                    z*0.167: 0.010,
+                    z*0.98: 0.010,
+                    z:0
+                },
+            )
+            for i in range(len(mat))
+        ] if s.mode == 3 else []
+        bs.timer(z,s.delete)
+    def delete(s,force=False):
+        if s.dead: return
+        s.dead = True
+        [i.delete() for i in s.ans if hasattr(i,'delete')]
+        bs.timer(0.2,lambda:[i.delete() for i in s.kids+s.mats if hasattr(i,'delete')])
+        if not force: return
+        [bs.animate(
+            i,
+            'opacity',
+            {
+                0:i.opacity,
+                0.2:0
+            }
+        ) for i in s.kids]
+
+class Stream:
     def __init__(s,head,res='\u2588',resw=19.0):
         s.head = head
         s.res = res
@@ -645,6 +1679,75 @@ class Bubble:
         except:
             pass
 
+class WizardSpaz(bslib.actor.spaz.Spaz):
+    def handlemessage(self, m):
+        if isinstance(m, bs.OutOfBoundsMessage):
+            act = bs.getactivity()
+            if act and hasattr(act, 'spawn_points'):
+                self.node.handlemessage(bs.StandMessage(choice(act.spawn_points)))
+            return
+        elif isinstance(m, bs.HitMessage) and m.hit_type == 'punch':
+            try:
+                p = m.get_source_player(bs.Player)
+                act = bs.getactivity()
+                if act and hasattr(act, '_on_wizard_punched'):
+                    act._on_wizard_punched(p)
+            except Exception:
+                pass
+        elif isinstance(m, bs.PickedUpMessage):
+            try:
+                spz = m.node.getdelegate(bslib.actor.spaz.Spaz)
+                if spz:
+                    p = spz.getplayer(bs.Player, False)
+                    act = bs.getactivity()
+                    if act and hasattr(act, '_on_wizard_picked_up'):
+                        act._on_wizard_picked_up(p)
+            except Exception:
+                pass
+        elif isinstance(m, bs.DroppedMessage):
+            try:
+                spz = m.node.getdelegate(bslib.actor.spaz.Spaz)
+                if spz:
+                    p = spz.getplayer(bs.Player, False)
+                    act = bs.getactivity()
+                    if act and hasattr(act, '_on_wizard_dropped'):
+                        act._on_wizard_dropped(p)
+            except Exception:
+                pass
+        super().handlemessage(m)
+
+class RitualSpaz(bslib.actor.playerspaz.PlayerSpaz):
+    def on_jump_press(self):
+        super().on_jump_press()
+        if (p := self.getplayer(bs.Player, False)) and (act := bs.getactivity()):
+            act._on_input(p, 'jump')
+
+    def on_punch_press(self):
+        super().on_punch_press()
+        if (p := self.getplayer(bs.Player, False)) and (act := bs.getactivity()):
+            act._on_input(p, 'punch')
+
+    def on_pickup_press(self):
+        super().on_pickup_press()
+        if (p := self.getplayer(bs.Player, False)) and (act := bs.getactivity()):
+            act._on_input(p, 'pickup')
+
+    def on_move_left_right(self, value: float):
+        super().on_move_left_right(value)
+        if (p := self.getplayer(bs.Player, False)) and (act := bs.getactivity()):
+            act._on_spin(p, value)
+
+    def handlemessage(self, m):
+        if isinstance(m, bs.OutOfBoundsMessage):
+            if (p := self.getplayer(bs.Player, False)) and (act := bs.getactivity()) and hasattr(act, '_reset_ritual'):
+                self.node.handlemessage(bs.StandMessage(choice(act.spawn_points)))
+                act._reset_ritual(p)
+                bs.broadcastmessage(Strings.RITUAL_COWARD.format(p.getname()), color=(0.6, 0.3, 0.8))
+                self.hitpoints = self.hitpoints_max
+                self.node.hurt = 0.0
+            return
+        super().handlemessage(m)
+
 class Bot:
     def __init__(
         s,
@@ -661,7 +1764,7 @@ class Bot:
         s.bot.handlemessage(bs.StandMessage(position,0))
         s.node = s.bot.node
         s.node.name = s.__class__.__name__
-        s.bub = Bubble(s.node)
+        s.bub = Stream(s.node)
     def on(s,i):
         for _ in [1,0]:
             getattr(s.bot,'on_'+['jump','bomb','pickup','punch'][i]+'_'+['release','press'][_])()
@@ -688,7 +1791,7 @@ class ScaredyBot(Bot):
         s.scared_messages = Strings.SCARED_MESSAGES
         s.hit_messages = Strings.HIT_MESSAGES
 
-        s._think_timer = bs.Timer(0.15, s._think, repeat=True)
+        s._think_timer = bs.Timer(0.15, bs.WeakCallStrict(s._think), repeat=True)
 
         _orig_hm = s.bot.handlemessage
         def _patched(m):
@@ -793,6 +1896,88 @@ class ScaredyBot(Bot):
         s.on_run(0)
         bs.timer(0.02, lambda: s.on_run(1))
         s.move(fx/fl, -fz/fl)
+
+class ZoeBot(Bot):
+    def skill1(s):
+        s.on(0)
+        s.on(1)
+        bs.timer(0.04, lambda: s.on(2))
+        bs.timer(0.07, lambda: s.on(3))
+
+    def skill2(s):
+        s.on(3)
+        bs.timer(0.05, lambda: s.on(2))
+
+    def _start_combos(s):
+        s._skill1_timer = bs.Timer(0.4, bs.WeakCallStrict(s.skill1), repeat=True)
+        s._shake_timer = bs.Timer(0.05, bs.WeakCallStrict(s._shake), repeat=True)
+
+    def _stop_combos(s):
+        s._skill1_timer = None
+        s._shake_timer = None
+
+    def _shake(s):
+        s._is_shaking = not getattr(s, '_is_shaking', False)
+        s.move(0.5, 0.1) if s._is_shaking else s.move(-0.5, 0.1)
+
+    def move_to(s, t, min=0.7, time=10, on_done=None):
+        _self = ref(s)
+        nah = [False]
+        def f(b=False):
+            self = _self()
+            if self is None or nah[0]: return
+            try: p = self.node.position
+            except: return
+            dx = t[0]-p[0]
+            dz = p[2]-t[2]
+            if b:
+                m = (dx**2+dz**2)**0.5
+                try: self.move(dx/m, dz/m)
+                except ZeroDivisionError: pass
+            if dist((p[0],p[2]),(t[0],t[2])) < min:
+                nah[0] = True
+                self.move(0, 0)
+                if on_done: bs.timer(0.2, on_done)
+                return
+            bs.timer(0.01, f)
+        def timeout():
+            nah[0] = True
+            self = _self()
+            if self: self.move(0, 0)
+            if on_done: bs.timer(0.2, on_done)
+        f(True)
+        bs.timer(time, timeout)
+
+    def follow(s, node, min=0.7, time=10, on_done=None):
+        _self = ref(s)
+        nah = [False]
+        def f():
+            self = _self()
+            if self is None or nah[0] or not node.exists():
+                if self: self.move(0, 0)
+                return
+            try:
+                p = self.node.position
+                t = node.position
+            except: return
+            dx = t[0]-p[0]
+            dz = p[2]-t[2]
+            m = (dx**2+dz**2)**0.5
+            if min is not None and dist((p[0],p[2]),(t[0],t[2])) < min:
+                self.move(0, 0)
+                nah[0] = True
+                if on_done: bs.timer(0.2, on_done)
+                return
+            try: self.move(dx/m, dz/m)
+            except ZeroDivisionError: pass
+            bs.timer(0.01, f)
+        def timeout():
+            nah[0] = True
+            self = _self()
+            if self: self.move(0, 0)
+            if on_done: bs.timer(0.2, on_done)
+        f()
+        bs.timer(time, timeout)
 
 # screens
 # they between games
@@ -1069,7 +2254,7 @@ class KYS(bs.GameActivity[bs.Player, bs.Team]):
         )
         bs.animate(s.info, 'opacity', {0.5: 0, 1: 1})
         bs.timer(
-            1.5,
+            1,
             bs.CallPartial(
                 setattr, s,'_can_vote',True
             )
