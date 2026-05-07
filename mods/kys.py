@@ -7,7 +7,7 @@ KYS v1.0 - Death at its finest
 
 Adds minigame of a series of random levels.
 The goal is to die, can't be easier, right?
-supports unlimited players, i hope.
+Supports unlimited players, i hope.
 KYS switches between its own activities.
 Experimental.
 """
@@ -270,7 +270,8 @@ class Level(bs.GameActivity[bs.Player, bs.Team]):
         can_grab=True,
         can_punch=True,
         include=None,
-        exclude=None
+        exclude=None,
+        music=None
     ):
         Level.__levels__.append(cls)
         cls.can_do = (can_jump,can_bomb,can_grab,can_punch)
@@ -285,10 +286,13 @@ class Level(bs.GameActivity[bs.Player, bs.Team]):
         cls.name = name
         cls.tips = tips
         cls.description = desc
+        cls.default_music = None
+        cls.music = music
 
     def __init__(s, settings):
         super().__init__(settings)
-        s.default_music = None
+        s.music = s.music and choice(s.music) or None
+        s.default_music = s.music
         s.cache = defaultdict(dict)
         s.spawn_points = [(0,)*6]
         s._death_order = []
@@ -501,7 +505,7 @@ class Boomerang(
         spawn = choice(s.map.ffa_spawn_points)
         s._scaredy = ScaredyBot(position=spawn)
 
-    def end(s):
+    def _end_round(s):
         if hasattr(s, '_scaredy') and s._scaredy.node.exists():
             s._scaredy.bot.handlemessage(bs.DieMessage())
         super()._end_round()
@@ -1159,7 +1163,7 @@ class Ritual(
         if getattr(s, '_round_ended', False): return
         s._round_ended = True
         s._stop_chat_poll()
-        settings = s.cache['settings']
+        settings = s.settings_raw
         game_num = settings.get('_game_num', 1)
         total = int(settings.get('Games', 5))
 
@@ -1415,6 +1419,506 @@ class Ritual(
             super().handlemessage(m)
         else:
             super().handlemessage(m)
+
+STEPDOWN_TRACK = {
+    bs.MusicType.TO_THE_DEATH: {7.296: (0, 1), 7.36: (0, 0), 8.048: (3, 1), 8.096: (3, 0), 8.64: (2, 1), 8.72: (2, 0), 9.008000000000001: (2, 1), 9.056000000000001: (2, 0), 9.376: (2, 1), 9.44: (2, 0), 10.848: (3, 1), 10.928: (3, 0), 11.552: (2, 1), 11.616: (2, 0), 11.936: (2, 1), 12.0: (2, 0), 12.256: (2, 1), 12.352: (2, 0), 13.408: (1, 1), 13.488: (1, 0), 14.336: (1, 1), 14.416: (1, 0), 15.040000000000001: (2, 1), 15.136000000000001: (2, 0), 16.432: (0, 1), 16.512: (0, 0), 17.12: (0, 1), 17.216: (0, 0), 17.92: (2, 1), 18.016000000000002: (2, 0), 19.424: (3, 1), 19.504: (3, 0), 20.048000000000002: (2, 1), 20.16: (2, 0), 20.400000000000002: (2, 1), 20.496: (2, 0), 20.736: (2, 1), 20.832: (2, 0), 22.304000000000002: (3, 1), 22.432000000000002: (3, 0), 22.96: (2, 1), 23.056: (2, 0), 23.312: (2, 1), 23.408: (2, 0), 23.68: (2, 1), 23.776: (2, 0), 25.264: (1, 1), 25.36: (1, 0), 25.92: (1, 1), 26.032: (1, 0), 26.704: (0, 1), 26.912: (0, 0), 28.048000000000002: (3, 1), 28.208000000000002: (3, 0), 28.72: (3, 1), 28.88: (3, 0), 29.488: (2, 1), 29.744: (2, 0)},
+    bs.MusicType.GRAND_ROMP: {3.032: (2, 1), 3.144: (2, 0), 4.328: (2, 1), 4.424: (2, 0), 5.64: (2, 1), 5.736: (2, 0), 6.28: (2, 1), 6.408: (2, 0), 6.968: (2, 1), 7.048: (2, 0), 8.376: (0, 1), 8.456: (0, 0), 9.176: (0, 1), 9.256: (0, 0), 9.8: (0, 1), 9.88: (0, 0), 11.256: (1, 1), 11.384: (1, 0), 11.944: (3, 1), 12.072000000000001: (3, 0), 12.616: (3, 1), 12.712: (3, 0), 12.952: (3, 1), 13.032: (3, 0), 14.024000000000001: (3, 1), 14.072000000000001: (3, 0), 14.312000000000001: (3, 1), 14.392: (3, 0), 15.208: (3, 1), 15.304: (3, 0), 15.88: (3, 1), 15.944: (3, 0), 16.504: (3, 1), 16.568: (3, 0), 17.784: (3, 1), 17.848: (3, 0), 20.472: (2, 1), 20.6: (2, 0), 21.88: (2, 1), 21.96: (2, 0), 23.144000000000002: (2, 1), 23.256: (2, 0), 23.896: (2, 1), 23.976: (2, 0), 24.568: (2, 1), 24.648: (2, 0), 26.296: (1, 1), 26.408: (1, 0), 27.736: (3, 1), 27.784: (3, 0), 28.84: (0, 1), 28.92: (0, 0), 29.176000000000002: (0, 1), 29.256: (0, 0), 29.512: (0, 1), 29.592000000000002: (0, 0), 29.848: (0, 1), 29.928: (0, 0), 30.184: (0, 1), 30.264: (0, 0), 30.504: (0, 1), 30.584: (0, 0), 30.856: (0, 1), 30.936: (0, 0), 31.176000000000002: (0, 1), 31.240000000000002: (0, 0)}
+}
+
+STEPDOWN_KEY_TEXTURES = [
+    'buttonJump',
+    'buttonBomb',
+    'buttonPickUp',
+    'buttonPunch',
+]
+
+STEPDOWN_KEY_COLORS = [
+    (0.4, 1.0, 0.4),
+    (1.0, 0.3, 0.3),
+    (0.5, 0.5, 1.0),
+    (1.0, 0.7, 0.3),
+]
+
+STEPDOWN_PIXIE_LINES = [
+    'anyway.',
+    'next.',
+    'moving on.',
+    'as i was saying.',
+    'where were we.',
+    'that was necessary.',
+    'sorry about that.',
+]
+
+STEPDOWN_KILL_LINES = [
+    "you're too good to be alive.",
+    "impressive. unfortunately.",
+    "i don't allow perfection here.",
+    "you scored too high. goodbye.",
+]
+
+
+class Stepdown(
+    Level,
+    name='Stepdown',
+    desc='Follow the rhythm. Too good and you die.',
+    tips=[
+        'The pixie is watching.',
+        'Perfection is a death sentence.',
+        'Follow the beats of death.',
+    ],
+    include=['Football Stadium'],
+    can_bomb=False,
+    music=[
+        bs.MusicType.TO_THE_DEATH,
+        bs.MusicType.GRAND_ROMP
+    ]
+):
+    KEY_LANE_XS = [-90, -30, 30, 90]
+    HIT_LINE_Y = 180
+    NOTE_START_Y = 0
+    NOTE_FALL_DURATION = 2.0
+    MAX_XP = 100
+    PIXIE_STAND_X = 6.0
+    PIXIE_STAND_Z = 0.0
+
+    PERFECT_WINDOW = 0.5
+    GOOD_WINDOW = 1
+    HOLD_PERFECT_WINDOW = 0.4
+
+    def __init__(s, settings):
+        super().__init__(settings)
+        s._player_data = {}
+        s._kill_queue = []
+        s._pixie_busy = False
+        s._pending_notes = []
+        s._note_timers = []
+        s._dance_timer = None
+        s._held_keys = {}
+        s._start_time = None
+        s._lane_glows = []
+        s._disco_colors = [
+            (1.0, 0.1, 0.5),
+            (0.1, 0.5, 1.0),
+            (0.8, 1.0, 0.1),
+            (1.0, 0.4, 0.1),
+            (0.3, 1.0, 0.6),
+        ]
+        s._disco_idx = 0
+        s._disco_timer = None
+
+    def on_begin(s):
+        super().on_begin()
+
+        gn = bs.getactivity().globalsnode
+        gn.tint = (0.4, 0.1, 0.8)
+        gn.ambient_color = (1.0, 0.5, 1.5)
+        gn.vignette_outer = (0.6, 0.0, 0.8)
+        gn.vignette_inner = (1.0, 0.8, 1.0)
+
+        s._disco_timer = bs.Timer(0.5, bs.WeakCallStrict(s._disco_pulse), repeat=True)
+
+        s._music_type = s.music
+        raw = STEPDOWN_TRACK[s._music_type]
+        s._notes = sorted(
+            [{'time': t, 'key': v[0], 'type': v[1]} for t, v in raw.items()],
+            key=lambda x: x['time']
+        )
+
+        s._spawn_pixie()
+        s._build_rhythm_ui()
+
+        for p in s.players:
+            s._init_player(p)
+
+        bs.setmusic(s._music_type)
+        s._start_time = bs.time()
+        s._schedule_notes()
+        track_end = max(t for t in STEPDOWN_TRACK[s._music_type].keys())
+        s._track_end_timer = bs.Timer(track_end + 2.0, bs.WeakCallStrict(s._end_round))
+
+    def _init_player(s, p):
+        data = {
+            'xp': 0,
+            'bar_node': None,
+            'feedback_node': None,
+            'holding': {},
+        }
+        s._player_data[p] = data
+        if p.actor and p.actor.node and p.actor.node.exists():
+            p.assigninput(bs.InputType.BOMB_PRESS, lambda p=p: s._on_key_press(p, 1))
+            p.assigninput(bs.InputType.BOMB_RELEASE, lambda p=p: s._on_key_release(p, 1))
+            s._build_player_bar(p)
+
+    def _disco_pulse(s):
+        gn = bs.getactivity().globalsnode
+        c = s._disco_colors[s._disco_idx % len(s._disco_colors)]
+        gn.tint = c
+        gn.ambient_color = (c[0]*1.5, c[1]*1.5, c[2]*1.5)
+        s._disco_idx += 1
+
+    def _build_player_bar(s, p):
+        data = s._player_data[p]
+        mnode = bs.newnode('math', owner=p.actor.node, attrs={
+            'input1': (0, 2.2, 0),
+            'operation': 'add',
+        })
+        p.actor.node.connectattr('torso_position', mnode, 'input2')
+        bar_node = bs.newnode('text', owner=p.actor.node, attrs={
+            'in_world': True,
+            'h_align': 'center',
+            'scale': 0.012,
+            'color': (0.8, 0.3, 1.0, 1.0),
+            'shadow': 1.0,
+            'flatness': 1.0,
+            'text': '░░░░░░░░░░',
+        })
+        mnode.connectattr('output', bar_node, 'position')
+        data['bar_node'] = bar_node
+
+    def _update_bar(s, player):
+        data = s._player_data.get(player)
+        if not data or not data['bar_node'] or not data['bar_node'].exists():
+            return
+        ratio = data['xp'] / s.MAX_XP
+        filled = int(ratio * 10)
+        r = ratio
+        data['bar_node'].color = (0.4 + r * 0.6, 1.0 - r * 0.7, 1.0 - r, 1.0)
+        data['bar_node'].text = '█' * filled + '░' * (10 - filled)
+
+    def _spawn_pixie(s):
+        s._pixie = Bot(
+            position=(s.PIXIE_STAND_X, 0, s.PIXIE_STAND_Z),
+            color=(1.0, 0.4, 0.8),
+            highlight=(0.8, 0.2, 0.6),
+            character='Pixel',
+        )
+        s._pixie.node.name = 'Pixie'
+        s._pixie.node.name_color = (1, 0.4, 0.8)
+        s._pixie.node.invincible = True
+        s._pixie_home = (s.PIXIE_STAND_X, 0, s.PIXIE_STAND_Z)
+        s._dance_timer = bs.Timer(0.3, bs.WeakCallStrict(s._dance), repeat=True)
+        s._dance_phase = 0.0
+
+    def _dance(s):
+        if s._pixie_busy or not s._pixie.node.exists(): return
+        import math
+        s._dance_phase += 0.3
+        s._pixie.move(math.sin(s._dance_phase) * 0.4, 0)
+
+    def _build_rhythm_ui(s):
+        s._ui_nodes = []
+
+        bg = bs.newnode('image', attrs={
+            'texture': bs.gettexture('white'),
+            'absolute_scale': True,
+            'position': (0, s.HIT_LINE_Y + 90),
+            'scale': (240, 200),
+            'color': (0.05, 0.0, 0.1),
+            'opacity': 0.5,
+        })
+        s._ui_nodes.append(bg)
+
+        hit_line = bs.newnode('image', attrs={
+            'texture': bs.gettexture('white'),
+            'absolute_scale': True,
+            'position': (0, s.HIT_LINE_Y),
+            'scale': (240, 3),
+            'color': (1.0, 1.0, 1.0),
+            'opacity': 0.9,
+        })
+        s._ui_nodes.append(hit_line)
+
+        s._lane_glows = []
+        for i, lx in enumerate(s.KEY_LANE_XS):
+            icon = bs.newnode('image', attrs={
+                'texture': bs.gettexture(STEPDOWN_KEY_TEXTURES[i]),
+                'absolute_scale': True,
+                'position': (lx, s.HIT_LINE_Y - 30),
+                'scale': (34, 34),
+                'color': (*STEPDOWN_KEY_COLORS[i],),
+                'opacity': 0.35,
+            })
+            s._ui_nodes.append(icon)
+            glow = bs.newnode('image', attrs={
+                'texture': bs.gettexture('white'),
+                'absolute_scale': True,
+                'position': (lx, s.HIT_LINE_Y),
+                'scale': (54, 4),
+                'color': (*STEPDOWN_KEY_COLORS[i],),
+                'opacity': 0.0,
+            })
+            s._lane_glows.append(glow)
+            s._ui_nodes.append(glow)
+
+        s._feedback_node = bs.newnode('text', attrs={
+            'text': '',
+            'position': (0, s.HIT_LINE_Y + 30),
+            'scale': 0.8,
+            'h_align': 'center',
+            'v_align': 'center',
+            'color': (1, 1, 1, 1),
+            'shadow': 0.5,
+            'flatness': 1.0,
+        })
+        s._ui_nodes.append(s._feedback_node)
+
+    def _schedule_notes(s):
+        for note in s._notes:
+            delay = note['time']
+            if note['type'] == 1:
+                arrival = s._start_time + note['time']
+                spawn_delay = max(0.0, note['time'] - s.NOTE_FALL_DURATION)
+                t = bs.Timer(spawn_delay, bs.WeakCallStrict(s._spawn_note, note['key'], arrival))
+                s._note_timers.append(t)
+            else:
+                release_time = s._start_time + note['time']
+                s._note_timers.append(
+                    bs.Timer(delay, bs.WeakCallStrict(s._mark_release, note['key'], release_time))
+                )
+
+    def _spawn_note(s, key_idx, arrival_time):
+        lx = s.KEY_LANE_XS[key_idx]
+        fall_dur = arrival_time - bs.time()
+        if fall_dur <= 0:
+            fall_dur = 0.1
+
+        note_node = bs.newnode('image', attrs={
+            'texture': bs.gettexture(STEPDOWN_KEY_TEXTURES[key_idx]),
+            'absolute_scale': True,
+            'position': (lx, s.NOTE_START_Y),
+            'scale': (50, 50),
+            'color': STEPDOWN_KEY_COLORS[key_idx],
+            'opacity': 0.0,
+        })
+
+        bs.animate(note_node, 'opacity', {0.0: 0.0, 0.2: 1.0, fall_dur - 0.1: 1.0, fall_dur + 0.2: 0.0})
+
+        bs.animate_array(note_node, 'position', 2, {
+            0.0: (lx, s.NOTE_START_Y),
+            fall_dur: (lx, s.HIT_LINE_Y),
+        })
+        bs.timer(fall_dur + 0.3, note_node.delete)
+
+        s._pending_notes.append({
+            'node': note_node,
+            'key': key_idx,
+            'arrival': arrival_time,
+            'release_time': None,
+            'type': 'tap',
+            'hit': False,
+            'press_time': None,
+        })
+
+    def _mark_release(s, key_idx, release_time):
+        for note in reversed(s._pending_notes):
+            if note['key'] == key_idx and not note['hit'] and note['type'] == 'tap':
+                note['release_time'] = release_time
+                note['type'] = 'hold'
+                break
+
+    def _flash_lane(s, key_idx, color):
+        glow = s._lane_glows[key_idx]
+        bs.animate(glow, 'opacity', {0.0: 0.9, 0.15: 0.0})
+
+    def _show_feedback(s, text, color):
+        if s._feedback_node.exists():
+            s._feedback_node.text = text
+            s._feedback_node.color = (*color, 1.0)
+            bs.animate(s._feedback_node, 'opacity', {0.0: 1.0, 0.5: 0.0})
+
+    def _on_key_press(s, player, key_idx):
+        data = s._player_data.get(player)
+        if not data: return
+        now = bs.time()
+        data['holding'][key_idx] = now
+        s._flash_lane(key_idx, STEPDOWN_KEY_COLORS[key_idx])
+
+        best = None
+        best_diff = 999.0
+        for note in s._pending_notes:
+            if note['hit'] or note['key'] != key_idx: continue
+            diff = abs(now - note['arrival'])
+            if diff < best_diff:
+                best_diff = diff
+                best = note
+
+        if best is None:
+            s._show_feedback('MISS', (1, 0.3, 0.3))
+            s._add_xp(player, -5)
+            return
+
+        if best['type'] == 'tap':
+            if best_diff <= s.PERFECT_WINDOW:
+                best['hit'] = True
+                best['press_time'] = now
+                s._show_feedback('PERFECT', (0.4, 1.0, 0.4))
+                s._add_xp(player, 15)
+            elif best_diff <= s.GOOD_WINDOW:
+                best['hit'] = True
+                best['press_time'] = now
+                s._show_feedback('GOOD', (1.0, 0.8, 0.3))
+                s._add_xp(player, 8)
+            else:
+                s._show_feedback('MISS', (1, 0.3, 0.3))
+                s._add_xp(player, -5)
+        elif best['type'] == 'hold':
+            if best_diff <= s.PERFECT_WINDOW:
+                best['press_time'] = now
+            elif best_diff <= s.GOOD_WINDOW:
+                best['press_time'] = now
+            else:
+                s._show_feedback('MISS', (1, 0.3, 0.3))
+                s._add_xp(player, -5)
+
+    def _on_key_release(s, player, key_idx):
+        data = s._player_data.get(player)
+        if not data: return
+        now = bs.time()
+        data['holding'].pop(key_idx, None)
+
+        for note in s._pending_notes:
+            if note['hit'] or note['key'] != key_idx or note['type'] != 'hold':
+                continue
+            if note['press_time'] is None:
+                continue
+            if note['release_time'] is None:
+                continue
+            release_diff = abs(now - note['release_time'])
+            press_diff = abs(note['press_time'] - note['arrival'])
+            if press_diff <= s.PERFECT_WINDOW and release_diff <= s.HOLD_PERFECT_WINDOW:
+                note['hit'] = True
+                s._show_feedback('PERFECT', (0.4, 1.0, 0.4))
+                s._add_xp(player, 20)
+            elif press_diff <= s.GOOD_WINDOW and release_diff <= s.HOLD_PERFECT_WINDOW * 2:
+                note['hit'] = True
+                s._show_feedback('GOOD', (1.0, 0.8, 0.3))
+                s._add_xp(player, 10)
+            else:
+                note['hit'] = True
+                s._show_feedback('MISS', (1, 0.3, 0.3))
+                s._add_xp(player, -5)
+
+    def _add_xp(s, player, amount):
+        data = s._player_data.get(player)
+        if not data: return
+        data['xp'] = max(0, min(s.MAX_XP, data['xp'] + amount))
+        s._update_bar(player)
+        if data['xp'] >= s.MAX_XP:
+            s._queue_kill(player)
+
+    def _queue_kill(s, player):
+        if player in s._kill_queue: return
+        s._kill_queue.append(player)
+        if not s._pixie_busy:
+            s._process_kill_queue()
+
+    def _process_kill_queue(s):
+        if not s._kill_queue: return
+        s._pixie_busy = True
+        player = s._kill_queue[0]
+        s._dance_timer = None
+
+        bs.timer(0.001, lambda: Bubble(s._pixie.node,choice(STEPDOWN_KILL_LINES),color=s._pixie.node.color))
+
+        import weakref
+        _self = weakref.ref(s)
+        _p = weakref.ref(player)
+
+        def _chase():
+            self = _self()
+            p = _p()
+            if self is None or not self._pixie.node.exists(): return
+            if not p or not p.actor or not p.actor.node or not p.actor.node.exists():
+                self._pixie_return()
+                return
+            wp = self._pixie.node.position
+            pp = p.actor.node.position
+            dx = pp[0]-wp[0]
+            dz = pp[2]-wp[2]
+            d = (dx**2+dz**2)**0.5 or 1
+            if d < 1.2:
+                self._pixie.move(0, 0)
+                self._pixie.on_run(0)
+                bs.timer(0.3, lambda: self._do_kill(p))
+                return
+            self._pixie.on_run(0)
+            bs.timer(0.02, lambda: self._pixie.on_run(1) or self._pixie.move(dx/d, -dz/d))
+            bs.timer(0.05, _chase)
+
+        bs.timer(1.0, _chase)
+
+    def _do_kill(s, player):
+        try:
+            if player.actor and player.actor.node and player.actor.node.exists():
+                player.actor.node.shattered = 2
+                s.stats.player_scored(player, 50, screenmessage=False)
+                player.actor.handlemessage(bs.DieMessage())
+        except Exception:
+            pass
+        if s._kill_queue:
+            s._kill_queue.pop(0)
+        s._pixie_return()
+
+    def _pixie_return(s):
+        import weakref
+        _self = weakref.ref(s)
+        home = s._pixie_home
+
+        def _go_home():
+            self = _self()
+            if self is None or not self._pixie.node.exists(): return
+            wp = self._pixie.node.position
+            dx = home[0]-wp[0]
+            dz = home[2]-wp[2]
+            d = (dx**2+dz**2)**0.5 or 1
+            if d < 0.5:
+                self._pixie.move(0, 0)
+                self._pixie.on_run(0)
+                self._pixie_arrived_home()
+                return
+            self._pixie.on_run(0)
+            bs.timer(0.02, lambda: self._pixie.on_run(1) or self._pixie.move(dx/d, -dz/d))
+            bs.timer(0.05, _go_home)
+
+        bs.timer(0.5, _go_home)
+
+    def _pixie_arrived_home(s):
+        bs.timer(0.001, lambda: Bubble(s._pixie.node,choice(STEPDOWN_PIXIE_LINES), color=s._pixie.node.color))
+        s._pixie_busy = False
+        if s._kill_queue:
+            bs.timer(1.5, s._process_kill_queue)
+
+    def spawn_player(s, p):
+        spaz = super().spawn_player(p)
+        s._player_data[p] = {
+            'xp': 0,
+            'bar_node': None,
+            'feedback_node': None,
+            'holding': {},
+        }
+        s._build_player_bar(p)
+        s._hook_inputs(p)
+        return spaz
+
+    def _hook_inputs(s, p):
+        if not p.actor: return
+        orig_jump = p.actor.on_jump_press
+        orig_jump_r = p.actor.on_jump_release
+        orig_bomb = p.actor.on_bomb_press
+        orig_bomb_r = p.actor.on_bomb_release
+        orig_pickup = p.actor.on_pickup_press
+        orig_pickup_r = p.actor.on_pickup_release
+        orig_punch = p.actor.on_punch_press
+        orig_punch_r = p.actor.on_punch_release
+
+        p.assigninput(bs.InputType.JUMP_PRESS, lambda: (orig_jump(), s._on_key_press(p, 0)))
+        p.assigninput(bs.InputType.JUMP_RELEASE, lambda: (orig_jump_r(), s._on_key_release(p, 0)))
+        p.actor.on_bomb_press = lambda: s._on_key_press(p, 1)
+        p.actor.on_bomb_release = lambda: s._on_key_release(p, 1)
+        p.assigninput(bs.InputType.PICK_UP_PRESS, lambda: (orig_pickup(), s._on_key_press(p, 2)))
+        p.assigninput(bs.InputType.PICK_UP_RELEASE, lambda: (orig_pickup_r(), s._on_key_release(p, 2)))
+        p.assigninput(bs.InputType.PUNCH_PRESS, lambda: (orig_punch(), s._on_key_press(p, 3)))
+        p.assigninput(bs.InputType.PUNCH_RELEASE, lambda: (orig_punch_r(), s._on_key_release(p, 3)))
 
 # extra dependencies
 # stuff used by various levels
