@@ -36,6 +36,43 @@ import json
 import os
 import uuid
 
+caught = {}
+
+def catch(i,j):
+    with bs.get_foreground_host_activity().context:
+        caught[bs.time()] = (i,j)
+        print(i,j)
+
+def record():
+    caught.clear()
+    me = getme(1)
+    getme().resetinput()
+    LN({
+        'JUMP_PRESS': lambda: catch(0,1),
+        'BOMB_PRESS': lambda: catch(1,1),
+        'PICK_UP_PRESS': lambda: catch(2,1),
+        'PUNCH_PRESS': lambda: catch(3,1),
+        'JUMP_RELEASE': lambda: catch(0,0),
+        'BOMB_RELEASE': lambda: catch(1,0),
+        'PICK_UP_RELEASE': lambda: catch(2,0),
+        'PUNCH_RELEASE': lambda: catch(3,0),
+    })
+
+_last_time = -1
+def omg():
+    global _last_time
+    with bs.get_foreground_host_activity().context:
+        t = bs.time()
+    if _last_time > t:
+        record()
+    _last_time = t
+
+_gaygay = None
+def gaygay():
+    global _gaygay
+    _gaygay = bs.AppTimer(0.01,omg,repeat=True)
+#bs.apptimer(3,gaygay)
+
 class Coolbox:
     @classmethod
     def state(s,t=0):
@@ -96,8 +133,8 @@ class Coolbox:
             ('Gather','achievementTeamPlayer'),
             ('Load','inventoryIcon'),
             ('Quick','nextLevelIcon'),
-            ('Tint','shadow'),
-            ('Shade','shadowSoft'),
+            ('Scene','nub'),
+            ('Camera','tv'),
             ('About','heart')
         )[k*3+j]
 
@@ -913,7 +950,8 @@ class SoundPicker:
         sv = bui.scrollwidget(
             parent=w,
             size=(210,360),
-            position=(60,50)
+            position=(60,50),
+            color=var('bg')
         )
         cv = cw(
             parent=sv,
@@ -1145,7 +1183,8 @@ class MeshPicker:
         sv = bui.scrollwidget(
             parent=w,
             size=(310,360),
-            position=(60,50)
+            position=(60,50),
+            color=var('bg')
         )
         cv = cw(
             parent=sv,
@@ -1306,7 +1345,8 @@ class TexPicker:
         sv = bui.scrollwidget(
             parent=w,
             size=(510,360),
-            position=(60,50)
+            position=(60,50),
+            color=var('bg')
         )
         cv = cw(
             parent=sv,
@@ -1364,6 +1404,7 @@ class CharPicker:
         w = z.widget
         sv = bui.scrollwidget(
             parent=w,
+            color=var('bg'),
             size=(510,360),
             position=(60,50))
         cv = cw(
@@ -1379,7 +1420,7 @@ class CharPicker:
                 n = (i*3)+j
                 if n >= len(ah): continue
                 xp = 30+j*150
-                yp = 1000-(i*180)-40
+                yp = 1160-(i*180)-40
                 pbw(
                     p=cv,
                     size=(120,120),
@@ -1434,6 +1475,7 @@ class SpazPicker:
         )
         w = z.widget
         sv = bui.scrollwidget(
+            color=var('bg'),
             parent=w,
             size=(510,360),
             position=(60,50)
@@ -1791,6 +1833,7 @@ class CallPartialer:
         )
         d = bui.hscrollwidget(
             parent=w,
+            color=var('bg'),
             position=(44,70),
             size=(385,250)
         )
@@ -2008,6 +2051,7 @@ class atw:
             parent=s.parent,
             size=(s.x+60,s.ht() if s.dropped else 0),
             highlight=False,
+            color=var('bg'),
             border_opacity=0.0,
             position=(s.px,s.py-s.ht())
         )
@@ -2026,6 +2070,7 @@ class atw:
         r = bui.hscrollwidget(
             parent=c,
             size=(s.x+40,l+200),
+            color=var('bg'),
             border_opacity=0.0,
             highlight=False,
             position=(0,s.py-60)
@@ -2118,6 +2163,7 @@ class NodePicker:
         sv = bui.scrollwidget(
             parent=w,
             size=(500,350),
+            color=var('bg'),
             position=(50,50)
         )
         s.cv = cw(
@@ -2385,6 +2431,7 @@ class ActionManager:
         w = s.z.widget
         sv = bui.scrollwidget(parent=w,
                 size=(400,310),
+                color=var('bg'),
                 position=(60,50))
         s.cv = cw(parent=sv,
                   background=False,
@@ -3539,6 +3586,7 @@ class shadow:
         )
         s.b = bui.scrollwidget(
             parent=p,
+            color=var('bg'),
             size=size,
             position=pos,
             border_opacity=0
@@ -3567,6 +3615,7 @@ class Modify:
         w = a[0]
         q = bui.scrollwidget(
             parent=w,
+            color=var('bg'),
             size=(150,270),
             position=(50,100)
         )
@@ -4431,6 +4480,7 @@ class Effect:
         s1 = bui.scrollwidget(
             parent=w,
             position=(52, 52),
+            color=var('bg'),
             size=(150.0, 140.0)
         )
         s.p1 = cw(
@@ -4439,6 +4489,7 @@ class Effect:
             size=(150,0)
         )
         s2 = bui.scrollwidget(
+            color=var('bg'),
             parent=w,
             position=(231.1, 52),
             size=(150.0, 320.0)
@@ -4683,6 +4734,7 @@ class Deploy:
         prp1 = bui.scrollwidget(
             parent=w,
             position=(58.8, 59.5),
+            color=var('bg'),
             size=(150.0, 310.0)
         )
         mem = s.__class__.get()
@@ -4806,6 +4858,7 @@ class Deploy:
         atp1 = bui.scrollwidget(
             parent=w,
             position=(218.9, 60.2),
+            color=var('bg'),
             size=(260.0, 80.0)
         )
         s.atp = cw(
@@ -5023,6 +5076,7 @@ class Listen:
 
         sv = bui.scrollwidget(
             parent=w,
+            color=var('bg'),
             position=(40, 50),
             size=(250, 320)
         )
@@ -5174,6 +5228,7 @@ class Tune:
         sv = bui.scrollwidget(
             parent=w,
             position=(50, 50),
+            color=var('bg'),
             size=(500, 320)
         )
         
@@ -5226,6 +5281,9 @@ class Tune:
 @NEW
 class Quick:
 
+    _disco_timer = None
+    _disco_on = False
+
     def __init__(s, *a):
         w = s.w = a[0]
 
@@ -5246,7 +5304,7 @@ class Quick:
         
         chk(
             parent=w, position=(40, 185), size=(200, 30),
-            value=bool(var('disco')), text='Disco Lighting',
+            value=bool(type(s)._disco_on), text='Disco Lighting',
             on_value_change_call=s.disco
         )
 
@@ -5281,21 +5339,19 @@ class Quick:
         bui.getsound('click01').play()
 
     def disco(s, v):
-        var('disco', v)
+        type(s)._disco_on = v
         bui.getsound('click01').play()
         if v:
-            s.step_disco()
+            s.__class__._disco_timer = bui.AppTimer(0.3, s.step_disco, repeat=True)
         else:
+            s.__class__._disco_timer = None
             with bs.get_foreground_host_activity().context:
-                bs.get_foreground_host_activity().globalsnode.tint = (1, 1, 1)
+                bs.get_foreground_host_activity().globalsnode.tint = (1.3, 1.2, 1)
 
     def step_disco(s):
-        if not var('disco') or not s.w.exists():
-            return
         c = (random.random(), random.random(), random.random())
         with bs.get_foreground_host_activity().context:
             bs.get_foreground_host_activity().globalsnode.tint = c
-        bui.apptimer(0.3, s.step_disco)
 
     def meteors(s):
         def drop():
@@ -5309,7 +5365,7 @@ class Quick:
             bui.apptimer(i * 0.15, drop)
             
         push("Meteors Incoming!", color=(1, 0.5, 0))
-        bui.getsound('warnBeeps').play()
+        bui.getsound('shieldDown').play()
 
     def quake(s):
         with bs.get_foreground_host_activity().context:
@@ -5340,33 +5396,1953 @@ class Quick:
 
 @NEW
 class Tweak:
-    """Monitor and modify all nodes in real time"""
-    def __init__(s,*a): pass
+
+    def __init__(s, *a):
+        w = s.w = a[0]
+
+        btn_defs = [
+            ('Globals Node', 'settingsIcon', s.glob_node),
+            ('Map Node', 'star', s.map_node),
+            ('Disco Nodes', 'achievementGotTheMoves', s.disco_nodes),
+
+            ('Pick & Bubble', 'achievementOutline', s.pick_bubble),
+            ('Pick & Smite', 'powerupBomb', s.pick_smite),
+            ('Pick & Teleport', 'achievementOffYouGo', s.pick_tp),
+
+            ('Find by Name', 'textClearButton', s.find_name),
+            ('Find by Type', 'logo', s.find_type),
+            ('Reset Camera', 'replayIcon', s.res_cam),
+
+            ('Clear Orphans', 'crossOut', s.clear_orphans),
+            ('Draw Line', 'graphicsIcon', s.draw_line),
+            ('Map Coord', 'cursor', s.map_coord),
+
+            ('Moon Gravity', 'upButton', s.moon_grav),
+            ('Shiny World', 'achievementFlawlessVictory', s.shiny_world),
+            ('RGB Cycle', 'powerupShield', s.rgb_cycle)
+        ]
+
+        for i, (lbl, ic, oac) in enumerate(btn_defs):
+            col = i % 3
+            row = i // 3
+            bx = 45 + col * 175
+            by = 315 - row * 65
+            
+            b = bw(
+                p=w, pos=(bx, by), size=(160, 55),
+                label=lbl, icon=bui.gettexture(ic),
+                text_scale=1.0, iconscale=1.0
+            )
+            bw(b, oac=bs.CallPartial(oac, b))
+
+    def glob_node(s, b):
+        NodeManager(node=bs.get_foreground_host_activity().globalsnode, source=b)
+
+    def map_node(s, b):
+        try:
+            NodeManager(node=bs.get_foreground_host_activity().map.node, source=b)
+        except Exception:
+            btw('Map has no main node!')
+
+    def disco_nodes(s, b):
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if hasattr(n, 'color') and n.getnodetype() != 'globals':
+                    try:
+                        n.color = (random.random(), random.random(), random.random())
+                        c += 1
+                    except Exception:
+                        pass
+        ding()
+        push(f'Randomized colors for {c} nodes!', color=(0, 1, 0))
+
+    def pick_bubble(s, b):
+        NodePicker(source=b, allow='3D', pipe=bs.CallPartial(s._bubble_prompt, b))
+
+    def _bubble_prompt(s, b, n):
+        Collector(source=b, pipe=bs.CallPartial(s._apply_bubble, n), first='Message', title='Bubble Text')
+
+    def _apply_bubble(s, n, txt):
+        if not n.exists():
+            return
+        with bs.get_foreground_host_activity().context:
+            Bubble(node=n, text=txt, time=10, color=(1, 1, 0))
+        ding()
+
+    def pick_smite(s, b):
+        NodePicker(source=b, allow='3D', pipe=s._smite)
+
+    def _smite(s, n):
+        if not n.exists():
+            return
+        p = n.position
+        with bs.get_foreground_host_activity().context:
+            bmb = bs_bomb.Bomb(position=p, bomb_type='tnt').autoretain()
+            bs.timer(0.1, bmb.explode)
+        ding()
+
+    def pick_tp(s, b):
+        NodePicker(source=b, allow='3D', pipe=s._tp)
+
+    def _tp(s, n):
+        try:
+            getme(1).node.handlemessage(bs.StandMessage(n.position, 0))
+            ding()
+        except Exception as e:
+            err(f"Teleport failed: {e}")
+
+    def find_name(s, b):
+        Collector(source=b, pipe=bs.CallPartial(s._f_name, b), first='Node name', title='Find by Name')
+
+    def _f_name(s, b, t):
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if getattr(n, 'name', '') == t:
+                    NodeManager(node=n, source=b)
+                    return
+        btw('Node not found!')
+
+    def find_type(s, b):
+        Collector(source=b, pipe=bs.CallPartial(s._f_type, b), first='Node type', title='Find by Type')
+
+    def _f_type(s, b, t):
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if n.getnodetype() == t:
+                    NodeManager(node=n, source=b)
+                    return
+        btw('Node not found!')
+
+    def res_cam(s, b):
+        _ba.set_camera_manual(False)
+        ding()
+        push('Camera Reset!', color=(0, 1, 0))
+
+    def clear_orphans(s, b):
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if n.getnodetype() in ('prop', 'light', 'math', 'text') and not n.getdelegate(object):
+                    n.delete()
+                    c += 1
+        push(f'Cleared {c} orphaned nodes!', color=(1, 0.5, 0))
+        bui.getsound('shieldDown').play()
+
+    def draw_line(s, b):
+        NodePicker(source=b, allow='3D', pipe=lambda n1: NodePicker(source=b, allow='3D', pipe=lambda n2: s._draw(n1, n2)))
+
+    def _draw(s, n1, n2, count=30):
+        if count <= 0 or not n1.exists() or not n2.exists():
+            return
+        
+        p1 = n1.position
+        p2 = n2.position
+        d = math.dist(p1, p2)
+        steps = max(2, int(d * 5))
+        
+        with bs.get_foreground_host_activity().context:
+            for i in range(steps):
+                t = i / (steps - 1)
+                p = (
+                    p1[0] + t * (p2[0] - p1[0]),
+                    p1[1] + t * (p2[1] - p1[1]),
+                    p1[2] + t * (p2[2] - p1[2])
+                )
+                bs.emitfx(position=p, chunk_type='spark', count=1, scale=0.5)
+                
+        if count == 30:
+            ding()
+            
+        bui.apptimer(0.1, lambda: s._draw(n1, n2, count - 1))
+
+    def map_coord(s, b):
+        NodePicker(source=b, allow='3D', pipe=s._map)
+
+    def _map(s, n):
+        s.mapper = Mapper(pipe=lambda p2: Coolbox(fake=True, extra=p2), pos=n.position)
+        cw(s.w, transition='out_right')
+
+    def moon_grav(s, b):
+        v = var('t_moongrav')
+        nv = 0.2 if not v else 1.0
+        var('t_moongrav', not v)
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if hasattr(n, 'gravity_scale'):
+                    try:
+                        n.gravity_scale = nv
+                        c += 1
+                    except Exception:
+                        pass
+        ding()
+        push(f'Moon Gravity {"On" if not v else "Off"} ({c} nodes)!', color=(0.5, 0.5, 1))
+
+    def shiny_world(s, b):
+        v = var('t_shiny')
+        nr = [3.0] if not v else [1.0]
+        nrf = 'soft' if not v else 'powerup'
+        var('t_shiny', not v)
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if hasattr(n, 'reflection_scale'):
+                    try:
+                        n.reflection_scale = nr
+                        n.reflection = nrf
+                        c += 1
+                    except Exception:
+                        pass
+        ding()
+        push(f'Shiny World {"On" if not v else "Off"} ({c} nodes)!', color=(1, 1, 0))
+
+    def rgb_cycle(s, b):
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if hasattr(n, 'color') and n.getnodetype() != 'globals':
+                    try:
+                        bs.animate_array(n, 'color', 3, {
+                            0: (1, 0, 0),
+                            1: (0, 1, 0),
+                            2: (0, 0, 1),
+                            3: (1, 0, 0)
+                        }, loop=True)
+                        c += 1
+                    except Exception:
+                        pass
+        ding()
+        push(f'RGB Cycle applied to {c} nodes!', color=(0, 1, 0))
 
 @NEW
 class Gather:
-    """Modift party and team based stuff"""
-    def __init__(s,*a): pass
+    """Modify party and team based stuff"""
+    
+    def __init__(s, *a):
+        w = s.w = a[0]
+        s.sl_t = None
+        
+        # Left Panel: Team List
+        s.tsv = bui.scrollwidget(parent=w, color=var('bg'), position=(30, 65), size=(180, 305))
+        s.tcv = cw(parent=s.tsv, background=False)
+        
+        # Add Team Button
+        bw(
+            p=w, pos=(30, 20), size=(180, 40), 
+            label='Create Team', icon=bui.gettexture('achievementTeamPlayer'), 
+            oac=s.add_team
+        )
+        
+        # Right Panel: Team & Player Details
+        s.dsv = bui.scrollwidget(parent=w, color=var('bg'), position=(220, 20), size=(350, 350))
+        s.dcv = cw(parent=s.dsv, background=False)
+        
+        s.refresh()
+        s.spy()
+        
+    def spy(s):
+        if not s.w.exists(): return
+        try:
+            teams = bs.get_foreground_host_activity().teams
+            c_t = len(teams)
+            c_p = sum(len(t.players) for t in teams)
+            if c_t != getattr(s, 'last_t', -1) or c_p != getattr(s, 'last_p', -1):
+                s.last_t = c_t
+                s.last_p = c_p
+                s.refresh()
+        except:
+            pass
+        bui.apptimer(1.0, s.spy)
+
+    def add_team(s):
+        Collector(source=s.w, pipe=s._add_team, first='Team Name', title='Create Team')
+        
+    def _add_team(s, name):
+        tid = var('g_tid') or 2
+        try:
+            c = (random.random(), random.random(), random.random())
+            t = bs.SessionTeam(team_id=tid, name=name, color=c)
+            bs.get_foreground_host_activity().add_team(t)
+            var('g_tid', tid + 1)
+            ding()
+            s.refresh()
+        except Exception as e:
+            err(f"Failed: {e}")
+
+    def refresh(s):
+        if not s.w.exists(): return
+        [k.delete() for k in s.tcv.get_children()]
+        try:
+            teams = bs.get_foreground_host_activity().teams
+        except:
+            return
+            
+        ss = max(305, len(teams) * 45)
+        cw(s.tcv, size=(160, ss))
+        
+        valid_sl = False
+        for i, t in enumerate(teams):
+            if t == s.sl_t: valid_sl = True
+            y = ss - 40 - (i * 45)
+            n = t.name.evaluate() if hasattr(t.name, 'evaluate') else t.name
+            b = bw(p=s.tcv, pos=(5, y), size=(150, 35), label=n, color=t.color, oac=bs.CallPartial(s.show_team, t))
+            if t == s.sl_t:
+                bw(b, textcolor=(0, 1, 0))
+                
+        if not valid_sl: s.sl_t = None
+        s.show_team(s.sl_t)
+
+    def show_team(s, t):
+        s.sl_t = t
+        [k.delete() for k in s.dcv.get_children()]
+        if not t: return
+        
+        players = t.players
+        count = len(players)
+        ss = max(350, 180 + count * 45)
+        cw(s.dcv, size=(330, ss))
+        
+        n = t.name.evaluate() if hasattr(t.name, 'evaluate') else t.name
+        
+        tw(p=s.dcv, pos=(10, ss - 40), size=(310, 30), text=n, color=t.color, scale=1.2, h_align='center', v_align='center')
+        
+        bw(p=s.dcv, pos=(10, ss - 85), size=(100, 35), label='Rename', oac=bs.CallPartial(s.rename_team, t))
+        
+        c_btn = bw(p=s.dcv, pos=(115, ss - 85), size=(100, 35), label='Color', color=t.color)
+        var('t_col', t.color)
+        bw(c_btn, oac=bs.CallPartial(ColorPicker, in_source=c_btn, id='t_col', what='t_col', id2='t_col', chr='char', on_back=bs.CallPartial(s.recolor_team, t), mode=2))
+        
+        bw(p=s.dcv, pos=(220, ss - 85), size=(100, 35), label='Nuke', icon=bui.gettexture('crossOut'), oac=bs.CallPartial(s.nuke_team, t))
+        
+        bw(p=s.dcv, pos=(10, ss - 130), size=(100, 35), label='Gather', icon=bui.gettexture('achievementTeamPlayer'), oac=bs.CallPartial(s.gather_team, t))
+        bw(p=s.dcv, pos=(115, ss - 130), size=(100, 35), label='Smite', icon=bui.gettexture('achievementOffYouGo'), oac=bs.CallPartial(s.smite_team, t))
+        bw(p=s.dcv, pos=(220, ss - 130), size=(100, 35), label='Heal', icon=bui.gettexture('powerupHealth'), oac=bs.CallPartial(s.heal_team, t))
+        
+        tw(p=s.dcv, pos=(10, ss - 170), text=f'Players ({count}):', color=(0.5, 0.5, 0.5), scale=0.8)
+        
+        for i, p in enumerate(players):
+            y = ss - 210 - (i * 45)
+            p_name = p.getname()
+            
+            tw(p=s.dcv, pos=(10, y + 5), text=p_name, maxwidth=150, color=getattr(p, 'color', (1,1,1)))
+            
+            bw(p=s.dcv, pos=(170, y), size=(70, 35), label='Fetch', oac=bs.CallPartial(s.fetch_player, p))
+            bw(p=s.dcv, pos=(245, y), size=(70, 35), label='Goto', oac=bs.CallPartial(s.goto_player, p))
+
+    def rename_team(s, t):
+        Collector(source=s.w, pipe=bs.CallPartial(s._rename_team, t), first='New Name', title='Rename Team')
+        
+    def _rename_team(s, t, name):
+        try:
+            t.name = name
+            ding()
+            s.refresh()
+        except:
+            err('Failed to rename team')
+            
+    def recolor_team(s, t):
+        try:
+            t.color = var('t_col')
+            s.refresh()
+        except:
+            pass
+
+    def nuke_team(s, t):
+        try:
+            bs.get_foreground_host_activity().remove_team(t)
+            s.sl_t = None
+            ding()
+            s.refresh()
+        except Exception as e:
+            err(f"Failed: {e}")
+
+    def gather_team(s, t):
+        me = getme(1)
+        if not me or not me.node.exists(): return
+        pos = me.node.position
+        for p in t.players:
+            if p.actor and p.actor.node.exists():
+                p.actor.node.handlemessage(bs.StandMessage(pos, 0))
+        ding()
+        push('Team gathered!')
+
+    def smite_team(s, t):
+        for p in t.players:
+            if p.actor and p.actor.node.exists():
+                p.actor.node.handlemessage(bs.DieMessage())
+        ding()
+        
+    def heal_team(s, t):
+        for p in t.players:
+            if p.actor and p.actor.node.exists():
+                p.actor.node.handlemessage(bs.PowerupMessage('health'))
+        ding()
+
+    def fetch_player(s, p):
+        me = getme(1)
+        if not me or not me.node.exists(): return
+        if p.actor and p.actor.node.exists():
+            p.actor.node.handlemessage(bs.StandMessage(me.node.position, 0))
+            ding()
+
+    def goto_player(s, p):
+        me = getme(1)
+        if not me or not me.node.exists(): return
+        if p.actor and p.actor.node.exists():
+            me.node.handlemessage(bs.StandMessage(p.actor.node.position, 0))
+            ding()
 
 @NEW
 class Load:
-    """Load some funny presets of mine"""
-    def __init__(s,*a): pass
 
-@NEW
-class Shade:
-    """Adjust shade"""
-    def __init__(s,*a): pass
+    def __init__(s, *a):
+        w = s.w = a[0]
+        s.sl = None
 
-@NEW
-class Tint:
-    """Adjust tint"""
-    def __init__(s,*a): pass
+        s.presets = [
+            # === SPAWN ===
+            {
+                'n': 'Kronk Buddy',
+                'd': 'A friendly blue Kronk ready to help you win.',
+                't': 'Spawn',
+                'i': 'kronkIcon',
+                'v': {'char': 'Kronk', 'tchar': 'Kronk Buddy', 'Main': (0, 1, 1), 'Highlight': (0, 0, 1), 'Name': (0, 0.5, 1)}
+            },
+            {
+                'n': 'Golden God',
+                'd': 'A shiny golden skeleton. Wealthy and terrifying.',
+                't': 'Spawn',
+                'i': 'bonesIcon',
+                'v': {'char': 'Bones', 'tchar': 'Golden God', 'Main': (1, 0.8, 0), 'Highlight': (1, 1, 0), 'Name': (1, 0.9, 0.2)}
+            },
+            {
+                'n': 'Shadow Ninja',
+                'd': 'Silent, deadly, and extremely edgy.',
+                't': 'Spawn',
+                'i': 'ninjaIcon',
+                'v': {'char': 'Snake Shadow', 'tchar': 'Shadow Ninja', 'Main': (0.1, 0.1, 0.1), 'Highlight': (1, 0, 0), 'Name': (1, 0, 0)}
+            },
+            {
+                'n': 'Cyborg Unit',
+                'd': 'Cold steel. No feelings. Probably.',
+                't': 'Spawn',
+                'i': 'cyborgIcon',
+                'v': {'char': 'Cyborg', 'tchar': 'Cyborg Unit', 'Main': (0.4, 0.4, 0.5), 'Highlight': (0, 0.8, 1), 'Name': (0.5, 0.9, 1)}
+            },
+            {
+                'n': 'Frosty',
+                'd': 'A chilly snowman. Cool as ice.',
+                't': 'Spawn',
+                'i': 'frostyIcon',
+                'v': {'char': 'Frosty', 'tchar': 'Frosty', 'Main': (0.5, 0.8, 1), 'Highlight': (1, 1, 1), 'Name': (0.7, 0.95, 1)}
+            },
+            {
+                'n': 'Santa',
+                'd': 'The big man himself. Ho ho ho.',
+                't': 'Spawn',
+                'i': 'santaIcon',
+                'v': {'char': 'Santa Claus', 'tchar': 'Santa', 'Main': (0.9, 0.1, 0.1), 'Highlight': (1, 1, 1), 'Name': (1, 0.8, 0.8)}
+            },
+            {
+                'n': 'Wizard',
+                'd': 'A mysterious spellcaster in purple.',
+                't': 'Spawn',
+                'i': 'wizardIcon',
+                'v': {'char': 'Wizard', 'tchar': 'Wizard', 'Main': (0.5, 0.1, 0.8), 'Highlight': (0.9, 0.5, 1), 'Name': (0.8, 0.4, 1)}
+            },
+            {
+                'n': 'Evil Bones',
+                'd': 'A skeleton painted in crimson rage.',
+                't': 'Spawn',
+                'i': 'bonesIcon',
+                'v': {'char': 'Bones', 'tchar': 'Evil Bones', 'Main': (0.8, 0, 0), 'Highlight': (0.2, 0, 0), 'Name': (1, 0.2, 0.2)}
+            },
+            {
+                'n': 'Toxic Kronk',
+                'd': 'He has been through some things.',
+                't': 'Spawn',
+                'i': 'kronkIcon',
+                'v': {'char': 'Kronk', 'tchar': 'Toxic Kronk', 'Main': (0.2, 0.9, 0.1), 'Highlight': (0.5, 0.1, 0.8), 'Name': (0.3, 1, 0.3)}
+            },
+            {
+                'n': 'Pink Ninja',
+                'd': 'Deadly. Also pink.',
+                't': 'Spawn',
+                'i': 'ninjaIcon',
+                'v': {'char': 'Snake Shadow', 'tchar': 'Pink Ninja', 'Main': (1, 0.4, 0.7), 'Highlight': (1, 0.8, 0.9), 'Name': (1, 0.6, 0.8)}
+            },
+            {
+                'n': 'Rainbow Bones',
+                'd': 'Born to be wild and colorful.',
+                't': 'Spawn',
+                'i': 'bonesIcon',
+                'v': {'char': 'Bones', 'tchar': 'Rainbow Bones', 'Main': (1, 0.2, 0.8), 'Highlight': (0.2, 1, 0.4), 'Name': (0.4, 0.8, 1)}
+            },
+            {
+                'n': 'Agent Zero',
+                'd': 'No name. No face. No mercy.',
+                't': 'Spawn',
+                'i': 'agentIcon',
+                'v': {'char': 'Secret Agent', 'tchar': 'Agent Zero', 'Main': (0.15, 0.15, 0.15), 'Highlight': (0.8, 0.8, 0.8), 'Name': (0.6, 0.6, 0.6)}
+            },
+            {
+                'n': 'Galaxy Penguin',
+                'd': 'Waddling across the cosmos.',
+                't': 'Spawn',
+                'i': 'penguinIcon',
+                'v': {'char': 'Penguin', 'tchar': 'Galaxy Penguin', 'Main': (0.1, 0, 0.5), 'Highlight': (0.6, 0.2, 1), 'Name': (0.7, 0.5, 1)}
+            },
+            {
+                'n': 'Lava Wizard',
+                'd': 'He studied the blade. Then set it on fire.',
+                't': 'Spawn',
+                'i': 'wizardIcon',
+                'v': {'char': 'Wizard', 'tchar': 'Lava Wizard', 'Main': (1, 0.2, 0), 'Highlight': (1, 0.6, 0), 'Name': (1, 0.4, 0)}
+            },
+            {
+                'n': 'Blueberry Bear',
+                'd': 'Round. Soft. Slightly dangerous.',
+                't': 'Spawn',
+                'i': 'bearIcon',
+                'v': {'char': 'B-9000', 'tchar': 'Blueberry Bear', 'Main': (0.2, 0.4, 1), 'Highlight': (0.5, 0.7, 1), 'Name': (0.6, 0.8, 1)}
+            },
+            {
+                'n': 'Void Walker',
+                'd': 'Came from nowhere. Going back.',
+                't': 'Spawn',
+                'i': 'cyborgIcon',
+                'v': {'char': 'Cyborg', 'tchar': 'Void Walker', 'Main': (0, 0, 0), 'Highlight': (0.3, 0, 0.5), 'Name': (0.5, 0, 1)}
+            },
+            {
+                'n': 'Sun God',
+                'd': 'Blinding. Warm. Absolutely unhinged.',
+                't': 'Spawn',
+                'i': 'wizardIcon',
+                'v': {'char': 'Wizard', 'tchar': 'Sun God', 'Main': (1, 0.9, 0), 'Highlight': (1, 0.5, 0), 'Name': (1, 1, 0.5)}
+            },
+            {
+                'n': 'Midnight Agent',
+                'd': 'Operates exclusively at 3am.',
+                't': 'Spawn',
+                'i': 'agentIcon',
+                'v': {'char': 'Secret Agent', 'tchar': 'Midnight Agent', 'Main': (0.05, 0.05, 0.15), 'Highlight': (0.2, 0.2, 0.5), 'Name': (0.4, 0.4, 1)}
+            },
+            {
+                'n': 'Cursed Frosty',
+                'd': 'Do NOT let him near the thermostat.',
+                't': 'Spawn',
+                'i': 'frostyIcon',
+                'v': {'char': 'Frosty', 'tchar': 'Cursed Frosty', 'Main': (0.3, 0, 0.1), 'Highlight': (0.8, 0, 0.3), 'Name': (1, 0, 0.4)}
+            },
+            {
+                'n': 'Neon Jack',
+                'd': 'He glows. You will too eventually.',
+                't': 'Spawn',
+                'i': 'jackIcon',
+                'v': {'char': 'Jack Morgan', 'tchar': 'Neon Jack', 'Main': (0, 1, 0.5), 'Highlight': (0, 0.5, 1), 'Name': (0, 1, 0.8)}
+            },
+            {
+                'n': 'Inferno Ali',
+                'd': 'Float like a butterfly, burn like the sun.',
+                't': 'Spawn',
+                'i': 'aliIcon',
+                'v': {'char': 'Ali', 'tchar': 'Inferno Ali', 'Main': (1, 0.3, 0), 'Highlight': (1, 0.7, 0), 'Name': (1, 0.5, 0.1)}
+            },
+            {
+                'n': 'Ocean Mel',
+                'd': 'Deep, mysterious, slightly salty.',
+                't': 'Spawn',
+                'i': 'melIcon',
+                'v': {'char': 'Mel', 'tchar': 'Ocean Mel', 'Main': (0, 0.4, 0.8), 'Highlight': (0, 0.8, 1), 'Name': (0.3, 0.9, 1)}
+            },
+            {
+                'n': 'Pixel Zoe',
+                'd': 'She runs at exactly 8 frames per second.',
+                't': 'Spawn',
+                'i': 'zoeColorMask',
+                'v': {'char': 'Zoe', 'tchar': 'Pixel Zoe', 'Main': (0.9, 0.5, 0.9), 'Highlight': (0.5, 0.9, 0.5), 'Name': (1, 0.8, 1)}
+            },
+            {
+                'n': 'Rust Bot',
+                'd': 'Outdated firmware. Still dangerous.',
+                't': 'Spawn',
+                'i': 'cyborgIcon',
+                'v': {'char': 'Cyborg', 'tchar': 'Rust Bot', 'Main': (0.6, 0.3, 0.1), 'Highlight': (0.4, 0.2, 0), 'Name': (0.8, 0.5, 0.2)}
+            },
+            {
+                'n': 'Plague Bear',
+                'd': 'Unclear what disease. Very clear it works.',
+                't': 'Spawn',
+                'i': 'bearIcon',
+                'v': {'char': 'B-9000', 'tchar': 'Plague Bear', 'Main': (0.3, 0.5, 0.1), 'Highlight': (0.6, 0.8, 0), 'Name': (0.5, 1, 0.2)}
+            },
+            {
+                'n': 'Demon Santa',
+                'd': 'He sees you when you\'re sleeping. Still.',
+                't': 'Spawn',
+                'i': 'santaIcon',
+                'v': {'char': 'Santa Claus', 'tchar': 'Demon Santa', 'Main': (0.5, 0, 0), 'Highlight': (0.1, 0, 0), 'Name': (1, 0, 0)}
+            },
+            # === BUILD ===
+            {
+                'n': 'Bouncy TNT',
+                'd': 'A highly reflective TNT block that barely obeys gravity.',
+                't': 'Build',
+                'i': 'tnt',
+                'v': {'b_mode': 0, 'b_mesh': 'tnt', 'b_tex': 'tnt', 'b_body': 'crate', 'b_grav': '0.3'}
+            },
+            {
+                'n': 'Giant Coin',
+                'd': 'A massive golden puck that bounces around.',
+                't': 'Build',
+                'i': 'coin',
+                'v': {'b_mode': 0, 'b_mesh': 'puck', 'b_tex': 'tokens4', 'b_body': 'puck', 'b_grav': '1.0'}
+            },
+            {
+                'n': 'Sticky Bomb',
+                'd': 'Clings to surfaces like it has something to prove.',
+                't': 'Build',
+                'i': 'bombStickyColor',
+                'v': {'b_mode': 0, 'b_mesh': 'bomb', 'b_tex': 'bombStickyColor', 'b_body': 'sphere', 'b_grav': '1.0'}
+            },
+            {
+                'n': 'Ice Ball',
+                'd': 'A slippery ice bomb that glides around.',
+                't': 'Build',
+                'i': 'bombColorIce',
+                'v': {'b_mode': 0, 'b_mesh': 'bomb', 'b_tex': 'bombColorIce', 'b_body': 'sphere', 'b_grav': '0.5'}
+            },
+            {
+                'n': 'Floating Orb',
+                'd': 'Weightless. Pointless. Beautiful.',
+                't': 'Build',
+                'i': 'powerupShield',
+                'v': {'b_mode': 0, 'b_mesh': 'bomb', 'b_tex': 'powerupShield', 'b_body': 'sphere', 'b_grav': '0.0'}
+            },
+            {
+                'n': 'Moon Rock',
+                'd': 'Crate that floats like it forgot gravity exists.',
+                't': 'Build',
+                'i': 'tnt',
+                'v': {'b_mode': 0, 'b_mesh': 'crate', 'b_tex': 'tnt', 'b_body': 'crate', 'b_grav': '0.15'}
+            },
+            {
+                'n': 'Speed Puck',
+                'd': 'Puck with basically no friction with reality.',
+                't': 'Build',
+                'i': 'coin',
+                'v': {'b_mode': 0, 'b_mesh': 'puck', 'b_tex': 'puckColor', 'b_body': 'puck', 'b_grav': '0.6'}
+            },
+            {
+                'n': 'Cursed Crate',
+                'd': 'Crate shaped. Power unknown. Do not open.',
+                't': 'Build',
+                'i': 'achievementTNT',
+                'v': {'b_mode': 0, 'b_mesh': 'crate', 'b_tex': 'powerupCurse', 'b_body': 'crate', 'b_grav': '1.0'}
+            },
+            {
+                'n': 'Neon Text',
+                'd': 'Bright glowing text to mark your territory.',
+                't': 'Build',
+                'i': 'achievementOutline',
+                'v': {'b_mode': 1, 'b_txt': 'Danger!', 'Text': (1, 0, 0), 'b_scl': '0.02', 'b_inw': True}
+            },
+            {
+                'n': 'Warning Sign',
+                'd': 'For when something is definitely about to go wrong.',
+                't': 'Build',
+                'i': 'achievementTNT',
+                'v': {'b_mode': 1, 'b_txt': 'WARNING!', 'Text': (1, 0.2, 0), 'b_scl': '0.025', 'b_inw': True}
+            },
+            {
+                'n': 'Name Tag',
+                'd': 'A floating name tag. Edit text to personalize.',
+                't': 'Build',
+                'i': 'achievementOutline',
+                'v': {'b_mode': 1, 'b_txt': 'Player 1', 'Text': (0.4, 1, 0.4), 'b_scl': '0.015', 'b_inw': True}
+            },
+            {
+                'n': 'Touch Grass',
+                'd': 'Friendly reminder.',
+                't': 'Build',
+                'i': 'achievementOutline',
+                'v': {'b_mode': 1, 'b_txt': 'Touch grass.', 'Text': (0.3, 0.9, 0.3), 'b_scl': '0.018', 'b_inw': True}
+            },
+            {
+                'n': 'Skill Issue',
+                'd': 'Post this wherever appropriate.',
+                't': 'Build',
+                'i': 'achievementSuperPunch',
+                'v': {'b_mode': 1, 'b_txt': 'Skill Issue', 'Text': (1, 0.4, 0.1), 'b_scl': '0.022', 'b_inw': True}
+            },
+            {
+                'n': 'GG Sign',
+                'd': 'Place after winning. Or losing. Whatever.',
+                't': 'Build',
+                'i': 'achievementMedalLarge',
+                'v': {'b_mode': 1, 'b_txt': 'GG!', 'Text': (0.2, 1, 0.5), 'b_scl': '0.03', 'b_inw': True}
+            },
+            {
+                'n': 'Chaos Box',
+                'd': 'Unknown mesh. Unknown body. You\'ll see.',
+                't': 'Build',
+                'i': 'powerupBomb',
+                'v': {'b_mode': 0, 'b_mesh': 'tnt', 'b_tex': 'explosion', 'b_body': 'sphere', 'b_grav': '0.05'}
+            },
+            {
+                'n': 'Ice Puck',
+                'd': 'Hockey puck made of ice. Slide forever.',
+                't': 'Build',
+                'i': 'bombColorIce',
+                'v': {'b_mode': 0, 'b_mesh': 'puck', 'b_tex': 'bombColorIce', 'b_body': 'puck', 'b_grav': '0.8'}
+            },
+            # === QUICK ===
+            {
+                'n': 'Cinematic Mode',
+                'd': 'Epic slow motion with auto-pause disabled.',
+                't': 'Quick',
+                'i': 'settingsIcon',
+                'v': {'epic_mode': True, 'npp': 0}
+            },
+            {
+                'n': 'Disco Time',
+                'd': 'RGB global tint cycle for a party vibe.',
+                't': 'Quick',
+                'i': 'achievementGotTheMoves',
+                'v': {'disco': True}
+            },
+            {
+                'n': 'Moon Physics',
+                'd': 'Low gravity for all nodes in the scene.',
+                't': 'Quick',
+                'i': 'upButton',
+                'v': {'t_moongrav': True}
+            },
+            {
+                'n': 'Shiny World',
+                'd': 'Crank up reflections on everything.',
+                't': 'Quick',
+                'i': 'achievementFlawlessVictory',
+                'v': {'t_shiny': True}
+            },
+            {
+                'n': 'God Mode Setup',
+                'd': 'Open Quick and smash God Mode immediately.',
+                't': 'Quick',
+                'i': 'star',
+                'v': {}
+            },
+            {
+                'n': 'Freeze Frame',
+                'd': 'Slow motion on, auto pause off. For clips.',
+                't': 'Quick',
+                'i': 'replayIcon',
+                'v': {'epic_mode': True, 'npp': 0}
+            },
+            # === TUNE ===
+            {
+                'n': 'Chill Setup',
+                'd': 'Autoplay sounds on, fixed logs off. Relaxed vibes.',
+                't': 'Tune',
+                'i': 'audioIcon',
+                'v': {'spa': True, 'icall': False, 'npp': 1}
+            },
+            {
+                'n': 'Dev Mode',
+                'd': 'Fixed width logs, no auto pause, autoplay off.',
+                't': 'Tune',
+                'i': 'logIcon',
+                'v': {'icall': True, 'spa': False, 'npp': 0}
+            },
+            {
+                'n': 'Control Freak',
+                'd': 'Block host, auto-close UI, intercept inputs.',
+                't': 'Tune',
+                'i': 'controllerIcon',
+                'v': {'cconf0': True, 'cconf1': True, 'cconf2': False, 'cconf3': True}
+            },
+            {
+                'n': 'Ghost Control',
+                'd': 'Control without blocking host inputs. Sneaky.',
+                't': 'Tune',
+                'i': 'controllerIcon',
+                'v': {'cconf0': False, 'cconf1': False, 'cconf2': False, 'cconf3': False}
+            },
+            {
+                'n': 'Invincible Driver',
+                'd': 'Invincibility on while controlling. No dying.',
+                't': 'Tune',
+                'i': 'star',
+                'v': {'cconf2': True, 'cconf0': True, 'cconf3': True}
+            },
+        ]
+
+        s.img = bui.imagewidget(
+            parent=w,
+            position=(50, 270),
+            size=(90, 90),
+            texture=bui.gettexture('empty'),
+            mask_texture=bui.gettexture('empty')
+        )
+
+        s.t_name = tw(
+            p=w, pos=(185, 315), size=(1, 35), text='',
+            scale=1.2, h_align='left', v_align='center', maxwidth=215
+        )
+
+        s.t_desc = tw(
+            p=w, pos=(185, 270), size=(1, 55), text='',
+            scale=0.78, h_align='left', v_align='top', maxwidth=215,
+            color=(0.6, 0.6, 0.6)
+        )
+
+        s.b_load = bw(
+            p=w, pos=(420, 280), size=(130, 50),
+            label='Load', icon=bui.gettexture('inventoryIcon'),
+            oac=s.load_preset
+        )
+
+        sv = bui.scrollwidget(
+            parent=w,
+            position=(40, 40),
+            size=(520, 200),
+            color=var('bg')
+        )
+
+        count = len(s.presets)
+        rows = math.ceil(count / 2)
+        ss = max(200, rows * 45)
+
+        s.cv = cw(
+            parent=sv,
+            background=False,
+            size=(500, ss)
+        )
+
+        s.texts = []
+        for i, p in enumerate(s.presets):
+            col = i % 2
+            row = i // 2
+            x = 10 + col * 245
+            y = ss - 45 - row * 45
+            t = tw(
+                p=s.cv, pos=(x, y), size=(235, 40),
+                text=p['n'], color=var('t'),
+                selectable=True, click_activate=True, maxwidth=230,
+                on_activate_call=bs.CallPartial(s.select, i),
+                h_align='center', v_align='center'
+            )
+            s.texts.append(t)
+
+        if count > 0:
+            s.select(0)
+
+    def select(s, i):
+        if s.sl != i and s.sl is not None:
+            bui.getsound('tap').play()
+        s.sl = i
+
+        for idx, t in enumerate(s.texts):
+            tw(t, color=(0, 1, 0) if idx == i else var('t'))
+
+        p = s.presets[i]
+        tw(s.t_name, text=p['n'], color=p['v'].get('Main', var('t')))
+        tw(s.t_desc, text=p['d'])
+
+        if p['t'] == 'Spawn':
+            c_name = p['v'].get('char', NAME()[0])
+            valid_char = c_name if c_name in NAME() else NAME()[0]
+            char_obj = SPAZ()[NAME().index(valid_char)]
+            bui.imagewidget(
+                edit=s.img,
+                texture=bui.gettexture(char_obj.icon_texture),
+                mask_texture=bui.gettexture('characterIconMask'),
+                tint_texture=bui.gettexture(char_obj.icon_mask_texture),
+                color=(1, 1, 1),
+                tint_color=p['v'].get('Main', (1, 1, 1)),
+                tint2_color=p['v'].get('Highlight', (1, 1, 1))
+            )
+        else:
+            try:
+                tex = bui.gettexture(p['i'])
+            except Exception:
+                tex = bui.gettexture('logo')
+            bui.imagewidget(
+                edit=s.img,
+                texture=tex,
+                mask_texture=bui.gettexture('empty'),
+                tint_texture=bui.gettexture('empty'),
+                color=(1, 1, 1),
+                tint_color=(1, 1, 1),
+                tint2_color=(1, 1, 1)
+            )
+
+    def load_preset(s):
+        if s.sl is None:
+            btw('Select a preset first!')
+            return
+
+        p = s.presets[s.sl]
+
+        for k, v in p['v'].items():
+            var(k, v)
+
+        if p['t'] == 'Spawn':
+            c_name = p['v'].get('char', NAME()[0])
+            valid_char = c_name if c_name in NAME() else NAME()[0]
+            fixall(valid_char)
+
+        ding()
+        push(f"Loaded {p['n']}!", color=(0, 1, 0))
+
+        cw(s.w, transition='out_right')
+        bui.apptimer(0.1, lambda: Coolbox(fb=p['t']))
+
+class Mapper2D:
+
+    last = 0
+
+    def __init__(s, pipe, pos=None):
+        s.tired = time.time_ns() - s.__class__.last < 10**9
+        if s.tired: btw('Cool down!'); return
+        
+        p = pos if pos and len(pos) == 2 else (0, 0)
+        if pos and len(pos) == 3:
+            p = (pos[0], pos[1])
+            
+        s.pipe = pipe
+        
+        with bs.get_foreground_host_activity().context:
+            s.node = bs.newnode('image', attrs={
+                'texture': bs.gettexture('achievementCrossHair'),
+                'absolute_scale': True,
+                'scale': (50, 50),
+                'position': p,
+                'color': (0, 1, 0)
+            })
+            bui.getsound('laser').play()
+            
+            s.safe = None
+            def f(): s.safe = s.node.exists()
+            bui.apptimer(1, f)
+            
+            s.step = s.ostep = 3.0
+            
+        s.wait = 0.01
+        s.bstep = s.step * 3
+        s.llr = s.lud = 0.0
+        
+        s.overlay = Overlay()
+        
+        LN({
+            'UP_DOWN': lambda a: s.manage(a, 0),
+            'LEFT_RIGHT': lambda a: s.manage(a, 1),
+            'BOMB_PRESS': s.pick,
+            'BOMB_RELEASE': lambda: s.overlay.release(1),
+            'PUNCH_PRESS': s.boost,
+            'PUNCH_RELEASE': lambda: s.boost(0),
+        })
+        STATE(True)
+        s.move()
+
+    def manage(s, a, lr=0):
+        if lr: s.llr = a
+        else: s.lud = a
+
+    def move(s):
+        m = getme(1)
+        if not m or m._dead: s.destroy(); return
+        try: p = s.node.position
+        except:
+            if STATE():
+                STATE(False)
+                bui.apptimer(1, lambda: (s.pipe(), s.complain()))
+            return
+        
+        new_p = (p[0] + s.llr * s.step, p[1] + s.lud * s.step)
+        s.node.position = new_p
+        s.overlay.up(new_p[0], new_p[1], 0, s.llr, s.lud)
+        
+        bui.apptimer(s.wait, s.move)
+
+    def destroy(s):
+        with bs.get_foreground_host_activity().context:
+            n = s.node
+            bui.getsound('shatter').play()
+            n.delete()
+            bs.timer(1, s.reset)
+
+    def reset(s):
+        me = getme()
+        if not me: return
+        me.resetinput()
+        with bs.get_foreground_host_activity().context:
+            me.actor.connect_controls_to_player()
+
+    def pick(s):
+        s.overlay.press(1)
+        s.overlay.destroy()
+        try: p = s.node.position
+        except: return
+        
+        with bs.get_foreground_host_activity().context:
+            bui.getsound('powerup01').play()
+            s.node.delete()
+            
+        STATE(False)
+        s.pipe((p[0], p[1], 0.0))
+        bui.apptimer(1, s.reset)
+        s.__class__.last = time.time_ns()
+
+    def boost(s, i=1):
+        s.step = s.bstep if i else s.ostep
+        s.overlay.press(3) if i else s.overlay.release(3)
+        if i:
+            bui.getsound('punch01').play()
+
+    def complain(s):
+        push('You destroyed the mapper!', color=(1, 0, 0))
+        bui.getsound('swip').play()
+        s.overlay.destroy()
+        None if s.safe else btw('Mapper destroyed too early.')
+
 
 @NEW
 class Build:
-    """Free build with in-game objects"""
-    def __init__(s,*a): pass
+
+    def __init__(s, *a):
+        w = s.w = a[0]
+        s.ex = a[5]
+
+        con('b_mesh', 'tnt')
+        con('b_tex', 'tnt')
+        con('b_body', 'crate')
+        con('b_grav', '1.0')
+        con('b_txt', 'Coolbox!')
+        con('b_scl', '0.01')
+        con('b_iscal', '100.0')
+        con('Text', (1, 1, 1))
+        con('Light', (1, 1, 1))
+        con('Image', (1, 1, 1))
+        con('b_rad', '1.0')
+        con('b_int', '1.0')
+        con('b_mode', 0)
+        con('b_inw', True)
+
+        sv = bui.scrollwidget(
+            parent=w,
+            position=(30, 50),
+            color=var('bg'),
+            size=(140, 320)
+        )
+        
+        s.cv = cw(
+            parent=sv,
+            background=False,
+            size=(120, 280)
+        )
+
+        s.rp = cw(
+            parent=w,
+            position=(180, 50),
+            size=(390, 320),
+            background=False
+        )
+
+        s.modes = ['Prop Builder', 'Text Builder', 'Light Builder', 'Image Builder', 'Node Tools', 'Fun Tools']
+        s.m_btns = []
+        for i, m in enumerate(s.modes):
+            b = bw(
+                p=s.cv,
+                pos=(5, 240 - 45 * i),
+                size=(110, 40),
+                label=m,
+                oac=bs.CallPartial(s.set_mode, i)
+            )
+            s.m_btns.append(b)
+
+        s.kids = []
+        s.set_mode(var('b_mode'))
+
+        if s.ex:
+            p, btype = s.ex
+            for i in range(3):
+                var(f'pos{i}', str(p[i]))
+            if btype == 'prop':
+                s.do_prop(p)
+            elif btype == 'text':
+                s.do_text(p)
+            elif btype == 'light':
+                s.do_light(p)
+            elif btype == 'image':
+                s.do_image(p)
+
+    def clear(s):
+        for k in s.kids:
+            if hasattr(k, 'delete'):
+                k.delete()
+        s.kids.clear()
+
+    def set_mode(s, m):
+        var('b_mode', m)
+        s.clear()
+
+        for i, b in enumerate(s.m_btns):
+            bw(b, color=(0, 1, 0) if i == m else var('bg'))
+
+        s.kids.append(tw(
+            p=s.rp, pos=(195, 290), text=s.modes[m],
+            h_align='center', scale=1.3, color=(0.1, 0.7, 1)
+        ))
+
+        bx = 100
+        bw_sz = 250
+        bh = 35
+        tx = 20
+        lw = bx - tx - 5
+
+        r0y = 220
+        r1y = 175
+        r2y = 130
+        r3y = 85
+
+        def lbl(txt, ypos):
+            s.kids.append(tw(p=s.rp, pos=(tx, ypos), size=(lw, bh), text=txt, v_align='center', h_align='left', maxwidth=lw))
+
+        if m == 0:
+            lbl('Mesh:', r0y)
+            bm = bw(p=s.rp, pos=(bx, r0y), size=(bw_sz, bh), label=var('b_mesh'))
+            bw(bm, oac=bs.CallPartial(MeshPicker, source=bm, pipe=s.pick_mesh, extra=bm))
+            s.kids.append(bm)
+
+            lbl('Texture:', r1y)
+            bt = bw(p=s.rp, pos=(bx, r1y), size=(bw_sz, bh), label=var('b_tex'))
+            bw(bt, oac=bs.CallPartial(TexPicker, source=bt, pipe=s.pick_tex))
+            s.b_tex_btn = bt
+            s.kids.append(bt)
+
+            lbl('Body:', r2y)
+            bb = ctw(
+                p=s.rp, pos=(bx, r2y), size=(bw_sz, bh), allow=True,
+                hint='crate/sphere/puck', conf='b_body', text=var('b_body')
+            )
+            s.kids.extend([bb.widget, bb.widget2])
+
+            lbl('Gravity:', r3y)
+            bg = ctw(
+                p=s.rp, pos=(bx, r3y), size=(bw_sz, bh), allow='-0.123456789',
+                conf='b_grav', text=var('b_grav'), hint='Float'
+            )
+            s.kids.extend([bg.widget, bg.widget2])
+
+            bp = bw(
+                p=s.rp, pos=(115, 25), size=(160, 45), label='Map & Build',
+                icon=bui.gettexture('cursor'), oac=bs.CallPartial(s.map_it, 'prop')
+            )
+            s.kids.append(bp)
+
+        elif m == 1:
+            lbl('Text:', r0y)
+            btxt = ctw(
+                p=s.rp, pos=(bx, r0y), size=(bw_sz, bh), allow=True,
+                conf='b_txt', text=var('b_txt'), hint='String'
+            )
+            s.kids.extend([btxt.widget, btxt.widget2])
+
+            lbl('Color:', r1y)
+            bc = bw(p=s.rp, pos=(bx, r1y), size=(50, bh), color=var('Text'))
+            bw(bc, oac=bs.CallPartial(
+                ColorPicker, in_source=bc, id='Text', what='Text', id2='Text',
+                chr='char', on_back=lambda: None, mode=2
+            ))
+            s.kids.append(bc)
+
+            lbl('Scale:', r2y)
+            bscl = ctw(
+                p=s.rp, pos=(bx, r2y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_scl', text=var('b_scl'), hint='Float'
+            )
+            s.kids.extend([bscl.widget, bscl.widget2])
+
+            ck = chk(
+                parent=s.rp, position=(bx, r3y + 5), size=(150, 30),
+                value=bool(var('b_inw')), text='In World (3D)',
+                on_value_change_call=bs.CallPartial(s.toggle_inw)
+            )
+            s.kids.append(ck)
+
+            bp = bw(
+                p=s.rp, pos=(115, 25), size=(160, 45), label='Map & Build',
+                icon=bui.gettexture('cursor'), oac=bs.CallPartial(s.map_it, 'text')
+            )
+            s.kids.append(bp)
+
+        elif m == 2:
+            lbl('Color:', r0y)
+            bc = bw(p=s.rp, pos=(bx, r0y), size=(50, bh), color=var('Light'))
+            bw(bc, oac=bs.CallPartial(
+                ColorPicker, in_source=bc, id='Light', what='Light', id2='Light',
+                chr='char', on_back=lambda: None, mode=2
+            ))
+            s.kids.append(bc)
+
+            lbl('Radius:', r1y)
+            brad = ctw(
+                p=s.rp, pos=(bx, r1y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_rad', text=var('b_rad'), hint='Float'
+            )
+            s.kids.extend([brad.widget, brad.widget2])
+
+            lbl('Intensity:', r2y)
+            bint = ctw(
+                p=s.rp, pos=(bx, r2y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_int', text=var('b_int'), hint='Float'
+            )
+            s.kids.extend([bint.widget, bint.widget2])
+
+            bp = bw(
+                p=s.rp, pos=(115, 25), size=(160, 45), label='Map & Build',
+                icon=bui.gettexture('cursor'), oac=bs.CallPartial(s.map_it, 'light')
+            )
+            s.kids.append(bp)
+
+        elif m == 3:
+            lbl('Texture:', r0y)
+            bt = bw(p=s.rp, pos=(bx, r0y), size=(bw_sz, bh), label=var('b_tex'))
+            bw(bt, oac=bs.CallPartial(TexPicker, source=bt, pipe=s.pick_tex))
+            s.b_tex_btn = bt
+            s.kids.append(bt)
+
+            lbl('Color:', r1y)
+            bc = bw(p=s.rp, pos=(bx, r1y), size=(50, bh), color=var('Image'))
+            bw(bc, oac=bs.CallPartial(
+                ColorPicker, in_source=bc, id='Image', what='Image', id2='Image',
+                chr='char', on_back=lambda: None, mode=2
+            ))
+            s.kids.append(bc)
+
+            lbl('Scale:', r2y)
+            bscl = ctw(
+                p=s.rp, pos=(bx, r2y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_iscal', text=var('b_iscal'), hint='Float'
+            )
+            s.kids.extend([bscl.widget, bscl.widget2])
+
+            bp = bw(
+                p=s.rp, pos=(115, 25), size=(160, 45), label='Build (2D)',
+                icon=bui.gettexture('cursor'), oac=bs.CallPartial(s.map_it, 'image')
+            )
+            s.kids.append(bp)
+
+        elif m == 4:
+            b1 = bw(
+                p=s.rp, pos=(95, 215), size=(200, 45), label='Pick & Edit',
+                icon=bui.gettexture('menuIcon')
+            )
+            bw(b1, oac=bs.CallPartial(NodePicker, source=b1, pipe=lambda n: NodeManager(node=n, source=b1)))
+            s.kids.append(b1)
+
+            b2 = bw(
+                p=s.rp, pos=(95, 160), size=(200, 45), label='Pick & Delete',
+                icon=bui.gettexture('crossOut')
+            )
+            bw(b2, oac=bs.CallPartial(
+                NodePicker, source=b2,
+                pipe=lambda n: (n.delete(), ding(), push('Node Deleted!', color=(1, 0, 0)))
+            ))
+            s.kids.append(b2)
+
+            b3 = bw(
+                p=s.rp, pos=(95, 105), size=(200, 45), label='Pick & Attach Light',
+                icon=bui.gettexture('star')
+            )
+            bw(b3, oac=bs.CallPartial(NodePicker, source=b3, pipe=s.attach_light))
+            s.kids.append(b3)
+
+            b4 = bw(
+                p=s.rp, pos=(95, 50), size=(200, 45), label='Pick & Scale Up',
+                icon=bui.gettexture('upButton')
+            )
+            bw(b4, oac=bs.CallPartial(NodePicker, source=b4, pipe=s.scale_up))
+            s.kids.append(b4)
+
+        elif m == 5:
+            b1 = bw(
+                p=s.rp, pos=(95, 215), size=(200, 45), label='Rain Current Prop',
+                icon=bui.gettexture('downButton')
+            )
+            bw(b1, oac=s.rain_props)
+            s.kids.append(b1)
+
+            b2 = bw(
+                p=s.rp, pos=(95, 160), size=(200, 45), label='Clear All Props',
+                icon=bui.gettexture('crossOut')
+            )
+            bw(b2, oac=bs.CallPartial(s.clear_nodes, 'prop'))
+            s.kids.append(b2)
+
+            b3 = bw(
+                p=s.rp, pos=(95, 105), size=(200, 45), label='Clear All Texts',
+                icon=bui.gettexture('crossOut')
+            )
+            bw(b3, oac=bs.CallPartial(s.clear_nodes, 'text'))
+            s.kids.append(b3)
+
+            b4 = bw(
+                p=s.rp, pos=(95, 50), size=(200, 45), label='Clear All Images',
+                icon=bui.gettexture('crossOut')
+            )
+            bw(b4, oac=bs.CallPartial(s.clear_nodes, 'image'))
+            s.kids.append(b4)
+
+    def toggle_inw(s, val):
+        var('b_inw', val)
+
+    def pick_mesh(s, idx, btn):
+        m = MESH()[idx]
+        var('b_mesh', m)
+        bw(btn, label=m)
+
+    def pick_tex(s, idx):
+        t = ALL()[idx]
+        var('b_tex', t)
+        if hasattr(s, 'b_tex_btn') and s.b_tex_btn.exists():
+            bw(s.b_tex_btn, label=t)
+
+    def map_it(s, btype):
+        if btype == 'image' or (btype == 'text' and not var('b_inw')):
+            s.mapper = Mapper2D(pipe=bs.CallPartial(s.mapped, btype), pos=getpos()[:2])
+        else:
+            s.mapper = Mapper(pipe=bs.CallPartial(s.mapped, btype), pos=getpos())
+        None if s.mapper.tired else cw(s.w, transition='out_right')
+
+    def mapped(s, btype, p):
+        Coolbox(fb=s.__class__.__name__, fake=True, extra=(p, btype))
+
+    def do_prop(s, pos, silent=False):
+        with bs.get_foreground_host_activity().context:
+            o = bs_gameutils.SharedObjects.get()
+            try:
+                bs.newnode('prop', attrs={
+                    'position': pos,
+                    'mesh': bs.getmesh(var('b_mesh')),
+                    'color_texture': bs.gettexture(var('b_tex')),
+                    'body': var('b_body'),
+                    'materials': [o.object_material, o.footing_material],
+                    'reflection': 'soft',
+                    'reflection_scale': [0.5],
+                    'gravity_scale': float(var('b_grav'))
+                })
+                if not silent:
+                    SPARK(pos)
+                    ding()
+                    push('Prop Built!', color=(0, 1, 0))
+            except Exception as e:
+                err(f"Build Failed: {e}")
+
+    def do_text(s, pos):
+        in_w = var('b_inw')
+        with bs.get_foreground_host_activity().context:
+            try:
+                n = bs.newnode('text', attrs={
+                    'text': var('b_txt'),
+                    'color': var('Text'),
+                    'scale': float(var('b_scl')),
+                    'in_world': in_w,
+                    'h_align': 'center'
+                })
+                if in_w:
+                    n.position = pos
+                    SPARK(pos)
+                else:
+                    n.position = (pos[0], pos[1])
+                ding()
+                push('Text Built!', color=(0, 1, 0))
+            except Exception as e:
+                err(f"Build Failed: {e}")
+
+    def do_light(s, pos):
+        with bs.get_foreground_host_activity().context:
+            try:
+                bs.newnode('light', attrs={
+                    'position': pos,
+                    'color': var('Light'),
+                    'radius': float(var('b_rad')),
+                    'intensity': float(var('b_int'))
+                })
+                SPARK(pos)
+                ding()
+                push('Light Built!', color=(0, 1, 0))
+            except Exception as e:
+                err(f"Build Failed: {e}")
+
+    def do_image(s, pos):
+        try:
+            scl = float(var('b_iscal'))
+            with bs.get_foreground_host_activity().context:
+                bs.newnode('image', attrs={
+                    'position': (pos[0], pos[1]),
+                    'texture': bs.gettexture(var('b_tex')),
+                    'color': var('Image'),
+                    'scale': (scl, scl),
+                    'absolute_scale': True
+                })
+            ding()
+            push('Image Built!', color=(0, 1, 0))
+        except Exception as e:
+            err(f"Build Failed: {e}")
+
+    def attach_light(s, n):
+        with bs.get_foreground_host_activity().context:
+            l = bs.newnode('light', owner=n, attrs={
+                'color': (random.random(), random.random(), random.random()),
+                'radius': 1.2,
+                'intensity': 1.0
+            })
+            n.connectattr('position', l, 'position')
+        ding()
+        push('Light Attached!', color=(1, 1, 0))
+
+    def scale_up(s, n):
+        with bs.get_foreground_host_activity().context:
+            if hasattr(n, 'mesh_scale'):
+                v = n.mesh_scale
+                n.mesh_scale = [i * 1.5 for i in v] if isinstance(v, (list, tuple)) else v * 1.5
+            if hasattr(n, 'scale'):
+                v = n.scale
+                n.scale = [i * 1.5 for i in v] if isinstance(v, (list, tuple)) else v * 1.5
+        ding()
+        push('Node Scaled Up!', color=(0, 1, 0))
+
+    def clear_nodes(s, t):
+        c = 0
+        with bs.get_foreground_host_activity().context:
+            for n in bs.getnodes():
+                if n and n.getnodetype() == t and n != bs.get_foreground_host_activity().globalsnode:
+                    n.delete()
+                    c += 1
+        bui.getsound('shieldDown').play()
+        push(f'Cleared {c} {t}s!', color=(1, 0.5, 0))
+
+    def rain_props(s):
+        p = getpos()
+        def drop():
+            if not s.w.exists():
+                return
+            rp = (p[0] + random.uniform(-6, 6), p[1] + 15, p[2] + random.uniform(-6, 6))
+            s.do_prop(rp, True)
+        
+        for i in range(25):
+            bui.apptimer(i * 0.1, drop)
+            
+        bui.getsound('spawn').play()
+        push('Raining Props!', color=(0, 1, 1))
+
+@NEW
+class Camera:
+    """Camera control panel"""
+
+    def __init__(s, *a):
+        w = s.w = a[0]
+        s.live = False
+        s.live_timer = None
+        s.manual = False
+
+        # --- Position inputs ---
+        tw(p=w, pos=(50, 335), text='Position', h_align='center', size=(150, 25))
+        s.pos_inputs = []
+        for i, label in enumerate(['X', 'Y', 'Z']):
+            tw(p=w, pos=(50, 305 - i*40), text=label, size=(20, 30), v_align='center')
+            t = ctw(
+                p=w, pos=(75, 298 - i*40), size=(120, 35),
+                allow='-0.123456789', hint=f'Pos {label}',
+                conf=f'cam_pos{i}', text=str(round(_ba.get_camera_position()[i], 2))
+            )
+            s.pos_inputs.append(t)
+
+        # --- Target inputs ---
+        tw(p=w, pos=(230, 335), text='Target', h_align='center', size=(150, 25))
+        s.tar_inputs = []
+        for i, label in enumerate(['X', 'Y', 'Z']):
+            tw(p=w, pos=(230, 305 - i*40), text=label, size=(20, 30), v_align='center')
+            t = ctw(
+                p=w, pos=(255, 298 - i*40), size=(120, 35),
+                allow='-0.123456789', hint=f'Tar {label}',
+                conf=f'cam_tar{i}', text=str(round(_ba.get_camera_target()[i], 2))
+            )
+            s.tar_inputs.append(t)
+
+        # --- Manual mode checkbox ---
+        s.man_chk = chk(
+            parent=w, position=(410, 340),
+            text='Manual', size=(150, 30),
+            value=False,
+            on_value_change_call=s.set_manual
+        )
+
+        # --- Live preview toggle ---
+        s.b_live = bw(
+            p=w, pos=(410, 290), size=(150, 40),
+            label='Live Preview', icon=bui.gettexture('replayIcon'),
+            oac=s.toggle_live
+        )
+
+        # --- Arrow controls ---
+        # XZ plane (position)
+        arrows = [
+            ('Z-',  (460, 245), (0, 0, -1)),
+            ('X-',  (410, 195), (-1, 0, 0)),
+            ('·',   (460, 195), None),
+            ('X+',  (510, 195), (1, 0, 0)),
+            ('Z+',  (460, 145), (0, 0,  1)),
+            ('Y+',  (560, 195), (0, 1, 0)),
+            ('Y-',  (560, 145), (0, -1, 0)),
+        ]
+        labels = ['↑', '←', '·', '→', '↓', 'Y↑', 'Y↓']
+        for (lbl, pos, delta), txt in zip(arrows, labels):
+            if delta is None:
+                tw(p=w, pos=pos, text='✛', h_align='center', size=(40, 40), v_align='center', color=(0.4, 0.4, 0.4))
+                continue
+            bw(
+                p=w, pos=pos, size=(40, 40),
+                label=txt, text_scale=1.1,
+                oac=bs.CallPartial(s.nudge, delta),
+                repeat=True
+            )
+
+        # Step size
+        tw(p=w, pos=(50, 155), text='Step:', size=(50, 30), v_align='center')
+        s.step_t = ctw(
+            p=w, pos=(100, 148), size=(90, 35),
+            allow='0.123456789', hint='Step',
+            conf='cam_step', text=var('cam_step') or '0.5'
+        )
+
+        # Target mode toggle
+        s.tar_mode = False
+        s.b_mode = bw(
+            p=w, pos=(50, 105), size=(150, 35),
+            label='Moving: Pos', oac=s.toggle_mode
+        )
+
+        # --- Apply / Reset / Sync ---
+        bw(p=w, pos=(220, 105), size=(120, 35),
+           label='Apply', icon=bui.gettexture('settingsIcon'),
+           oac=s.apply)
+
+        bw(p=w, pos=(350, 105), size=(120, 35),
+           label='Sync', icon=bui.gettexture('replayIcon'),
+           oac=s.sync)
+
+        bw(p=w, pos=(50, 55), size=(150, 35),
+           label='Reset Camera', icon=bui.gettexture('replayIcon'),
+           oac=s.reset)
+
+        bw(p=w, pos=(220, 55), size=(250, 35),
+           label='Pick Node → Focus', icon=bui.gettexture('star'),
+           oac=s.pick_focus)
+
+        # init sync
+        s.sync()
+
+    def get_pos(s):
+        return tuple(float(s.pos_inputs[i].get_text() or '0') for i in range(3))
+
+    def get_tar(s):
+        return tuple(float(s.tar_inputs[i].get_text() or '0') for i in range(3))
+
+    def set_manual(s, v):
+        s.manual = v
+        _ba.set_camera_manual(v)
+
+    def toggle_mode(s):
+        s.tar_mode = not s.tar_mode
+        bw(s.b_mode, label=f"Moving: {'Tar' if s.tar_mode else 'Pos'}")
+        bui.getsound('deek').play()
+
+    def toggle_live(s):
+        s.live = not s.live
+        bw(s.b_live, color=(0, 0.6, 0) if s.live else var('bg'))
+        if s.live:
+            s.live_timer = bui.AppTimer(0.02, s._live_tick, repeat=True)
+            bui.getsound('ding').play()
+        else:
+            s.live_timer = None
+            bui.getsound('tap').play()
+
+    def _live_tick(s):
+        if not s.w.exists() or s.w.transitioning_out:
+            s.live_timer = None
+            return
+        try:
+            p = s.get_pos()
+            t = s.get_tar()
+            if s.manual:
+                _ba.set_camera_position(*p)
+            _ba.set_camera_target(*t)
+        except Exception:
+            pass
+
+    def nudge(s, delta):
+        step = float(s.step_t.get_text() or '0.5')
+        inputs = s.tar_inputs if s.tar_mode else s.pos_inputs
+        for i in range(3):
+            if delta[i] == 0:
+                continue
+            cur = float(inputs[i].get_text() or '0')
+            inputs[i].set_text(str(round(cur + delta[i] * step, 3)))
+        if s.live:
+            s._live_tick()
+
+    def apply(s):
+        try:
+            p = s.get_pos()
+            t = s.get_tar()
+        except ValueError:
+            btw('Invalid input!')
+            return
+        if s.manual:
+            _ba.set_camera_position(*p)
+        _ba.set_camera_target(*t)
+        ding()
+        push('Camera applied!', color=(0, 1, 0))
+
+    def sync(s):
+        p = _ba.get_camera_position()
+        t = _ba.get_camera_target()
+        for i in range(3):
+            s.pos_inputs[i].set_text(str(round(p[i], 3)), silent=True)
+            s.tar_inputs[i].set_text(str(round(t[i], 3)), silent=True)
+        bui.getsound('tap').play()
+
+    def reset(s):
+        _ba.set_camera_manual(False)
+        chk(s.man_chk, value=False)
+        s.manual = False
+        if s.live:
+            s.toggle_live()
+        s.sync()
+        ding()
+        push('Camera reset!', color=(0, 1, 0))
+
+    def pick_focus(s):
+        NodePicker(
+            source=s.w,
+            pipe=s._focus_on,
+            allow='3D'
+        )
+
+    def _focus_on(s, n):
+        try:
+            p = n.position
+        except Exception:
+            btw('Node has no position!')
+            return
+        for i in range(3):
+            s.tar_inputs[i].set_text(str(round(p[i], 3)), silent=True)
+        _ba.set_camera_target(*p)
+        FOCUS(p, 2)
+        ding()
+
+
+@NEW
+class Scene:
+    """Scene control map, tint, ambient"""
+
+    def __init__(s, *a):
+        w = s.w = a[0]
+
+        # MAP (left: x=40..290)
+        maps = sorted(
+            m for m in dir(__import__('bascenev1lib').maps)
+            if not m.startswith('_')
+            and isinstance(getattr(__import__('bascenev1lib').maps, m), type)
+        )
+        print(maps)
+
+        s.sel_map = None
+        s.map_btns = []
+        ROW = 32
+        content_h = max(260, len(maps) * ROW)
+
+        s._scroll = bui.scrollwidget(
+            parent=w, position=(40, 110),
+            size=(245, 260), color=var('bg'),
+            border_opacity=0.4
+        )
+        s._cv = cw(parent=s._scroll, background=False,
+                   size=(225, content_h))
+
+        for i, m in enumerate(maps):
+            y = content_h - ROW - i * ROW
+            b = bw(
+                p=s._cv, pos=(0, y), size=(225, ROW - 2),
+                label=m, text_scale=0.75,
+                oac=bs.CallPartial(s.select_map, i, m)
+            )
+            s.map_btns.append(b)
+
+        s.b_switch = bw(
+            p=w, pos=(40, 60), size=(118, 42),
+            label='Switch Map', icon=bui.gettexture('levelIcon'),
+            oac=s.do_map
+        )
+        s.b_mapnode = bw(
+            p=w, pos=(166, 60), size=(118, 42),
+            label='Map Node', icon=bui.gettexture('settingsIcon'),
+            oac=s.map_node
+        )
+
+        # ── TINT (right top: x=305..555) ─────────────────────
+        s.tint_btn = bw(
+            p=w, pos=(305, 335), size=(250, 55),
+            label='Pick Tint', oac=s.open_tint
+        )
+        s.sync_tint()
+
+        bw(p=w, pos=(305, 288), size=(120, 40),
+           label='× 1.1', text_scale=0.9,
+           oac=bs.CallPartial(s.mult_tint, 1.1))
+        bw(p=w, pos=(433, 288), size=(120, 40),
+           label='÷ 1.1', text_scale=0.9,
+           oac=bs.CallPartial(s.mult_tint, 1 / 1.1))
+
+        bw(p=w, pos=(305, 240), size=(250, 40),
+           label='Reset Tint', icon=bui.gettexture('replayIcon'),
+           oac=s.reset_tint)
+
+        # ── AMBIENT (right bottom: x=305..555) ───────────────
+        presets = [
+            ('Neutral', (1.0, 1.0, 1.0)),
+            ('Warm',    (1.3, 1.0, 0.8)),
+            ('Cold',    (0.8, 0.9, 1.3)),
+            ('Dusk',    (1.2, 0.8, 0.6)),
+            ('Horror',  (0.5, 0.7, 0.5)),
+            ('Void',    (0.3, 0.3, 0.5)),
+        ]
+        s.ambient_btns = []
+        for i, (lbl, col) in enumerate(presets):
+            b = bw(
+                p=w,
+                pos=(305 + (i % 3) * 84, 198 - (i // 3) * 44),
+                size=(78, 38), label=lbl,
+                color=col, oac=bs.CallPartial(s.set_ambient, col)
+            )
+            s.ambient_btns.append(b)
+
+        s.b_custom_ambient = bw(
+            p=w, pos=(305, 60), size=(250, 42),
+            label='Custom Ambient', icon=bui.gettexture('settingsIcon'),
+            oac=s.open_ambient
+        )
+
+    # ── helpers ───────────────────────────────────────────────
+
+    def _glob(s):
+        return bs.get_foreground_host_activity().globalsnode
+
+    # tint
+
+    def sync_tint(s):
+        try:
+            c = s._glob().tint
+        except Exception:
+            c = (1.0, 1.0, 1.0)
+        bw(s.tint_btn, color=c)
+
+    def open_tint(s):
+        try:
+            c = s._glob().tint
+        except Exception:
+            c = (1.0, 1.0, 1.0)
+        var('scene_tint', c)
+        var('scene_tintRed',   str(round(c[0], 4)))
+        var('scene_tintGreen', str(round(c[1], 4)))
+        var('scene_tintBlue',  str(round(c[2], 4)))
+        ColorPicker(
+            in_source=s.tint_btn,
+            id='scene_tint', what='scene_tint',
+            id2='scene_tint', chr='char', mode=2,
+            on_back=s.apply_tint
+        )
+
+    def apply_tint(s):
+        c = var('scene_tint') or (1.0, 1.0, 1.0)
+        with bs.get_foreground_host_activity().context:
+            s._glob().tint = c
+        s.sync_tint()
+        ding()
+        push('Tint applied!', color=(0, 1, 0))
+
+    def mult_tint(s, factor):
+        with bs.get_foreground_host_activity().context:
+            c = s._glob().tint
+            nc = tuple(c[i] * factor for i in range(3))
+            s._glob().tint = nc
+        s.sync_tint()
+        ding()
+
+    def reset_tint(s):
+        with bs.get_foreground_host_activity().context:
+            s._glob().tint = (1.0, 1.0, 1.0)
+        s.sync_tint()
+        ding()
+        push('Tint reset!', color=(0, 1, 0))
+
+    # ambient
+
+    def set_ambient(s, col):
+        with bs.get_foreground_host_activity().context:
+            s._glob().ambient_color = col
+        ding()
+        push('Ambient set!', color=col)
+
+    def open_ambient(s):
+        try:
+            c = s._glob().ambient_color
+        except Exception:
+            c = (1.0, 1.0, 1.0)
+        var('scene_ambient', c)
+        var('scene_ambientRed',   str(round(c[0], 4)))
+        var('scene_ambientGreen', str(round(c[1], 4)))
+        var('scene_ambientBlue',  str(round(c[2], 4)))
+        ColorPicker(
+            in_source=s.b_custom_ambient,
+            id='scene_ambient', what='scene_ambient',
+            id2='scene_ambient', chr='char', mode=2,
+            on_back=s.apply_ambient
+        )
+
+    def apply_ambient(s):
+        c = var('scene_ambient') or (1.0, 1.0, 1.0)
+        with bs.get_foreground_host_activity().context:
+            s._glob().ambient_color = c
+        ding()
+        push('Ambient applied!', color=(0, 1, 0))
+
+    # map
+
+    def select_map(s, i, name):
+        for idx, b in enumerate(s.map_btns):
+            bw(b, color=(0.0, 0.45, 0.0) if idx == i else var('bg'))
+        s.sel_map = name
+        bui.getsound('tap').play()
+
+    def do_map(s):
+        if not s.sel_map:
+            btw('Pick a map first!')
+            return
+        try:
+            s._change_map(s.sel_map)
+            ding()
+            push(f'Map → {s.sel_map}!', color=(0, 1, 0))
+        except Exception as e:
+            err(str(e))
+
+    def map_node(s):
+        try:
+            NodeManager(
+                node=bs.get_foreground_host_activity().map.node,
+                source=s.b_mapnode
+            )
+        except Exception:
+            btw('Map has no main node!')
+
+    def _change_map(s, ma):
+        from bascenev1lib.gameutils import SharedObjects
+        _act = bs.get_foreground_host_activity()
+        old_map = _act.map
+        cls = getattr(
+            __import__('bascenev1lib').maps,
+            ma.replace(' ', '')
+        )
+        with _act.context:
+            if type(old_map) in _act.preloads:
+                del _act.preloads[type(old_map)]
+            _act.preloads[cls] = preload = cls.on_preload()
+            shared = SharedObjects.get()
+            temp = cls()
+            temp.node and temp.node.delete()
+            for node in bs.getnodes():
+                if node.getnodetype() == 'terrain' and node != old_map.node:
+                    try: node.delete()
+                    except: pass
+            if hasattr(old_map, 'node') and old_map.node:
+                old_map.node.mesh = (
+                    preload.get('mesh') or
+                    preload.get('mesh_top') or
+                    preload.get('meshes', [None])[0]
+                )
+                old_map.node.color_texture = preload['tex']
+                old_map.node.collision_mesh = preload['collision_mesh']
+                old_map.node.materials = (
+                    [shared.footing_material, preload['ice_material']]
+                    if 'ice_material' in preload
+                    else [shared.footing_material]
+                )
+            for attr in ['bottom', 'floor', 'stands', 'background',
+                         'railing', 'bg_collide', 'stem']:
+                if hasattr(old_map, attr):
+                    try: getattr(old_map, attr).delete(); delattr(old_map, attr)
+                    except: pass
+            if 'mesh_bottom' in preload or 'bottom_mesh' in preload:
+                old_map.bottom = bs.newnode('terrain', attrs={
+                    'mesh': preload.get('mesh_bottom') or preload.get('bottom_mesh'),
+                    'lighting': False, 'color_texture': preload['tex']
+                })
+            if 'meshes' in preload and len(preload['meshes']) > 1:
+                mats = (
+                    [shared.footing_material, preload['ice_material']]
+                    if 'ice_material' in preload else [shared.footing_material]
+                )
+                old_map.floor = bs.newnode('terrain', attrs={
+                    'mesh': preload['meshes'][1],
+                    'color_texture': preload['tex'],
+                    'opacity': 0.92,
+                    'opacity_in_low_or_medium_quality': 1.0,
+                    'materials': mats
+                })
+            if 'mesh_bg' in preload or 'bgmesh' in preload:
+                old_map.background = bs.newnode('terrain', attrs={
+                    'mesh': preload.get('mesh_bg') or preload.get('bgmesh'),
+                    'lighting': False, 'background': True,
+                    'color_texture': preload.get('mesh_bg_tex') or preload.get('bgtex')
+                })
+            if 'railing_collision_mesh' in preload or 'bumper_collision_mesh' in preload:
+                old_map.railing = bs.newnode('terrain', attrs={
+                    'collision_mesh': (
+                        preload.get('railing_collision_mesh') or
+                        preload.get('bumper_collision_mesh')
+                    ),
+                    'materials': [shared.railing_material],
+                    'bumper': True
+                })
+            if 'collide_bg' in preload:
+                old_map.bg_collide = bs.newnode('terrain', attrs={
+                    'collision_mesh': preload['collide_bg'],
+                    'materials': [
+                        shared.footing_material,
+                        preload.get('bg_material'),
+                        shared.death_material
+                    ]
+                })
+            old_map.preloaddata = preload
+            old_map.defs = cls.defs
+            old_map.is_hockey = (
+                hasattr(cls, 'is_hockey') or
+                cls.name in ['Hockey Stadium', 'Lake Frigid']
+            )
+            old_map.is_flying = cls.name == 'Happy Thoughts'
+            gnode = _act.globalsnode
+            gnode.area_of_interest_bounds = (
+                old_map.get_def_bound_box('area_of_interest_bounds') or
+                (-1, -1, -1, 1, 1, 1)
+            )
+            bs.set_map_bounds(
+                old_map.get_def_bound_box('map_bounds') or
+                (-30, -10, -30, 30, 100, 30)
+            )
 
 @NEW
 class About:
@@ -5797,6 +7773,7 @@ for i in range(3):
     con(f'mpos{i}','0')
     con(f'move{i}','0')
     con(f'dpl{i}','0')
+    con(f'bld{i}','0')
     con(f'cconf{i}',[1,1,0,1][i])
 [con(f'cont{i}',True) for i in range(5)]
 [con(f'what{i}',True) for i in range(len(WHAT()))]
