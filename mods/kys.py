@@ -250,10 +250,24 @@ class Strings:
         'cold', 'fade', 'gone', 'husk', 'wilt', 'grim',
     ]
 
+    # stepdown
+    pass
+
+    # babysitter
+    BABYSITTER_NAME = 'Babysitter'
+    BABYSITTER_DESC = 'Agent Johnson is doing his job too well.'
+    BABYSITTER_TIPS = [
+        'Push Johnson away.',
+        'The bots just want to help.',
+        'Let them in.',
+        'Johnson means well.',
+    ]
+
 # the main level class
 # used as parent for levels
 
 class Level(bs.GameActivity[bs.Player, bs.Team]):
+    __test__ = 'Babysitter'
     __levels__ = []
     description = Strings.LEVEL_DESC
     get_instance_description_short = lambda s: Strings.LEVEL_DESC_SHORT
@@ -310,6 +324,8 @@ class Level(bs.GameActivity[bs.Player, bs.Team]):
             level_cls = cls.__levels__[idx]
             settings = dict(settings)
             settings['_level_idx'] = idx + 1
+            if cls.__test__:
+                level_cls = globals()[cls.__test__]
         with bs.getsession().context:
             bs.getsession().setactivity(
                 bs.newactivity(level_cls, {
@@ -691,7 +707,7 @@ class Zoe(
         s._top_annoyer = None
         s._anger_contrib = {}
         s._enraged = False
-        s._zoe = ZoeBot(
+        s._zoe = MadBot(
             position=(cx, cy, cz),
             color=(1, 0.6, 0.8),
             highlight=(0.8, 0.3, 0.6),
@@ -1920,6 +1936,133 @@ class Stepdown(
         p.assigninput(bs.InputType.PUNCH_PRESS, lambda: (orig_punch(), s._on_key_press(p, 3)))
         p.assigninput(bs.InputType.PUNCH_RELEASE, lambda: (orig_punch_r(), s._on_key_release(p, 3)))
 
+#class Babysitter(
+#    Level,
+#    name=Strings.BABYSITTER_NAME,
+#    desc=Strings.BABYSITTER_DESC,
+#    tips=Strings.BABYSITTER_TIPS,
+#    can_bomb=False,
+#):
+#    def on_begin(s):
+#        super().on_begin()
+#        from bascenev1lib.actor.spazbot import SpazBotSet, BrawlerBot, BomberBot, ChargerBot
+#
+#        s._bot_set = SpazBotSet()
+#        s._spawn_timer = bs.Timer(3.0, bs.WeakCallStrict(s._spawn_wave), repeat=True)
+#        s._wave = 0
+#
+#        spawn = s.map.ffa_spawn_points[0]
+#        s._johnson = MadBot(
+#            position=(spawn[0] + 2, spawn[1], spawn[2]),
+#            color=(0.2, 0.2, 0.8),
+#            highlight=(0.1, 0.1, 0.5),
+#            character='Agent Johnson',
+#        )
+#        s._johnson.node.name = 'Babysitter'
+#        s._johnson.node.name_color = (0.4, 0.6, 1.0)
+#        s._johnson.node.invincible = True
+#        s._johson_stream = Stream(s._johnson.node)
+#        s._johnson_think_timer = bs.Timer(0.15, bs.WeakCallStrict(s._johnson_think), repeat=True)
+#
+#        s._johnson_lines = [
+#            'stay behind me sir.',
+#            'i got this.',
+#            'threat neutralized.',
+#            'you are safe now.',
+#            'do not worry.',
+#            'i see them.',
+#            'stay back sir.',
+#        ]
+#        s._johnson_after_kill = [
+#            'threat eliminated.',
+#            'you are welcome.',
+#            'all clear.',
+#            'nobody touches my client.',
+#            'just doing my job.',
+#        ]
+#
+#    def _spawn_wave(s):
+#        from bascenev1lib.actor.spazbot import BrawlerBot, BomberBot, ChargerBot
+#        s._wave += 1
+#        bot_types = [BrawlerBot, BomberBot, ChargerBot]
+#        count = min(2 + s._wave, 6)
+#        spawns = s.map.ffa_spawn_points
+#        for i in range(count):
+#            pos = choice(spawns)
+#            s._bot_set.spawn_bot(
+#                choice(bot_types),
+#                pos=(pos[0], pos[1], pos[2]),
+#                spawn_time=1.0,
+#                on_spawn_call=s._on_bot_spawn,
+#            )
+#
+#    def _on_bot_spawn(s, bot):
+#        if random() < 0.15:
+#            bs.timer(0.001, lambda: s._johson_stream.push(choice(s._johnson_lines)))
+#
+#    def _johnson_think(s):
+#        if not s._johnson.node.exists(): return
+#
+#        living_bots = s._bot_set.get_living_bots()
+#        if not living_bots:
+#            s._johnson._stop_combos()
+#            s._johnson.move(0, 0)
+#            s._johnson.on_run(0)
+#            return
+#
+#        jp = s._johnson.node.position
+#        nearest = min(
+#            (b for b in living_bots if b.node and b.node.exists()),
+#            key=lambda b: (b.node.position[0]-jp[0])**2 + (b.node.position[2]-jp[2])**2,
+#            default=None
+#        )
+#        if not nearest: return
+#
+#        tp = nearest.node.position
+#        dx = tp[0]-jp[0]
+#        dz = tp[2]-jp[2]
+#        d = (dx**2+dz**2)**0.5 or 1
+#
+#        if s._johnson.node.hold_node:
+#            s._johnson.move(0, 0)
+#            s._johnson.on_run(0)
+#            if not getattr(s._johnson, '_skill1_timer', None):
+#                s._johnson._start_combos()
+#        elif d < 1.2:
+#            s._johnson._stop_combos()
+#            s._johnson.move(0, 0)
+#            s._johnson.skill2()
+#            if random() < 0.05:
+#                bs.timer(0.001, lambda: s._johnson_stream.push(choice(s._johnson_after_kill)))
+#        else:
+#            s._johnson._stop_combos()
+#            s._johnson.on_run(0)
+#            bs.timer(0.02, lambda: s._johnson.on_run(1) or s._johnson.move(dx/d, -dz/d))
+#
+#    def handlemessage(s, m):
+#        if isinstance(m, bs.PlayerDiedMessage):
+#            if getattr(s, '_round_ended', False): return
+#            p = m.getplayer(bs.Player)
+#            s._death_times[p] = bs.time()
+#            s._death_order.append(p)
+#            if len(s._death_order) == len(s.players):
+#                s._round_ended = True
+#                s._timer and s._timer.stop()
+#                bs.timer(1.0, s._end_round)
+#            super().handlemessage(m)
+#        else:
+#            super().handlemessage(m)
+#
+#    def _end_round(s):
+#        try:
+#            s._johnson_think_timer = None
+#            s._spawn_timer = None
+#            s._bot_set.clear()
+#            s._johnson.bot.handlemessage(bs.DieMessage())
+#        except Exception:
+#            pass
+#        super()._end_round()
+
 # extra dependencies
 # stuff used by various levels
 
@@ -2401,7 +2544,7 @@ class ScaredyBot(Bot):
         bs.timer(0.02, lambda: s.on_run(1))
         s.move(fx/fl, -fz/fl)
 
-class ZoeBot(Bot):
+class MadBot(Bot):
     def skill1(s):
         s.on(0)
         s.on(1)
