@@ -411,8 +411,8 @@ class Player:
                         if sub_off + sub_size > len(raw_msg):
                             break
                         sub_data = raw_msg[sub_off:sub_off+sub_size]
-                        if len(sub_data) >= 2 and sub_data[0] == 0:
-                            total_ms += sub_data[1]
+                        if len(sub_data) >= 5 and sub_data[0] == 0:
+                            total_ms += int.from_bytes(sub_data[1:5], 'little')
                         sub_off += sub_size
                     
                     # Update confirmed duration (this is safe to seek to!)
@@ -1530,8 +1530,8 @@ def get_replay_duration(_h, brp_path, progress):
                 if sub_off + sub_size > len(raw_msg):
                     break
                 sub_data = raw_msg[sub_off:sub_off+sub_size]
-                if len(sub_data) >= 2 and sub_data[0] == 0:
-                    total_ms += sub_data[1]
+                if len(sub_data) >= 5 and sub_data[0] == 0:
+                    total_ms += int.from_bytes(sub_data[1:5], 'little')
                 sub_off += sub_size
     progress[0] = progress[1]
     return total_ms
