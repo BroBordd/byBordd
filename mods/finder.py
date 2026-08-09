@@ -36,7 +36,7 @@ from bauiv1 import (
     getmesh as gm, charstr as cs,
     CallPartial
 )
-from babase import app_instance_uuid as U, Plugin, app
+from babase import Plugin, app
 
 # ============================================================================
 # PACKET ENUMS - Same elegant system as Proto
