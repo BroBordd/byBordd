@@ -78,13 +78,11 @@ class Editor:
         bui.apptimer(Const.BA_LAG_SMALL,getattr(s,cb))
 
     def __init__(s,map):
-        # register
         s.shared_callback = WeakMethod(s.callback)
         type(s)._shared['callbacks'].append(s.shared_callback)
         s.ui_on = False
         s.ui_clickable = False
         s.original_map = map
-        # timeline
         s.timeline = []
         s.timeline_index = 0
         s.active = {}
@@ -93,71 +91,57 @@ class Editor:
         s.active_key_schedule = {}
         s.active_codes = defaultdict(dict)
         s.active_seeds = {}
-        # play
         s.play_timer = None
         s.playing = False
         s.playhead = None
         s.is_wide = False
-        # toast
         s.can_toast = True
         s.toast_zoom = None
         s.toast_blink = None
         s.last_toast = None
-        # menu
         s.menu_root = None
         s.menu_on = False
         s.seed_on = False
         s.menu_kids = []
-        # event
         s.event_root = None
         s.event_on = False
         s.event_kids = {}
         s.event_top = None
-        # window
         s.window_on = ()
         s.window_kids = []
         s.window_trash = []
-        # magic
         s.magic_x = 5.5
         s.magic_y = 5
         s.magic_right = 0.925
         s.magic_left = 1.4
-        # entried
         s.entry_xs = 40
         s.entry_ys = 40
         s.entry_xs_real = s.entry_xs * s.magic_right
         s.entry_ys_real = s.entry_ys * s.magic_right
-        # stamp
         s.stamp_kids = []
         s.stamp_timeline = []
         s.stamp_hack = 14
         s.entries_per_sec = 5
         s.object_duration = 1
-        # memory
         s.memory = {}
         s.widgets = {}
         s.anims = defaultdict(dict)
         s.in_anims = []
         s.out_anims = []
         s.pending = []
-        # controls
         s.controls = []
         s.controls_shown = False
-        # tools
         s.tools = []
         s.tools_shown = False
-        # camera
         s.camera_timer = None
         s.camera_data = {}
-        # extra
         s.sl = None
         s.global_butter = 0.3
         s.can_do = False
         s.blame = None
-        # info
+        s.increment = 1
         s.info_fps_was_on = bui.app.config.get(Const.CONFIG_FPS_KEY,False)
         s.info_dev_was_on = bui.app.config.get(Const.CONFIG_DEV_KEY,False)
-        # finally
         s.schedule_on_ui(
             s.on_ui_ready,
             lag=0.23
@@ -192,7 +176,6 @@ class Editor:
     @ui_safe
     def on_scroll(s):
         if s.event_on:
-            # you're not going anywhere
             for kid in s.event_kids:
                 an = s.anims[id(kid)]
                 for _ in ['extra','to']:
@@ -253,7 +236,6 @@ class Editor:
 
     def toast(s,inp=None,shut=1,extra=0):
         shut or Eval.SOUND(Const.OK_SOUND).play()
-        # on toast
         if not s.can_toast and not shut: return
         if s.can_do and extra<1: s.can_do = False
         if s.toast_blink:
@@ -263,7 +245,6 @@ class Editor:
         s.can_toast = False
         b = s.toast_bg
         t,desc = inp or ('','')
-        # update
         if not s.blame:
             s.blame = Eval.BLAME(
                 Const.BLAME(),
@@ -277,7 +258,6 @@ class Editor:
                 extra=extra-1
             )
         )
-        # default
         text_width = t and Eval.STRING_WIDTH(t) or 0
         duration = 0.45
         end_size = dx,dy = (text_width+(t and 20 or 0),30)
@@ -287,7 +267,6 @@ class Editor:
         x,y = ox,oy = s.toast_position
         end_pos = epx,epy = (ox-dx/2,oy)
         rush = False
-        # override
         if (anim:=s.anims.get(id(b),None)):
             start_size = stx,sty = anim.attrs_current['size']
             if (
@@ -298,7 +277,6 @@ class Editor:
             start_opacity = anim.attrs_current['opacity']
             anim.cancel()
         def enable(): s.can_toast = True
-        # zoom
         zoom_time = 0.2
         def zoom():
             s.toast_zoom = Animate(
@@ -316,7 +294,6 @@ class Editor:
                 duration=zoom_time,
                 on_finish=(enable,)
             )
-        # blink text
         start_textcolor = (*Color.TEXT,Color.OPACITY)
         blink_time = 0.2
         apply_text = bui.CallPartial(
@@ -341,7 +318,6 @@ class Editor:
                 on_cancel=apply_text
             )
         blink()
-        # animate
         s.anims[id(b)] = Animate(
             widget=b,
             attrs={
@@ -362,16 +338,13 @@ class Editor:
             max(len(t)*0.07,3),
             s.toast
         )
-        # finally
         s.last_toast = t
 
     def make(s):
-        # root
         s.root = bui.containerwidget(
             parent=bui.get_special_widget('overlay_stack'),
             background=False
         )
-        # trap
         bui.containerwidget(
             s.root,
             cancel_button=(
@@ -386,14 +359,12 @@ class Editor:
                 )
             )
         )
-        # stamp background
         s.stamp_bg = bui.imagewidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             opacity=0
         )
-        # square
         s.square = bui.buttonwidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
@@ -403,7 +374,6 @@ class Editor:
             enable_sound=False,
             on_activate_call=s.on_square
         )
-        # triangle
         s.triangle = bui.buttonwidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
@@ -413,56 +383,46 @@ class Editor:
             enable_sound=False,
             on_activate_call=s.on_triangle
         )
-        # stamp scroll
         s.stamp_scroll = bui.scrollwidget(
             parent=s.root,
             border_opacity=0,
             color=Color.BASE,
             on_select_call=s.on_scroll
         )
-        # stamp scroll root
         s.stamp_scroll_root = bui.containerwidget(
             parent=s.stamp_scroll,
             background=False
         )
-        # stamp hscroll
         s.stamp_hscroll = bui.hscrollwidget(
             parent=s.stamp_scroll_root,
             border_opacity=0,
             color=Color.BASE
         )
-        # stamp hscroll root
         s.stamp_hscroll_root = bui.containerwidget(
             parent=s.stamp_hscroll,
             background=False
         )
-        # top left h
         s.top_left_h = bui.textwidget(
             parent=s.stamp_hscroll_root
         )
-        # top left v
         s.top_left_v = bui.textwidget(
             parent=s.stamp_scroll_root
         )
-        # bottom left h
         s.bottom_left_h = bui.textwidget(
             parent=s.stamp_hscroll_root,
             position=(0,0),
             size=(10,10)
         )
-        # bottom left v
         s.bottom_left_v = bui.textwidget(
             parent=s.stamp_scroll_root,
             position=(0,0)
         )
-        # event button background
         s.event_root = bui.imagewidget(
             parent=s.root,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             opacity=0
         )
-        # event button
         s.event_button = bui.buttonwidget(
             parent=s.root,
             label=Strings.EVENT_BUTTON_OFF,
@@ -472,9 +432,7 @@ class Editor:
             textcolor=Const.INVISIBLE,
             enable_sound=False
         )
-        # event kids
         for i,n in enumerate(Strings.EVENTS):
-            # make
             b = bui.buttonwidget(
                 parent=s.root,
                 label=n,
@@ -492,7 +450,6 @@ class Editor:
                 color=Color.BASE
             )
             s.event_kids[b] = {'shadow':sh}
-        # edit button
         s.edit_button = bui.buttonwidget(
             parent=s.root,
             label=Strings.EDIT_BUTTON,
@@ -509,7 +466,6 @@ class Editor:
             texture=Eval.TEXTURE(Const.SHADOW),
             color=Color.BASE
         )
-        # key button
         s.key_button = bui.buttonwidget(
             parent=s.root,
             label=Strings.KEYS,
@@ -526,7 +482,6 @@ class Editor:
             texture=Eval.TEXTURE(Const.SHADOW),
             color=Color.BASE
         )
-        # tools
         for i,t in enumerate(Const.TOOLS):
             b = bui.buttonwidget(
                 parent=s.root,
@@ -542,7 +497,6 @@ class Editor:
                 repeat=True
             )
             s.tools.append(b)
-        # controls
         for i,t in enumerate(Const.CONTROLS):
             b = bui.buttonwidget(
                 parent=s.root,
@@ -562,7 +516,6 @@ class Editor:
                 size=(0,0)
             )
             s.controls.append(b)
-        # toast
         s.toast_bg = bui.buttonwidget(
             parent=s.root,
             label='',
@@ -572,27 +525,22 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE
         )
-        # extra
         s.make_menu()
-        # finally
         s.ui_clickable = True
         s.wrap_all(init=True)
         s.make_timeline(init=True)
         s.wrap_timeline()
         s.top_left()
-        # push
         bui.apptimer(0.3,s.toggle_ui)
         for lag,call in s.pending:
             bui.apptimer(lag,call)
         s.pending.clear()
 
     def make_timeline(s,init=False):
-        # cleanup
         for i,j in s.stamp_timeline:
             i.delete()
             j.delete()
         s.stamp_timeline.clear()
-        # stamp timeline
         eps = s.entries_per_sec
         num_markers = int(s.stamp_deep_x / s.entry_xs_real) + 5
         for i in range(num_markers):
@@ -643,7 +591,6 @@ class Editor:
                 'memory': mem,
                 'btn_id': btn_id
             })
-        # sort
         s.timeline.sort(key=lambda x: x['time'])
         s.max_time = s.timeline[-1]['time'] if s.timeline else 0
 
@@ -684,21 +631,17 @@ class Editor:
         bui.app.config.apply_and_commit()
 
     def animate_in(s,on_finish=None):
-        # instant
         bui.scrollwidget(
             s.stamp_scroll,
             size=s.stamp_size
         )
         butter = s.global_butter * 2
-        # reversing?
         for anim in s.out_anims:
             anim.cancel()
         s.in_anims.clear()
         s.out_anims.clear()
-        # cancellable
         def cleanup():
             callable(on_finish) and on_finish()
-        # stamp bg
         a = Animate(
             widget=s.stamp_bg,
             duration=butter,
@@ -708,9 +651,7 @@ class Editor:
             on_finish=cleanup
         )
         s.in_anims.append(a)
-        # stamp timeline
         for t,l in s.stamp_timeline:
-            # text
             a = Animate(
                 widget=t,
                 duration=butter,
@@ -722,7 +663,6 @@ class Editor:
                 }
             )
             s.in_anims.append(a)
-            # line
             a = Animate(
                 widget=l,
                 duration=butter,
@@ -731,7 +671,6 @@ class Editor:
                 }
             )
             s.in_anims.append(a)
-        # event button
         a = Animate(
             widget=s.event_button,
             duration=butter,
@@ -743,7 +682,6 @@ class Editor:
             }
         )
         s.in_anims.append(a)
-        # event button background
         a = Animate(
             widget=s.event_root,
             duration=butter,
@@ -752,7 +690,6 @@ class Editor:
             }
         )
         s.in_anims.append(a)
-        # edit button
         a = Animate(
             widget=s.edit_button,
             duration=butter,
@@ -765,7 +702,6 @@ class Editor:
             }
         )
         s.in_anims.append(a)
-        # key button
         a = Animate(
             widget=s.key_button,
             duration=butter,
@@ -778,22 +714,18 @@ class Editor:
             }
         )
         s.in_anims.append(a)
-        # finally
         if len(s.memory):
             if s.sl: s.show_tools()
             else: s.show_controls()
 
     def animate_out(s,on_finish=None):
         butter = s.global_butter*2
-        # anything up?
         s.collapse_all(hard=True)
-        # instant
         bui.scrollwidget(
             s.stamp_scroll,
             size=(0,0)
         )
         s.out_anims.clear()
-        # reverse
         for anim in s.in_anims:
             a = anim.reverse(
                 duration=butter
@@ -824,19 +756,16 @@ class Editor:
             s.toast(Strings.ERROR_SELECT_SOMETHING)
             return
         Eval.SOUND(Const.OK_SOUND).play()
-        # disable
         bui.buttonwidget(
             s.edit_button,
             on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
-        # math
         start_pos = s.event_on and s.edit_button_pos2 or s.edit_button_pos
         end_pos = s.window_pos
         start_size = s.edit_button_size
         end_size = s.window_size
         butter = s.global_butter*1.3
-        # button
         s.anims[id(s.edit_button)]['window'] = Animate(
             s.edit_button,
             duration=butter,
@@ -849,7 +778,6 @@ class Editor:
                 )
             }
         )
-        # shadow
         s.anims[id(s.edit_button)]['shadow'] = (
             Animate(
                 widget=s.edit_button_shadow,
@@ -867,7 +795,6 @@ class Editor:
                 duration=butter
             )
         )
-        # finally
         b = s.sl
         mem = s.memory[id(b)]
         ret = s.make_window_kids(
@@ -893,19 +820,16 @@ class Editor:
         if s.window_on:
             s.window_back()
         Eval.SOUND(Const.OK_SOUND).play()
-        # disable
         bui.buttonwidget(
             s.key_button,
             on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
-        # math
         start_pos = s.event_on and s.key_button_pos2 or s.key_button_pos
         end_pos = s.window_pos
         start_size = s.edit_button_size
         end_size = s.window_size
         butter = s.global_butter*1.3
-        # button
         s.anims[id(s.key_button)]['window'] = Animate(
             s.key_button,
             duration=butter,
@@ -918,7 +842,6 @@ class Editor:
                 )
             }
         )
-        # shadow
         s.anims[id(s.key_button)]['shadow'] = (
             Animate(
                 widget=s.key_button_shadow,
@@ -936,7 +859,6 @@ class Editor:
                 duration=butter
             )
         )
-        # finally
         ret = s.make_key_kids(
             title=Strings.KEYS_ON.format(
                 list(Strings.EVENTS)[si]
@@ -956,13 +878,11 @@ class Editor:
         s.animate_window_kids()
 
     def make_key_default(s,what):
-        # math
         x,y = s.window_pos
         sx,sy = s.window_size
         text_push = 15
         delay = 0.35
         cur = s.memory[id(s.sl)]['keys']
-        # what scroll
         pos = (s.window_marg-s.window_fix,sy/2+s.window_marg-54)
         size = dx,dy = (150,sy/2-s.window_marg)
         what_scroll = bui.scrollwidget(
@@ -974,13 +894,11 @@ class Editor:
         s.window_kids.append((what_scroll,pos,text_push,delay,
             ('size',((dx-130,dy),size))
         ))
-        # what root
         what_root = bui.containerwidget(
             parent=what_scroll,
             size=(dx,30*len(what)),
             background=False
         )
-        # what texts
         what_texts = []
         top = len(what)*30
         for j,i in enumerate(what,start=1):
@@ -998,7 +916,6 @@ class Editor:
                 glow_type=Const.GLOW
             )
             what_texts.append(w)
-        # current scroll
         pos = (s.window_marg-s.window_fix,s.window_marg-4)
         size = dx,dy = (150,sy/2-(s.window_marg+50))
         cur_scroll = bui.scrollwidget(
@@ -1010,15 +927,12 @@ class Editor:
         s.window_kids.append((cur_scroll,pos,text_push,delay,
             ('size',((dx-130,dy),size))
         ))
-        # current root
         s.current_key_root = bui.containerwidget(
             parent=cur_scroll,
             size=(dx,30*len(cur)),
             background=False
         )
-        # current texts
         s.fresh_current_key_texts()
-        # placeholder
         pos = (sx*0.62,sy*0.43)
         t = bui.textwidget(
             parent=s.root,
@@ -1035,7 +949,6 @@ class Editor:
             ))
         ))
         s.key_kids = [(t,0)]
-        # finally
         s.window_trash = [what_texts,s.current_key_texts]
 
     def fresh_current_key_texts(s):
@@ -1079,7 +992,6 @@ class Editor:
     def set_act(s,i,data=None,nam=''):
         butter = s.global_butter
         s.key_clean()
-        # math
         x,y = (
             s.window_pos[0]+150+s.window_marg*2,
             s.window_pos[1]+s.window_marg
@@ -1089,7 +1001,6 @@ class Editor:
             s.window_size[1]-54
         )
         data = data or {}
-        # Attribute
         if i == 0:
             tx = Strings.ATTR
             t = bui.textwidget(
@@ -1113,7 +1024,6 @@ class Editor:
                 text=data.get('attr','')
             )
             s.key_kids.append((attr,1))
-            # eval
             tx = Strings.EVAL
             t = bui.textwidget(
                 parent=s.root,
@@ -1136,7 +1046,6 @@ class Editor:
                 text=data.get('eval','')
             )
             s.key_kids.append((val,1))
-            # name
             tx = Strings.NAME
             t = bui.textwidget(
                 parent=s.root,
@@ -1159,7 +1068,6 @@ class Editor:
                 text=nam
             )
             s.key_kids.append((name_inp,1))
-            # offset
             bx,by = 100,40
             tx = Strings.OFFSET
             t = bui.textwidget(
@@ -1215,14 +1123,11 @@ class Editor:
             s.off_spy = bui.AppTimer(
                 0.02, _off_spy, repeat=True
             )
-            # done func
             def do_done():
-                # collect
                 a = bui.textwidget(query=attr)
                 ov = bui.textwidget(query=val)
                 nam = bui.textwidget(query=name_inp)
                 o = bui.textwidget(query=time_inp)
-                # verify
                 if not a:
                     s.toast(Format.ERROR_EMPTY(Strings.ATTR))
                     Eval.SOUND(Const.BAD_SOUND).play()
@@ -1239,7 +1144,6 @@ class Editor:
                     s.toast(Format.ERROR_EMPTY(Strings.OFFSET))
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
-                # evaluate
                 try:
                     with bs.get_foreground_host_activity().context:
                         eval(ov)
@@ -1247,7 +1151,6 @@ class Editor:
                     s.toast(Format.ERROR(e))
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
-                # finally
                 try:
                     offset_val = float(o)
                 except ValueError:
@@ -1291,7 +1194,6 @@ class Editor:
                     Strings.INFO_ADDED_KEY
                 )
                 s.window_back()
-            # done button
             b = bui.buttonwidget(
                 parent=s.root,
                 position=(x+sx-(bx+5),y),
@@ -1305,7 +1207,6 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-            # pop button
             def do_pop():
                 n = bui.textwidget(query=name_inp)
                 if not n:
@@ -1334,7 +1235,6 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-        # Code
         elif i == 1:
             if not s.event_on:
                 s.toggle_event(passive=True)
@@ -1354,7 +1254,6 @@ class Editor:
                 color=Const.INVISIBLE
             )
             s.key_kids.append((t,0))
-            # name
             tx = Strings.NAME
             t = bui.textwidget(
                 parent=s.root,
@@ -1377,7 +1276,6 @@ class Editor:
                 text=data.get('name','')
             )
             s.key_kids.append((name_inp,1))
-            # offset
             tx = Strings.OFFSET
             t = bui.textwidget(
                 parent=s.root,
@@ -1432,7 +1330,6 @@ class Editor:
             s.off_spy = bui.AppTimer(
                 0.02, _off_spy, repeat=True
             )
-            # done func
             def do_open():
                 o = bui.textwidget(query=time_inp)
                 n = bui.textwidget(query=name_inp)
@@ -1494,7 +1391,6 @@ class Editor:
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
-            # done button
             bx,by = sx/2-s.window_marg*5,40
             b = bui.buttonwidget(
                 parent=s.root,
@@ -1509,7 +1405,6 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-            # pop button
             def do_pop():
                 n = bui.textwidget(query=name_inp)
                 if not n:
@@ -1538,9 +1433,7 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-        # Volume
         elif i == 2:
-            # volume
             tx = Strings.VALUE
             t = bui.textwidget(
                 parent=s.root,
@@ -1563,7 +1456,6 @@ class Editor:
                 text=str(data.get('volume',''))
             )
             s.key_kids.append((vol_inp,1))
-            # offset
             bx,by = 100,40
             tx = Strings.OFFSET
             t = bui.textwidget(
@@ -1587,7 +1479,6 @@ class Editor:
                 text=str(data.get('offset',''))
             )
             s.key_kids.append((time_inp,1))
-            # name
             tx = Strings.NAME
             t = bui.textwidget(
                 parent=s.root,
@@ -1707,7 +1598,6 @@ class Editor:
                     Strings.INFO_ADDED_KEY
                 )
                 s.window_back()
-            # done button
             b = bui.buttonwidget(
                 parent=s.root,
                 position=(x+sx-(bx+5),y),
@@ -1721,7 +1611,6 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-            # pop button
             def do_pop():
                 t = bui.textwidget(query=name_inp)
                 mem = s.memory[id(s.sl)]
@@ -1750,7 +1639,6 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
-        # finally
         for k,_ in s.key_kids:
             if _ == 1: continue
             attrs = _ == 2 and {
@@ -1775,7 +1663,6 @@ class Editor:
         Config.set('last', None)
 
     def load_memory(s,memory,shut=False):
-        # Sort by order to restore correct sequence
         sorted_entries = sorted(
             memory.items(),
             key=lambda x: x[1]['order']
@@ -1787,7 +1674,6 @@ class Editor:
             data = mem_data['data'].copy()
             smol = mem_data.get('smol', False)
 
-            # Calculate size based on duration
             if smol:
                 size = (
                     s.entry_ys_real,
@@ -1801,7 +1687,6 @@ class Editor:
                     s.entry_ys_real - s.magic_y
                 )
 
-            # Create button directly
             btn = bui.buttonwidget(
                 parent=s.stamp_hscroll_root,
                 texture=Eval.TEXTURE(Const.SKIN),
@@ -1814,16 +1699,13 @@ class Editor:
                 button_type='square'
             )
 
-            # Set activate callback
             bui.buttonwidget(
                 btn,
                 on_activate_call=bui.CallPartial(s.select, btn)
             )
 
-            # Add to stamp_kids
             s.stamp_kids.append(btn)
 
-            # Create memory entry with NEW order based on current index
             new_mem = {
                 'order': idx,
                 'event': mem_data['event'],
@@ -1834,24 +1716,19 @@ class Editor:
                 'smol': smol
             }
 
-            # Store memory
             s.memory[id(btn)] = new_mem
 
-            # Calculate Y position using TOTAL count, not current len(s.memory)
             y_pos = s.entry_ys_real * (total_count - idx - 1)
 
-            # Recreate keys with new widgets
             for key_name, key_data_orig in mem_data.get('keys', {}).items():
                 key_data = key_data_orig.copy()
 
-                # Remove old widget reference
                 if 'widget' in key_data:
                     del key_data['widget']
 
                 key_time = key_data['time']
                 key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
 
-                # Create key widget with correct Y
                 key_wid = bui.imagewidget(
                     parent=s.stamp_hscroll_root,
                     position=(key_x, y_pos),
@@ -1861,14 +1738,12 @@ class Editor:
                     opacity=Color.OPACITY
                 )
 
-                # Store in new memory
                 new_mem['keys'][key_name] = {
                     **key_data,
                     'widget': id(key_wid)
                 }
                 s.widgets[id(key_wid)] = key_wid
 
-            # Position button
             width_in_steps = mem_data['duration'] * s.entries_per_sec
             x_pos = s.magic_x + s.entry_xs_real * mem_data['start'] * s.entries_per_sec + (
                 width_in_steps * s.magic_left
@@ -1876,39 +1751,31 @@ class Editor:
 
             bui.buttonwidget(btn, position=(x_pos, y_pos))
 
-        # Rebuild timeline
         s.build_timeline()
 
-        # Update UI
         s.wrap([1, 2, 3], on_finish=s.bottom_left)
         s.make_timeline()
         s.wrap_timeline()
 
-        # Show controls if we have entries
         if len(s.memory):
             s.show_controls()
 
-        # Success feedback
         s.top_left()
         if shut: return
         Eval.SOUND(Const.OK_SOUND).play()
         s.toast(Format.LOADED_ENTRIES(len(memory)))
 
     def wrap(s,what=0,on_finish=None,init=False):
-        # global math
         rx,ry = s.real = bui.get_virtual_screen_size()
         sx,sy = s.stamp_size = (rx,150)
         smoly = sy-s.stamp_hack
-        # deep y
         old_deep_y = getattr(s,'stamp_deep_y',smoly)
         s.stamp_deep_y = max(s.entry_ys_real*(len(s.memory)+1),smoly)
-        # deep x
         smolx = sx-s.stamp_hack
         old_deep_x = getattr(s,'stamp_deep_x',smolx)
         if hasattr(s, 'timeline') and s.timeline:
             s.max_time = s.timeline[-1]['time']
         else:
-            # first run?
             times = [
                 _['start'] + _['duration']
                 for _ in s.memory.values()
@@ -1918,7 +1785,6 @@ class Editor:
             s.max_time * s.entries_per_sec * s.entry_xs_real
         )
         s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 1, smolx)
-        # window math
         y_off = 70
         xoff, = Eval.SCALE(25)
         one, = Eval.SCALE(1)
@@ -1932,7 +1798,6 @@ class Editor:
             *s.window_pos,
             *s.window_size
         )
-        # event math
         s.event_button_size = dx,dy = Eval.SCALE(100,40)
         s.event_kid_off, = Eval.SCALE(40)
         num_events = len(Strings.EVENTS)
@@ -1942,7 +1807,6 @@ class Editor:
         ex,ey = s.event_menu_size = Eval.SCALE(300, menu_height)
         s.event_kid_size = (ex-s.event_kid_off,dy)
 
-        # edit math
         s.edit_button_xoff, = Eval.SCALE(200)
         s.edit_button_xtra, = Eval.SCALE(10)
         s.edit_button_pos = pos = (
@@ -1954,7 +1818,6 @@ class Editor:
             pos[1]
         )
         s.edit_button_size = (dx-4,dy-3)
-        # key math
         s.key_button_pos = pos = (
             (dx+s.edit_button_xtra)*2,
             sy+6.5
@@ -1963,73 +1826,58 @@ class Editor:
             pos[0]+ex-dx,
             pos[1]
         )
-        # control math
         s.control_off, = Eval.SCALE(5)
         s.control_size = conx,cony = Eval.SCALE(50,50)
         s.control_pos = lambda i:(
             sx-conx*(i+1)-s.control_off*i-2,sy+s.control_off
         )
-        # tool math
         s.tool_off, = Eval.SCALE(5)
         s.tool_size = tx,ty = Eval.SCALE(50,50)
         s.tool_pos = lambda i:(
             sx-tx*(i+1)-s.tool_off*i-2,sy+s.tool_off
         )
-        # stupid
         if not isinstance(what,list): what = [what]
         yes = 0 in what
-        # main stuff
         if yes or 1 in what:
-            # root
             bui.containerwidget(
                 s.root,
                 size=s.stamp_size,
                 stack_offset=Eval.OFFSET(-rx,-ry,sx/2,sy/2)
             )
-            # toast (applied on animation)
             s.toast_position = (sx/2,sy+10)
-            # stamp background
             bui.imagewidget(s.stamp_bg,size=s.stamp_size)
-            # square math
             bx, = Eval.SCALE(55)
             px1,_ = Eval.OFFSET(
                 rx, ry, *bui.get_special_widget(
                     'menu_button'
                 ).get_screen_space_center(), bx, bx
             )
-            # triangle math
             px2,py = Eval.OFFSET(
                 rx, ry, *bui.get_special_widget(
                     'squad_button'
                 ).get_screen_space_center(), bx, bx
             )
-            # square
             bui.buttonwidget(
                 s.square,
                 position=(px1,py),
                 size=(bx,bx),
                 text_scale=one
             )
-            # triangle
             bui.buttonwidget(
                 s.triangle,
                 position=(px2,py),
                 size=(bx,bx),
                 text_scale=one
             )
-            # top left h
             bui.textwidget(
                 s.top_left_h,
                 position=(0,s.stamp_deep_y)
             )
-            # top left v
             bui.textwidget(
                 s.top_left_v,
                 position=(0,s.stamp_deep_y)
             )
-        # resize
         if yes or 2 in what:
-            # stamp scroll
             bui.scrollwidget(
                 s.stamp_scroll,
                 size=s.stamp_size
@@ -2041,7 +1889,6 @@ class Editor:
             if height_changed or width_changed:
                 butter = s.global_butter/2
 
-                # Define callback to fix timeline AFTER resize completes
                 def fix_timeline_after_resize():
                     for i, (t, l) in enumerate(s.stamp_timeline):
                         px = i * s.entry_xs_real
@@ -2055,7 +1902,6 @@ class Editor:
                     if callable(on_finish):
                         on_finish()
 
-                # stamp scroll root
                 s.anims[id(s.stamp_scroll_root)] = Animate(
                     widget=s.stamp_scroll_root,
                     attrs={
@@ -2066,7 +1912,6 @@ class Editor:
                     },
                     duration=butter
                 )
-                # stamp hscroll
                 s.anims[id(s.stamp_hscroll)] = Animate(
                     widget=s.stamp_hscroll,
                     attrs={
@@ -2077,7 +1922,6 @@ class Editor:
                     },
                     duration=butter
                 )
-                # stamp hscroll root
                 s.anims[id(s.stamp_hscroll_root)] = Animate(
                     widget=s.stamp_hscroll_root,
                     attrs={
@@ -2090,28 +1934,22 @@ class Editor:
                     on_finish=fix_timeline_after_resize
                 )
             else:
-                # stamp scroll root
                 bui.containerwidget(
                     s.stamp_scroll_root,
                     size=(sx,s.stamp_deep_y)
                 )
-                # stamp hscroll
                 bui.hscrollwidget(
                     s.stamp_hscroll,
                     size=(sx,s.stamp_deep_y)
                 )
-                # stamp hscroll root
                 bui.containerwidget(
                     s.stamp_hscroll_root,
                     size=(s.stamp_deep_x,s.stamp_deep_y)
                 )
                 if callable(on_finish): on_finish()
-        # stamp
         if yes or 3 in what:
             if not init: s.wrap_timeline()
-        # event
         if yes or 4 in what:
-            # event button background
             dx,dy = (
                 s.event_on and
                 s.event_menu_size or
@@ -2129,14 +1967,12 @@ class Editor:
                 a['size'] = s.event_button_size
                 a = s.anims[id(s.event_root)].attrs_current
                 a['size'] = s.event_menu_size
-            # event button
             bui.buttonwidget(
                 s.event_button,
                 size=s.event_button_size,
                 position=(0,sy+5),
                 text_scale=one
             )
-            # event kids
             s.event_top = sy+ey+5
             s.ev_mult = s.event_button_size[1]+Eval.SCALE(10)[0]
             s.ev_x, = Eval.SCALE(20)
@@ -2187,9 +2023,7 @@ class Editor:
                     a = s.anims[id(kid)]['shadow'].attrs_current
                     a['position'] = s.window_shadow_pos
                     a['size'] = s.window_shadow_size
-        # edit
         if yes or 5 in what:
-            # edit button
             win = s.edit_button in s.window_on
             pos = (
                 s.event_on and
@@ -2216,9 +2050,7 @@ class Editor:
                 a = s.anims[id(s.edit_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
-        # key
         if yes or 6 in what:
-            # key button
             win = s.key_button in s.window_on
             pos = (
                 s.event_on and
@@ -2245,7 +2077,6 @@ class Editor:
                 a = s.anims[id(s.key_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
-        # controls
         if yes or 7 in what:
             for i,b in enumerate(s.controls):
                 bui.buttonwidget(
@@ -2258,7 +2089,6 @@ class Editor:
                     position=s.control_pos(i),
                     text_scale=one
                 )
-        # tools
         if yes or 8 in what:
             for i,b in enumerate(s.tools):
                 bui.buttonwidget(
@@ -2270,17 +2100,14 @@ class Editor:
 
     def bottom_left(s,dry=False):
         if not dry:
-            # scroll left
             bui.containerwidget(
                 s.stamp_hscroll_root,
                 visible_child=s.bottom_left_h
             )
-            # scroll down
             bui.containerwidget(
                 s.stamp_scroll_root,
                 visible_child=s.bottom_left_v
             )
-        # return corner
         cx,cy = s.bottom_left_h.get_screen_space_center()
         rx,ry = s.real
         return (
@@ -2289,12 +2116,10 @@ class Editor:
         )
 
     def top_left(s):
-        # scroll left
         bui.containerwidget(
             s.stamp_hscroll_root,
             visible_child=s.top_left_h
         )
-        # scroll up
         bui.containerwidget(
             s.stamp_scroll_root,
             visible_child=s.top_left_v
@@ -2327,14 +2152,12 @@ class Editor:
             delattr(s,attr)
 
     def make_menu(s):
-        # menu background
         s.menu_bg = bui.imagewidget(
             parent=s.root,
             opacity=0,
             color=Color.BASE,
             texture=Eval.TEXTURE(Const.SKIN)
         )
-        # menu kids
         s.menu_kids = []
         for t in Strings.MENUS:
             w = bui.buttonwidget(
@@ -2348,7 +2171,6 @@ class Editor:
                 texture=Eval.TEXTURE(Const.SKIN)
             )
             s.menu_kids.append(w)
-        # seed input (hidden by default)
         s.seed_input = bui.textwidget(
             parent=s.root,
             position=(0,0),
@@ -2373,14 +2195,12 @@ class Editor:
         s.wrap(init=init)
         s.wrap_menu()
         s.wrap_window_kids()
-        # ballistica bug
         autofix and bui.apptimer(
             Const.BA_LAG, bui.CallPartial(
             s.wrap_all, autofix=False
         ))
 
     def wrap_menu(s):
-        # math
         rx,ry = bui.get_virtual_screen_size()
         sx,sy = s.menu_size = Eval.SCALE(240,370)
         s.menu_start_size = (sx*0.8,sy*0.8)
@@ -2408,14 +2228,12 @@ class Editor:
             s.menu_button_xp,
             s.menu_kid_yp(i)
         )
-        # seed math
         s.seed_button_shrunk_size = (s.menu_kid_size[0]*0.3, s.menu_kid_size[1])
         s.seed_input_size = (s.menu_kid_size[0]*0.7-s.menu_marg, s.menu_kid_size[1])
         s.seed_input_pos = lambda i: (
             s.menu_button_xp,
             s.menu_kid_yp(i)
         )
-        # menu background
         bui.imagewidget(
             s.menu_bg,
             position=s.menu_pos,
@@ -2431,18 +2249,14 @@ class Editor:
             a = s.anims[id(s.menu_bg)].attrs_current
             a['size'] = s.menu_size
             a['position'] = s.menu_pos
-        # menu kids
         for i,kid in enumerate(s.menu_kids):
-            # Check if this is the seed button (index 2) and it's shrunk
             if i == 2 and s.seed_on:
-                # Use shrunk size and position
                 kid_size = s.seed_button_shrunk_size
                 kid_pos = (
                     s.menu_button_xp + (s.menu_kid_size[0] - s.seed_button_shrunk_size[0]) + 5,
                     s.menu_kid_yp(i)
                 )
             else:
-                # Use normal size and position
                 kid_size = (bx, by)
                 kid_pos = (
                     s.menu_button_xp,
@@ -2466,14 +2280,12 @@ class Editor:
                 a = s.anims[id(kid)]['main'].attrs_end
                 a['size'] = kid_size
                 a['position'] = kid_pos
-        # seed input
         bui.textwidget(
             s.seed_input,
             position=s.seed_input_pos(2),
             size=s.seed_on and s.seed_input_size or (0,0)
         )
 
-        # Update animation if menu is being repositioned
         if s.menu_on and (anim := s.anims.get(id(s.seed_input))):
             if s.seed_on:
                 try:
@@ -2488,12 +2300,10 @@ class Editor:
         butter = s.global_butter*0.7
         if s.menu_on:
             s.menu_on = False
-            # menu background
             anim = s.anims[id(s.menu_bg)]
             s.anims[id(s.menu_bg)] = anim.reverse(
                 duration=butter
             )
-            # instant
             (victim:=s.anims[id(s.menu_kids[2])].pop('seed',None)) and victim.cancel()
             (victim:=s.anims[id(s.seed_input)]) and s.seed_on and victim.cancel()
             bui.textwidget(s.seed_input,size=(0,0))
@@ -2502,19 +2312,16 @@ class Editor:
                 s.menu_kids[2],
                 label=Strings.MENUS[2]
             )
-            # event kids
             for i,kid in enumerate(s.menu_kids):
                 anim = s.anims[id(kid)]['main']
                 s.anims[id(kid)]['main'] = anim.reverse(
                     duration=butter*0.7
                 )
-                # disable
                 bui.buttonwidget(
                     kid, on_activate_call=Const.DO_NOTHING
                 )
             return
         s.menu_on = True
-        # menu background
         if (anim:=s.anims[id(s.menu_bg)]):
             anim.cancel()
         s.anims[id(s.menu_bg)] = Animate(
@@ -2532,14 +2339,11 @@ class Editor:
                 )
             }
         )
-        # menu action
         def menu_action(i):
-            # save & exit
             if i == 0:
                 Eval.SOUND(Const.OK_SOUND).play()
                 s.toast(Strings.BYE)
                 s.farewell()
-            # clear all
             if i == 1:
                 if s.can_do != 'nuke':
                     s.toast(Strings.INFO_CONFIRM_CLEAR,extra=2)
@@ -2555,7 +2359,6 @@ class Editor:
                     ), ()
                 ))
                 s.recreate()
-            # load seed
             if i == 2:
                 s.seed_on = not s.seed_on
                 target_label = Strings.DONE if s.seed_on else Strings.MENUS[2]
@@ -2566,7 +2369,6 @@ class Editor:
                     s.menu_kid_yp(2)
                 )
 
-                # animate button shrink only
                 if s.seed_on:
                     anim = s.anims[id(s.menu_kids[1])].get('main')
                     start_size = s.menu_kid_size
@@ -2576,10 +2378,8 @@ class Editor:
                         start_pos = anim.attrs_current['position']
                         anim.cancel()
 
-                    # boomerang label change (fade out, change, fade back in)
                     def change_label():
                         bui.buttonwidget(s.menu_kids[2], label=target_label)
-                        # fade back in
                         Animate(
                             widget=s.menu_kids[2],
                             attrs={
@@ -2607,7 +2407,6 @@ class Editor:
                 else:
                     bui.buttonwidget(s.menu_kids[2], label=target_label)
 
-                # animate textbox appear/disappear
                 if s.seed_on:
                     anim_input = s.anims.get(id(s.seed_input))
                     start_input_size = (0, s.menu_kid_size[1])
@@ -2624,10 +2423,8 @@ class Editor:
                         duration=s.global_butter
                     )
                 else:
-                    # instantly set to zero
                     bui.textwidget(s.seed_input, size=(0, s.menu_kid_size[1]), color=Const.INVISIBLE)
 
-                # if closing, process seed
                 if not s.seed_on:
                     seed_text = bui.textwidget(query=s.seed_input)
                     s.toggle_menu(shut=True)
@@ -2636,7 +2433,7 @@ class Editor:
                         Eval.SOUND(Const.BAD_SOUND).play()
                         return
                     bui.textwidget(s.seed_input, text='')
-                    try: memory = Eval.DECODE(int(seed_text))
+                    try: memory = Eval.DECODE(seed_text)
                     except Exception as e:
                         s.toast(Format.ERROR(e))
                         Eval.SOUND(Const.BAD_SOUND).play()
@@ -2648,7 +2445,6 @@ class Editor:
                     ))
                     s.recreate()
                 Eval.SOUND(Const.OK_SOUND).play()
-            # save seed
             if i == 3:
                 try: seed = Eval.ENCODE(s.memory)
                 except Exception as e:
@@ -2659,12 +2455,10 @@ class Editor:
                 Eval.SOUND(Const.GOOD_SOUND).play()
                 s.toast(Strings.INFO_COPIED)
                 s.toggle_menu()
-            # toggle editor
             if i == 4:
                 s.toggle_ui()
                 s.toggle_menu()
                 Eval.SOUND(Const.OK_SOUND).play()
-            # start recording
             if i == 5:
                 if not s.stamp_kids:
                     s.toast(Strings.ERROR_NO_MEMORY)
@@ -2677,7 +2471,6 @@ class Editor:
                     ()
                 ))
                 s.recreate()
-            # Wide Preview
             if i == 6:
                 if not s.ui_on:
                     s.toast(Strings.ERROR_ALREADY_WIDE)
@@ -2689,7 +2482,6 @@ class Editor:
                 s.is_wide = True
                 s.toggle_ui()
                 s.toggle_menu()
-        # menu kids
         for i,kid in enumerate(s.menu_kids):
             if (anim:=s.anims[id(kid)].get('main')):
                 anim.cancel()
@@ -2713,7 +2505,6 @@ class Editor:
                     )
                 }
             )
-            # enable
             bui.buttonwidget(
                 kid, on_activate_call=bui.CallPartial(
                     menu_action, i
@@ -2747,9 +2538,7 @@ class Editor:
                 fix_anim.cancel()
                 s.anims[id(kid)].pop('fix', None)
 
-        # push everything
         def push():
-            # edit button
             w = s.edit_button
             ex,ey = s.edit_button_pos
             start,end = s.edit_button_pos, s.edit_button_pos2
@@ -2766,7 +2555,6 @@ class Editor:
                 duration=s.global_butter,
                 delay=s.event_on and 0.07 or 0
             )
-            # key button
             w = s.key_button
             ex,ey = s.key_button_pos
             start,end = s.key_button_pos, s.key_button_pos2
@@ -2801,21 +2589,18 @@ class Editor:
             s.anims[id(s.event_root)] = old_anim.reverse(
                 duration=dur
             )
-            # reverse
             for kid,d in s.event_kids.items():
                 an = s.anims[id(kid)]
                 if (anim:=an.pop('window',None)):
                     anim.cancel()
                 if (anim:=an.pop('extra',None)):
                     anim.cancel()
-                # animate
                 old = an.get('main',None)
                 if old:
                     old.cancel()
                     s.anims[id(kid)]['main'] = old.reverse(
                         duration=dur/4
                     )
-                # disable
                 bui.buttonwidget(
                     kid,
                     on_activate_call=Const.DO_NOTHING,
@@ -2823,24 +2608,19 @@ class Editor:
                 )
             return
 
-        # expand
         s.event_on = True
         bui.buttonwidget(s.event_button, label=Strings.EVENT_BUTTON_ON)
 
-        # define parent stuff
         rx, ry = s.real
         sx, sy = s.event_menu_size
         dx, dy = s.event_button_size
 
-        # conditional params
         child_start_progress = 0.2
         child_delay = dur * child_start_progress
         child_duration = dur * (1 - child_start_progress)
 
-        # button max
         mx = sx - 40
 
-        # animate parent first (event root)
         if old_anim: old_anim.cancel()
         s.anims[id(s.event_root)] = Animate(
             widget=s.event_root,
@@ -2851,14 +2631,12 @@ class Editor:
             duration=dur
         )
 
-        # make and animate kids
         num = len(Strings.EVENTS)
         parent_width_progress = dx + (sx - dx) * child_start_progress
         start_width_ratio = (parent_width_progress - 40) / mx
 
         times = []
         for i,b in enumerate(s.event_kids):
-            # animate
             stagger = 0.02 * (num-i)
             s.anims[id(b)]['main'] = (
                 Animate(
@@ -2876,7 +2654,6 @@ class Editor:
                 )
             )
             times.append(child_delay + stagger)
-            # enable
             bui.buttonwidget(
                 b,
                 on_activate_call=bui.CallPartial(
@@ -2896,7 +2673,6 @@ class Editor:
             return
         if s.window_on and not passive: s.window_back()
         else: Eval.SOUND(Const.OK_SOUND).play()
-        # disable
         b = list(s.event_kids)[i]
         call = bui.CallPartial(s.event_window,i)
         s.window_on = [b,call,None]
@@ -2905,14 +2681,11 @@ class Editor:
             on_activate_call=Const.DO_NOTHING,
             selectable=False
         )
-        # backup
         s.event_kid_pos = (s.ev_x,s.event_top-s.ev_mult*(i+1))
         s.last_window_i = i
-        # math
         sx,sy = s.window_size
         dx,dy = s.event_kid_size
         butter = 0.5
-        # animate
         s.anims[id(b)]['window'] = (
             Animate(
                 widget=b,
@@ -2933,7 +2706,6 @@ class Editor:
                 }
             )
         )
-        # shadow
         s.anims[id(b)]['shadow'] = (
             Animate(
                 widget=s.event_kids[b]['shadow'],
@@ -2951,7 +2723,6 @@ class Editor:
                 duration=butter
             )
         )
-        # make ui
         s.window_on[2] = s.make_window_kids(i,edit=edit,load=load,**kw)
 
     def make_window_kids(s,i,edit={},load=False,**kw):
@@ -2989,12 +2760,10 @@ class Editor:
 
     def animate_window_kids(s,extra_delay=0):
         x,y = s.window_pos
-        # animate all
         for _,g in enumerate(s.window_kids):
             w,pos,off,delay,*extra = g
             px,py = pos
             extra = dict(extra)
-            # default
             attrs = {
                 'position':(
                     (x+px-off,y+py),
@@ -3002,7 +2771,6 @@ class Editor:
                 ),
                 **extra
             }
-            # widget based
             ty = w.get_widget_type()
             if ty in ['button','checkbox']:
                 attrs.update({
@@ -3022,7 +2790,6 @@ class Editor:
                 attrs.update({
                     'opacity':(0,Color.OPACITY)
                 })
-            # animate
             s.anims[id(w)] = Animate(
                 widget=w,
                 attrs=attrs,
@@ -3073,7 +2840,6 @@ class Editor:
         s.window_kids.append((w,pos,50,0.35))
 
     def add_entry(s,final,smol=False):
-        # setup
         nam = final['name']
         end_size = smol and (
             s.entry_ys_real,
@@ -3085,7 +2851,6 @@ class Editor:
             )*s.magic_right,
             s.entry_ys_real-s.magic_y
         )
-        # make
         btn = bui.buttonwidget(
             parent=s.stamp_hscroll_root,
             texture=Eval.TEXTURE(Const.SKIN),
@@ -3104,7 +2869,6 @@ class Editor:
             )
         )
         s.stamp_kids.append(btn)
-        # memory
         s.memory[id(btn)] = {
             'order':len(s.memory),
             'event':s.last_window_i,
@@ -3115,7 +2879,6 @@ class Editor:
             'smol':smol
         }
         s.build_timeline()
-        # push
         def push():
             for i,kid in enumerate(
                 reversed(s.stamp_kids)
@@ -3141,25 +2904,20 @@ class Editor:
             for kid in reversed(s.stamp_kids):
                 kid_mem = s.memory[id(kid)]
 
-                # Animate all key widgets for this entry
                 for key_data in kid_mem.get('keys', {}).values():
                     if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                         wid = s.widgets[key_data['widget']]
                         wid_id = id(wid)
                         key_time = key_data['time']
 
-                        # Calculate new position
                         new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                         new_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 1)
 
-                        # Get old position (one row down)
                         old_y = s.entry_ys_real * (len(s.memory) - kid_mem['order'] - 2)
 
-                        # Create animation dict if needed
                         if wid_id not in s.anims:
                             s.anims[wid_id] = {}
 
-                        # Animate the key widget
                         s.anims[wid_id]['push'] = Animate(
                             widget=wid,
                             attrs={
@@ -3168,9 +2926,7 @@ class Editor:
                             duration=s.global_butter
                         )
         push()
-        # wrap
         s.wrap([1,2,3],on_finish=s.bottom_left)
-        # appear
         def appear():
             bui.buttonwidget(
                 btn,
@@ -3183,7 +2939,6 @@ class Editor:
             if not s.tools_shown:
                 s.show_controls()
             s.wrap()
-        # math
         half_size = hx,hy = tuple(_/2 for _ in s.window_size)
         half_pos = (hx*3,hy*2.5)
         (
@@ -3197,7 +2952,6 @@ class Editor:
         opacity = Color.OPACITY
         half_opacity = opacity/2
         wait = 0.4
-        # animate
         width_in_steps = s.object_duration * s.entries_per_sec
 
         where_to = lambda: (
@@ -3266,383 +3020,345 @@ class Editor:
             }
         )
 
-    def make_node_window(s,edit=None,load=False):
-        # math
-        x,y = s.window_pos
-        sx,sy = s.window_size
+    NODE_DEFAULT_ATTRS = {
+        'prop': {'mesh': 'tnt', 'color_texture': 'tnt', 'body': 'crate', 'gravity_scale': '1.0', 'reflection': 'soft'},
+        'text': {'text': 'Hello!', 'color': '(1, 1, 1)', 'scale': '0.02', 'in_world': 'True', 'h_align': 'center'},
+        'light': {'color': '(1, 1, 1)', 'radius': '1.0', 'intensity': '1.0'},
+        'math': {'input1': '(0, 0, 0)', 'operation': 'add'},
+        'spaz': {'color': '(1, 1, 1)', 'highlight': '(1, 1, 1)'}
+    }
+
+    def make_node_window(s, edit=None, load=False):
+        x, y = s.window_pos
+        sx, sy = s.window_size
         text_push = 15
         delay = 0.35
         data = edit and edit['data']
-        # type text
-        pos = (s.window_marg-s.window_fix,sy-88)
-        w = bui.textwidget(
+
+        s.current_node_type = data.get('type', 'prop') if data else 'prop'
+        
+        init_pos = (0, 0, 0)
+        s.current_attrs = {}
+        
+        def to_friendly(k, v):
+            val = str(v).strip()
+            for prefix in ['bs.getmesh("', "bs.getmesh('", 'bs.gettexture("', "bs.gettexture('"]:
+                if val.startswith(prefix): return val[len(prefix):-2]
+            if val.startswith('"') and val.endswith('"'): return val[1:-1]
+            if val.startswith("'") and val.endswith("'"): return val[1:-1]
+            return val
+
+        def to_eval(k, v):
+            v = str(v).strip()
+            if k in ['mesh', 'collision_mesh']: return f'bs.getmesh("{v}")'
+            if k in ['color_texture', 'color_mask_texture', 'texture']: return f'bs.gettexture("{v}")'
+            if k in ['name', 'body', 'reflection', 'text', 'h_align', 'v_align', 'chunk_type', 'emit_type', 'operation']: return f'"{v}"'
+            return v
+
+        if data and 'attrs' in data:
+            for k, v in data['attrs'].items():
+                if k == 'position':
+                    try: init_pos = eval(v) if isinstance(v, str) else v
+                    except: pass
+                else:
+                    s.current_attrs[k] = to_friendly(k, v)
+        else:
+            for k, v in s.NODE_DEFAULT_ATTRS[s.current_node_type].items():
+                s.current_attrs[k] = v
+
+        left_x = 10
+
+        pos_lbl = (left_x, sy - 85)
+        w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.TYPE, color=Const.INVISIBLE, maxwidth=50, h_align='left')
+        s.window_kids.append((w, pos_lbl, text_push, delay))
+
+        pos_inp = (left_x + 60, sy - 90)
+        type_btn = bui.buttonwidget(
             parent=s.root,
-            position=pos,
-            text=Strings.TYPE,
-            color=Const.INVISIBLE
+            position=pos_inp,
+            size=(0, 0),
+            label=s.current_node_type.capitalize(),
+            color=Color.BASE,
+            textcolor=Const.INVISIBLE,
+            texture=Eval.TEXTURE(Const.SKIN),
+            on_activate_call=lambda: cycle_type(),
+            enable_sound=False
         )
-        s.window_kids.append((w,pos,text_push,delay+0))
-        # type input
-        pos = (s.window_marg+80-s.window_fix,sy-95)
-        size = (150,40)
-        type_text = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            description=Strings.TYPE_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            glow_type=Const.GLOW,
-            text=data and data['type'] or ''
-        )
-        s.window_kids.append((type_text,pos,text_push,delay+0,
-            ('size',((0,size[1]),size))
-        ))
-        # name text
-        pos = (s.window_marg-s.window_fix,sy-133)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=Strings.NAME,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.05))
-        # name input
-        pos = (s.window_marg+80-s.window_fix,sy-140)
-        size = (150,40)
+        s.window_kids.append((type_btn, pos_inp, text_push, delay, ('size', ((0, 35), (90, 35)))))
+
+        def cycle_type():
+            Eval.SOUND(Const.OK_SOUND).play()
+            types = ['prop', 'text', 'light', 'math', 'spaz']
+            idx = types.index(s.current_node_type)
+            s.current_node_type = types[(idx + 1) % len(types)]
+            bui.buttonwidget(edit=type_btn, label=s.current_node_type.capitalize())
+            
+            s.current_attrs.clear()
+            for k, v in s.NODE_DEFAULT_ATTRS[s.current_node_type].items():
+                s.current_attrs[k] = v
+            refresh_right_pane(initial=False)
+
+        pos_lbl = (left_x, sy - 130)
+        w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.NAME, color=Const.INVISIBLE, maxwidth=50, h_align='left')
+        s.window_kids.append((w, pos_lbl, text_push, delay + 0.05))
+
+        pos_inp = (left_x + 60, sy - 130)
+        incr = f'Node {s.increment}'
         name_text = bui.textwidget(
             parent=s.root,
-            position=pos,
+            position=pos_inp,
             editable=True,
             allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            description=Strings.NODE_NAME_HELP,
+            size=(0, 0),
+            maxwidth=80,
+            description=Strings.NAME,
             color=Const.INVISIBLE,
             v_align=Const.ALIGN,
             glow_type=Const.GLOW,
-            text=(
-                data and data['name'] or list(Strings.EVENTS)[0]
-            )
+            text=data.get('name', incr) if data else incr
         )
-        s.window_kids.append((name_text,pos,text_push,delay+0.05,
-            ('size',((0,size[1]),size))
-        ))
-        # separator
-        pos = (s.window_marg-s.window_fix,sy-150)
-        size = (229,2)
+        s.window_kids.append((name_text, pos_inp, text_push, delay+0.05, ('size', ((0, 35), (90, 35)))))
+
+        pos_sep = (left_x + 2, sy - 133)
         w = bui.imagewidget(
             parent=s.root,
-            position=pos,
+            position=pos_sep,
             texture=Eval.TEXTURE(Const.SKIN),
-            size=(0,0),
+            size=(0, 0),
             opacity=0,
             color=Color.COLD
         )
-        s.window_kids.append((w,pos,text_push,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # attr text
-        pos = (s.window_marg-s.window_fix,sy-193)
-        w = bui.textwidget(
+        s.window_kids.append((w, pos_sep, text_push, delay + 0.1, ('size', ((0, 2), (145, 2)))))
+
+        s.pos_inputs = []
+        labels = ['X', 'Y', 'Z']
+
+        for i, lbl in enumerate(labels):
+            lbl_y = sy - 165 - (i * 40)
+            inp_y = sy - 170 - (i * 40)
+            
+            pos_lbl = (left_x, lbl_y)
+            w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=f'Pos {lbl}', color=Const.INVISIBLE, maxwidth=50, h_align='left')
+            s.window_kids.append((w, pos_lbl, text_push, delay + 0.15 + i*0.05))
+
+            pos_inp = (left_x + 60, inp_y)
+            inp = bui.textwidget(
+                parent=s.root,
+                position=pos_inp,
+                editable=True,
+                allow_clear_button=False,
+                size=(0, 0),
+                description=f'Pos {lbl}',
+                color=Const.INVISIBLE,
+                maxwidth=80,
+                v_align=Const.ALIGN,
+                glow_type=Const.GLOW,
+                text=str(init_pos[i] if len(init_pos) > i else 0)
+            )
+            s.pos_inputs.append(inp)
+            s.window_kids.append((inp, pos_inp, text_push, delay+0.15+i*0.05, ('size', ((0, 35), (90, 35)))))
+
+        scroll_x = 170
+        scroll_y = 50
+        scroll_w = sx - scroll_x - 10
+        scroll_h = 195
+        
+        attr_scroll = bui.scrollwidget(
             parent=s.root,
-            position=pos,
-            text=Strings.ATTR,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.15))
-        # attr input
-        pos = (s.window_marg+80-s.window_fix,sy-200)
-        size = (150,40)
-        attr = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            description=Strings.NODE_ATTR_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((attr,pos,text_push,delay+0.15,
-            ('size',((0,size[1]),size))
-        ))
-        # eval text
-        pos = (s.window_marg-s.window_fix,sy-238)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=Strings.EVAL,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.2))
-        # eval input
-        pos = (s.window_marg+80-s.window_fix,sy-245)
-        size = (150,40)
-        val = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            description=Strings.EVAL_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            maxwidth=size[0],
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((val,pos,text_push,delay+0.2,
-            ('size',((0,size[1]),size))
-        ))
-        # attr stuff
-        so_far = {}
-        attr_texts = {}
-        bx,by = (215,40)
-        butter = s.global_butter*1.3
-        text_y = 30
-        # attr scroll
-        size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
-        pos = px,py = (sx-dx+5,s.window_marg*2+by+5)
-        w = bui.scrollwidget(
-            parent=s.root,
-            position=pos,
+            position=(scroll_x, scroll_y),
             color=Color.BASE,
-            size=(dx/2,0),
+            size=(scroll_w/2, 0),
             border_opacity=0
         )
-        s.window_kids.append((w,pos,20,delay+0,
-            ('size',((0,size[1]),size)),
-            ('border_opacity',(0,Color.OPACITY)),
-            ('color',(Color.COLD,Color.BASE))
+        s.window_kids.append((attr_scroll, (scroll_x, scroll_y), 20, delay,
+            ('size', ((0, scroll_h), (scroll_w, scroll_h))),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
         ))
-        # attr root
-        attr_root = bui.containerwidget(
-            parent=w,
-            background=False
-        )
-        # select attr
-        def select(a):
-            bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=str(so_far[a]))
-        def valid():
-            # collect
-            a = bui.textwidget(query=attr)
-            v = bui.textwidget(query=val)
-            # verify
-            if not a:
-                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
-                return
-            if not v:
-                s.toast(Format.ERROR_EMPTY(Strings.EVAL))
-                return
-            return a,v
-        # sync
-        sync = lambda i=1: bui.containerwidget(
-            attr_root,
-            size=(dx,max((len(so_far)+i)*text_y,dy-15))
-        )
-        # pop func
-        def do_pop():
-            if not (g:=valid()):
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            a = g[0]
-            if not a in so_far:
-                s.toast(Format.NOT_FOUND(a))
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            so_far.pop(a)
-            _i = list(attr_texts).index(a)
-            _w = attr_texts.pop(a)
-            if (anim:=s.anims[id(_w)]): anim.cancel()
-            # fade
-            s.anims[id(_w)] = Animate(
-                widget=_w,
-                attrs={
-                    'color':(
-                        (*Color.TEXT,Color.OPACITY),
-                        Const.INVISIBLE
-                    ),
-                },
-                on_finish=_w.delete,
-                on_cancel=_w.delete,
-                duration=butter
-            )
-            # slide
-            for i,w in enumerate(
-                list(attr_texts.values())[_i:],
-                start=_i
-            ):
-                start_y = (i+1)*text_y
-                if (anim:=s.anims[id(w)]):
-                    anim.cancel()
-                    start_y = anim.attrs_current['position'][1]
-                s.anims[id(w)] = Animate(
-                    widget=w,
 
-                    duration=butter,
-                    attrs={
-                        'position':(
-                            (0,start_y),
-                            (0,i*text_y)
-                        )
-                    }
-                )
-            # finally
-            s.toast(Strings.INFO_POPPED(a))
-            sync(0)
-        # new kid
-        def new_kid(a):
-            # make
-            w = bui.textwidget(
-                parent=attr_root,
-                size=(dx,text_y),
-                maxwidth=dx-15,
-                selectable=True,
-                glow_type=Const.GLOW,
-                click_activate=True,
-                on_activate_call=bui.CallPartial(
-                    select, a
-                ),
-                text=a,
-                color=Const.INVISIBLE,
-                v_align=Const.ALIGN
-            )
-            attr_texts[a] = w
-            return w
-        # animate
-        def anim_kid(w,px,py):
-            if (anim:=s.anims[id(w)]): anim.cancel()
-            s.anims[id(w)] = Animate(
-                widget=w,
-                attrs={
-                    'color':(
-                        Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
-                    ),
-                    'position':(
-                        (px+50,py),
-                        (px,py)
-                    )
-                },
-                duration=butter
-            )
-        # set func
-        def do_set():
-            if not (g:=valid()):
+        s.attr_root = bui.containerwidget(parent=attr_scroll, background=False)
+
+        s.attr_widgets = []
+        s.current_inputs = {}
+
+        def anim_scroll_kid(w, px, py, dt):
+            if id(w) in s.anims: s.anims[id(w)].cancel()
+            ty = w.get_widget_type()
+            attrs = {'position': ((px + 50, py), (px, py))}
+            if ty == 'text':
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            elif ty == 'button':
+                attrs['opacity'] = (0, Color.OPACITY)
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+
+        def sync_edits():
+            for key, wid in s.current_inputs.items():
+                s.current_attrs[key] = bui.textwidget(query=wid)
+
+        def add_custom_attr(k_wid, v_wid):
+            sync_edits()
+            k = bui.textwidget(query=k_wid).strip()
+            v = bui.textwidget(query=v_wid).strip()
+            if not k:
+                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            a,ov = g
-            # evaluate
+            
             try:
                 with bs.get_foreground_host_activity().context:
-                    eval(ov)
+                    eval(to_eval(k, v))
             except Exception as e:
                 s.toast(Format.ERROR(e))
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            # check
-            if a in so_far:
-                w = attr_texts[a]
-                px,py = (0,list(so_far).index(a)*text_y)
-                s.toast(Strings.INFO_UPDATED(a))
-            else:
-                px,py = (0,len(so_far)*text_y)
-                w = new_kid(a)
-                # finally
-                sync()
-                s.toast(Strings.INFO_ASSIGNED(a))
-            # finally
-            anim_kid(w,px,py)
-            so_far.update({a:ov})
+
+            s.current_attrs[k] = v
             Eval.SOUND(Const.OK_SOUND).play()
-        # pop button
-        pos = (s.window_marg+7-s.window_fix,s.window_marg)
-        size = bx/2-s.window_marg,by
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.POP,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_pop
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        # set button
-        pos = (
-            pos[0]+size[0]+s.window_marg*3.5,
-            pos[1]
-        )
-        size = (
-            size[0]-s.window_marg,
-            size[1]
-        )
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.SET,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_set
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        def ready():
-            # collect
-            typ = bui.textwidget(query=type_text)
+            refresh_right_pane()
+
+        def delete_attr(k):
+            sync_edits()
+            if k in s.current_attrs:
+                del s.current_attrs[k]
+            Eval.SOUND(Const.OK_SOUND).play()
+            refresh_right_pane()
+
+        def refresh_right_pane(initial=False):
+            for w in s.attr_widgets: w.delete()
+            s.attr_widgets.clear()
+            s.current_inputs.clear()
+
+            row_h = 35
+            num_attrs = len(s.current_attrs)
+            content_h = (num_attrs + 1) * row_h
+            
+            bui.containerwidget(edit=s.attr_root, size=(250, max(content_h, scroll_h)))
+            
+            keys = list(s.current_attrs.keys())
+            for i, k in enumerate(keys):
+                y_pos = max(content_h, scroll_h) - (i + 1) * row_h
+                
+                lbl = bui.textwidget(
+                    parent=s.attr_root, position=(0, y_pos), size=(85, row_h), 
+                    text=k, h_align='left', v_align='center', maxwidth=80, 
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.attr_widgets.append(lbl)
+                
+                val = str(s.current_attrs[k])
+                inp = bui.textwidget(
+                    parent=s.attr_root, position=(90, y_pos+5), size=(120, row_h-5), 
+                    text=val, editable=True, h_align='left', v_align='center', 
+                    maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.attr_widgets.append(inp)
+                s.current_inputs[k] = inp
+                
+                del_btn = bui.buttonwidget(
+                    parent=s.attr_root, position=(215, y_pos+5), size=(30, row_h-5), 
+                    label='-', on_activate_call=bui.CallPartial(delete_attr, k),
+                    button_type='square', enable_sound=False,
+                    texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                    opacity=0 if initial else Color.OPACITY, 
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.attr_widgets.append(del_btn)
+
+                if initial:
+                    anim_scroll_kid(lbl, 0, y_pos, delay + 0.1 + i*0.03)
+                    anim_scroll_kid(inp, 90, y_pos+5, delay + 0.1 + i*0.03)
+                    anim_scroll_kid(del_btn, 215, y_pos+5, delay + 0.1 + i*0.03)
+
+            y_pos = max(content_h, scroll_h) - (num_attrs + 1) * row_h
+            new_k = bui.textwidget(
+                parent=s.attr_root, position=(0, y_pos+5), size=(85, row_h-5), 
+                text="new_attr", editable=True, h_align='left', v_align='center', 
+                maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.attr_widgets.append(new_k)
+
+            new_v = bui.textwidget(
+                parent=s.attr_root, position=(90, y_pos+5), size=(120, row_h-5), 
+                text="value", editable=True, h_align='left', v_align='center', 
+                maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.attr_widgets.append(new_v)
+
+            add_btn = bui.buttonwidget(
+                parent=s.attr_root, position=(215, y_pos+5), size=(30, row_h-5), 
+                label='+', on_activate_call=lambda: add_custom_attr(new_k, new_v),
+                button_type='square', enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                opacity=0 if initial else Color.OPACITY, 
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.attr_widgets.append(add_btn)
+
+            if initial:
+                anim_scroll_kid(new_k, 0, y_pos+5, delay + 0.1 + num_attrs*0.03)
+                anim_scroll_kid(new_v, 90, y_pos+5, delay + 0.1 + num_attrs*0.03)
+                anim_scroll_kid(add_btn, 215, y_pos+5, delay + 0.1 + num_attrs*0.03)
+
+        refresh_right_pane(initial=True)
+
+        def do_done():
             nam = bui.textwidget(query=name_text)
-            # verify
-            if not typ:
-                s.toast(Format.ERROR_EMPTY(Strings.TYPE))
-                return
             if not nam:
                 s.toast(Format.ERROR_EMPTY(Strings.NAME))
-                return
-            return typ,nam
-        # done func
-        def do_done():
-            if not (g:=ready()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            Eval.SOUND(Const.OK_SOUND).play()
-            typ,nam = g
-            # construct
-            final = {
-                'type':typ,
-                'name':nam,
-                'attrs':so_far
-            }
-            if edit and not load:
-                data.update(final)
-                bui.buttonwidget(
-                    s.stamp_kids[edit['order']],
-                    label=nam
+
+            try:
+                pos_tuple = (
+                    float(bui.textwidget(query=s.pos_inputs[0]) or '0'),
+                    float(bui.textwidget(query=s.pos_inputs[1]) or '0'),
+                    float(bui.textwidget(query=s.pos_inputs[2]) or '0')
                 )
+            except Exception:
+                s.toast("Invalid Position!")
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            sync_edits()
+            final_attrs = {'position': str(pos_tuple)}
+
+            try:
+                with bs.get_foreground_host_activity().context:
+                    for key, val in s.current_attrs.items():
+                        if val:
+                            eval_str = to_eval(key, val)
+                            eval(eval_str)
+                            final_attrs[key] = eval_str
+            except Exception as e:
+                s.toast(Format.ERROR(e))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            final_data = {
+                'type': s.current_node_type,
+                'name': nam,
+                'attrs': final_attrs
+            }
+
+            Eval.SOUND(Const.OK_SOUND).play()
+            if edit and not load:
+                data.update(final_data)
+                bui.buttonwidget(s.stamp_kids[edit['order']], label=nam)
                 s.window_back()
                 s.toast(Strings.INFO_SAVED)
-            else: s.add_entry(final)
-        # done button
-        pos = (px+8,s.window_marg)
-        size = bx,by = (dx-15,40)
-        w = bui.buttonwidget(
+            else:
+                s.add_entry(final_data)
+                s.increment += 1
+
+        done_pos = (sx - 105, s.window_marg)
+        done_btn = bui.buttonwidget(
             parent=s.root,
-            size=(0,0),
-            position=pos,
+            size=(0, 0),
+            position=done_pos,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
@@ -3650,22 +3366,11 @@ class Editor:
             textcolor=Const.INVISIBLE,
             on_activate_call=do_done
         )
-        s.window_kids.append((w,pos,50,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # finally
-        s.window_trash = [attr_texts]
-        if data:
-            so_far = data['attrs'].copy()
-            if so_far:
-                for i,a in enumerate(so_far):
-                    w = new_kid(a)
-                    pos = 0,i*text_y
-                    anim_kid(w,*pos)
-                sync(0)
+        s.window_kids.append((done_btn, done_pos, 50, delay+0.1, ('size', ((0, 40), (95, 40)))))
+
+        s.window_trash = [s.attr_widgets]
 
     def make_camera_window(s,edit=None,load=False):
-        # math
         x,y = s.window_pos
         x += 1
         sx,sy = s.window_size
@@ -3676,7 +3381,6 @@ class Editor:
         yoff = by+s.window_marg
         data = edit and edit['data']
 
-        # state
         prv_on = False
         chks = [True,True,False]
         last_pos = _ba.get_camera_position()
@@ -3686,15 +3390,12 @@ class Editor:
         virgin = True
         current_manual = False
 
-        # preview nodes
         prev_pos_node = None
         prev_tar_node = None
 
-        # manage chks
         def do_chk(i,v):
             chks[i] = v
 
-        # position check
         pos = (s.window_marg-3,by+s.window_marg*5)
         pos_chk = bui.checkboxwidget(
             parent=s.root,
@@ -3712,7 +3413,6 @@ class Editor:
             ('scale',(0,1))
         ))
 
-        # position inputs
         pos_texts = []
         top = yoff*4.5
         for i,o in enumerate(old_pos):
@@ -3731,7 +3431,6 @@ class Editor:
                 ('size',((bx/2,by),(bx,by)))
             ))
 
-        # target check
         pos = (off+s.window_marg*2-2,by+s.window_marg*5)
         tar_chk = bui.checkboxwidget(
             parent=s.root,
@@ -3749,7 +3448,6 @@ class Editor:
             ('scale',(0,1))
         ))
 
-        # target inputs
         target_texts = []
         for i,o in enumerate(old_tar):
             pos = (off+s.window_marg-3,top-yoff*i)
@@ -3767,7 +3465,6 @@ class Editor:
                 ('size',((bx/2,by),(bx,by)))
             ))
 
-        # manual check
         pos = (off*2+s.window_marg*2-2,by+s.window_marg*5)
         man_chk = bui.checkboxwidget(
             parent=s.root,
@@ -3785,7 +3482,6 @@ class Editor:
             ('scale',(0,1))
         ))
 
-        # collect functions
         def collect_pos():
             nonlocal last_pos
             last_pos = [float(bui.textwidget(query=w) or '0') for w in pos_texts]
@@ -3798,7 +3494,6 @@ class Editor:
             collect_pos()
             collect_tar()
 
-        # kill preview nodes
         def kill_prev():
             nonlocal prev_pos_node, prev_tar_node
             if prev_pos_node and prev_pos_node.exists():
@@ -3808,21 +3503,17 @@ class Editor:
                 prev_tar_node.delete()
                 prev_tar_node = None
 
-        # preview tick
         def do_see():
             nonlocal prev_pos_node, prev_tar_node, current_manual
 
-            # only change manual mode if needed
             if chks[2] != current_manual:
                 _ba.set_camera_manual(chks[2])
                 current_manual = chks[2]
 
-            # apply position
             if chks[0]:
                 collect_pos()
                 _ba.set_camera_position(*last_pos)
 
-                # update position marker
                 if prev_pos_node and prev_pos_node.exists():
                     prev_pos_node.text = bui.charstr(getattr(bui.SpecialChar,Const.PIN_POINT)) + ' ' + Strings.POSITION
                     prev_pos_node.position = last_pos
@@ -3841,12 +3532,10 @@ class Editor:
                             }
                         )
 
-            # apply target
             if chks[1]:
                 collect_tar()
                 _ba.set_camera_target(*last_tar)
 
-                # update target marker
                 if prev_tar_node and prev_tar_node.exists():
                     prev_tar_node.text = bui.charstr(getattr(bui.SpecialChar,Const.PIN_POINT)) + ' ' + Strings.TARGET
                     prev_tar_node.position = last_tar
@@ -3865,7 +3554,6 @@ class Editor:
                             }
                         )
 
-        # preview control
         see_timer = None
         def start_preview():
             nonlocal see_timer, prv_on, virgin, current_manual
@@ -3882,12 +3570,10 @@ class Editor:
             see_timer = None
             kill_prev()
 
-            # only reset manual if we changed it and need to go back to False
             if current_manual:
                 _ba.set_camera_manual(False)
                 current_manual = False
 
-        # enforce values
         def enforce():
             for w,d in zip(pos_texts,last_pos):
                 bui.textwidget(w,text=str(d))
@@ -3896,7 +3582,6 @@ class Editor:
             for w,b in zip((pos_chk,tar_chk,man_chk),chks):
                 bui.checkboxwidget(w,value=b)
 
-        # XZ controls
         mod = 0
         stp = 1
         def add(*d):
@@ -3923,7 +3608,6 @@ class Editor:
                 s.toast(Strings.INFO_TARGET_MODE)
             Eval.SOUND(Const.OK_SOUND).play()
 
-        # XZ arrows
         for i in range(3):
             for j in range(3):
                 n = i*3+j
@@ -3947,7 +3631,6 @@ class Editor:
                     ('size',((by/2,by),(by,by)))
                 ))
 
-        # separator
         pos = (s.window_marg-3,by+s.window_marg*4)
         size = (sx-s.window_marg,2)
         w = bui.imagewidget(
@@ -3962,7 +3645,6 @@ class Editor:
             ('size',((0,size[1]),size))
         ))
 
-        # reset button
         def do_reset(shut=0):
             Eval.SOUND(Const.OK_SOUND).play()
             shut or s.toast(Strings.INFO_RESETTED)
@@ -3995,7 +3677,6 @@ class Editor:
             ('size',((bx/2,by),(bx,by)))
         ))
 
-        # preview button
         def do_preview(shut=0):
             nonlocal prv_on
             prv_on = not prv_on
@@ -4028,7 +3709,6 @@ class Editor:
             ('size',((bx/2,by),(bx,by)))
         ))
 
-        # done button
         def do_done():
             collect()
             nam = Strings.CAMERA_ENTRY
@@ -4062,14 +3742,12 @@ class Editor:
             ('size',((bx/2,by),(bx,by)))
         ))
 
-        # load edit data
         if edit:
             last_pos = data['position']
             last_tar = data['target']
             chks = data['chks']
             enforce()
 
-        # cleanup on window close
         return lambda: (kill_prev(), stop_preview()) if not virgin else kill_prev()
 
     def make_sound_window(s, edit=None, load=False, wait=0.43):
@@ -4082,33 +3760,25 @@ class Editor:
                 )
             )
             return (wait,lambda: s.prv_sound and s.prv_sound.delete())
-        # math
         x, y = s.window_pos
         sx, sy = s.window_size
         text_push = 15
         delay = 0.35
         data = edit and edit['data']
 
-        # Sample sound list (will be wired to listdir later)
         sound_files = sorted(listdir(join(Const.BA_DATA,'audio')),reverse=True)
 
-        # State
         current_sound = data and data['file'] or None
 
-        # Helper to format sound name
         def format_name(filename):
-            # Remove .ogg extension
             name = filename.replace('.ogg', '')
-            # Split camelCase: insert space before capitals
             spaced = sub(r'([a-z])([A-Z])', r'\1 \2', name)
             return spaced.title()
 
-        # Helper to stop current sound
         def stop_current():
             if s.prv_sound:
                 s.prv_sound.delete()
 
-        # Sound scroll
         size = dx, dy = (sx/2 - s.window_marg*3, sy - s.window_marg*9 - 55)
         pos = px, py = (s.window_marg - s.window_fix, s.window_marg - s.window_fix + 55)
         sound_scroll = bui.scrollwidget(
@@ -4124,7 +3794,6 @@ class Editor:
             ('color', (Color.COLD, Color.BASE))
         ))
 
-        # Sound root
         sound_root = bui.containerwidget(
             parent=sound_scroll,
             background=False
@@ -4133,7 +3802,6 @@ class Editor:
         chks = data.get('chks',[False,False])
         def do_chk(i,v):
             chks[i] = v
-        # positional check
         bx, by = 80, 40
         pos = (s.window_marg-8,s.window_marg)
         pos_chk = bui.checkboxwidget(
@@ -4152,7 +3820,6 @@ class Editor:
             ('scale',(0,1))
         ))
 
-        # loop check
         bx, by = 80, 40
         pos = (s.window_marg-3+bx+40,s.window_marg)
         loop_chk = bui.checkboxwidget(
@@ -4174,7 +3841,6 @@ class Editor:
         text_y = 30
         sound_texts = []
 
-        # Populate sound list
         for i, filename in enumerate(sound_files):
             w = bui.textwidget(
                 parent=sound_root,
@@ -4190,13 +3856,11 @@ class Editor:
             )
             sound_texts.append(w)
 
-        # Set container size
         bui.containerwidget(
             sound_root,
             size=(dx, max(len(sound_files) * text_y, dy - 15))
         )
 
-        # Title text position
         title_pos = (sx/2 + s.window_marg, sy - s.window_marg - 80)
         title_text = bui.textwidget(
             parent=s.root,
@@ -4209,7 +3873,6 @@ class Editor:
         )
         s.window_kids.append((title_text, title_pos, text_push, delay + 0.1))
 
-        # Position inputs (X, Y, Z)
         input_width = (sx/2 - s.window_marg*5) / 3 + 5
         input_height = 35
         input_y = sy - s.window_marg - 150
@@ -4217,7 +3880,6 @@ class Editor:
         position_inputs = []
 
         for idx, label in enumerate(labels):
-            # Label
             label_pos = (sx/2 + s.window_marg + idx * (input_width + s.window_marg), input_y + input_height)
             label_widget = bui.textwidget(
                 parent=s.root,
@@ -4228,7 +3890,6 @@ class Editor:
             )
             s.window_kids.append((label_widget, label_pos, text_push, delay + 0.12))
 
-            # Input
             input_pos = (sx/2 + s.window_marg + idx * (input_width + s.window_marg) - 5, input_y)
             input_widget = bui.textwidget(
                 parent=s.root,
@@ -4246,7 +3907,6 @@ class Editor:
                 ('size', ((input_width/2, input_height), (input_width, input_height)))
             ))
 
-        # Volume input
         vol_label_pos = (sx/2, input_y - 36)
         vol_label = bui.textwidget(
             parent=s.root,
@@ -4273,21 +3933,18 @@ class Editor:
             ('size', ((input_width/2, input_height), (input_width * 1.8, input_height)))
         ))
 
-        # Select sound function
         def select_sound(filename):
             nonlocal current_sound
             stop_current()
             current_sound = filename
             bui.textwidget(title_text, text=format_name(filename))
 
-        # Wire up sound text callbacks
         all_delay = (delay-0.35) + 0.05 + len(sound_files) * 0.01
         for i, (filename, w) in enumerate(zip(sound_files, sound_texts)):
             bui.textwidget(
                 w,
                 on_activate_call=bui.CallPartial(select_sound, filename)
             )
-            # Animate
             butter = s.global_butter
             s.anims[id(w)] = Animate(
                 widget=w,
@@ -4307,18 +3964,15 @@ class Editor:
 
         s.window_trash = [sound_texts]
 
-        # Button math
         button_x = sx - (dx + s.window_marg*2)
         button_y = s.window_marg
 
-        # Play button
         def do_play():
             if not current_sound:
                 s.toast(Strings.ERROR_NO_SOUND_SELECTED)
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             stop_current()
-            # Load and play (getsound needs filename without extension)
             sound_name = current_sound.replace('.ogg', '')
             try: pos = collect_pos()
             except:
@@ -4359,7 +4013,6 @@ class Editor:
             ('size', ((0, by), (dx/2 - s.window_marg/2, by)))
         ))
 
-        # Stop button
         def do_stop():
             stop_current()
 
@@ -4383,7 +4036,6 @@ class Editor:
                 float(bui.textwidget(query=i) or '0')
                 for i in position_inputs
             ]
-        # Done button
         def do_done():
             if not current_sound:
                 s.toast(Strings.ERROR_NO_SOUND_SELECTED)
@@ -4392,7 +4044,6 @@ class Editor:
 
             stop_current()
 
-            # Collect position and volume
             try:
                 x_val,y_val,z_val = collect_pos()
             except ValueError:
@@ -4445,394 +4096,357 @@ class Editor:
             ('size', ((0, by), (sx/2 - s.window_marg*2, by)))
         ))
 
-    def make_fx_window(s,edit=None,load=False):
-        # math
-        x,y = s.window_pos
-        sx,sy = s.window_size
+    FX_TYPES = ['spark', 'impact', 'sticky', 'ice', 'custom']
+    FX_DEFAULT_ATTRS = {
+        'spark': {
+            'count': '20', 'scale': '1.0', 'spread': '0.6',
+            'chunk_type': 'spark',
+        },
+        'impact': {
+            'count': '8', 'scale': '0.8', 'chunk_type': 'metal',
+        },
+        'sticky': {
+            'count': '15', 'scale': '0.6', 'chunk_type': 'slime',
+            'emit_type': 'stickers',
+        },
+        'ice': {
+            'count': '20', 'scale': '0.5', 'spread': '0.2',
+            'chunk_type': 'ice',
+        },
+        'custom': {
+            'count': '20', 'emit_type': 'distortion',
+        },
+    }
+
+    def make_fx_window(s, edit=None, load=False):
+        x, y = s.window_pos
+        sx, sy = s.window_size
         text_push = 15
         delay = 0.35
         data = edit and edit['data']
-        # name text
-        pos = (s.window_marg-s.window_fix,sy-88)
-        w = bui.textwidget(
+
+        VECTOR_KEYS = ('position',)
+
+        def guess_type(attrs):
+            ct = attrs.get('chunk_type')
+            et = attrs.get('emit_type')
+            if ct == 'spark' and et != 'stickers': return 'spark'
+            if ct == 'metal': return 'impact'
+            if et == 'stickers': return 'sticky'
+            if ct == 'ice': return 'ice'
+            return 'custom'
+
+        s.current_fx_type = guess_type(data['attrs']) if data else 'spark'
+
+        init_pos = (0, 0, 0)
+        s.current_fx_attrs = {}
+
+        def to_friendly(k, v):
+            val = str(v).strip()
+            if val.startswith('"') and val.endswith('"'): return val[1:-1]
+            if val.startswith("'") and val.endswith("'"): return val[1:-1]
+            return val
+
+        def to_eval(k, v):
+            v = str(v).strip()
+            if k in ('chunk_type', 'emit_type', 'tendril_type'):
+                return f'"{v}"'
+            return v
+
+        if data and 'attrs' in data:
+            for k, v in data['attrs'].items():
+                if k == 'position':
+                    try: init_pos = eval(v) if isinstance(v, str) else v
+                    except Exception: pass
+                else:
+                    s.current_fx_attrs[k] = to_friendly(k, v)
+        else:
+            for k, v in s.FX_DEFAULT_ATTRS[s.current_fx_type].items():
+                s.current_fx_attrs[k] = v
+
+        left_x = 10
+
+        pos_lbl = (left_x, sy - 85)
+        w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.TYPE, color=Const.INVISIBLE, maxwidth=50, h_align='left')
+        s.window_kids.append((w, pos_lbl, text_push, delay))
+
+        pos_inp = (left_x + 60, sy - 90)
+        type_btn = bui.buttonwidget(
             parent=s.root,
-            position=pos,
-            text=Strings.NAME,
-            color=Const.INVISIBLE
+            position=pos_inp,
+            size=(0, 0),
+            label=s.current_fx_type.capitalize(),
+            color=Color.BASE,
+            textcolor=Const.INVISIBLE,
+            texture=Eval.TEXTURE(Const.SKIN),
+            on_activate_call=lambda: cycle_type(),
+            enable_sound=False
         )
-        s.window_kids.append((w,pos,text_push,delay+0.05))
-        # name input
-        pos = (s.window_marg+80-s.window_fix,sy-95)
-        size = (150,40)
+        s.window_kids.append((type_btn, pos_inp, text_push, delay, ('size', ((0, 35), (90, 35)))))
+
+        def cycle_type():
+            Eval.SOUND(Const.OK_SOUND).play()
+            idx = s.FX_TYPES.index(s.current_fx_type)
+            s.current_fx_type = s.FX_TYPES[(idx + 1) % len(s.FX_TYPES)]
+            bui.buttonwidget(edit=type_btn, label=s.current_fx_type.capitalize())
+
+            s.current_fx_attrs.clear()
+            for k, v in s.FX_DEFAULT_ATTRS[s.current_fx_type].items():
+                s.current_fx_attrs[k] = v
+            refresh_right_pane(initial=False)
+
+        pos_lbl = (left_x, sy - 130)
+        w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.NAME, color=Const.INVISIBLE, maxwidth=50, h_align='left')
+        s.window_kids.append((w, pos_lbl, text_push, delay + 0.05))
+
+        pos_inp = (left_x + 60, sy - 130)
         name_text = bui.textwidget(
             parent=s.root,
-            position=pos,
+            position=pos_inp,
             editable=True,
             allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
+            size=(0, 0),
+            maxwidth=80,
             description=Strings.FX_NAME_HELP,
             color=Const.INVISIBLE,
             v_align=Const.ALIGN,
             glow_type=Const.GLOW,
-            text=(
-                data and data['name'] or list(Strings.EVENTS)[3]
-            )
+            text=(data and data['name'] or list(Strings.EVENTS)[3])
         )
-        s.window_kids.append((name_text,pos,text_push,delay+0.05,
-            ('size',((0,size[1]),size))
-        ))
-        # separator
-        pos = (s.window_marg-s.window_fix,sy-105)
-        size = (229,2)
+        s.window_kids.append((name_text, pos_inp, text_push, delay + 0.05, ('size', ((0, 35), (90, 35)))))
+
+        pos_sep = (left_x + 2, sy - 133)
         w = bui.imagewidget(
             parent=s.root,
-            position=pos,
+            position=pos_sep,
             texture=Eval.TEXTURE(Const.SKIN),
-            size=(0,0),
+            size=(0, 0),
             opacity=0,
             color=Color.COLD
         )
-        s.window_kids.append((w,pos,text_push,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # attr text
-        pos = (s.window_marg-s.window_fix,sy-148)
-        w = bui.textwidget(
+        s.window_kids.append((w, pos_sep, text_push, delay + 0.1, ('size', ((0, 2), (145, 2)))))
+
+        s.fx_pos_inputs = []
+        labels = ['X', 'Y', 'Z']
+        for i, lbl in enumerate(labels):
+            lbl_y = sy - 165 - (i * 40)
+            inp_y = sy - 170 - (i * 40)
+
+            pos_lbl = (left_x, lbl_y)
+            w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=f'Pos {lbl}', color=Const.INVISIBLE, maxwidth=50, h_align='left')
+            s.window_kids.append((w, pos_lbl, text_push, delay + 0.15 + i * 0.05))
+
+            pos_inp = (left_x + 60, inp_y)
+            inp = bui.textwidget(
+                parent=s.root,
+                position=pos_inp,
+                editable=True,
+                allow_clear_button=False,
+                size=(0, 0),
+                description=f'Pos {lbl}',
+                color=Const.INVISIBLE,
+                maxwidth=80,
+                v_align=Const.ALIGN,
+                glow_type=Const.GLOW,
+                text=str(init_pos[i] if len(init_pos) > i else 0)
+            )
+            s.fx_pos_inputs.append(inp)
+            s.window_kids.append((inp, pos_inp, text_push, delay + 0.15 + i * 0.05, ('size', ((0, 35), (90, 35)))))
+
+
+        scroll_x = 170
+        scroll_y = 50
+        scroll_w = sx - scroll_x - 10
+        scroll_h = 195
+
+        attr_scroll = bui.scrollwidget(
             parent=s.root,
-            position=pos,
-            text=Strings.ATTR,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.15))
-        # attr input
-        pos = (s.window_marg+80-s.window_fix,sy-155)
-        size = (150,40)
-        attr = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            description=Strings.FX_ATTR_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((attr,pos,text_push,delay+0.15,
-            ('size',((0,size[1]),size))
-        ))
-        # eval text
-        pos = (s.window_marg-s.window_fix,sy-193)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=Strings.EVAL,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.2))
-        # eval input
-        pos = (s.window_marg+80-s.window_fix,sy-200)
-        size = (150,40)
-        val = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            description=Strings.EVAL_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            maxwidth=size[0],
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((val,pos,text_push,delay+0.2,
-            ('size',((0,size[1]),size))
-        ))
-        # attr stuff
-        so_far = {}
-        attr_texts = {}
-        bx,by = (215,40)
-        butter = s.global_butter*1.3
-        text_y = 30
-        # attr scroll
-        size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
-        pos = px,py = (sx-dx+5,s.window_marg*2+by+5)
-        w = bui.scrollwidget(
-            parent=s.root,
-            position=pos,
+            position=(scroll_x, scroll_y),
             color=Color.BASE,
-            size=(dx/2,0),
+            size=(scroll_w / 2, 0),
             border_opacity=0
         )
-        s.window_kids.append((w,pos,20,delay+0,
-            ('size',((0,size[1]),size)),
-            ('border_opacity',(0,Color.OPACITY)),
-            ('color',(Color.COLD,Color.BASE))
+        s.window_kids.append((attr_scroll, (scroll_x, scroll_y), 20, delay,
+            ('size', ((0, scroll_h), (scroll_w, scroll_h))),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
         ))
-        # attr root
-        attr_root = bui.containerwidget(
-            parent=w,
-            background=False
-        )
-        # select attr
-        def select(a):
-            bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=str(so_far[a]))
-        def valid():
-            # collect
-            a = bui.textwidget(query=attr)
-            v = bui.textwidget(query=val)
-            # verify
-            if not a:
+
+        s.fx_attr_root = bui.containerwidget(parent=attr_scroll, background=False)
+
+        s.fx_attr_widgets = []
+        s.fx_current_inputs = {}
+
+        def anim_scroll_kid(w, px, py, dt):
+            if id(w) in s.anims: s.anims[id(w)].cancel()
+            ty = w.get_widget_type()
+            attrs = {'position': ((px + 50, py), (px, py))}
+            if ty == 'text':
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            elif ty == 'button':
+                attrs['opacity'] = (0, Color.OPACITY)
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+
+        def sync_edits():
+            for key, wid in s.fx_current_inputs.items():
+                s.current_fx_attrs[key] = bui.textwidget(query=wid)
+
+        def add_custom_attr(k_wid, v_wid):
+            sync_edits()
+            k = bui.textwidget(query=k_wid).strip()
+            v = bui.textwidget(query=v_wid).strip()
+            if not k:
                 s.toast(Format.ERROR_EMPTY(Strings.ATTR))
-                return
-            if not v:
-                s.toast(Format.ERROR_EMPTY(Strings.EVAL))
-                return
-            return a,v
-        # sync
-        sync = lambda i=1: bui.containerwidget(
-            attr_root,
-            size=(dx,max((len(so_far)+i)*text_y,dy-15))
-        )
-        # pop func
-        def do_pop():
-            if not (g:=valid()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            a = g[0]
-            if not a in so_far:
-                s.toast(Format.NOT_FOUND(a))
+            if k in VECTOR_KEYS:
+                s.toast(Format.ERROR(f'Use the {k.capitalize()} fields on the left'))
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            Eval.SOUND(Const.OK_SOUND).play()
-            so_far.pop(a)
-            _i = list(attr_texts).index(a)
-            _w = attr_texts.pop(a)
-            if (anim:=s.anims[id(_w)]): anim.cancel()
-            # fade
-            s.anims[id(_w)] = Animate(
-                widget=_w,
 
-                attrs={
-                    'color':(
-                        (*Color.TEXT,Color.OPACITY),
-                        Const.INVISIBLE
-                    ),
-                },
-                on_finish=_w.delete,
-                on_cancel=_w.delete,
-                duration=butter
-            )
-            # slide
-            for i,w in enumerate(
-                list(attr_texts.values())[_i:],
-                start=_i
-            ):
-                start_y = (i+1)*text_y
-                if (anim:=s.anims[id(w)]):
-                    anim.cancel()
-                    start_y = anim.attrs_current['position'][1]
-                s.anims[id(w)] = Animate(
-                    widget=w,
-
-                    duration=butter,
-                    attrs={
-                        'position':(
-                            (0,start_y),
-                            (0,i*text_y)
-                        )
-                    }
-                )
-            # finally
-            s.toast(Strings.INFO_POPPED(a))
-            sync(0)
-        # new kid
-        def new_kid(a):
-            # make
-            w = bui.textwidget(
-                parent=attr_root,
-                size=(dx,text_y),
-                maxwidth=dx-15,
-                selectable=True,
-                glow_type=Const.GLOW,
-                click_activate=True,
-                on_activate_call=bui.CallPartial(
-                    select, a
-                ),
-                text=a,
-                color=Const.INVISIBLE,
-                v_align=Const.ALIGN
-            )
-            attr_texts[a] = w
-            return w
-        # animate
-        def anim_kid(w,px,py):
-            if (anim:=s.anims[id(w)]): anim.cancel()
-            s.anims[id(w)] = Animate(
-                widget=w,
-
-                attrs={
-                    'color':(
-                        Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
-                    ),
-                    'position':(
-                        (px+50,py),
-                        (px,py)
-                    )
-                },
-                duration=butter
-            )
-        # set func
-        def do_set():
-            if not (g:=valid()):
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            a,ov = g
-            # evaluate
             try:
                 with bs.get_foreground_host_activity().context:
-                    eval(ov)
+                    eval(to_eval(k, v))
             except Exception as e:
                 s.toast(Format.ERROR(e))
-                return
-            # check
-            if a in so_far:
-                w = attr_texts[a]
-                px,py = (0,list(so_far).index(a)*text_y)
-                s.toast(Strings.INFO_UPDATED(a))
-            else:
-                px,py = (0,len(so_far)*text_y)
-                w = new_kid(a)
-                # finally
-                sync()
-                s.toast(Strings.INFO_ASSIGNED(a))
-            # finally
-            anim_kid(w,px,py)
-            so_far.update({a:ov})
-        # pop button
-        pos = (s.window_marg+2-s.window_fix,s.window_marg+50)
-        size = bx/2-s.window_marg+2,by-10
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.POP,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_pop
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        # set button
-        pos = (
-            pos[0]+size[0]+s.window_marg*3.5,
-            pos[1]
-        )
-        size = (
-            size[0]-s.window_marg,
-            size[1]
-        )
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.SET,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_set
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        def ready():
-            # collect
-            nam = bui.textwidget(query=name_text)
-            # verify
-            if not nam:
-                s.toast(Format.ERROR_EMPTY(Strings.NAME))
-                return
-            return nam
-        # done func
-        def do_done():
-            if not (nam:=ready()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
+
+            s.current_fx_attrs[k] = v
             Eval.SOUND(Const.OK_SOUND).play()
-            # construct
-            final = {
-                'name':nam,
-                'attrs':so_far
-            }
-            if edit and not load:
-                data.update(final)
-                bui.buttonwidget(
-                    s.stamp_kids[edit['order']],
-                    label=nam
+            refresh_right_pane()
+
+        def delete_attr(k):
+            sync_edits()
+            if k in s.current_fx_attrs:
+                del s.current_fx_attrs[k]
+            Eval.SOUND(Const.OK_SOUND).play()
+            refresh_right_pane()
+
+        def refresh_right_pane(initial=False):
+            for w in s.fx_attr_widgets: w.delete()
+            s.fx_attr_widgets.clear()
+            s.fx_current_inputs.clear()
+
+            row_h = 35
+            num_attrs = len(s.current_fx_attrs)
+            content_h = (num_attrs + 1) * row_h
+
+            bui.containerwidget(edit=s.fx_attr_root, size=(250, max(content_h, scroll_h)))
+
+            keys = list(s.current_fx_attrs.keys())
+            for i, k in enumerate(keys):
+                y_pos = max(content_h, scroll_h) - (i + 1) * row_h
+
+                lbl = bui.textwidget(
+                    parent=s.fx_attr_root, position=(0, y_pos), size=(85, row_h),
+                    text=k, h_align='left', v_align='center', maxwidth=80,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
                 )
-                s.window_back()
-                s.toast(Strings.INFO_SAVED)
-            else: s.add_entry(final)
-        # done button
-        pos = (px+8,s.window_marg)
-        size = bx,by = (dx-15,40)
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.DONE,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_done
-        )
-        s.window_kids.append((w,pos,50,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
+                s.fx_attr_widgets.append(lbl)
+
+                val = str(s.current_fx_attrs[k])
+                inp = bui.textwidget(
+                    parent=s.fx_attr_root, position=(90, y_pos + 5), size=(120, row_h - 5),
+                    text=val, editable=True, h_align='left', v_align='center',
+                    maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.fx_attr_widgets.append(inp)
+                s.fx_current_inputs[k] = inp
+
+                del_btn = bui.buttonwidget(
+                    parent=s.fx_attr_root, position=(215, y_pos + 5), size=(30, row_h - 5),
+                    label='-', on_activate_call=bui.CallPartial(delete_attr, k),
+                    button_type='square', enable_sound=False,
+                    texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                    opacity=0 if initial else Color.OPACITY,
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.fx_attr_widgets.append(del_btn)
+
+                if initial:
+                    anim_scroll_kid(lbl, 0, y_pos, delay + 0.1 + i * 0.03)
+                    anim_scroll_kid(inp, 90, y_pos + 5, delay + 0.1 + i * 0.03)
+                    anim_scroll_kid(del_btn, 215, y_pos + 5, delay + 0.1 + i * 0.03)
+
+            y_pos = max(content_h, scroll_h) - (num_attrs + 1) * row_h
+            new_k = bui.textwidget(
+                parent=s.fx_attr_root, position=(0, y_pos + 5), size=(85, row_h - 5),
+                text="new_attr", editable=True, h_align='left', v_align='center',
+                maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.fx_attr_widgets.append(new_k)
+
+            new_v = bui.textwidget(
+                parent=s.fx_attr_root, position=(90, y_pos + 5), size=(120, row_h - 5),
+                text="value", editable=True, h_align='left', v_align='center',
+                maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.fx_attr_widgets.append(new_v)
+
+            add_btn = bui.buttonwidget(
+                parent=s.fx_attr_root, position=(215, y_pos + 5), size=(30, row_h - 5),
+                label='+', on_activate_call=lambda: add_custom_attr(new_k, new_v),
+                button_type='square', enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                opacity=0 if initial else Color.OPACITY,
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.fx_attr_widgets.append(add_btn)
+
+            if initial:
+                anim_scroll_kid(new_k, 0, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+                anim_scroll_kid(new_v, 90, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+                anim_scroll_kid(add_btn, 215, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+
+        refresh_right_pane(initial=True)
+
+        def collect_final_attrs():
+            sync_edits()
+            pos_tuple = (
+                float(bui.textwidget(query=s.fx_pos_inputs[0]) or '0'),
+                float(bui.textwidget(query=s.fx_pos_inputs[1]) or '0'),
+                float(bui.textwidget(query=s.fx_pos_inputs[2]) or '0')
+            )
+            final_attrs = {'position': str(pos_tuple)}
+            for key, val in s.current_fx_attrs.items():
+                if val:
+                    final_attrs[key] = to_eval(key, val)
+            return final_attrs
+
         prv_on = False
-        # preview button
-        def do_preview():
-            nonlocal prv_on
-            if prv_on:
-                prv_on = False
-                bui.buttonwidget(
-                    prv_btn,
-                    label=Strings.PREVIEW
-                )
-                s.prv_fx = None
-                return
-            s.prv_fx = bui.AppTimer(
-                0.1, do_prv, repeat=True
-            )
-            bui.buttonwidget(
-                prv_btn,
-                label=Strings.STOP
-            )
-            prv_on = True
+
         def do_prv():
+            raw_attrs = collect_final_attrs()
             try:
                 with bs.get_foreground_host_activity().context:
-                    bs.emitfx(**so_far)
+                    kw = {k: eval(v) for k, v in raw_attrs.items()}
+                    bs.emitfx(**kw)
             except Exception as e:
                 if prv_on: do_preview()
                 s.toast(Format.ERROR(e))
                 Eval.SOUND(Const.BAD_SOUND).play()
+
+        def do_preview():
+            nonlocal prv_on
+            if prv_on:
+                prv_on = False
+                bui.buttonwidget(prv_btn, label=Strings.PREVIEW)
+                s.prv_fx = None
                 return
-        pos = (s.window_marg+7-s.window_fix,s.window_marg)
-        size = bx,by = (dx+2,40)
+            s.prv_fx = bui.AppTimer(0.1, do_prv, repeat=True)
+            bui.buttonwidget(prv_btn, label=Strings.STOP)
+            prv_on = True
+
+        pos = (left_x - 3, s.window_marg)
+        size = (145, 40)
         prv_btn = bui.buttonwidget(
             parent=s.root,
-            size=(0,0),
+            size=(0, 0),
             position=pos,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
@@ -4841,361 +4455,41 @@ class Editor:
             textcolor=Const.INVISIBLE,
             on_activate_call=do_preview
         )
-        s.window_kids.append((prv_btn,pos,50,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # finally
-        s.window_trash = [attr_texts]
-        if data:
-            so_far = data['attrs'].copy()
-            if so_far:
-                for i,a in enumerate(so_far):
-                    w = new_kid(a)
-                    pos = 0,i*text_y
-                    anim_kid(w,*pos)
-                sync(0)
-        return lambda: setattr(s,'prv_fx',None)
+        s.window_kids.append((prv_btn, pos, 50, delay + 0.1, ('size', ((0, size[1]), size))))
 
-    def make_map_window(s,edit=None,load=False):
-        # math
-        x,y = s.window_pos
-        sx,sy = s.window_size
-        text_push = 15
-        delay = 0.35
-        data = edit and edit['data']
-        _act = bs.get_foreground_host_activity()
-        # map text
-        pos = (s.window_marg-s.window_fix,sy-88)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=list(Strings.EVENTS)[4],
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.05))
-        # map input
-        pos = (s.window_marg+80-s.window_fix,sy-95)
-        size = (150,40)
-        old_ma = s.original_map
-        map_text = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            glow_type=Const.GLOW,
-            text=(
-                data and data['map'] or old_ma
-            )
-        )
-        s.window_kids.append((map_text,pos,text_push,delay+0.05,
-            ('size',((0,size[1]),size))
-        ))
-        # separator
-        pos = (s.window_marg-s.window_fix,sy-105)
-        size = (229,2)
-        w = bui.imagewidget(
-            parent=s.root,
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            size=(0,0),
-            opacity=0,
-            color=Color.COLD
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # attr text
-        pos = (s.window_marg-s.window_fix,sy-148)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=Strings.ATTR,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.15))
-        # attr input
-        pos = (s.window_marg+80-s.window_fix,sy-155)
-        size = (150,40)
-        attr = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            maxwidth=size[0],
-            description=Strings.MAP_ATTR_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((attr,pos,text_push,delay+0.15,
-            ('size',((0,size[1]),size))
-        ))
-        # eval text
-        pos = (s.window_marg-s.window_fix,sy-193)
-        w = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            text=Strings.EVAL,
-            color=Const.INVISIBLE
-        )
-        s.window_kids.append((w,pos,text_push,delay+0.2))
-        # eval input
-        pos = (s.window_marg+80-s.window_fix,sy-200)
-        size = (150,40)
-        val = bui.textwidget(
-            parent=s.root,
-            position=pos,
-            editable=True,
-            allow_clear_button=False,
-            size=(0,0),
-            description=Strings.EVAL_HELP,
-            color=Const.INVISIBLE,
-            v_align=Const.ALIGN,
-            maxwidth=size[0],
-            glow_type=Const.GLOW
-        )
-        s.window_kids.append((val,pos,text_push,delay+0.2,
-            ('size',((0,size[1]),size))
-        ))
-        # attr stuff
-        so_far = {}
-        attr_texts = {}
-        bx,by = (215,40)
-        butter = s.global_butter*1.3
-        text_y = 30
-        # attr scroll
-        size = dx,dy = (sx/2-s.window_marg*3,sy-s.window_marg*4-51-by)
-        pos = px,py = (sx-dx+5,s.window_marg*2+by+5)
-        w = bui.scrollwidget(
-            parent=s.root,
-            position=pos,
-            color=Color.BASE,
-            size=(dx/2,0),
-            border_opacity=0
-        )
-        s.window_kids.append((w,pos,20,delay+0,
-            ('size',((0,size[1]),size)),
-            ('border_opacity',(0,Color.OPACITY)),
-            ('color',(Color.COLD,Color.BASE))
-        ))
-        # attr root
-        attr_root = bui.containerwidget(
-            parent=w,
-            background=False
-        )
-        # select attr
-        def select(a):
-            bui.textwidget(attr,text=a)
-            bui.textwidget(val,text=str(so_far[a]))
-        def valid():
-            # collect
-            a = bui.textwidget(query=attr)
-            v = bui.textwidget(query=val)
-            # verify
-            if not a:
-                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
-                return
-            if not v:
-                s.toast(Format.ERROR_EMPTY(Strings.EVAL))
-                return
-            return a,v
-        # sync
-        sync = lambda i=1: bui.containerwidget(
-            attr_root,
-            size=(dx,max((len(so_far)+i)*text_y,dy-15))
-        )
-        # pop func
-        def do_pop():
-            if not (g:=valid()):
+        def do_done():
+            nam = bui.textwidget(query=name_text)
+            if not nam:
+                s.toast(Format.ERROR_EMPTY(Strings.NAME))
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
-            a = g[0]
-            if not a in so_far:
-                s.toast(Format.NOT_FOUND(a))
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            so_far.pop(a)
-            _i = list(attr_texts).index(a)
-            _w = attr_texts.pop(a)
-            if (anim:=s.anims[id(_w)]): anim.cancel()
-            # fade
-            s.anims[id(_w)] = Animate(
-                widget=_w,
-                attrs={
-                    'color':(
-                        (*Color.TEXT,Color.OPACITY),
-                        Const.INVISIBLE
-                    ),
-                },
-                on_finish=_w.delete,
-                on_cancel=_w.delete,
-                duration=butter
-            )
-            # slide
-            for i,w in enumerate(
-                list(attr_texts.values())[_i:],
-                start=_i
-            ):
-                start_y = (i+1)*text_y
-                if (anim:=s.anims[id(w)]):
-                    anim.cancel()
-                    start_y = anim.attrs_current['position'][1]
-                s.anims[id(w)] = Animate(
-                    widget=w,
-                    duration=butter,
-                    attrs={
-                        'position':(
-                            (0,start_y),
-                            (0,i*text_y)
-                        )
-                    }
-                )
-            # finally
-            s.toast(Strings.INFO_POPPED(a))
-            sync(0)
-        # new kid
-        def new_kid(a):
-            # make
-            w = bui.textwidget(
-                parent=attr_root,
-                size=(dx,text_y),
-                maxwidth=dx-15,
-                selectable=True,
-                glow_type=Const.GLOW,
-                click_activate=True,
-                on_activate_call=bui.CallPartial(
-                    select, a
-                ),
-                text=a,
-                color=Const.INVISIBLE,
-                v_align=Const.ALIGN
-            )
-            attr_texts[a] = w
-            return w
-        # animate
-        def anim_kid(w,px,py):
-            if (anim:=s.anims[id(w)]): anim.cancel()
-            s.anims[id(w)] = Animate(
-                widget=w,
 
-                attrs={
-                    'color':(
-                        Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
-                    ),
-                    'position':(
-                        (px+50,py),
-                        (px,py)
-                    )
-                },
-                duration=butter
-            )
-        # set func
-        def do_set():
-            if not (g:=valid()):
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            a,ov = g
-            # evaluate
             try:
+                final_attrs = collect_final_attrs()
                 with bs.get_foreground_host_activity().context:
-                    eval(ov)
+                    for key, val in final_attrs.items():
+                        eval(val)
             except Exception as e:
                 s.toast(Format.ERROR(e))
-                return
-            # check
-            if a in so_far:
-                w = attr_texts[a]
-                px,py = (0,list(so_far).index(a)*text_y)
-                s.toast(Strings.INFO_UPDATED(a))
-            else:
-                px,py = (0,len(so_far)*text_y)
-                w = new_kid(a)
-                # finally
-                sync()
-                s.toast(Strings.INFO_ASSIGNED(a))
-            # finally
-            anim_kid(w,px,py)
-            so_far.update({a:ov})
-        # pop button
-        pos = (s.window_marg+2-s.window_fix,s.window_marg+50)
-        size = bx/2-s.window_marg+2,by-10
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.POP,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_pop
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        # set button
-        pos = (
-            pos[0]+size[0]+s.window_marg*3.5,
-            pos[1]
-        )
-        size = (
-            size[0]-s.window_marg,
-            size[1]
-        )
-        w = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.SET,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_set
-        )
-        s.window_kids.append((w,pos,50,delay+0.08,
-            ('size',((0,size[1]),size))
-        ))
-        def ready():
-            # collect
-            ma = bui.textwidget(query=map_text)
-            # verify
-            if not ma:
-                s.toast(Format.ERROR_EMPTY(list(Strings.EVENTS)[4]))
-                return
-            return ma
-        # done func
-        def do_done():
-            if not (ma:=ready()):
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
+
+            final_data = {'name': nam, 'attrs': final_attrs}
+
             Eval.SOUND(Const.OK_SOUND).play()
-            # construct
-            final = {
-                'map':ma,
-                'attrs':so_far,
-                'name':list(Strings.EVENTS)[4]
-            }
             if edit and not load:
-                data.update(final)
+                data.update(final_data)
+                bui.buttonwidget(s.stamp_kids[edit['order']], label=nam)
                 s.window_back()
                 s.toast(Strings.INFO_SAVED)
-            else: s.add_entry(final,smol=True)
-        # done button
-        pos = (px+8,s.window_marg)
-        size = bx,by = (dx-15,40)
-        w = bui.buttonwidget(
+            else:
+                s.add_entry(final_data)
+
+        done_pos = (sx - 105, s.window_marg)
+        done_btn = bui.buttonwidget(
             parent=s.root,
-            size=(0,0),
-            position=pos,
+            size=(0, 0),
+            position=done_pos,
             texture=Eval.TEXTURE(Const.SKIN),
             color=Color.BASE,
             enable_sound=False,
@@ -5203,94 +4497,101 @@ class Editor:
             textcolor=Const.INVISIBLE,
             on_activate_call=do_done
         )
-        s.window_kids.append((w,pos,50,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        prv_on = False
-        # preview button
-        def do_preview():
-            nonlocal prv_on
-            if prv_on:
-                prv_on = False
-                bui.buttonwidget(
-                    prv_btn,
-                    label=Strings.PREVIEW
-                )
-                s.change_map(old_ma)
-                Eval.SOUND(Const.OK_SOUND).play()
-                return
-            if not (ma:=ready()):
-                s.toast(Format.ERROR_EMPTY(list(Strings.EVENTS)[4]))
-                Eval.SOUND(Const.BAD_SOUND).play()
-                return
-            try: s.change_map(ma,extra=so_far)
-            except AttributeError:
-                Eval.SOUND(Const.BAD_SOUND).play()
-                s.toast(Format.NOT_FOUND(ma))
-                return
-            try:
-                with _act.context:
-                    for key,val in so_far.items():
-                        v = eval(val)
-                        if hasattr(_act.map,key):
-                            setattr(_act.map,key,v)
-                        elif hasattr(_act.globalsnode,key):
-                            setattr(_act.globalsnode,key,v)
-                        else:
-                            setattr(_act.map.node,key,v)
-            except Exception as e:
-                bui.pushcall(
-                    bui.CallPartial(
-                        s.error,
-                        e
-                    )
-                )
-                s.change_map(old_ma)
-                return
-            Eval.SOUND(Const.OK_SOUND).play()
-            bui.buttonwidget(
-                prv_btn,
-                label=Strings.STOP
-            )
-            prv_on = True
+        s.window_kids.append((done_btn, done_pos, 50, delay + 0.1, ('size', ((0, 40), (95, 40)))))
 
-        pos = (s.window_marg+7-s.window_fix,s.window_marg)
-        size = bx,by = (dx+2,40)
-        prv_btn = bui.buttonwidget(
-            parent=s.root,
-            size=(0,0),
-            position=pos,
-            texture=Eval.TEXTURE(Const.SKIN),
-            color=Color.BASE,
-            enable_sound=False,
-            label=Strings.PREVIEW,
-            textcolor=Const.INVISIBLE,
-            on_activate_call=do_preview
-        )
-        s.window_kids.append((prv_btn,pos,50,delay+0.1,
-            ('size',((0,size[1]),size))
-        ))
-        # finally
-        s.window_trash = [attr_texts]
-        if data:
-            so_far = data['attrs'].copy()
-            if so_far:
-                for i,a in enumerate(so_far):
-                    w = new_kid(a)
-                    pos = 0,i*text_y
-                    anim_kid(w,*pos)
-                sync(0)
-        return lambda: s.change_map(old_ma)
+        s.window_trash = [s.fx_attr_widgets]
+        return lambda: setattr(s, 'prv_fx', None)
 
     def error(s,e):
         Eval.SOUND(Const.BAD_SOUND).play()
         s.toast(Format.ERROR(e))
 
+    MAP_GNODE_DEFAULTS = {
+        'Hockey Stadium': {
+            'floor_reflection': True, 'debris_friction': 0.3, 'debris_kill_height': -0.3,
+            'tint': (1.2, 1.3, 1.33), 'ambient_color': (1.15, 1.25, 1.6),
+            'vignette_outer': (0.66, 0.67, 0.73), 'vignette_inner': (0.93, 0.93, 0.95),
+            'vr_camera_offset': (0, -0.8, -1.1), 'vr_near_clip': 0.5,
+        },
+        'Football Stadium': {
+            'tint': (1.3, 1.2, 1.0), 'ambient_color': (1.3, 1.2, 1.0),
+            'vignette_outer': (0.57, 0.57, 0.57), 'vignette_inner': (0.9, 0.9, 0.9),
+            'vr_camera_offset': (0, -0.8, -1.1), 'vr_near_clip': 0.5,
+        },
+        'Bridgit': {
+            'tint': (1.1, 1.2, 1.3), 'ambient_color': (1.1, 1.2, 1.3),
+            'vignette_outer': (0.65, 0.6, 0.55), 'vignette_inner': (0.9, 0.9, 0.93),
+        },
+        'Big G': {
+            'tint': (1.1, 1.2, 1.3), 'ambient_color': (1.1, 1.2, 1.3),
+            'vignette_outer': (0.65, 0.6, 0.55), 'vignette_inner': (0.9, 0.9, 0.93),
+        },
+        'Roundabout': {
+            'tint': (1.0, 1.05, 1.1), 'ambient_color': (1.0, 1.05, 1.1), 'shadow_ortho': True,
+            'vignette_outer': (0.63, 0.65, 0.7), 'vignette_inner': (0.97, 0.95, 0.93),
+        },
+        'Monkey Face': {
+            'tint': (1.1, 1.2, 1.2), 'ambient_color': (1.2, 1.3, 1.3),
+            'vignette_outer': (0.60, 0.62, 0.66), 'vignette_inner': (0.97, 0.95, 0.93),
+            'vr_camera_offset': (-1.4, 0, 0),
+        },
+        'Zigzag': {
+            'tint': (1.0, 1.15, 1.15), 'ambient_color': (1.0, 1.15, 1.15),
+            'vignette_outer': (0.57, 0.59, 0.63), 'vignette_inner': (0.97, 0.95, 0.93),
+            'vr_camera_offset': (-1.5, 0, 0),
+        },
+        'The Pad': {
+            'tint': (1.1, 1.1, 1.0), 'ambient_color': (1.1, 1.1, 1.0),
+            'vignette_outer': (0.7, 0.65, 0.75), 'vignette_inner': (0.95, 0.95, 0.93),
+        },
+        'Doom Shroom': {
+            'tint': (0.82, 1.10, 1.15), 'ambient_color': (0.9, 1.3, 1.1), 'shadow_ortho': False,
+            'vignette_outer': (0.76, 0.76, 0.76), 'vignette_inner': (0.95, 0.95, 0.99),
+        },
+        'Lake Frigid': {
+            'tint': (1, 1, 1), 'ambient_color': (1, 1, 1), 'shadow_ortho': True,
+            'vignette_outer': (0.86, 0.86, 0.86), 'vignette_inner': (0.95, 0.95, 0.99),
+            'vr_near_clip': 0.5,
+        },
+        'Tip Top': {
+            'tint': (0.8, 0.9, 1.3), 'ambient_color': (0.8, 0.9, 1.3),
+            'vignette_outer': (0.79, 0.79, 0.69), 'vignette_inner': (0.97, 0.97, 0.99),
+        },
+        'Crag Castle': {
+            'shadow_ortho': True, 'shadow_offset': (0, 0, -5.0),
+            'tint': (1.15, 1.05, 0.75), 'ambient_color': (1.15, 1.05, 0.75),
+            'vignette_outer': (0.6, 0.65, 0.6), 'vignette_inner': (0.95, 0.95, 0.95),
+            'vr_near_clip': 1.0,
+        },
+        'Tower D': {
+            'tint': (1.15, 1.11, 1.03), 'ambient_color': (1.2, 1.1, 1.0),
+            'vignette_outer': (0.7, 0.73, 0.7), 'vignette_inner': (0.95, 0.95, 0.95),
+        },
+        'Happy Thoughts': {
+            'happy_thoughts_mode': True, 'shadow_offset': (0.0, 8.0, 5.0),
+            'tint': (1.3, 1.23, 1.0), 'ambient_color': (1.3, 1.23, 1.0),
+            'vignette_outer': (0.64, 0.59, 0.69), 'vignette_inner': (0.95, 0.95, 0.93),
+            'vr_near_clip': 1.0,
+        },
+        'Step Right Up': {
+            'tint': (1.2, 1.1, 1.0), 'ambient_color': (1.2, 1.1, 1.0),
+            'vignette_outer': (0.7, 0.65, 0.75), 'vignette_inner': (0.95, 0.95, 0.93),
+        },
+        'Courtyard': {
+            'tint': (1.2, 1.17, 1.1), 'ambient_color': (1.2, 1.17, 1.1),
+            'vignette_outer': (0.6, 0.6, 0.64), 'vignette_inner': (0.95, 0.95, 0.93),
+        },
+        'Rampage': {
+            'tint': (1.2, 1.1, 0.97), 'ambient_color': (1.3, 1.2, 1.03),
+            'vignette_outer': (0.62, 0.64, 0.69), 'vignette_inner': (0.97, 0.95, 0.93),
+        },
+    }
+
     def change_map(s, ma, extra={}):
         from bascenev1lib.gameutils import SharedObjects
         _act = bs.get_foreground_host_activity()
         old_map = _act.map
-        cls = getattr(__import__('bascenev1lib').maps, ma.title().replace(' ', ''))
+        cls = bs.get_map_class(ma)
         with _act.context:
             if type(old_map) in _act.preloads:
                 del _act.preloads[type(old_map)]
@@ -5299,26 +4600,26 @@ class Editor:
                     try:
                         val = getattr(old_map, attr)
                         if not callable(val):
+                            if hasattr(val, 'delete') and hasattr(val, 'exists'):
+                                try:
+                                    if val.exists(): val.delete()
+                                except Exception:
+                                    pass
                             delattr(old_map, attr)
-                    except:
+                    except Exception:
                         pass
             _act.preloads[cls] = cls.on_preload()
             preload = _act.preloads[cls]
             shared = SharedObjects.get()
-            temp_map = cls()
-            gnode_settings = {}
-            for attr in ['tint', 'ambient_color', 'vignette_outer', 'vignette_inner', 'vr_camera_offset', 'vr_near_clip', 'floor_reflection', 'debris_friction', 'debris_kill_height', 'shadow_ortho', 'shadow_offset', 'happy_thoughts_mode']:
-                try:
-                    gnode_settings[attr] = getattr(_act.globalsnode, attr)
-                except:
-                    pass
-            (temp_map.node and temp_map.node.delete())
             for node in bs.getnodes():
                 if node.getnodetype() == 'terrain' and node != old_map.node:
                     try:
                         node.delete()
-                    except:
+                    except Exception:
                         pass
+            for attr in ['bottom', 'floor', 'stands', 'background', 'railing', 'bg_collide', 'stem', 'player_wall', 'bg2', 'node_bottom']:
+                if hasattr(old_map, attr):
+                    delattr(old_map, attr)
             if hasattr(old_map, 'node') and old_map.node:
                 old_map.node.mesh = preload.get('mesh') or preload.get('mesh_top') or preload.get('meshes', [None])[0]
                 old_map.node.color_texture = preload['tex']
@@ -5327,13 +4628,6 @@ class Editor:
                     old_map.node.materials = [shared.footing_material, preload['ice_material']]
                 else:
                     old_map.node.materials = [shared.footing_material]
-            for attr in ['bottom', 'floor', 'stands', 'background', 'railing', 'bg_collide', 'stem', 'player_wall', 'bg2', 'node_bottom']:
-                if hasattr(old_map, attr):
-                    try:
-                        getattr(old_map, attr).delete()
-                        delattr(old_map, attr)
-                    except:
-                        pass
             if 'mesh_bottom' in preload or 'bottom_mesh' in preload:
                 old_map.bottom = bs.newnode('terrain', attrs={'mesh': preload.get('mesh_bottom') or preload.get('bottom_mesh'), 'lighting': False, 'color_texture': preload['tex']})
             if 'meshes' in preload and len(preload['meshes']) > 1:
@@ -5343,12 +4637,20 @@ class Editor:
                 old_map.stands = bs.newnode('terrain', attrs={'mesh': preload['meshes'][2], 'visible_in_reflections': False, 'color_texture': preload.get('stands_tex', preload['tex'])})
             if 'mesh_bg' in preload or 'bgmesh' in preload:
                 old_map.background = bs.newnode('terrain', attrs={'mesh': preload.get('mesh_bg') or preload.get('bgmesh'), 'lighting': False, 'background': True, 'color_texture': preload.get('mesh_bg_tex') or preload.get('bgtex')})
+            if 'bgmesh2' in preload:
+                old_map.bg2 = bs.newnode('terrain', attrs={'mesh': preload['bgmesh2'], 'lighting': False, 'background': True, 'color_texture': preload.get('bgtex2', preload.get('tex'))})
             if 'railing_collision_mesh' in preload or 'bumper_collision_mesh' in preload:
                 old_map.railing = bs.newnode('terrain', attrs={'collision_mesh': preload.get('railing_collision_mesh') or preload.get('bumper_collision_mesh'), 'materials': [shared.railing_material], 'bumper': True})
             if 'collide_bg' in preload:
                 old_map.bg_collide = bs.newnode('terrain', attrs={'collision_mesh': preload['collide_bg'], 'materials': [shared.footing_material, preload.get('bg_material'), shared.death_material]})
             if 'stem_mesh' in preload:
                 old_map.stem = bs.newnode('terrain', attrs={'mesh': preload['stem_mesh'], 'lighting': False, 'color_texture': preload['tex']})
+            if 'player_wall_collision_mesh' in preload and isinstance(bs.getsession(), bs.CoopSession):
+                old_map.player_wall = bs.newnode('terrain', attrs={
+                    'collision_mesh': preload['player_wall_collision_mesh'],
+                    'affect_bg_dynamics': False,
+                    'materials': [preload['player_wall_material']],
+                })
             old_map.preloaddata = preload
             old_map.defs = cls.defs
             old_map.is_hockey = hasattr(cls, 'is_hockey') or cls.name in ['Hockey Stadium', 'Lake Frigid']
@@ -5358,10 +4660,25 @@ class Editor:
             gnode.area_of_interest_bounds = aoi_bounds
             map_bounds = old_map.get_def_bound_box('map_bounds') or (-30, -10, -30, 30, 100, 30)
             bs.set_map_bounds(map_bounds)
-            for attr, val in gnode_settings.items():
+            if not hasattr(s, '_gnode_engine_defaults'):
+                s._gnode_engine_defaults = {}
+                all_gnode_keys = set()
+                for d in s.MAP_GNODE_DEFAULTS.values():
+                    all_gnode_keys.update(d.keys())
+                for key in all_gnode_keys:
+                    try:
+                        s._gnode_engine_defaults[key] = getattr(gnode, key)
+                    except Exception:
+                        pass
+            for key, default_val in s._gnode_engine_defaults.items():
+                try:
+                    setattr(gnode, key, default_val)
+                except Exception:
+                    pass
+            for attr, val in s.MAP_GNODE_DEFAULTS.get(cls.name, {}).items():
                 try:
                     setattr(gnode, attr, val)
-                except:
+                except Exception:
                     pass
             for key, val in extra.items():
                 try:
@@ -5370,8 +4687,13 @@ class Editor:
                         setattr(old_map, key, v)
                     elif hasattr(gnode, key):
                         setattr(gnode, key, v)
+                    elif old_map.node and hasattr(old_map.node, key):
+                        setattr(old_map.node, key, v)
                     else:
-                        setattr(old_map.node,key,v)
+                        raise AttributeError(
+                            f"'{key}' is not a valid attribute on the map, "
+                            f"globals, or map node"
+                        )
                 except Exception as e:
                     bui.pushcall(
                         bui.CallPartial(
@@ -5379,14 +4701,312 @@ class Editor:
                         ), raw=True
                     )
 
+    def make_map_window(s, edit=None, load=False):
+        x, y = s.window_pos
+        sx, sy = s.window_size
+        text_push = 15
+        delay = 0.35
+        data = edit and edit['data']
+        _act = bs.get_foreground_host_activity()
+
+        assert bui.app.classic is not None
+        map_names = sorted(bui.app.classic.maps.keys())
+
+        old_ma = s.original_map
+        try:
+            start_ma = bs.get_filtered_map_name(data['map'] if data else old_ma)
+        except Exception:
+            start_ma = old_ma
+        if start_ma not in map_names and map_names:
+            start_ma = map_names[0]
+        s.current_map_name = start_ma
+
+        s.current_map_attrs = {}
+        if data and 'attrs' in data:
+            s.current_map_attrs = {k: str(v) for k, v in data['attrs'].items()}
+        else:
+            start_cls = bs.get_map_class(start_ma)
+            s.current_map_attrs = {
+                k: str(v) for k, v in s.MAP_GNODE_DEFAULTS.get(start_cls.name, {}).items()
+            }
+
+        left_x = 10
+
+        pos_lbl = (left_x, sy - 85)
+        w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=list(Strings.EVENTS)[4], color=Const.INVISIBLE, maxwidth=140, h_align='left')
+        s.window_kids.append((w, pos_lbl, text_push, delay))
+
+        list_x = left_x
+        list_y = 50
+        list_w = 150
+        list_h = sy - 145
+
+        map_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=(list_x, list_y),
+            color=Color.BASE,
+            size=(list_w / 2, 0),
+            border_opacity=0
+        )
+        s.window_kids.append((map_scroll, (list_x, list_y), 20, delay,
+            ('size', ((0, list_h), (list_w, list_h))),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
+        ))
+        s.map_list_root = bui.containerwidget(parent=map_scroll, background=False)
+
+        row_h = 32
+        s.map_list_buttons = {}
+
+        def select_map(name):
+            Eval.SOUND(Const.OK_SOUND).play()
+            s.current_map_name = name
+            for nm, btn in s.map_list_buttons.items():
+                bui.buttonwidget(edit=btn, color=Color.BASE if nm != name else Color.TEMP)
+
+            cls = bs.get_map_class(name)
+            s.current_map_attrs = {
+                k: str(v) for k, v in s.MAP_GNODE_DEFAULTS.get(cls.name, {}).items()
+            }
+            refresh_right_pane(initial=False)
+
+        content_h = max(len(map_names) * row_h, list_h)
+        bui.containerwidget(edit=s.map_list_root, size=(list_w, content_h))
+        for i, name in enumerate(map_names):
+            y_pos = content_h - (i + 1) * row_h
+            btn = bui.buttonwidget(
+                parent=s.map_list_root,
+                position=(0, y_pos),
+                size=(list_w - 10, row_h - 4),
+                label=name,
+                color=Color.TEMP if name == s.current_map_name else Color.BASE,
+                textcolor=(*Color.TEXT, Color.OPACITY),
+                texture=Eval.TEXTURE(Const.SKIN),
+                enable_sound=False,
+                opacity=Color.OPACITY,
+                on_activate_call=bui.CallPartial(select_map, name)
+            )
+            s.map_list_buttons[name] = btn
+
+        scroll_x = 170
+        scroll_y = 50
+        scroll_w = sx - scroll_x - 10
+        scroll_h = 195
+
+        attr_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=(scroll_x, scroll_y),
+            color=Color.BASE,
+            size=(scroll_w / 2, 0),
+            border_opacity=0
+        )
+        s.window_kids.append((attr_scroll, (scroll_x, scroll_y), 20, delay,
+            ('size', ((0, scroll_h), (scroll_w, scroll_h))),
+            ('border_opacity', (0, Color.OPACITY)),
+            ('color', (Color.COLD, Color.BASE))
+        ))
+        s.map_attr_root = bui.containerwidget(parent=attr_scroll, background=False)
+
+        s.map_attr_widgets = []
+        s.map_current_inputs = {}
+
+        def anim_scroll_kid(w, px, py, dt):
+            if id(w) in s.anims: s.anims[id(w)].cancel()
+            ty = w.get_widget_type()
+            attrs = {'position': ((px + 50, py), (px, py))}
+            if ty == 'text':
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            elif ty == 'button':
+                attrs['opacity'] = (0, Color.OPACITY)
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+
+        def sync_edits():
+            for key, wid in s.map_current_inputs.items():
+                s.current_map_attrs[key] = bui.textwidget(query=wid)
+
+        def add_custom_attr(k_wid, v_wid):
+            sync_edits()
+            k = bui.textwidget(query=k_wid).strip()
+            v = bui.textwidget(query=v_wid).strip()
+            if not k:
+                s.toast(Format.ERROR_EMPTY(Strings.ATTR))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            try:
+                with bs.get_foreground_host_activity().context:
+                    eval(v)
+            except Exception as e:
+                s.toast(Format.ERROR(e))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+            s.current_map_attrs[k] = v
+            Eval.SOUND(Const.OK_SOUND).play()
+            refresh_right_pane()
+
+        def delete_attr(k):
+            sync_edits()
+            if k in s.current_map_attrs:
+                del s.current_map_attrs[k]
+            Eval.SOUND(Const.OK_SOUND).play()
+            refresh_right_pane()
+
+        def refresh_right_pane(initial=False):
+            for w in s.map_attr_widgets: w.delete()
+            s.map_attr_widgets.clear()
+            s.map_current_inputs.clear()
+
+            row_h2 = 35
+            num_attrs = len(s.current_map_attrs)
+            content_h2 = (num_attrs + 1) * row_h2
+
+            bui.containerwidget(edit=s.map_attr_root, size=(250, max(content_h2, scroll_h)))
+
+            keys = list(s.current_map_attrs.keys())
+            for i, k in enumerate(keys):
+                y_pos = max(content_h2, scroll_h) - (i + 1) * row_h2
+
+                lbl = bui.textwidget(
+                    parent=s.map_attr_root, position=(0, y_pos), size=(85, row_h2),
+                    text=k, h_align='left', v_align='center', maxwidth=80,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.map_attr_widgets.append(lbl)
+
+                val = str(s.current_map_attrs[k])
+                inp = bui.textwidget(
+                    parent=s.map_attr_root, position=(90, y_pos + 5), size=(120, row_h2 - 5),
+                    text=val, editable=True, h_align='left', v_align='center',
+                    maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.map_attr_widgets.append(inp)
+                s.map_current_inputs[k] = inp
+
+                del_btn = bui.buttonwidget(
+                    parent=s.map_attr_root, position=(215, y_pos + 5), size=(30, row_h2 - 5),
+                    label='-', on_activate_call=bui.CallPartial(delete_attr, k),
+                    button_type='square', enable_sound=False,
+                    texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                    opacity=0 if initial else Color.OPACITY,
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                )
+                s.map_attr_widgets.append(del_btn)
+
+                if initial:
+                    anim_scroll_kid(lbl, 0, y_pos, delay + 0.1 + i * 0.03)
+                    anim_scroll_kid(inp, 90, y_pos + 5, delay + 0.1 + i * 0.03)
+                    anim_scroll_kid(del_btn, 215, y_pos + 5, delay + 0.1 + i * 0.03)
+
+            y_pos = max(content_h2, scroll_h) - (num_attrs + 1) * row_h2
+            new_k = bui.textwidget(
+                parent=s.map_attr_root, position=(0, y_pos + 5), size=(85, row_h2 - 5),
+                text="new_attr", editable=True, h_align='left', v_align='center',
+                maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.map_attr_widgets.append(new_k)
+
+            new_v = bui.textwidget(
+                parent=s.map_attr_root, position=(90, y_pos + 5), size=(120, row_h2 - 5),
+                text="value", editable=True, h_align='left', v_align='center',
+                maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.map_attr_widgets.append(new_v)
+
+            add_btn = bui.buttonwidget(
+                parent=s.map_attr_root, position=(215, y_pos + 5), size=(30, row_h2 - 5),
+                label='+', on_activate_call=lambda: add_custom_attr(new_k, new_v),
+                button_type='square', enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
+                opacity=0 if initial else Color.OPACITY,
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+            )
+            s.map_attr_widgets.append(add_btn)
+
+            if initial:
+                anim_scroll_kid(new_k, 0, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+                anim_scroll_kid(new_v, 90, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+                anim_scroll_kid(add_btn, 215, y_pos + 5, delay + 0.1 + num_attrs * 0.03)
+
+        refresh_right_pane(initial=True)
+
+        prv_on = False
+
+        def do_preview():
+            nonlocal prv_on
+            if prv_on:
+                prv_on = False
+                bui.buttonwidget(prv_btn, label=Strings.PREVIEW)
+                s.change_map(old_ma)
+                Eval.SOUND(Const.OK_SOUND).play()
+                return
+            sync_edits()
+            try:
+                s.change_map(s.current_map_name, extra=s.current_map_attrs)
+            except Exception as e:
+                Eval.SOUND(Const.BAD_SOUND).play()
+                s.toast(Format.ERROR(e))
+                return
+            Eval.SOUND(Const.OK_SOUND).play()
+            bui.buttonwidget(prv_btn, label=Strings.STOP)
+            prv_on = True
+
+        pos = (left_x - 3, s.window_marg)
+        size = (145, 40)
+        prv_btn = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.PREVIEW,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_preview
+        )
+        s.window_kids.append((prv_btn, pos, 50, delay + 0.1, ('size', ((0, size[1]), size))))
+
+        def do_done():
+            sync_edits()
+            Eval.SOUND(Const.OK_SOUND).play()
+            final_data = {
+                'map': s.current_map_name,
+                'attrs': dict(s.current_map_attrs),
+                'name': list(Strings.EVENTS)[4]
+            }
+            if edit and not load:
+                data.update(final_data)
+                s.window_back()
+                s.toast(Strings.INFO_SAVED)
+            else:
+                s.add_entry(final_data, smol=True)
+
+        done_pos = (sx - 105, s.window_marg)
+        done_btn = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=done_pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.DONE,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_done
+        )
+        s.window_kids.append((done_btn, done_pos, 50, delay + 0.1, ('size', ((0, 40), (95, 40)))))
+
+        s.window_trash = [s.map_attr_widgets, s.map_list_buttons]
+
+        return lambda: s.change_map(old_ma)
+
     def make_preset_window(s,edit=None,load=False):
-        # math
         x, y = s.window_pos
         sx, sy = s.window_size
         text_push = 15
         delay = 0.35
 
-        # preset scroll
         size = dx, dy = (sx/2 - s.window_marg*3, sy - s.window_marg*9)
         pos = px, py = (s.window_marg - s.window_fix, s.window_marg - s.window_fix)
         preset_scroll = bui.scrollwidget(
@@ -5402,13 +5022,11 @@ class Editor:
             ('color', (Color.COLD, Color.BASE))
         ))
 
-        # preset root
         preset_root = bui.containerwidget(
             parent=preset_scroll,
             background=False
         )
 
-        # select
         sl = None
         def do_select(i,j,nam,dsc,data):
             nonlocal sl
@@ -5425,7 +5043,6 @@ class Editor:
         text_y = 30
         preset_texts = []
 
-        # Populate preset list
         presets = get_presets()
         rsy = max(len(presets) * text_y, dy - 15)
         for i,g in enumerate(presets,start=1):
@@ -5447,13 +5064,11 @@ class Editor:
             )
             preset_texts.append(w)
 
-        # Set container size
         bui.containerwidget(
             preset_root,
             size=(dx, rsy)
         )
 
-        # title
         title_pos = (sx/2 + s.window_marg, sy - s.window_marg - 80)
         title_text = bui.textwidget(
             parent=s.root,
@@ -5465,7 +5080,6 @@ class Editor:
         )
         s.window_kids.append((title_text, title_pos, text_push, delay + 0.1))
 
-        # desc
         desc_pos = (sx/2 + s.window_marg, sy - s.window_marg - 120)
         desc_text = bui.textwidget(
             parent=s.root,
@@ -5476,7 +5090,6 @@ class Editor:
         )
         s.window_kids.append((desc_text, desc_pos, text_push, delay + 0.1))
 
-        # load button
         by = 40
         def do_load():
             Eval.SOUND(Const.OK_SOUND).play()
@@ -5497,18 +5110,15 @@ class Editor:
             ('size', ((0, by), (sx/2 - s.window_marg*2, by)))
         ))
 
-        # finally
         s.window_trash = [preset_texts]
 
     def make_code_window(s,edit=None,load=False,on_done=None,initial_code=None):
-        # math
         x, y = s.window_pos
         sx, sy = s.window_size
         delay = 0.35
         by = 40
         data = edit and edit['data']
 
-        # code scroll
         size = dx, dy = (sx+4, sy - s.window_marg*13-by)
         pos = px, py = (s.window_marg - s.window_fix, s.window_marg*4 - s.window_fix + by)
         code_scroll = bui.scrollwidget(
@@ -5524,7 +5134,6 @@ class Editor:
             ('color', (Color.COLD, Color.BASE))
         ))
 
-        # code root
         code_root = bui.containerwidget(
             parent=code_scroll,
             background=False
@@ -5578,7 +5187,6 @@ class Editor:
                 Eval.SOUND(Const.BAD_SOUND).play()
                 s.toast(Strings.ERROR_EMPTY_CODE)
             return code
-        # buttons
         def load_code(code):
             if not code: return
             code = code.split('\n')
@@ -5591,13 +5199,11 @@ class Editor:
         runner = None
         final = None
         def do_btn(i,btn):
-            # copy
             if i == 0:
                 if (code:=get_code()):
                     bui.clipboard_set_text(code)
                     Eval.SOUND(Const.GOOD_SOUND).play()
                     s.toast(Strings.INFO_COPIED)
-            # paste
             if i == 1:
                 if not (t:=ba.clipboard_get_text()):
                     Eval.SOUND(Const.BAD_SOUND).play()
@@ -5606,7 +5212,6 @@ class Editor:
                 load_code(t)
                 Eval.SOUND(Const.ACTION_SOUND).play()
                 s.toast(Strings.INFO_PASTED)
-            # run
             if i == 2:
                 nonlocal running, runner
                 if running:
@@ -5628,7 +5233,6 @@ class Editor:
                     )
                     runner.on_start(code)
                     Eval.SOUND(Const.OK_SOUND).play()
-            # done
             if i == 3:
                 if not (code:=get_code()): return
                 runner and runner.on_end()
@@ -5680,7 +5284,6 @@ class Editor:
                 ('size', ((0, by), (sx/4 - s.window_marg*4, by)))
             ))
 
-        # finally
         s.window_trash = [code_texts]
         if data:
             load_code(data.get('code'))
@@ -5693,7 +5296,6 @@ class Editor:
         return cleanup
 
     def make_seed_window(s,edit=None,load=False):
-        # math
         x, y = s.window_pos
         sx, sy = s.window_size
         text_push = 15
@@ -5702,7 +5304,6 @@ class Editor:
         bx = sx - s.window_marg*8
         by = 40
 
-        # tip
         pos = (s.window_marg,sy-(by+s.window_marg*10))
         tip = bui.textwidget(
             parent=s.root,
@@ -5714,7 +5315,6 @@ class Editor:
         )
         s.window_kids.append((tip,pos,text_push,delay+0))
 
-        # seed input
         pos = (s.window_marg*2+2,s.window_marg*4+by)
         seed_inp = bui.textwidget(
             parent=s.root,
@@ -5733,7 +5333,6 @@ class Editor:
             ('size',((bx/2,by),(bx+20,by)))
         ))
 
-        # load button
         def do_done():
             seed = bui.textwidget(query=seed_inp)
             if not seed:
@@ -5797,7 +5396,6 @@ class Editor:
         anim = s.anims[id(b)]['window']
         Eval.SOUND(Const.OK_SOUND).play()
         s.window_clean()
-        # capture
         if to:
             last_i = s.last_window_i
             def fix():
@@ -5823,9 +5421,7 @@ class Editor:
                         }
                     )
                     s.anims[id(b)]['fix'] = anim
-                    # enable
                     enable()
-                # instant button
                 bui.buttonwidget(
                     b,
                     size=s.event_kid_size,
@@ -5834,14 +5430,12 @@ class Editor:
                     label=list(Strings.EVENTS)[last_i],
                     text_scale=s.event_kid_ts
                 )
-                # instant shadow
                 bui.imagewidget(
                     s.event_kids[b]['shadow'],
                     opacity=0
                 )
                 if callable(on_fix): on_fix()
             def do_anim():
-                # button
                 anim = Animate(
                     widget=b,
                     attrs=to(),
@@ -5850,7 +5444,6 @@ class Editor:
                     on_cancel=fix
                 )
                 s.anims[id(b)]['to'] = anim
-                # shadow
                 s.anims[id(b)]['shadow'] = Animate(
                     widget=s.event_kids[b]['shadow'],
 
@@ -5865,7 +5458,6 @@ class Editor:
                     s.after_scroll_t = None
                     anim.cancel()
                     fix()
-                # button
                 s.anims[id(b)]['extra'] = Animate(
                     widget=b,
                     duration=wait,
@@ -5873,7 +5465,6 @@ class Editor:
                     on_cancel=nevermind
                 )
             if shadow_extra:
-                # shadow
                 s.anims[id(b)]['shadow'] = Animate(
                     widget=s.event_kids[b]['shadow'],
                     duration=wait,
@@ -5884,21 +5475,16 @@ class Editor:
             )
         else:
             zero = 0.0001
-            # fading into nothing?
             if into_nothing:
                 anim.attrs_start['textcolor'] = Const.INVISIBLE
-            # back to place
             s.anims[id(b)]['window'] = anim.reverse(
                 duration=skip and zero or butter
             )
-            # shadow too
             anim = s.anims[id(b)]['shadow']
             s.anims[id(b)]['shadow'] = anim.reverse(
                 duration=skip and zero or butter
             )
-            # enable
             enable()
-        # finally
         s.window_on = ()
 
     def show_controls(s,up=False):
@@ -5912,7 +5498,6 @@ class Editor:
             sx,sy = s.stamp_size
             start_size = (dx,dy/4)
             for i,b in enumerate(s.controls):
-                # instant
                 bui.buttonwidget(
                     b, position=s.control_pos(i)
                 )
@@ -5978,9 +5563,7 @@ class Editor:
            not s.controls_shown
         ): return
         r = None
-        # play
         if i == 0: s.toggle_play()
-        # stop
         if i == 1: r = s.stop()
         Eval.SOUND(
             r is None and Const.OK_SOUND
@@ -6026,28 +5609,22 @@ class Editor:
         s.wrap_play()
         s.wrap_controls()
 
-        # Helper to recursively clean trackers
         def clean_tracker(tracker):
-            # Clean items
             for _ in tracker.active.values():
                 if _.exists(): _.delete()
             tracker.active.clear()
 
-            # Clean sounds
             for _ in tracker.active_sounds:
                 if _.exists(): _.delete()
             tracker.active_sounds.clear()
 
-            # Clean timers
-            tracker.active_timers.clear() # bascenev1 timers die automatically
+            tracker.active_timers.clear()
 
-            # Clean internal timers (scheduling)
             for t in getattr(tracker, 'internal_timers', []):
-                t = None # Dereference
+                t = None
             if hasattr(tracker, 'internal_timers'):
                 tracker.internal_timers.clear()
 
-            # Clean codes
             for _ in tracker.active_codes.values():
                 (main:=_.get('main')) and main.on_end()
                 (children:=_.get('children')) and [
@@ -6055,12 +5632,10 @@ class Editor:
                 ]
             tracker.active_codes.clear()
 
-            # Recursively clean seeds
             for seed_tracker in tracker.active_seeds.values():
                 clean_tracker(seed_tracker)
             tracker.active_seeds.clear()
 
-        # Clean self (acting as main tracker)
         clean_tracker(s)
 
         shut or s.toast(Strings.INFO_FINISHED)
@@ -6094,12 +5669,10 @@ class Editor:
             for sound,vol in s.active_sounds.items():
                 setattr(sound,'volume',vol)
             return
-        # ui
         s.collapse_all()
         s.ui_clickable = False
         s.make_playhead()
         s.wrap_play(init=True)
-        # fire
         s.play_timer = bui.AppTimer(
             0.01, s.do_play, repeat=True
         )
@@ -6113,7 +5686,6 @@ class Editor:
             perf_counter() - s.play_start - s.paused_time
         )
 
-        # Execute timeline events
         while (
             s.timeline_index < len(s.timeline) and
             s.timeline[s.timeline_index]['time'] <= s.play_elapsed
@@ -6123,14 +5695,14 @@ class Editor:
             except Exception as e:
                 t = event['memory']['data']['name']
                 s.toast(Strings.ERROR_EVENT(t,e))
+                print(format_exc())
                 s.stop(shut=1)
                 Eval.SOUND(Const.BAD_SOUND).play()
                 return
             s.timeline_index += 1
 
-        # Execute scheduled keys
         for btn_id, keys in list(s.active_key_schedule.items()):
-            for key_info in keys[:]:  # Copy to safely remove during iteration
+            for key_info in keys[:]:
                 if s.play_elapsed >= key_info['time']:
                     try:
                         s.execute_key(
@@ -6146,11 +5718,9 @@ class Editor:
 
                     keys.remove(key_info)
 
-            # Clean up empty schedules
             if not keys:
                 del s.active_key_schedule[btn_id]
 
-        # Check if playback finished
         if s.play_elapsed >= s.max_time:
             s.stop()
             return
@@ -6158,7 +5728,6 @@ class Editor:
         s.move_playhead()
 
     def execute_event(s,e,tracker=None):
-        # Default to self if no tracker provided (Main Timeline)
         tracker = tracker or s
 
         mem = e['memory']
@@ -6168,20 +5737,19 @@ class Editor:
         data = mem['data']
         call = None
 
-        # node
         if what == 0:
             if start:
-                attrs = {
-                    attr:eval(val)
-                    for attr,val in data['attrs'].items()
-                }
-                if data['type'] == 'spaz' and 'position' in data['attrs']:
-                    position = attrs.pop('position')
-                    call = lambda: n.handlemessage(
-                        bs.StandMessage,
-                        position
-                    )
                 with bs.get_foreground_host_activity().context:
+                    attrs = {
+                        attr:eval(val)
+                        for attr,val in data['attrs'].items()
+                    }
+                    if data['type'] == 'spaz' and 'position' in data['attrs']:
+                        position = attrs.pop('position')
+                        call = lambda: n.handlemessage(
+                            bs.StandMessage,
+                            position
+                        )
                     tracker.active[key] = n = bs.newnode(
                         type=data['type'],
                         name=data['name'],
@@ -6191,11 +5759,7 @@ class Editor:
                 if key in tracker.active:
                     tracker.active.pop(key).delete()
 
-        # camera
         if what == 1:
-            # Camera is global, so we still access s.camera_data
-            # but we track the active state per tracker if needed,
-            # though usually camera overrides everything.
             if start:
                 has_pos,has_tar,man = data['chks']
                 s.camera_data[key] = (
@@ -6203,7 +5767,6 @@ class Editor:
                     has_tar and data['target'],
                     man
                 )
-                # wake up
                 if not s.camera_timer:
                     def apply():
                         if not s.camera_data: return
@@ -6225,14 +5788,13 @@ class Editor:
                     s.camera_timer = bui.AppTimer(
                         0.02, apply, repeat=True
                     )
-                    apply() # initial
+                    apply()
             else:
                 if key in s.camera_data:
                     man = s.camera_data.pop(key)[2]
                     if not s.camera_data:
                         s.camera_timer = None
                         man and _ba.set_camera_manual(False)
-        # volume
         if what == 2:
             if start:
                 sound_name = data['file'].replace('.ogg', '')
@@ -6257,7 +5819,6 @@ class Editor:
                         tracker.active_sounds.pop(n)
                     n.delete()
 
-        # fx
         if what == 3:
             if start:
                 at = {
@@ -6275,12 +5836,10 @@ class Editor:
                 if key in tracker.active_timers:
                     tracker.active_timers.pop(key)
 
-        # map
         if what == 4:
             if start:
                 s.change_map(data['map'], extra=data['attrs'])
 
-        # code
         if what == 6:
             if start:
                 tracker.active_codes[key]['main'] = runner = CodeRunner(
@@ -6299,33 +5858,21 @@ class Editor:
                     for child in codes['children']:
                         child.on_end()
 
-        # seed
         if what == 7:
             if start:
-                # 1. Decode memory
                 try:
-                    seed_mem = Eval.DECODE(int(data['seed']))
+                    seed_mem = Eval.DECODE(data['seed'])
                 except Exception as ex:
                     s.toast(Format.ERROR(ex))
                     return
 
-                # 2. Create scope for this seed
                 sub_tracker = Tracker()
                 tracker.active_seeds[key] = sub_tracker
 
-                # 3. Schedule events relative to NOW
-                # Since this function is called at the exact start time of the entry,
-                # we schedule the seed's contents using AppTimers relative to this moment.
-
-                # We need unique IDs for the seed's contents so they don't clash
-                # strictly within the sub_tracker dicts, though reusing the string IDs from memory is fine
-                # because sub_tracker is isolated.
-
                 for seed_key, seed_entry in seed_mem.items():
-                    # Create virtual event objects
                     start_ev = {
                         'memory': seed_entry,
-                        'btn_id': seed_key, # Use original ID as key in sub_tracker
+                        'btn_id': seed_key,
                         'type': 'start'
                     }
                     end_ev = {
@@ -6334,43 +5881,37 @@ class Editor:
                         'type': 'end'
                     }
 
-                    # Schedule Start
                     t_start = bui.AppTimer(
                         seed_entry['start'],
                         bui.CallPartial(s.execute_event, start_ev, tracker=sub_tracker)
                     )
                     sub_tracker.internal_timers.append(t_start)
 
-                    # Schedule End
                     t_end = bui.AppTimer(
                         seed_entry['start'] + seed_entry['duration'],
                         bui.CallPartial(s.execute_event, end_ev, tracker=sub_tracker)
                     )
                     sub_tracker.internal_timers.append(t_end)
 
-                    # Schedule Keys
                     for k_name, k_data in seed_entry.get('keys', {}).items():
                         t_key = bui.AppTimer(
-                            k_data['time'], # time in memory is absolute to the seed start
+                            k_data['time'],
                             bui.CallPartial(
                                 s.execute_key,
                                 k_data,
-                                seed_key, # btn_id
-                                seed_entry['event'], # event_type
-                                sub_tracker # tracker
+                                seed_key,
+                                seed_entry['event'],
+                                sub_tracker
                             )
                         )
                         sub_tracker.internal_timers.append(t_key)
 
             else:
-                # Cleanup the seed
                 if key in tracker.active_seeds:
                     sub_tracker = tracker.active_seeds.pop(key)
 
-                    # 1. Cancel future events
-                    sub_tracker.internal_timers.clear() # Deref
+                    sub_tracker.internal_timers.clear()
 
-                    # 2. Kill active objects (recursive cleanup similar to stop())
                     def kill_scope(t):
                         for _ in t.active.values():
                             if _.exists(): _.delete()
@@ -6383,16 +5924,12 @@ class Editor:
                             (m:=_.get('main')) and m.on_end()
                             (c:=_.get('children')) and [x.on_end() for x in c]
                         t.active_codes.clear()
-                        # Recursively kill nested seeds
                         for k, v in t.active_seeds.items():
                             kill_scope(v)
                         t.active_seeds.clear()
 
                     kill_scope(sub_tracker)
 
-        # Execute keys for this event (Main Timeline or Recursive)
-        # We only schedule keys here if we are the MAIN editor loop calling this.
-        # If we are inside a seed (tracker != s), the keys were already scheduled via AppTimer in 'seed start' block above.
         if e['type'] == 'start' and tracker == s:
             tracker.active_key_schedule[key] = []
             for key_name, key_data in mem.get('keys', {}).items():
@@ -6403,19 +5940,16 @@ class Editor:
                     'event_type': what
                 })
 
-        # finally
         callable(call) and call()
 
     def execute_key(s, key_data, btn_id, event_type, tracker=None):
         tracker = tracker or s
         action = key_data['action']
 
-        # Attribute (action 0)
         if action == 0:
             da = key_data['data']
             attr_name, attr_eval = da['attr'],da['eval']
 
-            # Get the node from active entries in current scope
             if btn_id in tracker.active:
                 node = tracker.active[btn_id]
                 if node.exists():
@@ -6425,7 +5959,6 @@ class Editor:
                         s.toast(Format.ERROR(e))
                         Eval.SOUND(Const.BAD_SOUND).play()
 
-        # Code (action 1)
         elif action == 1:
             if btn_id in tracker.active_codes:
                 parent_runner = tracker.active_codes[btn_id]['main']
@@ -6436,7 +5969,6 @@ class Editor:
                 child_runner.on_start(key_data['data']['code'])
                 tracker.active_codes[btn_id]['children'].append(child_runner)
 
-        # Volume (action 2)
         elif action == 2:
             da = key_data['data']
             v = da['volume']
@@ -6511,28 +6043,23 @@ class Editor:
     @clickable
     def select(s,b):
         Eval.SOUND(Const.OK_SOUND).play()
-        # editing? kill
         if s.window_on and s.window_on[1] in (
             s.edit_window,
             s.key_window
         ): s.window_back()
         sl = b
-        # yes
         yes = lambda: bui.buttonwidget(
             b,color=Color.COLD
         )
-        # no
         no = lambda: bui.buttonwidget(
             s.sl,color=Color.BASE
         )
-        # deselect
         if s.sl == sl:
             no()
             s.hide_tools()
             s.show_controls(up=True)
             s.sl = None
             return
-        # clear previous
         if s.sl: no()
         s.hide_controls(up=True)
         s.show_tools()
@@ -6543,7 +6070,6 @@ class Editor:
         if s.tools_shown: return
         s.tools_shown = True
         xs,ys = s.tool_size
-        # math
         start_size = (xs,ys/4)
         start_tc = Const.INVISIBLE
         start_op = 0
@@ -6599,7 +6125,6 @@ class Editor:
         start_size = Eval.ENTRY_SIZE(s,mem)
         start_pos = Eval.ENTRY_POS(s,mem)
 
-        # Helper to animate all key widgets for this entry
         def animate_key_widgets(anim_key, key_old_positions):
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
@@ -6607,34 +6132,27 @@ class Editor:
                     wid_id = id(wid)
                     key_time = key_data['time']
 
-                    # Calculate NEW position (after time/order update)
                     new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                     new_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
 
-                    # Get OLD position from stored values
                     start_wid_pos = key_old_positions.get(wid_id, (new_x, new_y))
 
-                    # Check for ongoing animation
                     if wid_id in s.anims and anim_key in s.anims[wid_id]:
                         if (anim := s.anims[wid_id].get(anim_key, None)) and not anim.finished:
                             start_wid_pos = anim.attrs_current['position']
                             anim.cancel()
 
-                    # Create animation dict if needed
                     if wid_id not in s.anims:
                         s.anims[wid_id] = {}
 
-                    # Clear the animation key
                     s.anims[wid_id].pop(anim_key, None)
 
-                    # Create new animation
                     s.anims[wid_id][anim_key] = Animate(
                         widget=wid,
                         attrs={'position': (start_wid_pos, (new_x, new_y))},
                         duration=s.global_butter
                     )
 
-        # move right
         if which == 0:
             for key in [1, 2, 3]:
                 if (anim := s.anims[id(b)].get(key, None)):
@@ -6649,32 +6167,26 @@ class Editor:
 
             mem['start'] += 1/s.entries_per_sec
 
-            # Store old positions - check for ongoing animations!
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                     wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
-                    # Check if animating from LEFT movement (key 1)
                     if wid_id in s.anims and 1 in s.anims[wid_id]:
                         if (anim := s.anims[wid_id].get(1, None)) and not anim.finished:
-                            # Use current animation position
                             key_old_positions[wid_id] = anim.attrs_current['position']
                             anim.cancel()
                             s.anims[wid_id].pop(1, None)
                         else:
-                            # Calculate from data
                             old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                             old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                             key_old_positions[wid_id] = (old_x, old_y)
                     else:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                         key_old_positions[wid_id] = (old_x, old_y)
 
-            # Update key times
             for key_data in mem.get('keys', {}).values():
                 key_data['time'] += 1/s.entries_per_sec
 
@@ -6716,7 +6228,6 @@ class Editor:
 
             restamp()
 
-        # move left
         if which == 1:
             if mem['start'] < 0.01:
                 Eval.SOUND(Const.BAD_SOUND).play()
@@ -6736,32 +6247,26 @@ class Editor:
 
             mem['start'] -= 1/s.entries_per_sec
 
-            # Store old positions - check for ongoing animations!
             key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                     wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
 
-                    # Check if animating from RIGHT movement (key 0)
                     if wid_id in s.anims and 0 in s.anims[wid_id]:
                         if (anim := s.anims[wid_id].get(0, None)) and not anim.finished:
-                            # Use current animation position
                             key_old_positions[wid_id] = anim.attrs_current['position']
                             anim.cancel()
                             s.anims[wid_id].pop(0, None)
                         else:
-                            # Calculate from data
                             old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                             old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                             key_old_positions[wid_id] = (old_x, old_y)
                     else:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                         key_old_positions[wid_id] = (old_x, old_y)
 
-            # Update key times
             for key_data in mem.get('keys', {}).values():
                 key_data['time'] -= 1/s.entries_per_sec
 
@@ -6803,7 +6308,6 @@ class Editor:
 
             restamp()
 
-        # expand
         if which == 2:
             if (shrink := s.anims[id(b)].get(3, None)):
                 shrink.cancel()
@@ -6826,7 +6330,6 @@ class Editor:
 
             restamp()
 
-            # Check if we need to show previously hidden keys
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data:
                     key_offset = key_data['time'] - mem['start']
@@ -6864,7 +6367,6 @@ class Editor:
                     mem['prev_off_wid'] = id(s.prev_off_wid)
                     s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
 
-        # shrink
         if which == 3:
             current_ticks = round(mem['duration'] * s.entries_per_sec)
             if current_ticks <= 1:
@@ -6899,7 +6401,6 @@ class Editor:
 
             restamp()
 
-            # Delete keys that are now out of range
             for key_data in mem.get('keys', {}).values():
                 key_time = key_data['time'] - mem['start']
                 if key_time > mem['duration']:
@@ -6914,7 +6415,6 @@ class Editor:
                     if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
                         s.widgets.pop(mem.pop('prev_off_wid')).delete()
 
-        # move up
         if which == 4:
             current_list_index = s.stamp_kids.index(b)
             if current_list_index == 0:
@@ -6940,7 +6440,6 @@ class Editor:
                     wid_id = id(wid)
 
                     found = False
-                    # Check for ongoing UP (key 4) OR DOWN (key 5) animation
                     for check_key in [4, 5]:
                         if wid_id in s.anims and check_key in s.anims[wid_id]:
                             if (anim := s.anims[wid_id].get(check_key, None)) and not anim.finished:
@@ -6951,12 +6450,10 @@ class Editor:
                                 break
 
                     if not found:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                         key_old_positions[wid_id] = (old_x, old_y)
 
-            # Same for OTHER entry - check for keys 4 AND 5!
             other_key_old_positions = {}
             for key_data in other_mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
@@ -6964,7 +6461,6 @@ class Editor:
                     wid_id = id(wid)
 
                     found = False
-                    # Check for ongoing UP (key 4) OR DOWN (key 5) animation
                     for check_key in [4, 5]:
                         if wid_id in s.anims and check_key in s.anims[wid_id]:
                             if (anim := s.anims[wid_id].get(check_key, None)) and not anim.finished:
@@ -6974,7 +6470,6 @@ class Editor:
                                 found = True
                                 break
                     if not found:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1)
                         other_key_old_positions[wid_id] = (old_x, old_y)
@@ -7018,21 +6513,17 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
-            # Animate all key widgets for this entry
             animate_key_widgets(4, key_old_positions)
 
-            # Animate keys for the other entry
             for key_data in other_mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                     wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
-                    # Calculate new position based on swapped order
                     new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                     new_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1)
 
-                    # Get OLD position from stored values
                     start_wid_pos = other_key_old_positions.get(wid_id, (new_x, new_y))
 
                     if wid_id in s.anims and 4 in s.anims[wid_id]:
@@ -7082,7 +6573,6 @@ class Editor:
                     duration=s.global_butter
                 )
 
-            # Animate prev_off_wid for other entry if it exists
             if other_mem.get('prev_off_wid') and s.widgets[other_mem['prev_off_wid']].exists():
                 wid_id = other_mem['prev_off_wid']
 
@@ -7114,7 +6604,6 @@ class Editor:
                     duration=s.global_butter
                 )
 
-        # move down
         if which == 5:
             current_list_index = s.stamp_kids.index(b)
             max_list_index = len(s.stamp_kids) - 1
@@ -7141,7 +6630,6 @@ class Editor:
                     wid_id = id(wid)
 
                     found = False
-                    # Check for ongoing UP (key 4) OR DOWN (key 5) animation
                     for check_key in [4, 5]:
                         if wid_id in s.anims and check_key in s.anims[wid_id]:
                             if (anim := s.anims[wid_id].get(check_key, None)) and not anim.finished:
@@ -7152,12 +6640,10 @@ class Editor:
                                 break
 
                     if not found:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                         key_old_positions[wid_id] = (old_x, old_y)
 
-            # Same for OTHER entry - check for keys 4 AND 5!
             other_key_old_positions = {}
             for key_data in other_mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
@@ -7165,7 +6651,6 @@ class Editor:
                     wid_id = id(wid)
 
                     found = False
-                    # Check for ongoing UP (key 4) OR DOWN (key 5) animation
                     for check_key in [4, 5]:
                         if wid_id in s.anims and check_key in s.anims[wid_id]:
                             if (anim := s.anims[wid_id].get(check_key, None)) and not anim.finished:
@@ -7176,7 +6661,6 @@ class Editor:
                                 break
 
                     if not found:
-                        # Calculate from data
                         old_x = s.magic_x + s.entry_xs_real * key_data['time'] * s.entries_per_sec - s.entry_ys_real/4
                         old_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1)
                         other_key_old_positions[wid_id] = (old_x, old_y)
@@ -7220,21 +6704,17 @@ class Editor:
                 attrs={'position': (start_pos_other, end_pos_other)}
             )
 
-            # Animate all key widgets for this entry
             animate_key_widgets(5, key_old_positions)
 
-            # Animate keys for the other entry
             for key_data in other_mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                     wid = s.widgets[key_data['widget']]
                     wid_id = id(wid)
                     key_time = key_data['time']
 
-                    # Calculate new position based on swapped order
                     new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                     new_y = s.entry_ys_real * (len(s.memory) - other_mem['order'] - 1)
 
-                    # Get OLD position from stored values
                     start_wid_pos = other_key_old_positions.get(wid_id, (new_x, new_y))
 
                     if wid_id in s.anims and 5 in s.anims[wid_id]:
@@ -7284,7 +6764,6 @@ class Editor:
                     duration=s.global_butter
                 )
 
-            # Animate prev_off_wid for other entry if it exists
             if other_mem.get('prev_off_wid') and s.widgets[other_mem['prev_off_wid']].exists():
                 wid_id = other_mem['prev_off_wid']
 
@@ -7377,11 +6856,9 @@ class Editor:
             )
             bui.buttonwidget(btn, on_activate_call=call)
 
-            # Copy keys from original entry
             new_keys = {}
             for nam, key_data in original_data.get('keys', {}).items():
                 new_key_data = key_data.copy()
-                # Create new widget for duplicated key
                 key_time = new_key_data['time']
                 key_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                 key_y = s.entry_ys_real * (len(s.memory) - new_order)
@@ -7406,7 +6883,7 @@ class Editor:
                 'start': original_start,
                 'keys': new_keys,
                 'prev_off': original_data.get('prev_off'),
-                'prev_off_wid': None  # Don't duplicate prev_off_wid as it's only for preview
+                'prev_off_wid': None
             }
 
             for kid in s.stamp_kids[original_list_index + 2:]:
@@ -7451,7 +6928,6 @@ class Editor:
                     duration=s.global_butter
                 )
 
-                # Animate existing entry's keys
                 for key_data in kid_mem.get('keys', {}).values():
                     if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                         wid = s.widgets[key_data['widget']]
@@ -7487,7 +6963,6 @@ class Editor:
                 duration=s.global_butter
             )
 
-            # Animate duplicated entry's keys
             for key_data in new_keys.values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                     wid = s.widgets[key_data['widget']]
@@ -7520,7 +6995,6 @@ class Editor:
             bui.apptimer(s.global_butter,s.wrap)
             return
 
-        # delete
         if which == 7:
             Eval.SOUND(Const.OK_SOUND).play()
             if s.can_do != which:
@@ -7536,7 +7010,6 @@ class Editor:
             node_name = mem['data']['name']
             deleted_order = mem['order']
 
-            # Store old positions for keys BEFORE any changes
             deleted_key_old_positions = {}
             for key_data in mem.get('keys', {}).values():
                 if 'widget' in key_data and s.widgets[key_data['widget']].exists():
@@ -7544,51 +7017,42 @@ class Editor:
                     wid_id = id(wid)
                     key_time = key_data['time']
 
-                    # Calculate current position
                     old_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
                     old_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
                     deleted_key_old_positions[wid_id] = (old_x, old_y)
 
             def cleanup():
-                # Fade out and delete all key widgets for the DELETED entry
                 for key_data in mem.get('keys', {}).values():
                     if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                         wid = s.widgets.pop(key_data['widget'])
                         wid_id = id(wid)
 
-                        # Get starting position
                         start_pos = deleted_key_old_positions.get(wid_id, (0, 0))
 
-                        # Check for ongoing animation
                         if wid_id in s.anims and which in s.anims[wid_id]:
                             if (anim := s.anims[wid_id].get(which, None)) and not anim.finished:
                                 start_pos = anim.attrs_current['position']
                                 anim.cancel()
 
-                        # Create animation dict if needed
                         if wid_id not in s.anims:
                             s.anims[wid_id] = {}
 
-                        # Clear the animation key
                         s.anims[wid_id].pop(which, None)
 
-                        # Fade out animation
                         s.anims[wid_id][which] = Animate(
                             widget=wid,
                             attrs={
                                 'opacity': (Color.OPACITY, 0),
-                                'position': (start_pos, start_pos)  # Don't move, just fade
+                                'position': (start_pos, start_pos)
                             },
                             duration=s.global_butter / 2,
                             on_finish=wid.delete
                         )
 
-                # Delete prev_off_wid if it exists
                 if mem.get('prev_off_wid') and s.widgets[mem['prev_off_wid']].exists():
                     wid = s.widgets.pop(mem['prev_off_wid'])
                     wid_id = id(wid)
 
-                    # Fade it out too
                     if wid_id not in s.anims:
                         s.anims[wid_id] = {}
 
@@ -7606,7 +7070,6 @@ class Editor:
                 if b.exists():
                     b.delete()
 
-                # Update orders for remaining entries
                 for kid in s.stamp_kids:
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] > deleted_order:
@@ -7614,7 +7077,6 @@ class Editor:
 
                 s.wrap([1,2,3])
 
-                # Animate remaining entries sliding up
                 for idx, kid in enumerate(reversed(s.stamp_kids)):
                     kid_mem = s.memory[id(kid)]
                     if kid_mem['order'] >= deleted_order:
@@ -7632,34 +7094,28 @@ class Editor:
                         duration=s.global_butter
                     )
 
-                    # Animate keys for entries that are sliding up
                     for key_data in kid_mem.get('keys', {}).values():
                         if 'widget' in key_data and s.widgets[key_data['widget']].exists():
                             wid = s.widgets[key_data['widget']]
                             wid_id = id(wid)
                             key_time = key_data['time']
 
-                            # Calculate positions
                             new_x = s.magic_x + s.entry_xs_real * key_time * s.entries_per_sec - s.entry_ys_real/4
-                            old_key_y = s.entry_ys_real * (idx + 1)  # Current Y (before slide)
-                            new_key_y = s.entry_ys_real * idx         # Target Y (after slide)
+                            old_key_y = s.entry_ys_real * (idx + 1)
+                            new_key_y = s.entry_ys_real * idx
 
                             start_wid_pos = (new_x, old_key_y)
 
-                            # Check for ongoing animation
                             if wid_id in s.anims and which in s.anims[wid_id]:
                                 if (anim := s.anims[wid_id].get(which, None)) and not anim.finished:
                                     start_wid_pos = anim.attrs_current['position']
                                     anim.cancel()
 
-                            # Create animation dict if needed
                             if wid_id not in s.anims:
                                 s.anims[wid_id] = {}
 
-                            # Clear the animation key
                             s.anims[wid_id].pop(which, None)
 
-                            # Animate the key sliding up
                             s.anims[wid_id][which] = Animate(
                                 widget=wid,
                                 attrs={
@@ -7668,11 +7124,9 @@ class Editor:
                                 duration=s.global_butter
                             )
 
-                    # Animate prev_off_wid for entries that are sliding up
                     if kid_mem.get('prev_off_wid') and s.widgets[kid_mem['prev_off_wid']].exists():
                         wid_id = kid_mem['prev_off_wid']
 
-                        # Cancel any ongoing animations on this prev_off_wid
                         for key in [4, 5, 0, 1]:
                             if (anim := s.anims.get(wid_id, {}).get(key, None)):
                                 anim.cancel()
@@ -7709,7 +7163,6 @@ class Editor:
                 s.toast(Strings.INFO_DELETED(node_name))
                 s.build_timeline()
 
-            # Animate the entry button fading out
             s.anims[id(b)][which] = Animate(
                 widget=b,
                 attrs={
@@ -7741,12 +7194,10 @@ class Editor:
             Eval.SOUND(Const.OK_SOUND).play()
 
     def scroll_to(s,b):
-        # horizontal
         bui.containerwidget(
             s.stamp_hscroll_root,
             visible_child=b
         )
-        # vertical hell
         rx,ry = s.real
         bx,by = b.get_screen_space_center()
         dx,dy = s.bottom_left_h.get_screen_space_center()
@@ -7782,7 +7233,6 @@ class Bubble:
         s.ans,s.kids,s.mats,s.time = [],[],[],time
         s.node,s.dead,s.text = node,False,text
         s.color,s.mode,s.res = color,mode,res
-        # destroy existing bubbles if possible
         s.mem = lambda: s.__class__.__mem__
         m = s.mem()
         o = m.get(node,0)
@@ -7791,7 +7241,6 @@ class Bubble:
         m[node] = s
     def show(s):
         q,l,r = s.mats,s.kids,s.ans
-        # offset
         m = bs.newnode(
             'math',
             owner=s.node,
@@ -7801,7 +7250,6 @@ class Bubble:
             }
         )
         q.append(m)
-        # the bubble
         c = list(s.color)
         w = Eval.STRING_WIDTH(s.res[0])
         b = bs.newnode(
@@ -7818,7 +7266,6 @@ class Bubble:
             }
         )
         l.append(b)
-        # the text
         txt = []
         mat = []
         kek = -Eval.STRING_WIDTH(s.text)/185
@@ -7855,13 +7302,9 @@ class Bubble:
             sf += x
         l += txt
         q += [mat[i][0] for i in range(len(mat))]
-        # connect
         s.node.connectattr('position',m,'input2')
         m.connectattr('output',b,'position')
-        # hardcoded animators
-        # conditionally used based on animation
         z = s.time
-        # scale bubble in out
         a = bs.animate(
             b,
             'scale',
@@ -7875,7 +7318,6 @@ class Bubble:
             },
         )
         r.append(a)
-        # move bubble up down
         a = bs.animate_array(
             m,
             'input1',
@@ -7888,7 +7330,6 @@ class Bubble:
             }
         )
         r.append(a)
-        # scale text in out
         r += [
             bs.animate(
                 txt[i],
@@ -7904,7 +7345,6 @@ class Bubble:
             )
             for i in range(len(mat))
         ] if s.mode in [1,4] else []
-        # move text up down
         r += [
             bs.animate_array(
                 mat[i][0],
@@ -7921,7 +7361,6 @@ class Bubble:
             )
             for i in range(len(mat))
         ] if s.mode in [1,4] else []
-        # slide in overshoot letter by letter
         ok = (z*0.04*1.6)
         hm = [0.03,0.05][s.mode==2]
         r += [
@@ -7939,7 +7378,6 @@ class Bubble:
             )
             for i,j in enumerate(mat)
         ] if s.mode in [2,5] else []
-        # fade in letter by letter
         r += [
             bs.animate(
                 txt[i],
@@ -7953,7 +7391,6 @@ class Bubble:
             )
             for i in range(len(mat))
         ] if s.mode in [2,4,5] else []
-        # scale slide up text
         r += [
             bs.animate(
                 txt[i],
@@ -7968,7 +7405,6 @@ class Bubble:
             )
             for i in range(len(mat))
         ] if s.mode == 3 else []
-        # autokill
         bs.timer(z,s.delete)
 
     def delete(s,force=False):
@@ -8032,17 +7468,14 @@ class Animate:
         for attr_name, (start_val, end_val) in attrs.items():
             s.attrs_start[attr_name] = start_val
             s.attrs_end[attr_name] = end_val
-            # initialize current value
             if isinstance(start_val, (list, tuple)):
                 s.attrs_current[attr_name] = list(start_val)
             else:
                 s.attrs_current[attr_name] = start_val
 
-        # timing
         s.duration = duration
         s.start_time = None
 
-        # start after delay
         if s.delay > 0:
             s.delay_timer = bui.AppTimer(s.delay, s.start_animation)
         else:
@@ -8071,40 +7504,31 @@ class Animate:
             s.timer = None
             return s.finish()
 
-        # no thanks
         if not s.widget.exists():
             s.timer = None
             s.delay_timer = None
             s.cancelled = True
             return
 
-        # progress
         elapsed = perf_counter() - s.start_time
         progress = min(elapsed / s.duration, 1.0)
 
-        # easing
         t = s.ease_out(progress)
 
-        # interpolate all attributes
         kwargs = {}
         for attr_name in s.attrs_start:
             start_val = s.attrs_start[attr_name]
             end_val = s.attrs_end[attr_name]
 
-            # interpolate
             current_val = s.lerp(start_val, end_val, t)
 
-            # store current state
             s.attrs_current[attr_name] = current_val
 
-            # convert lists back to tuples for widget functions
             if isinstance(current_val, list):
                 current_val = tuple(current_val)
 
-            # add to kwargs for function call
             kwargs[attr_name] = current_val
 
-        # apply to widget
         if not s.widget.exists():
             s.timer = None
             s.delay_timer = None
@@ -8117,7 +7541,6 @@ class Animate:
             s.cancelled = True
             return
 
-        # done
         if progress >= 1.0:
             s.timer = None
             s.finish()
@@ -8135,22 +7558,18 @@ class Animate:
         if s.cancelled or s.finished:
             return
 
-        s.cancel()  # Stop the timer
+        s.cancel()
 
-        # Apply final state
         if s.widget.exists():
             kwargs = {}
             for attr_name, end_val in s.attrs_end.items():
-                # Convert lists to tuples for widget functions
                 if isinstance(end_val, list):
                     end_val = tuple(end_val)
                 kwargs[attr_name] = end_val
-                # Update current state to match end
                 s.attrs_current[attr_name] = end_val
 
             s.func(s.widget, **kwargs)
 
-        # Mark as finished and call callback
         s.finished = True
         if callable(s.on_finish):
             s.on_finish()
@@ -8184,16 +7603,13 @@ class Animate:
             New Animate instance with reversed animation
         """
         callable(s.on_reverse) and s.on_reverse()
-        # cancel current animation
         s.cancel()
 
-        # build reversed attrs from current state back to original start
         reversed_attrs = {}
         for attr_name in s.attrs_current:
             current = s.attrs_current[attr_name]
             original_start = s.attrs_start[attr_name]
 
-            # convert to appropriate type
             if isinstance(current, list):
                 current = tuple(current)
             if isinstance(original_start, list):
@@ -8205,7 +7621,6 @@ class Animate:
             'duration':s.duration
         }
         new.update(kwargs)
-        # create new animation
         return Animate(
             widget=s.widget,
             attrs=reversed_attrs,
@@ -8215,12 +7630,10 @@ class Animate:
 # hardcoded stuff
 
 class Strings:
-    # map
     MAP_TITLE = 'Movi'
     MAP_DESCRIPTION = 'Movie Maker'
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
     INSTANCE_DESCRIPTION_SHORT = f'Version {__version__}'
-    # UI
     MENUS = (
         'Save & Exit',
         'Clear Session',
@@ -8243,7 +7656,6 @@ class Strings:
         'Code':'Custom code',
         'Seed':'Project seed'
     }
-    # random
     LOADED_ENTRIES = 'Loaded {} entries!'
     LOADED_ENTRIES_HELP = 'Seeds are useful aren\'t they?'
     SAVED_AS = 'Saved as {}'
@@ -8282,7 +7694,6 @@ class Strings:
     EVERYWHERE = 'Everywhere'
     LOOP = 'Loop'
     LOAD = 'Load'
-    # key
     ACTIONS = [
         'Attribute',
         'Code',
@@ -8291,7 +7702,6 @@ class Strings:
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
     SOUND_PLACEHOLDER = 'Select a sound'
     PRESET_PLACEHOLDER = 'Select a preset'
-    # camera event
     CAMERA_RESET_BUTTON = 'Reset'
     PREVIEW = 'Preview'
     STOP = 'Stop'
@@ -8299,7 +7709,6 @@ class Strings:
     CAMERA_TARGET_CHECK = 'Target'
     CAMERA_MANUAL_CHECK = 'Manual'
     CAMERA_ENTRY = 'Camera'
-    # errors
     ERROR_ALREADY_WIDE = (
         'Already wide!',
         'UI is already collapsed blud'
@@ -8367,7 +7776,6 @@ class Strings:
         'No actions available!',
         'We\'re stuck with it as is'
     )
-    # info
     INFO_CONFIRM_CLEAR = (
         'Really clear all memory?',
         'Press again to remove everything'
@@ -8472,7 +7880,6 @@ class Strings:
         'Key edited!',
         'Now it does something else'
     )
-    # confirm
     CONFIRM_DUPLICATE = lambda t:(
         f'Make another "{t}"?',
         f'Press {Eval.CHAR(Const.TOOLS[6])} again to confirm'
@@ -8481,7 +7888,6 @@ class Strings:
         f'Really delete "{t}"?',
         f'Press {Eval.CHAR(Const.TOOLS[7])} again to confirm'
     )
-    # extra
     KEYS_ON = 'Keys on {}'
     BYE = (
         'That\'s a wrap!',
@@ -8517,7 +7923,6 @@ class Const:
     CONFIG_DEV_KEY = 'Show Dev Console Button'
     CONFIG_FPS_KEY = 'Show FPS'
     EXIT_BOUNDS = (0,0,0,0,35,0)
-    # scaling
     BA_LAG_BIG = 1.5
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
@@ -8527,7 +7932,6 @@ class Const:
         bui.UIScale.MEDIUM: 1,
         bui.UIScale.LARGE: 0.764
     }
-    # visual
     SKIN = 'white'
     EMPTY = 'empty'
     SHADOW = 'softRect'
@@ -8537,7 +7941,6 @@ class Const:
     PLAY_BUTTON = 'PLAY_BUTTON'
     PAUSE_BUTTON = 'PAUSE_BUTTON'
     STOP_RECORDING = 'PLAY_STATION_CIRCLE_BUTTON'
-    # charstr
     CONTROLS = (
         ('PLAY_BUTTON','PAUSE_BUTTON'),
         'BACK'
@@ -8553,13 +7956,11 @@ class Const:
         'DPAD_CENTER_BUTTON',
         'PLAY_STATION_CROSS_BUTTON'
     )
-    # keys
     EVENT_KEYS = {
         0: (0,),
         2: (2,),
         6: (1,)
     }
-    # arrows
     CAMERA_TOOLS = (
         '-',
         'LEFT_ARROW',
@@ -8571,19 +7972,15 @@ class Const:
         'RIGHT_ARROW',
         'RIGHT_BUTTON'
     )
-    # sounds
     OK_SOUND = 'deek'
     BAD_SOUND = 'block'
     ACTION_SOUND = 'gunCocking'
     GOOD_SOUND = 'dingSmall'
-    # based
     TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
     BACK = 'BACK'
-    # extra
     BLAME_CHARSET = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     DO_NOTHING = lambda:None
-    # compressed
     BLAME = lambda: (
         '{Wp48S^xk9=GL@E0stWa8~^|S5YJf5;0J63A6)<hiq;LsE8+6)_!8wlJgD2B;9B|#tpRK5'
         'GCU|nmj0kz<}AdtfLdZb6+!sQ4OUYK6Q8uy*r^_3`Pcu$YW|C=9;{Y(LL1VnyQ*>B{gpqX'
@@ -8619,6 +8016,70 @@ class Const:
         'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
         '1Pc'
     )))
+
+# --- CJK seed charset -------------------------------------------------
+# Seeds now pack into CJK ideograph characters instead of decimal digits.
+# No hardcoded per-character table: each Unicode CJK ideograph block is
+# contiguous and fully assigned, so digit<->char is pure arithmetic over
+# the block ranges. Movi project data is copy-pasted, never hand-typed,
+# so raw character-count density is what matters, not byte size.
+CJK_SEED_RANGES = (
+    (0x3400, 0x4DBF),    # CJK Unified Ideographs Extension A
+    (0x4E00, 0x9FFF),    # CJK Unified Ideographs (basic)
+    (0xF900, 0xFAFF),    # CJK Compatibility Ideographs
+    (0x2F800, 0x2FA1F),  # CJK Compatibility Ideographs Supplement
+    (0x20000, 0x2A6DF),  # CJK Unified Ideographs Extension B
+    (0x2A700, 0x2B73F),  # CJK Unified Ideographs Extension C
+    (0x2B740, 0x2B81F),  # CJK Unified Ideographs Extension D
+    (0x2B820, 0x2CEAF),  # CJK Unified Ideographs Extension E
+    (0x2CEB0, 0x2EBEF),  # CJK Unified Ideographs Extension F
+    (0x2EBF0, 0x2EE5F),  # CJK Unified Ideographs Extension I
+    (0x30000, 0x3134F),  # CJK Unified Ideographs Extension G
+    (0x31350, 0x323AF),  # CJK Unified Ideographs Extension H
+    (0x323B0, 0x3347F),  # CJK Unified Ideographs Extension J
+)
+
+def _cjk_build_table():
+    table = []
+    cum = 0
+    for lo,hi in CJK_SEED_RANGES:
+        size = hi-lo+1
+        table.append((cum,cum+size-1,lo))
+        cum += size
+    return table,cum
+
+CJK_SEED_TABLE,CJK_SEED_BASE = _cjk_build_table()
+
+def cjk_digit_to_char(d):
+    for start,end,lo in CJK_SEED_TABLE:
+        if start <= d <= end:
+            return chr(lo+(d-start))
+    raise ValueError(f'seed digit out of range: {d}')
+
+def cjk_char_to_digit(c):
+    cp = ord(c)
+    cum = 0
+    for lo,hi in CJK_SEED_RANGES:
+        size = hi-lo+1
+        if lo <= cp <= hi:
+            return cum+(cp-lo)
+        cum += size
+    raise ValueError(f'not a valid seed character: {c!r}')
+
+def cjk_encode_int(n):
+    if n == 0: return cjk_digit_to_char(0)
+    digits = []
+    while n:
+        n,r = divmod(n,CJK_SEED_BASE)
+        digits.append(r)
+    return ''.join(cjk_digit_to_char(d) for d in reversed(digits))
+
+def cjk_decode_int(s):
+    n = 0
+    for c in s:
+        n = n*CJK_SEED_BASE + cjk_char_to_digit(c)
+    return n
+# ------------------------------------------------------------------------
 
 class Eval:
     CHAR = lambda a: bui.charstr(getattr(bui.SpecialChar,a))
@@ -8674,19 +8135,21 @@ class Eval:
         bui.get_string_width(s,suppress_warning=True) or
         sum(Const.FONT_METRICS.get(c, 30) for c in s)
     )
-    ENCODE = lambda data: int.from_bytes(
-        compress(
-            dumps(
-                data,
-                separators=(',', ':'),
-                sort_keys=True
-            ).encode('utf-8')
-        ),
-        byteorder='big'
+    ENCODE = lambda data: cjk_encode_int(
+        int.from_bytes(
+            compress(
+                dumps(
+                    data,
+                    separators=(',', ':'),
+                    sort_keys=True
+                ).encode('utf-8')
+            ),
+            byteorder='big'
+        )
     )
-    DECODE = lambda n: loads(
+    DECODE = lambda s: loads(
         decompress(
-            n.to_bytes(
+            (n := cjk_decode_int(s)).to_bytes(
                 (n.bit_length() + 7) // 8,
                 byteorder='big'
             )
@@ -8825,7 +8288,6 @@ class CodeRunner:
         self.on_error = on_error
         self.parent_runner = parent_runner
 
-        # Use parent's namespace if provided, else create new
         if parent_runner:
             self.namespace = parent_runner.namespace
             self.created_nodes = parent_runner.created_nodes
@@ -8863,23 +8325,19 @@ class CodeRunner:
         import math
         import random
 
-        # Store REAL original newnode
         original_newnode = bs.newnode
 
-        # Create wrapper that tracks nodes
         def tracked_newnode(*args, **kwargs):
             node = original_newnode(*args, **kwargs)
             self.created_nodes.append(node)
             return node
 
-        # Create wrapper for Spaz to track actors
         class TrackedSpaz(OriginalSpaz):
             def __init__(inner_self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 self.node = None
                 self.created_actors.append(inner_self)
 
-        # Create a wrapper module that looks like bs but with patched newnode
         class BSWrapper:
             def __init__(self, original_module, newnode_func):
                 self._original = original_module
@@ -8902,7 +8360,7 @@ class CodeRunner:
             'bui': bui,
             'ba': ba,
             '_ba': _ba,
-            'Spaz': TrackedSpaz,  # Use tracked version
+            'Spaz': TrackedSpaz,
             'math': math,
             'random': random,
             'Bubble': Bubble,
@@ -8926,7 +8384,6 @@ class CodeRunner:
 
         try:
             with bs.get_foreground_host_activity().context:
-                # Kill actors first (they handle their own cleanup)
                 for actor in self.created_actors:
                     try:
                         if actor.is_alive():
@@ -8935,7 +8392,6 @@ class CodeRunner:
                         pass
                 self.created_actors.clear()
 
-                # Then delete remaining nodes
                 for node in self.created_nodes:
                     try:
                         if node.exists():
@@ -8944,7 +8400,6 @@ class CodeRunner:
                         pass
                 self.created_nodes.clear()
         except:
-            # If context is dead, just clear the lists
             self.created_actors.clear()
             self.created_nodes.clear()
 
@@ -8963,7 +8418,6 @@ class CodeRunner:
             self.running = False
 
     def on_start(self, code_string):
-        # Only reset if we're the parent starting fresh
         if not self.parent_runner:
             self.namespace = {}
             self.created_nodes = []
@@ -8992,21 +8446,17 @@ class CodeRunner:
 
         self.stop_flag.set()
 
-        # Stop own thread
         if self.main_thread and self.main_thread.is_alive():
             self.main_thread.join(timeout=0.1)
         if self.main_thread and self.main_thread.is_alive():
             self._terminate_thread(self.main_thread)
             self.main_thread.join(timeout=0.5)
 
-        # Stop all children
         for child in self.children:
             child.on_end()
         self.children.clear()
 
-        # Only cleanup if we're the parent
         if not self.parent_runner:
-            # Clean up actors and nodes within context using pushcall
             bs.pushcall(self._cleanup_all)
 
             for value in list(self.namespace.values()):
@@ -9033,611 +8483,227 @@ def get_presets():
         {
             'data': { ...fields... }
         }
+
+    event_index legend (matches Strings.EVENTS order):
+        0 = Node    1 = Camera   2 = Sound   3 = FX
+        4 = Map     6 = Code
+
+    Rebuilt from scratch: every sound name, map name, character name,
+    and chunk/emit type below was cross-checked against the actual
+    BombSquad engine source, so nothing here should silently no-op or
+    error on a bad asset name. Code presets that fire many sounds use
+    a single seq=[...] list + for-loop instead of hand-unrolled
+    bs.AppTimer blocks, so they're much shorter and easy to edit.
     """
     presets = []
 
-    # ------------------------------------------------------------------
-    # CHARACTER PRESETS (EVENT INDEX 6 - Spaz Characters via Code)
-    # ------------------------------------------------------------------
-
-    presets.append((
-        6,
-        'Basic Spaz',
-        'Standard blue Spaz character\nat center stage.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Basic Spaz',
-                    'name = "Spaz"',
-                    'color = (0.4, 0.5, 0.8)',
-                    'highlight = (1.0, 1.0, 1.0)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Spaz",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Neon Assassin',
-        'Stealthy ninja with\nelectric purple glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Neon Assassin',
-                    'name = "Shadow Strike"',
-                    'color = (2.2, 0.0, 0.4)',
-                    'highlight = (2.5, 0.0, 4.0)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Snake Shadow",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Cyber Warrior',
-        'Futuristic agent with\nintense cyan energy.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Cyber Warrior',
-                    'name = "NetRunner"',
-                    'color = (0.0, 0.1, 0.2)',
-                    'highlight = (0.0, 3.5, 5.0)',
-                    'position = (2, 1, 0)',
-                    'angle = 1.5',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Agent Johnson",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Plasma Knight',
-        'Medieval warrior radiating\nblue-white plasma.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Plasma Knight',
-                    'name = "Sir Voltage"',
-                    'color = (0.1, 0.15, 0.3)',
-                    'highlight = (1.5, 2.5, 6.0)',
-                    'position = (-2, 1, 0)',
-                    'angle = 4.7',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Kronk",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Toxic Menace',
-        'Radioactive character with\nsickly green glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Toxic Menace',
-                    'name = "Biohazard"',
-                    'color = (0.1, 0.2, 0.0)',
-                    'highlight = (2.0, 5.0, 0.0)',
-                    'position = (0, 1, -2)',
-                    'angle = 3.14',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Mel",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Solar Flare',
-        'Blazing hero with\nintense golden aura.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Solar Flare',
-                    'name = "Sunburst"',
-                    'color = (0.4, 0.3, 0.0)',
-                    'highlight = (6.0, 4.0, 0.5)',
-                    'position = (0, 1, 2)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Spaz",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Crimson Reaper',
-        'Dark warrior with blood-red\nenergy emanating.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Crimson Reaper',
-                    'name = "Blood Moon"',
-                    'color = (0.2, 0.0, 0.0)',
-                    'highlight = (4.5, 0.0, 0.5)',
-                    'position = (3, 1, 0)',
-                    'angle = 1.5',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Jack Morgan",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Arctic Phantom',
-        'Ghostly character with\nice-blue ethereal glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Arctic Phantom',
-                    'name = "Frost Wraith"',
-                    'color = (0.6, 0.8, 1.0)',
-                    'highlight = (0.5, 4.0, 6.0)',
-                    'position = (-3, 1, 0)',
-                    'angle = 4.7',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Frosty",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Void Walker',
-        'Mysterious figure with\ndark purple void energy.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Void Walker',
-                    'name = "Oblivion"',
-                    'color = (0.1, 0.0, 0.15)',
-                    'highlight = (1.5, 0.0, 3.5)',
-                    'position = (0, 1, -3)',
-                    'angle = 3.14',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Bernard",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Inferno Demon',
-        'Hellish character burning\nwith orange-red flames.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Inferno Demon',
-                    'name = "Pyro"',
-                    'color = (0.3, 0.05, 0.0)',
-                    'highlight = (5.0, 1.5, 0.0)',
-                    'position = (0, 1, 3)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Snake Shadow",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Lightning Striker',
-        'Electric character with\nwhite-blue electricity.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Lightning Striker',
-                    'name = "Thunderbolt"',
-                    'color = (0.7, 0.8, 1.0)',
-                    'highlight = (3.0, 4.0, 8.0)',
-                    'position = (2, 1, -2)',
-                    'angle = 2.3',
-                    '',
-                    'bot = Spaz(',
-                    '    character="B-9000",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Emerald Guardian',
-        'Nature warrior with\nbrilliant green life energy.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Emerald Guardian',
-                    'name = "Forest Spirit"',
-                    'color = (0.0, 0.3, 0.1)',
-                    'highlight = (0.5, 5.0, 1.0)',
-                    'position = (-2, 1, 2)',
-                    'angle = 3.9',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Grumbledorf",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Pink Nightmare',
-        'Cute but deadly with\nhot pink glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Pink Nightmare',
-                    'name = "Bubblegum Death"',
-                    'color = (0.4, 0.1, 0.3)',
-                    'highlight = (5.0, 0.5, 4.0)',
-                    'position = (-2, 1, -2)',
-                    'angle = 3.9',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Pixel",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Quantum Glitch',
-        'Reality-bending character\nwith prismatic glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Quantum Glitch',
-                    'name = "Glitchmaster"',
-                    'color = (0.3, 0.2, 0.4)',
-                    'highlight = (3.0, 2.0, 5.0)',
-                    'position = (2, 1, 2)',
-                    'angle = 0.8',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Taobao Mascot",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Gold Rush',
-        'Wealthy character dripping\nwith golden radiance.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Gold Rush',
-                    'name = "Midas"',
-                    'color = (0.5, 0.4, 0.0)',
-                    'highlight = (8.0, 6.0, 0.0)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Todd McBurton",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Midnight Specter',
-        'Dark figure with\ndeep blue-black aura.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Midnight Specter',
-                    'name = "Eclipse"',
-                    'color = (0.0, 0.05, 0.15)',
-                    'highlight = (0.0, 1.0, 3.0)',
-                    'position = (4, 1, 0)',
-                    'angle = 1.5',
-                    '',
-                    'bot = Spaz(',
-                    '    character="Zoe",',
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Neon Rainbow Squad',
-        'Group of 5 characters in\nvibrant rainbow formation.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Rainbow Squad',
-                    'characters = [',
-                    '    ("Spaz", (0.4, 0.5, 0.8), (6.0, 0.0, 0.0)),     # Red glow',
-                    '    ("Kronk", (0.4, 0.5, 0.8), (0.0, 6.0, 0.0)),    # Green glow',
-                    '    ("Pixel", (0.4, 0.5, 0.8), (0.0, 0.0, 6.0)),    # Blue glow',
-                    '    ("Bernard", (0.4, 0.5, 0.8), (6.0, 0.0, 6.0)),  # Purple glow',
-                    '    ("Agent Johnson", (0.4, 0.5, 0.8), (6.0, 6.0, 0.0)), # Yellow glow',
-                    ']',
-                    '',
-                    'for i, (char, color, hl) in enumerate(characters):',
-                    '    x = (i - 2) * 1.5',
-                    '    bot = Spaz(',
-                    '        character=char,',
-                    '        start_invincible=False,',
-                    '        color=color,',
-                    '        highlight=hl,',
-                    '    )',
-                    '    bot.handlemessage(',
-                    '        bs.StandMessage((x, 1, 0), 0)',
-                    '    )',
-                    '    bot.node.name = f"Rainbow {i+1}"'
-                ))
-            }
-        }
-    ))
-
-    # ------------------------------------------------------------------
-    # 0) NODE PRESETS  (EVENT INDEX 0)
-    # ------------------------------------------------------------------
     presets.append((
         0,
         'Soft Fill Light',
-        'Adds a soft\nomnidirectional light above\ncenter.',
+        'Gentle omnidirectional fill\nabove center. Good default\nfor any scene.',
         {
             'data': {
                 'type': 'light',
                 'name': 'SoftFill',
-                'attrs': {
-                    'intensity': 1.3,
-                    'radius': 3.0,
-                    'color': (1.0, 0.95, 0.9),
-                    'position': (0, 2.0, 0),
-                    'volume_intensity_scale': 0.0
-                }
-            }
+                'attrs': {'intensity': 1.3, 'radius': 3.0, 'color': (1.0, 0.95, 0.9), 'position': (0, 2.0, 0), 'volume_intensity_scale': 0.0}
         }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Warm Key Light',
+        'Strong warm key light,\nthe main light source for\na portrait-style shot.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'WarmKey',
+                'attrs': {'intensity': 1.8, 'radius': 3.5, 'color': (1.3, 1.0, 0.7), 'position': (2.5, 3.5, -2.0), 'volume_intensity_scale': 0.0}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Cool Key Light',
+        'Cold blue-toned key light\nfor a tense or sci-fi mood.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'CoolKey',
+                'attrs': {'intensity': 1.6, 'radius': 3.5, 'color': (0.6, 0.8, 1.4), 'position': (-2.5, 3.5, -2.0), 'volume_intensity_scale': 0.0}
+        }
+    }
     ))
 
     presets.append((
         0,
         'Rim Light Left',
-        'Colored rim light\nfrom the left side.',
+        'Colored rim light from the\nleft to separate a subject\nfrom the background.',
         {
             'data': {
                 'type': 'light',
                 'name': 'RimLeft',
-                'attrs': {
-                    'intensity': 1.0,
-                    'radius': 4.0,
-                    'color': (0.3, 0.5, 1.2),
-                    'position': (-4, 3, 0),
-                    'volume_intensity_scale': 0.0
-                }
-            }
+                'attrs': {'intensity': 1.0, 'radius': 4.0, 'color': (0.3, 0.5, 1.2), 'position': (-4, 3, 0), 'volume_intensity_scale': 0.0}
         }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Rim Light Right',
+        'Mirror of Rim Light Left -\nuse both together for a\nclean two-sided glow.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'RimRight',
+                'attrs': {'intensity': 1.0, 'radius': 4.0, 'color': (1.2, 0.5, 0.3), 'position': (4, 3, 0), 'volume_intensity_scale': 0.0}
+        }
+    }
     ))
 
     presets.append((
         0,
         'Top Spotlight',
-        'A strong spotlight\ndirectly above origin.',
+        'A strong spotlight directly\nabove origin, good for a\nreveal moment.',
         {
             'data': {
                 'type': 'light',
                 'name': 'TopSpot',
-                'attrs': {
-                    'intensity': 2.2,
-                    'radius': 2.5,
-                    'color': (1.0, 1.0, 1.0),
-                    'position': (0, 5, 0),
-                    'volume_intensity_scale': 0.0,
-                }
-            }
+                'attrs': {'intensity': 2.2, 'radius': 2.5, 'color': (1.0, 1.0, 1.0), 'position': (0, 5, 0), 'volume_intensity_scale': 0.0}
         }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Dramatic Underlight',
+        'Uplight from below for a\nspooky or villainous look.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'Underlight',
+                'attrs': {'intensity': 1.5, 'radius': 2.0, 'color': (0.9, 0.2, 0.9), 'position': (0, -0.5, 0), 'volume_intensity_scale': 0.0}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Candle Glow',
+        'Small warm practical light,\nlow radius, subtle flicker\nfeel for close-up scenes.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'CandleGlow',
+                'attrs': {'intensity': 0.7, 'radius': 1.2, 'color': (1.4, 0.9, 0.5), 'position': (0, 1.0, 0.5), 'volume_intensity_scale': 0.0}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Color Wash Red',
+        'Big saturated red wash for\nalarm or danger beats.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'WashRed',
+                'attrs': {'intensity': 1.4, 'radius': 6.0, 'color': (2.0, 0.1, 0.1), 'position': (0, 4, 0), 'volume_intensity_scale': 0.0}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Color Wash Blue',
+        'Big saturated blue wash for\ncalm, sad, or night beats.',
+        {
+            'data': {
+                'type': 'light',
+                'name': 'WashBlue',
+                'attrs': {'intensity': 1.4, 'radius': 6.0, 'color': (0.1, 0.3, 2.0), 'position': (0, 4, 0), 'volume_intensity_scale': 0.0}
+        }
+    }
     ))
 
     presets.append((
         0,
         'Title Card',
-        'Center title text in\nthe world.',
+        'Center title text hovering\nin the world.',
         {
             'data': {
                 'type': 'text',
                 'name': 'Title',
-                'attrs': {
-                    'text': 'MOVI PRESENTS',
-                    'position': (0, 2.2, 0),
-                    'in_world': True,
-                    'shadow': 1.0,
-                    'flatness': 0.8,
-                    'scale': 0.02,
-                    'color': (2.0, 2.0, 2.0),
-                    'h_align': 'center'
-                }
-            }
+                'attrs': {'text': 'MOVI PRESENTS', 'position': (0, 2.2, 0), 'in_world': True, 'shadow': 1.0, 'flatness': 0.8, 'scale': 0.02, 'color': (2.0, 2.0, 2.0), 'h_align': 'center'}
         }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Lower Third Caption',
+        'Small caption text near the\nbottom, good for names or\nsubtitles.',
+        {
+            'data': {
+                'type': 'text',
+                'name': 'LowerThird',
+                'attrs': {'text': 'Caption goes here', 'position': (0, 0.6, 0), 'in_world': True, 'shadow': 1.0, 'flatness': 0.9, 'scale': 0.012, 'color': (1.8, 1.8, 1.8), 'h_align': 'center'}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Chapter Marker',
+        'Large bold marker text for\nswitching scenes/chapters.',
+        {
+            'data': {
+                'type': 'text',
+                'name': 'ChapterMarker',
+                'attrs': {'text': 'CHAPTER ONE', 'position': (0, 3.0, 0), 'in_world': True, 'shadow': 1.0, 'flatness': 0.7, 'scale': 0.025, 'color': (2.2, 2.2, 1.0), 'h_align': 'center'}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'The End Card',
+        'Simple closing card text for\nthe last frame of a movie.',
+        {
+            'data': {
+                'type': 'text',
+                'name': 'EndCard',
+                'attrs': {'text': 'THE END', 'position': (0, 2.2, 0), 'in_world': True, 'shadow': 1.0, 'flatness': 0.8, 'scale': 0.022, 'color': (2.0, 2.0, 2.0), 'h_align': 'center'}
+        }
+    }
     ))
 
     presets.append((
         0,
         'World Anchor',
-        'Invisible dummy node at\norigin for parenting.',
+        'Invisible dummy node at\norigin, handy to parent\nother nodes/effects to.',
         {
             'data': {
                 'type': 'math',
                 'name': 'WorldAnchor',
-                'attrs': {
-                    'input1': (0, 0, 0),
-                    'operation': 'add'
-                }
-            }
+                'attrs': {'input1': (0, 0, 0), 'operation': 'add'}
         }
+    }
     ))
 
-    # ------------------------------------------------------------------
-    # 1) CAMERA PRESETS  (EVENT INDEX 1)
-    # ------------------------------------------------------------------
+    presets.append((
+        0,
+        'Offstage Anchor',
+        'Dummy node placed off to\nthe side, out of frame -\nuseful as a parking spot.',
+        {
+            'data': {
+                'type': 'math',
+                'name': 'OffstageAnchor',
+                'attrs': {'input1': (20, 0, 0), 'operation': 'add'}
+        }
+    }
+    ))
 
     presets.append((
         1,
@@ -9645,81 +8711,418 @@ def get_presets():
         'Side-on camera, slightly\nzoomed, focused on center.',
         {
             'data': {
-                'name': Strings.CAMERA_ENTRY,
+                'name': 'Camera',
                 'chks': [True, True, True],
                 'position': [8.0, 3.0, 0.0],
                 'target': [0.0, 1.5, 0.0]
-            }
         }
+    }
     ))
 
     presets.append((
         1,
         'Hero Shot',
-        'Low front angle, looking\nup at center.',
+        'Low front angle, looking\nup at center - makes the\nsubject look powerful.',
         {
             'data': {
-                'name': Strings.CAMERA_ENTRY,
+                'name': 'Camera',
                 'chks': [True, True, True],
                 'position': [0.0, 1.0, -7.5],
                 'target': [0.0, 2.5, 0.0]
-            }
         }
+    }
     ))
 
     presets.append((
         1,
         'Top Down',
-        'Top-down overview of the map.',
+        'Top-down overview of the\nwhole map.',
         {
             'data': {
-                'name': Strings.CAMERA_ENTRY,
+                'name': 'Camera',
                 'chks': [True, True, True],
                 'position': [0.0, 13.0, 0.01],
                 'target': [0.0, 0.5, 0.0]
-            }
         }
+    }
     ))
 
     presets.append((
         1,
         'Over Shoulder',
-        'Over-the-shoulder shot\nfrom behind origin.',
+        'Over-the-shoulder shot from\nbehind origin.',
         {
             'data': {
-                'name': Strings.CAMERA_ENTRY,
+                'name': 'Camera',
                 'chks': [True, True, True],
                 'position': [0.0, 2.2, -4.5],
                 'target': [0.0, 1.5, 2.0]
-            }
         }
+    }
     ))
 
-    # ------------------------------------------------------------------
-    # 2) SOUND PRESETS  (EVENT INDEX 2)
-    # ------------------------------------------------------------------
-
     presets.append((
-        2,
-        'Wind Loop (Global)',
-        'Soft global looping\nwind ambience.',
+        1,
+        'Wide Establishing',
+        'Pulled far back to show\nthe whole set - good as\na scene opener.',
         {
             'data': {
-                'name': 'Wind Loop',
-                'file': 'skid01.ogg',
-                'x': 0.0,
-                'y': 0.0,
-                'z': 0.0,
-                'volume': 0.7,
-                'chks': [True, True]
-            }
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [0.0, 6.0, -14.0],
+                'target': [0.0, 1.0, 0.0]
         }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Extreme Close-Up',
+        'Very tight on center,\nfor an intense reaction\nbeat.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [0.0, 1.3, -1.6],
+                'target': [0.0, 1.4, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Three-Quarter Shot',
+        'Angled 3/4 view, a natural\ndefault for dialogue.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [5.0, 2.2, -3.0],
+                'target': [0.0, 1.5, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        "Bird's Eye Corner",
+        'High angle from a corner,\ngood for showing scale.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [10.0, 10.0, -10.0],
+                'target': [0.0, 0.0, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Low Diagonal Drama',
+        'Low, off-center angle for\na dramatic villain reveal.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [-3.0, 0.6, -5.0],
+                'target': [0.0, 2.0, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Symmetric Front',
+        'Dead-center front-on shot,\nclean and formal.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [0.0, 2.0, -8.0],
+                'target': [0.0, 1.5, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Profile Shot',
+        'Pure side profile at eye\nheight.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [6.5, 1.5, 0.0],
+                'target': [0.0, 1.5, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Reverse Angle',
+        'Opposite side of Side Shot -\nuse both to cut back and\nforth in a conversation.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [-8.0, 3.0, 0.0],
+                'target': [0.0, 1.5, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Crane High Wide',
+        'High sweeping wide angle,\nfeels cinematic for an\nending shot.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [12.0, 9.0, -6.0],
+                'target': [0.0, 1.0, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Ground Level Macro',
+        'Camera almost at ground\nlevel looking up - great\nfor a small-object focus.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [1.0, 0.15, -1.5],
+                'target': [0.0, 0.4, 0.0]
+        }
+    }
+    ))
+
+    presets.append((
+        1,
+        'Push-In Close',
+        'Slightly closer version of\nThree-Quarter Shot - swap\nbetween the two for a fake\ndolly-in cut.',
+        {
+            'data': {
+                'name': 'Camera',
+                'chks': [True, True, True],
+                'position': [3.0, 1.8, -1.8],
+                'target': [0.0, 1.5, 0.0]
+        }
+    }
     ))
 
     presets.append((
         2,
-        'Distant Boom',
-        'Single positional boom\nat the far right.',
+        'Crowd Cheer',
+        'Positive crowd cheer,\ngreat after a win moment.',
+        {
+            'data': {
+                'name': 'Crowd Cheer',
+                'file': 'cheer.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [False, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Crowd Boo',
+        'Negative crowd reaction for\na villain or fail beat.',
+        {
+            'data': {
+                'name': 'Crowd Boo',
+                'file': 'boo.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [False, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Crowd Chant Loop',
+        'Looping ambient crowd chant\nfor a stadium scene.',
+        {
+            'data': {
+                'name': 'Crowd Chant Loop',
+                'file': 'crowdChant.ogg',
+                'x': 0,
+                'y': 0,
+                'z': 0,
+                'volume': 0.6,
+                'chks': [False, True]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Foghorn Sting',
+        'Big blaring foghorn hit,\ngood comedic sting.',
+        {
+            'data': {
+                'name': 'Foghorn Sting',
+                'file': 'foghorn.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Referee Whistle',
+        'Sharp whistle to mark the\nstart/stop of an action.',
+        {
+            'data': {
+                'name': 'Referee Whistle',
+                'file': 'refWhistle.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Cash Register Ka-Ching',
+        'Cash register sound for a\nscore or reward beat.',
+        {
+            'data': {
+                'name': 'Cash Register Ka-Ching',
+                'file': 'cashRegister.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Error Buzz',
+        'Harsh error/negative buzz,\ngood for a mistake beat.',
+        {
+            'data': {
+                'name': 'Error Buzz',
+                'file': 'error.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Warning Beep Loop',
+        'Looping warning beep for a\ntense countdown scene.',
+        {
+            'data': {
+                'name': 'Warning Beep Loop',
+                'file': 'warnBeeps.ogg',
+                'x': 0,
+                'y': 1.5,
+                'z': 0,
+                'volume': 0.7,
+                'chks': [False, True]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Drum Roll Buildup',
+        'Classic drum roll before a\nbig reveal.',
+        {
+            'data': {
+                'name': 'Drum Roll Buildup',
+                'file': 'drumRoll.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 0.9,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Gong Hit',
+        'Big resonant gong hit for a\ndramatic entrance.',
+        {
+            'data': {
+                'name': 'Gong Hit',
+                'file': 'gong.ogg',
+                'x': 0,
+                'y': 1.5,
+                'z': 0,
+                'volume': 1.1,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Boxing Bell',
+        'Boxing ring bell, perfect\nfor a match start/end.',
+        {
+            'data': {
+                'name': 'Boxing Bell',
+                'file': 'boxingBell.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Achievement Ding',
+        'Positive achievement chime\nfor unlocking something.',
+        {
+            'data': {
+                'name': 'Achievement Ding',
+                'file': 'achievement.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 0.9,
+                'chks': [False, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Distant Explosion',
+        'Single positional boom off\nto the far right.',
         {
             'data': {
                 'name': 'Distant Explosion',
@@ -9729,8 +9132,8 @@ def get_presets():
                 'z': 0.0,
                 'volume': 1.1,
                 'chks': [False, False]
-            }
         }
+    }
     ))
 
     presets.append((
@@ -9746,131 +9149,281 @@ def get_presets():
                 'z': 0.0,
                 'volume': 1.4,
                 'chks': [True, False]
-            }
         }
+    }
     ))
 
     presets.append((
         2,
-        'Underground Rumble',
-        'Low looping rumble\nfrom below the arena.',
+        'Underground Rumble Loop',
+        'Low looping rumble from\nbelow the arena.',
         {
             'data': {
-                'name': 'Rumble',
-                'file': 'rumble01.ogg',
+                'name': 'Underground Rumble Loop',
+                'file': 'bigImpact2.ogg',
                 'x': 0.0,
                 'y': -4.0,
                 'z': 0.0,
                 'volume': 0.9,
                 'chks': [False, True]
-            }
         }
+    }
     ))
 
-    # ------------------------------------------------------------------
-    # 3) FX PRESETS  (EVENT INDEX 3)
-    # ------------------------------------------------------------------
+    presets.append((
+        2,
+        'Power-Up Chime',
+        'Bright pickup chime, works\nwell layered under a\nreward FX.',
+        {
+            'data': {
+                'name': 'Power-Up Chime',
+                'file': 'powerup01.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Freeze Sting',
+        'Icy freeze sound effect for\na time-stop or slow-mo\nbeat.',
+        {
+            'data': {
+                'name': 'Freeze Sting',
+                'file': 'freeze.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 1.0,
+                'chks': [True, False]
+        }
+    }
+    ))
+
+    presets.append((
+        2,
+        'Fuse Burning Loop',
+        'Looping fuse hiss for\nbuilding suspense.',
+        {
+            'data': {
+                'name': 'Fuse Burning Loop',
+                'file': 'fuse01.ogg',
+                'x': 0,
+                'y': 1,
+                'z': 0,
+                'volume': 0.7,
+                'chks': [True, True]
+        }
+    }
+    ))
 
     presets.append((
         3,
         'Spark Shower',
-        'Burst of sparks at the center.',
+        'Burst of sparks at the\ncenter - a solid all-\npurpose impact effect.',
         {
             'data': {
                 'name': 'Spark Shower',
-                'attrs': {
-                    'position': (0, 1.2, 0),
-                    'velocity': (0, 3, 0),
-                    'count': 40,
-                    'scale': 1.0,
-                    'spread': 1.0,
-                    'chunk_type': 'spark',
-                    'emit_type': 'stickers',
-                    'random': 0.4
-                }
-            }
+                'attrs': {'position': (0, 1.2, 0), 'velocity': (0, 3, 0), 'count': 40, 'scale': 1.0, 'spread': 1.0, 'chunk_type': 'spark', 'emit_type': 'stickers'}
         }
+    }
     ))
 
     presets.append((
         3,
         'Magic Ring',
-        'Pulsing magic ring\nexplosion around center.',
+        'Pulsing distortion ring\naround center, good for a\nspell or teleport.',
         {
             'data': {
                 'name': 'Magic Ring',
-                'attrs': {
-                    'position': (0, 1.0, 0),
-                    'chunk_type': 'sweat',
-                    'emit_type': 'distortion',
-                    'count': 20,
-                    'scale': 1.2,
-                    'spread': 0.2
-                }
-            }
+                'attrs': {'position': (0, 1.0, 0), 'chunk_type': 'sweat', 'emit_type': 'distortion', 'count': 20, 'scale': 1.2, 'spread': 0.2}
         }
+    }
     ))
 
     presets.append((
         3,
-        'Smoke Column',
-        'Rising smoke plume for ambience.',
+        'Soft Smoke Column',
+        "Rising smoke plume. This is\nemit_type='tendrils' with\ntendril_type='smoke' - chunk_\ntype is unused by tendrils but\nstill a required argument.",
         {
             'data': {
-                'name': 'Smoke Column',
-                'attrs': {
-                    'position': (0, 0.1, 0),
-                    'velocity': (0, 2.5, 0),
-                    'count': 25,
-                    'scale': 1.1,
-                    'chunk_type': 'smoke',
-                    'emit_type': 'tendrils',
-                    'spread': 0.4,
-                    'random': 0.5
-                }
-            }
+                'name': 'Soft Smoke Column',
+                'attrs': {'position': (0, 0.1, 0), 'velocity': (0, 2.5, 0), 'count': 25, 'scale': 1.1, 'chunk_type': 'rock', 'emit_type': 'tendrils', 'tendril_type': 'smoke', 'spread': 0.4}
         }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Thin Wispy Smoke',
+        'Same as Soft Smoke Column but\nusing tendril_type=thin_smoke\nfor a lighter, less dense\ntrail.',
+        {
+            'data': {
+                'name': 'Thin Wispy Smoke',
+                'attrs': {'position': (0, 0.1, 0), 'velocity': (0, 2.0, 0), 'count': 18, 'scale': 0.9, 'chunk_type': 'rock', 'emit_type': 'tendrils', 'tendril_type': 'thin_smoke', 'spread': 0.3}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Icy Vapor Trail',
+        'Cold breath / icy vapor using\ntendril_type=ice - good for a\nfrozen-map or dragon-breath\nmoment.',
+        {
+            'data': {
+                'name': 'Icy Vapor Trail',
+                'attrs': {'position': (0, 1.4, 0), 'velocity': (0, 1.0, 0), 'count': 15, 'scale': 0.8, 'chunk_type': 'ice', 'emit_type': 'tendrils', 'tendril_type': 'ice', 'spread': 0.5}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Fairy Dust Trail',
+        "Uses the dedicated emit_\ntype='fairydust' - a light\nmagical sparkle trail, softer\nthan a spark burst.",
+        {
+            'data': {
+                'name': 'Fairy Dust Trail',
+                'attrs': {'position': (0, 1.5, 0), 'velocity': (0, 1.5, 0), 'chunk_type': 'spark', 'emit_type': 'fairydust', 'count': 25, 'scale': 1.0, 'spread': 1.0}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Standard Debris Chunks',
+        "The engine's own default\nemit_type ('chunks') - plain\nphysical debris, the most\nneutral all-purpose break FX.",
+        {
+            'data': {
+                'name': 'Standard Debris Chunks',
+                'attrs': {'position': (0, 1.0, 0), 'velocity': (0, 2.0, 0), 'chunk_type': 'rock', 'emit_type': 'chunks', 'count': 24, 'scale': 1.0, 'spread': 1.0}
+        }
+    }
     ))
 
     presets.append((
         3,
         'Small Blast',
-        'Compact explosive burst.',
+        'Compact explosive burst -\nsize down for a bomb or\nfootstep impact.',
         {
             'data': {
                 'name': 'Small Blast',
-                'attrs': {
-                    'position': (0, 1.0, 0),
-                    'chunk_type': 'rock',
-                    'emit_type': 'stickers',
-                    'count': 18,
-                    'scale': 0.9,
-                    'spread': 0.6
-                }
-            }
+                'attrs': {'position': (0, 1.0, 0), 'chunk_type': 'rock', 'emit_type': 'stickers', 'count': 18, 'scale': 0.9, 'spread': 0.6}
         }
+    }
     ))
 
-    # ------------------------------------------------------------------
-    # 4) MAP PRESETS  (EVENT INDEX 4)
-    # ------------------------------------------------------------------
+    presets.append((
+        3,
+        'Big Explosion',
+        'Large violent burst for a\nfinal boom / climax beat.',
+        {
+            'data': {
+                'name': 'Big Explosion',
+                'attrs': {'position': (0, 1.5, 0), 'velocity': (0, 5, 0), 'chunk_type': 'rock', 'emit_type': 'stickers', 'count': 60, 'scale': 2.0, 'spread': 1.5}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Metal Shrapnel',
+        'Sharp metallic burst, good\nfor a robot/machine break.',
+        {
+            'data': {
+                'name': 'Metal Shrapnel',
+                'attrs': {'position': (0, 1.0, 0), 'chunk_type': 'metal', 'emit_type': 'stickers', 'count': 30, 'scale': 1.0, 'spread': 0.8}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Ice Shatter',
+        'Icy shards bursting outward,\nfor a freeze/shatter beat.',
+        {
+            'data': {
+                'name': 'Ice Shatter',
+                'attrs': {'position': (0, 1.0, 0), 'velocity': (0, 1, 0), 'chunk_type': 'ice', 'emit_type': 'stickers', 'count': 35, 'scale': 1.1, 'spread': 1.0}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Slime Splat',
+        'Goopy slime splash, fun for\na comedic gross-out beat.',
+        {
+            'data': {
+                'name': 'Slime Splat',
+                'attrs': {'position': (0, 1.0, 0), 'chunk_type': 'slime', 'emit_type': 'stickers', 'count': 22, 'scale': 0.9, 'spread': 0.7}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Wood Splinter Burst',
+        'Wooden debris burst for a\ncrate/prop breaking.',
+        {
+            'data': {
+                'name': 'Wood Splinter Burst',
+                'attrs': {'position': (0, 0.8, 0), 'chunk_type': 'splinter', 'emit_type': 'stickers', 'count': 20, 'scale': 0.8, 'spread': 0.6}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Energy Pulse',
+        'Fast expanding distortion\npulse, reads like a shock-\nwave or sonic blast.',
+        {
+            'data': {
+                'name': 'Energy Pulse',
+                'attrs': {'position': (0, 1.5, 0), 'chunk_type': 'spark', 'emit_type': 'distortion', 'count': 45, 'scale': 1.6, 'spread': 1.2}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Gentle Sparkle',
+        "Light, slow sparkle drift -\nsubtle magical ambiance,\nlow count so it doesn't\noverpower a shot.",
+        {
+            'data': {
+                'name': 'Gentle Sparkle',
+                'attrs': {'position': (0, 2.0, 0), 'velocity': (0, 0.5, 0), 'chunk_type': 'spark', 'emit_type': 'tendrils', 'count': 10, 'scale': 0.6, 'spread': 1.5}
+        }
+    }
+    ))
+
+    presets.append((
+        3,
+        'Sweat Drip Panic',
+        'Comedic sweat drops, useful\nfor a nervous character\nmoment.',
+        {
+            'data': {
+                'name': 'Sweat Drip Panic',
+                'attrs': {'position': (0, 1.6, 0), 'velocity': (0, -1, 0), 'chunk_type': 'sweat', 'emit_type': 'stickers', 'count': 8, 'scale': 0.7, 'spread': 0.3}
+        }
+    }
+    ))
 
     presets.append((
         4,
         'Hockey Stadium (Bright)',
-        'Switch to Hockey Stadium\nwith slightly colder lighting.',
+        'Hockey Stadium with crisp,\nslightly colder lighting.',
         {
             'data': {
                 'map': 'Hockey Stadium',
-                'name': list(Strings.EVENTS)[4],
-                'attrs': {
-                    'ambient_color': (0.6, 0.7, 1.0),
-                    'tint': (1.1, 1.2, 1.3),
-                    'vignette_outer': (0.1, 0.1, 0.2),
-                    'vignette_inner': (0.8, 0.9, 1.0)
-                }
-            }
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.6, 0.7, 1.0), 'tint': (1.1, 1.2, 1.3), 'vignette_outer': (0.1, 0.1, 0.2), 'vignette_inner': (0.8, 0.9, 1.0)}
         }
+    }
     ))
 
     presets.append((
@@ -9880,55 +9433,223 @@ def get_presets():
         {
             'data': {
                 'map': 'Bridgit',
-                'name': list(Strings.EVENTS)[4],
-                'attrs': {
-                    'ambient_color': (1.1, 0.8, 0.7),
-                    'tint': (1.3, 1.0, 0.8),
-                    'vignette_outer': (0.2, 0.1, 0.05),
-                    'vignette_inner': (0.9, 0.8, 0.7)
-                }
-            }
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.1, 0.8, 0.7), 'tint': (1.3, 1.0, 0.8), 'vignette_outer': (0.2, 0.1, 0.05), 'vignette_inner': (0.9, 0.8, 0.7)}
         }
+    }
     ))
 
     presets.append((
         4,
         'Happy Thoughts (Dreamy)',
-        'Even more dreamy\nHappy Thoughts mood.',
+        'Extra dreamy, pastel-heavy\nHappy Thoughts mood.',
         {
             'data': {
                 'map': 'Happy Thoughts',
-                'name': list(Strings.EVENTS)[4],
-                'attrs': {
-                    'ambient_color': (1.4, 1.0, 1.4),
-                    'tint': (1.5, 1.0, 1.5),
-                    'happy_thoughts_mode': True
-                }
-            }
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.4, 1.0, 1.4), 'tint': (1.5, 1.0, 1.5), 'happy_thoughts_mode': True}
         }
+    }
     ))
 
-    # ------------------------------------------------------------------
-    # 6) CODE PRESETS  (EVENT INDEX 6)
-    # All use bs.Timer or bs.AppTimer which are cancelable
-    # ------------------------------------------------------------------
+    presets.append((
+        4,
+        'Doom Shroom (Ominous)',
+        'Doom Shroom pushed darker\nand greener for a horror\nfeel.',
+        {
+            'data': {
+                'map': 'Doom Shroom',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.5, 0.7, 0.4), 'tint': (0.8, 1.0, 0.7), 'vignette_outer': (0.0, 0.05, 0.0), 'vignette_inner': (0.6, 0.7, 0.6)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Lake Frigid (Ice Blue)',
+        'Lake Frigid pushed toward a\ncold, icy blue palette.',
+        {
+            'data': {
+                'map': 'Lake Frigid',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.7, 0.85, 1.2), 'tint': (0.9, 1.0, 1.3), 'vignette_outer': (0.05, 0.08, 0.15), 'vignette_inner': (0.8, 0.9, 1.0)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Tip Top (High Noon)',
+        'Tip Top with harsh bright\noverhead daylight.',
+        {
+            'data': {
+                'map': 'Tip Top',
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.2, 1.2, 1.1), 'tint': (1.2, 1.2, 1.1), 'vignette_outer': (0.15, 0.15, 0.1), 'vignette_inner': (1.0, 1.0, 0.95)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Crag Castle (Torchlit)',
+        'Crag Castle warmed up like\nit is lit by torches.',
+        {
+            'data': {
+                'map': 'Crag Castle',
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.2, 0.8, 0.5), 'tint': (1.3, 0.9, 0.6), 'vignette_outer': (0.1, 0.05, 0.0), 'vignette_inner': (0.9, 0.7, 0.5)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Tower D (Neon Night)',
+        'Tower D pushed into a\nsaturated neon night look.',
+        {
+            'data': {
+                'map': 'Tower D',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.6, 0.4, 1.2), 'tint': (0.8, 0.6, 1.4), 'vignette_outer': (0.05, 0.0, 0.15), 'vignette_inner': (0.7, 0.5, 1.0)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Football Stadium (Overcast)',
+        'Football Stadium under a\nflat, cloudy grey sky.',
+        {
+            'data': {
+                'map': 'Football Stadium',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.8, 0.8, 0.85), 'tint': (0.9, 0.9, 0.95), 'vignette_outer': (0.1, 0.1, 0.12), 'vignette_inner': (0.85, 0.85, 0.9)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Big G (Golden Hour)',
+        'Big G with a rich golden-\nhour glow.',
+        {
+            'data': {
+                'map': 'Big G',
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.3, 1.0, 0.6), 'tint': (1.4, 1.05, 0.7), 'vignette_outer': (0.15, 0.08, 0.0), 'vignette_inner': (1.0, 0.85, 0.6)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Roundabout (Cool Studio)',
+        'Roundabout in a neutral,\ncool studio-lit look.',
+        {
+            'data': {
+                'map': 'Roundabout',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.9, 0.95, 1.05), 'tint': (0.95, 1.0, 1.05), 'vignette_outer': (0.1, 0.1, 0.12), 'vignette_inner': (0.9, 0.92, 0.95)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Monkey Face (Jungle Haze)',
+        'Monkey Face with a hazy\ngreen jungle-light feel.',
+        {
+            'data': {
+                'map': 'Monkey Face',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.9, 1.1, 0.7), 'tint': (0.95, 1.1, 0.75), 'vignette_outer': (0.05, 0.1, 0.0), 'vignette_inner': (0.8, 0.95, 0.65)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Zigzag (Late Afternoon)',
+        'Zigzag with a soft late-\nafternoon amber cast.',
+        {
+            'data': {
+                'map': 'Zigzag',
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.15, 0.95, 0.75), 'tint': (1.2, 1.0, 0.8), 'vignette_outer': (0.12, 0.08, 0.02), 'vignette_inner': (0.95, 0.85, 0.7)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'The Pad (Moody Purple)',
+        'The Pad tinted moody purple\nfor a stylish lounge feel.',
+        {
+            'data': {
+                'map': 'The Pad',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.9, 0.6, 1.1), 'tint': (1.0, 0.7, 1.2), 'vignette_outer': (0.1, 0.0, 0.15), 'vignette_inner': (0.85, 0.6, 0.95)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Step Right Up (Carnival Bright)',
+        'Step Right Up boosted for a\nfun, colorful carnival pop.',
+        {
+            'data': {
+                'map': 'Step Right Up',
+                'name': 'Map',
+                'attrs': {'ambient_color': (1.2, 1.05, 0.9), 'tint': (1.25, 1.1, 0.95), 'vignette_outer': (0.15, 0.1, 0.05), 'vignette_inner': (1.0, 0.9, 0.8)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Courtyard (Soft Overcast)',
+        'Courtyard with gentle,\ndiffused daylight.',
+        {
+            'data': {
+                'map': 'Courtyard',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.95, 0.95, 0.9), 'tint': (1.0, 1.0, 0.95), 'vignette_outer': (0.1, 0.1, 0.08), 'vignette_inner': (0.9, 0.9, 0.85)}
+        }
+    }
+    ))
+
+    presets.append((
+        4,
+        'Rampage (Industrial Grey)',
+        'Rampage pushed toward a\ncold industrial grey tone.',
+        {
+            'data': {
+                'map': 'Rampage',
+                'name': 'Map',
+                'attrs': {'ambient_color': (0.75, 0.78, 0.8), 'tint': (0.85, 0.87, 0.9), 'vignette_outer': (0.08, 0.08, 0.1), 'vignette_inner': (0.8, 0.82, 0.85)}
+        }
+    }
+    ))
 
     presets.append((
         6,
-        'Pixie Dream',
-        'Magical pink pixie character.',
+        'Basic Spaz',
+        'Standard blue Spaz character\nat center stage - the safest\nstarting point.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Pixie Dream',
-                    'name = "Pixie"',
-                    'color = (1.0, 0.75, 0.8)',
-                    'highlight = (1.0, 0.0, 1.0)',
-                    'position = (0, 2, 0)',
-                    'angle = 1',
+                    '# MOVI Basic Spaz',
+                    "name = 'Spaz'",
+                    'color = (0.4, 0.5, 0.8)',
+                    'highlight = (1.0, 1.0, 1.0)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
                     '',
                     'bot = Spaz(',
-                    '    character="Pixel",',
+                    "    character='Spaz',",
                     '    start_invincible=False,',
                     '    color=color,',
                     '    highlight=highlight,',
@@ -9936,2215 +9657,1039 @@ def get_presets():
                     'bot.handlemessage(',
                     '    bs.StandMessage(position, angle)',
                     ')',
-                    'bot.node.name = name'
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Circle Crowd',
-        'Spawn a circle of\nneutral bots around center.',
+        'Neon Assassin',
+        'Stealthy ninja with electric\npurple glow.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Circle Crowd',
-                    'count = 8',
-                    'radius = 5.0',
-                    'height = 1.0',
+                    '# MOVI Neon Assassin',
+                    "name = 'Shadow Strike'",
+                    'color = (2.2, 0.0, 0.4)',
+                    'highlight = (2.5, 0.0, 4.0)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
                     '',
-                    'bots = []',
-                    'for i in range(count):',
-                    '    angle = (2.0 * 3.1415926 * i) / count',
-                    '    x = radius * math.cos(angle)',
-                    '    z = radius * math.sin(angle)',
-                    '    pos = (x, height, z)',
-                    '    bot = Spaz(',
-                    '        character="Spaz",',
-                    '        start_invincible=False',
-                    '    )',
-                    '    bot.handlemessage(bs.StandMessage(pos, (3.1415 - angle)))',
-                    '    bot.node.name = f"Extra {i+1}"',
-                    '    bots.append(bot)',
+                    'bot = Spaz(',
+                    "    character='Snake Shadow',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Node Visualizer (Simple)',
-        'Attach labels to key\nscene nodes for debugging\n or visualizing.',
+        'Cyber Warrior',
+        'Futuristic agent with intense\ncyan energy.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Node Visualizer',
-                    'm = getattr(bs.get_foreground_host_activity(), "map", None)',
-                    'if not m:',
-                    '    raise RuntimeError("No map available in this activity.")',
+                    '# MOVI Cyber Warrior',
+                    "name = 'NetRunner'",
+                    'color = (0.0, 0.1, 0.2)',
+                    'highlight = (0.0, 3.5, 5.0)',
+                    'position = (2, 1, 0)',
+                    'angle = 1.5',
                     '',
-                    'labels = []',
-                    '',
-                    'def _label(node, text, y_off=1.0, color=(1,1,1)):',
-                    '    if not node or not node.exists():',
-                    '        return',
-                    '    t = bs.newnode("text", attrs={',
-                    '        "text": text,',
-                    '        "in_world": True,',
-                    '        "shadow": 1.0,',
-                    '        "flatness": 1.0,',
-                    '        "color": color,',
-                    '        "scale": 0.01,',
-                    '        "h_align": "center"',
-                    '    })',
-                    '    mth = bs.newnode("math", attrs={',
-                    '        "input1": (0, y_off, 0),',
-                    '        "operation": "add"',
-                    '    })',
-                    '    node.connectattr("position", mth, "input2")',
-                    '    mth.connectattr("output", t, "position")',
-                    '    labels.append((t, mth))',
-                    '',
-                    'root = getattr(m, "node", None)',
-                    '_label(root, "MAP ROOT", 1.5, (1.2, 1.0, 0.4))',
-                    '',
-                    'for name, c in [',
-                    '    ("floor", (0.5,1,0.5)),',
-                    '    ("stands", (0.5,0.8,1)),',
-                    '    ("player_wall", (1,0.5,0.5)),',
-                    '    ("bg_collide", (0.8,0.8,0.8)),',
-                    ']:',
-                    '    n = getattr(m, name, None)',
-                    '    if n is not None:',
-                    '        _label(n, name.upper(), 1.0, c)',
+                    'bot = Spaz(',
+                    "    character='Agent Johnson',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        '2D Graph: Sine Wave',
-        'Visual 2D sine wave\ngraph in 3D space\nusing tiny text nodes.',
+        'Plasma Knight',
+        'Medieval warrior radiating\nblue-white plasma.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI 2D Sine Graph',
-                    'length = 5',
-                    'step = 0.01',
-                    'scale_x = 5',
-                    'scale_y = 5',
-                    'origin = (-10.0, 1.0, 0.0)',
+                    '# MOVI Plasma Knight',
+                    "name = 'Sir Voltage'",
+                    'color = (0.1, 0.15, 0.3)',
+                    'highlight = (1.5, 2.5, 6.0)',
+                    'position = (-2, 1, 0)',
+                    'angle = 4.7',
                     '',
-                    'pts = []',
-                    'all = int(length/step)',
-                    'for i in range(all):',
-                    '    x = i * step',
-                    '    y = math.sin(x) * scale_y',
-                    '    color = (i/all/10, i/all, i/all)',
-                    '    pos = (origin[0] + x * scale_x, origin[1] + y, origin[2])',
-                    '    t = bs.newnode("text", attrs={',
-                    '        "text": ".",',
-                    '        "in_world": True,',
-                    '        "shadow": 0.0,',
-                    '        "flatness": 1.0,',
-                    '        "color": color,',
-                    '        "scale": 0.08,',
-                    '        "position": pos,',
-                    '        "h_align": "center"',
-                    '    })',
-                    '    pts.append(t)',
+                    'bot = Spaz(',
+                    "    character='Kronk',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Party Glitter',
-        'Populate the scene\nwith a small 3D\nglowing points',
+        'Toxic Menace',
+        'Radioactive character with\nsickly green glow.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Party Glitter',
-                    'count = 80',
-                    'radius = 20.0',
-                    'height = 4.0',
+                    '# MOVI Toxic Menace',
+                    "name = 'Biohazard'",
+                    'color = (0.1, 0.2, 0.0)',
+                    'highlight = (2.0, 5.0, 0.0)',
+                    'position = (0, 1, -2)',
+                    'angle = 3.14',
                     '',
-                    'stars = []',
-                    'for i in range(count):',
-                    '    x = (random.random() * 2 - 1) * radius',
-                    '    z = (random.random() * 2 - 1) * radius',
-                    '    y = random.random() * height + 2.0',
-                    '    pos = (x, y, z)',
-                    '    r = random.random()',
-                    '    g = random.random()',
-                    '    b = random.random()',
-                    '    color = (r, g, b)',
-                    '    t = bs.newnode("text", attrs={',
-                    '        "text": "•",',
-                    '        "in_world": True,',
-                    '        "shadow": 0.0,',
-                    '        "flatness": 1.0,',
-                    '        "color": color,',
-                    '        "scale": 0.02,',
-                    '        "h_align": "center",',
-                    '        "position": pos',
-                    '    })',
-                    '    stars.append(t)',
+                    'bot = Spaz(',
+                    "    character='Mel',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Orbit Camera Tool',
-        'Continuously orbit the\ncamera around center\nwhile running.',
+        'Frosty Sentinel',
+        'Icy pale character, good for\na winter/frozen-map scene.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Orbit Camera Tool',
-                    'import math',
+                    '# MOVI Frosty Sentinel',
+                    "name = 'Permafrost'",
+                    'color = (0.5, 0.7, 0.9)',
+                    'highlight = (0.8, 1.0, 1.3)',
+                    'position = (0, 1, 2)',
+                    'angle = 3.14',
                     '',
-                    'angle = 0.0',
-                    'radius = 10.0',
-                    'height = 4.0',
-                    '_ba.set_camera_manual(True)',
-                    '',
-                    'def _step():',
-                    '    global angle',
-                    '    if __stop_flag__.is_set():',
-                    '        _ba.set_camera_manual(False)',
-                    '        return',
-                    '    angle_step = 0.03',
-                    '    angle_val = angle',
-                    '    angle += angle_step',
-                    '    x = radius * math.cos(angle_val)',
-                    '    z = radius * math.sin(angle_val)',
-                    '    pos = (x, height, z)',
-                    '    _ba.set_camera_position(*pos)',
-                    '    _ba.set_camera_target(0.0, 1.5, 0.0)',
-                    '    bs.AppTimer(0.02, _step)',
-                    '',
-                    'bs.AppTimer(0.02, _step)'
+                    'bot = Spaz(',
+                    "    character='Frosty',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Stage Clear Banner',
-        'Drops a stage-clear-style\nbanner and spark FX.',
+        'Skeleton Crew',
+        "Bones's default look, works\nwell for a spooky scene.",
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Stage Clear Banner',
+                    '# MOVI Skeleton Crew',
+                    "name = 'Rattler'",
+                    'color = (0.8, 0.8, 0.75)',
+                    'highlight = (1.0, 1.0, 1.0)',
+                    'position = (-2, 1, 2)',
+                    'angle = 2.3',
                     '',
-                    't = bs.newnode("text", attrs={',
-                    '    "text": "STAGE CLEAR",',
-                    '    "in_world": False,',
-                    '    "shadow": 1.0,',
-                    '    "flatness": 0.8,',
-                    '    "color": (2.0, 1.8, 0.2),',
-                    '    "scale": 1.0,',
-                    '    "h_align": "center",',
-                    '    "position": (0, 200)',
+                    'bot = Spaz(',
+                    "    character='Bones',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Old Wizard',
+        'Grumbledorf tinted purple for\na mystical caster look.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Old Wizard',
+                    "name = 'The Archmage'",
+                    'color = (0.4, 0.1, 0.5)',
+                    'highlight = (0.9, 0.5, 1.4)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Grumbledorf',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Jungle Explorer',
+        'Zoe recolored earthy green,\ngood for an adventurer role.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Jungle Explorer',
+                    "name = 'Trailblazer'",
+                    'color = (0.3, 0.5, 0.2)',
+                    'highlight = (0.9, 1.0, 0.6)',
+                    'position = (2, 1, -2)',
+                    'angle = 1.0',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Zoe',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Deep Sea Diver',
+        'Pixel recolored deep blue,\nfits an underwater/submarine\nscene.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Deep Sea Diver',
+                    "name = 'Fathom'",
+                    'color = (0.0, 0.2, 0.5)',
+                    'highlight = (0.3, 0.6, 1.2)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Pixel',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Old-Timer Gunslinger',
+        'Jack Morgan recolored dusty\nbrown for a western scene.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Old-Timer Gunslinger',
+                    "name = 'Doc Ironside'",
+                    'color = (0.4, 0.3, 0.2)',
+                    'highlight = (0.9, 0.8, 0.6)',
+                    'position = (-2, 1, -2)',
+                    'angle = 5.5',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Jack Morgan',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Butler Bernard',
+        'Bernard kept close to natural\ncolors, calm supporting-cast\nlook.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Butler Bernard',
+                    "name = 'Bernard'",
+                    'color = (0.5, 0.45, 0.4)',
+                    'highlight = (1.0, 1.0, 0.95)',
+                    'position = (0, 1, 0)',
+                    'angle = 0',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Bernard',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Mascot Todd',
+        'Todd McBurton with a bright,\nfriendly palette - good for a\ncomic-relief role.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Mascot Todd',
+                    "name = 'Big Todd'",
+                    'color = (0.9, 0.6, 0.2)',
+                    'highlight = (1.2, 1.0, 0.6)',
+                    'position = (2, 1, 2)',
+                    'angle = 0.8',
+                    '',
+                    'bot = Spaz(',
+                    "    character='Todd McBurton',",
+                    '    start_invincible=False,',
+                    '    color=color,',
+                    '    highlight=highlight,',
+                    ')',
+                    'bot.handlemessage(',
+                    '    bs.StandMessage(position, angle)',
+                    ')',
+                    'bot.node.name = name',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Grand Entrance',
+        'One-shot hero intro: spotlight\nfades up, a drum roll builds,\nand a Spaz steps into frame.\nSaves wiring 3 separate\npresets together.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Grand Entrance',
+                    'timers = []',
+                    'bs.newnode("light", attrs={',
+                    '    "intensity": 2.0, "radius": 3.0, "color": (1.0, 1.0, 1.0),',
+                    '    "position": (0, 5, 0), "volume_intensity_scale": 0.0',
                     '})',
-                    '',
-                    'bs.animate_array(t, "position", 2, {',
-                    '    0.0: (0, 400),',
-                    '    0.2: (0, 200),',
-                    '    0.25: (0, 220),',
-                    '    0.3: (0, 200)',
-                    '})',
-                    'bs.AppTimer(0.2, lambda: bs.getsound("scoreHit01").play())',
-                    '',
-                    'def _fx():',
-                    '    bs.emitfx(',
-                    '        position=(0, 1, 0),',
-                    '        count=30,',
-                    '        scale=1.0,',
-                    '        spread=1.0,',
-                    '        chunk_type="spark",',
-                    '        emit_type="stickers"',
-                    '    )',
-                    '',
-                    'for i in range(6):',
-                    '    bs.AppTimer(0.2 + i*0.1, _fx)'
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Twinkle Star (Music Box)',
-        'Classic lullaby with\nsoft bell sounds.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Twinkle Twinkle Little Star',
-                    'q = 0.5',
-                    'h = 1.0',
-                    '',
-                    'melody = [',
-                    '    ("ding", q), ("ding", q), ("dingSmallHigh", q), ("dingSmallHigh", q),',
-                    '    ("dingSmallHigh", q), ("dingSmallHigh", q), ("dingSmallHigh", h),',
-                    '    ("dingSmall", q), ("dingSmall", q), ("dingSmall", q), ("dingSmall", q),',
-                    '    ("ding", q), ("ding", q), ("ding", h),',
-                    ']',
-                    '',
-                    'timers = []',
-                    't = 0.0',
-                    'for sound_name, duration in melody:',
-                    '    def play(snd):',
-                    '        bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(snd),',
-                    '            "volume": 0.6,',
-                    '            "loop": False',
-                    '        })',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: play(s)))',
-                    '    t += duration',
-                    '',
-                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("sparkle01"),',
-                    '    "volume": 0.5,',
-                    '    "loop": False',
-                    '})))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Happy Birthday Song',
-        'The iconic birthday tune\nwith party sounds.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Happy Birthday',
-                    'q = 0.4',
-                    'h = 0.8',
-                    '',
-                    'melody = [',
-                    '    ("bellLow", q), ("bellLow", q), ("bellMed", q), ("bellLow", q),',
-                    '    ("bellHigh", q), ("bellHigh", h),',
-                    '    ("bellLow", q), ("bellLow", q), ("bellMed", q), ("bellLow", q),',
-                    '    ("bellHigh", q), ("bellHigh", h),',
-                    ']',
-                    '',
-                    'timers = []',
-                    't = 0.0',
-                    'for sound_name, duration in melody:',
-                    '    def play(snd, vol=0.7):',
-                    '        bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(snd),',
-                    '            "volume": vol,',
-                    '            "loop": False',
-                    '        })',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: play(s)))',
-                    '    t += duration',
-                    '',
-                    'timers.append(bs.AppTimer(t + 0.2, lambda: play("cheer", 0.7)))',
-                    'timers.append(bs.AppTimer(t + 0.2, lambda: play("corkPop", 0.8)))',
-                    'timers.append(bs.AppTimer(t + 0.2, lambda: bs.emitfx(',
-                    '    position=(0, 3, 0),',
-                    '    velocity=(0, 5, 0),',
-                    '    count=50,',
-                    '    spread=2.0,',
-                    '    chunk_type="spark"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Epic Orchestral Swell',
-        'Dramatic Hollywood-style\nbuildup and climax.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Epic Orchestral Swell',
-                    'sequence = [',
-                    '    (0.0, "orchestraHit", 0.3),',
-                    '    (0.6, "orchestraHit", 0.4),',
-                    '    (1.2, "orchestraHit2", 0.5),',
-                    '    (1.8, "orchestraHit3", 0.6),',
-                    '    (2.4, "orchestraHit4", 0.7),',
-                    '    (3.0, "orchestraHitBig1", 1.0),',
-                    '    (3.05, "orchestraHitBig2", 1.0),',
-                    '    (3.5, "orchestraHit3", 0.3),',
-                    '    (4.0, "orchestraHit2", 0.2),',
-                    ']',
-                    '',
-                    'timers = []',
-                    'for time, sound, vol in sequence:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound, v=vol: bs.newnode(',
-                    '        "sound",',
-                    '        attrs={"sound": bs.getsound(s), "volume": v, "loop": False}',
-                    '    )))',
-                    '',
-                    'timers.append(bs.AppTimer(3.0, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    count=150,',
-                    '    chunk_type="spark",',
-                    '    emit_type="distortion"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Jaws Theme (Suspense)',
-        'DUN-dun... building to\npure panic!',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Jaws Theme',
-                    'intervals = [0.8, 0.8, 0.6, 0.6, 0.5, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.08]',
-                    '',
-                    'timers = []',
-                    't = 0.0',
-                    'for gap in intervals:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tick"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + gap/2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '    t += gap',
-                    '',
-                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("alarm"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(t, lambda: bs.emitfx(',
-                    '    position=(0, 1, 0),',
-                    '    velocity=(0, 4, 0),',
-                    '    count=60,',
-                    '    chunk_type="sweat",',
-                    '    spread=2.0',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Imperial March',
-        'Darth Vader\'s theme\nwith deep bass.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Imperial March',
-                    'q = 0.4',
-                    '',
-                    'notes = [',
-                    '    (0.0, "dingSmall"), (0.4, "dingSmall"), (0.8, "dingSmall"),',
-                    '    (1.2, "dingSmall"), (1.8, "dingSmall"),',
-                    '    (2.4, "dingSmall"),',
-                    ']',
-                    '',
-                    'bass_times = [0.0, 0.4, 0.8, 1.6, 3.2]',
-                    '',
-                    'timers = []',
-                    'for time, sound in notes:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'for bt in bass_times:',
-                    '    timers.append(bs.AppTimer(bt, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("gong"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'timers.append(bs.AppTimer(3.2, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("cymbal"),',
-                    '    "volume": 0.3,',
-                    '    "loop": False',
-                    '})))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Nokia Ringtone (Classic)',
-        'The legendary phone tune\neveryone knows.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Nokia Ringtone',
-                    'n = 0.13',
-                    '',
-                    'pattern = [',
-                    '    ("dingSmallHigh", n), ("blip", n),',
-                    '    ("dingSmallHigh", n*2), ("blip", n*2),',
-                    ']',
-                    '',
-                    'timers = []',
-                    't = 0.0',
-                    'for _ in range(4):',
-                    '    for sound, duration in pattern:',
-                    '        timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": 0.6,',
-                    '            "loop": False',
-                    '        })))',
-                    '        t += duration',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Horror Movie Atmosphere',
-        'Creeping dread with\nscary background music.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Horror Atmosphere',
-                    'timers = []',
-                    '',
-                    'bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("scaryMusic"),',
-                    '    "volume": 0.4,',
-                    '    "loop": False',
-                    '})',
-                    '',
-                    'for i in range(5):',
-                    '    timers.append(bs.AppTimer(i * 1.2 + 0.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("hiss"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("gasp"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'timers.append(bs.AppTimer(6.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("spazScream01"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(6.0, lambda: bs.emitfx(',
-                    '    position=(0, 1.5, 0),',
-                    '    count=80,',
-                    '    chunk_type="sweat",',
-                    '    spread=2.0',
-                    ')))',
-                    '',
-                    'ghost = bs.newnode("text", attrs={',
-                    '    "text": "BOO!",',
-                    '    "in_world": True,',
-                    '    "position": (0, 2, 0),',
-                    '    "shadow": 1.0,',
-                    '    "color": (0.5, 0, 0.5),',
-                    '    "scale": 0.001,',
-                    '    "h_align": "center"',
-                    '})',
-                    'bs.animate(ghost, "scale", {5.9: 0.001, 6.0: 0.03, 6.2: 0.025, 7.0: 0})',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Victory Fanfare',
-        'Triumphant win celebration\nwith fanfare and cheers.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Victory Fanfare',
-                    'timers = []',
-                    '',
-                    'bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("fanfare"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})',
-                    '',
-                    'for i in range(5):',
-                    '    timers.append(bs.AppTimer(i * 0.2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("score"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'timers.append(bs.AppTimer(1.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("cheer"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("woo"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("yeah"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'for i in range(10):',
-                    '    timers.append(bs.AppTimer(i * 0.3, lambda: bs.emitfx(',
-                    '        position=(0, 5, 0),',
-                    '        velocity=(0, 3, 0),',
-                    '        count=20,',
-                    '        spread=3.0,',
-                    '        chunk_type="spark"',
-                    '    )))',
-                    '',
-                    'victory = bs.newnode("text", attrs={',
-                    '    "text": "VICTORY!",',
-                    '    "in_world": True,',
-                    '    "position": (0, 3, 0),',
-                    '    "shadow": 1.0,',
-                    '    "color": (2, 2, 0),',
-                    '    "scale": 0.025,',
-                    '    "h_align": "center"',
-                    '})',
-                    'bs.animate(victory, "scale", {0: 0, 0.3: 0.03, 3.0: 0.025, 4.0: 0})',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Boxing Match Intro',
-        'Classic boxing bell\nand crowd atmosphere.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Boxing Match',
-                    'timers = []',
-                    '',
-                    'bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("drumRoll"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})',
-                    '',
-                    'timers.append(bs.AppTimer(1.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("crowdChant"),',
-                    '    "volume": 0.5,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("refWhistle"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("boxingBell"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: Bubble(',
-                    '    bs.get_foreground_host_activity().globalsnode,',
-                    '    "FIGHT!",',
-                    '    color=(2, 0, 0),',
-                    '    time=2.0',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Space Laser Battle',
-        'Sci-fi pew-pew action\nwith laser sounds.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Space Laser Battle',
-                    'timers = []',
-                    '',
-                    'for i in range(8):',
-                    '    delay = i * 0.15',
-                    '    timers.append(bs.AppTimer(delay, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("laser"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '    if i % 2 == 0:',
-                    '        timers.append(bs.AppTimer(delay, lambda: bs.emitfx(',
-                    '            position=(0, 2, 0),',
-                    '            velocity=(5, 0, 0),',
-                    '            count=5,',
-                    '            scale=0.5,',
-                    '            chunk_type="spark"',
-                    '        )))',
-                    '',
-                    'for i in range(4):',
-                    '    t = 1.5 + i * 0.2',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("laserReverse"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("shieldHit"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion03"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    count=60,',
-                    '    scale=1.5,',
-                    '    spread=1.5,',
-                    '    chunk_type="spark"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Magic Spell Sequence',
-        'Mystical incantation with\nsparkles and whooshes.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Magic Spell',
-                    'timers = []',
-                    '',
-                    'bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("powerup01"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})',
-                    '',
-                    'sparkles = ["sparkle01", "sparkle02", "sparkle03"]',
-                    'for i, s in enumerate(sparkles):',
-                    '    timers.append(bs.AppTimer(0.5 + i * 0.5, lambda snd=s, idx=i: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(snd),',
-                    '        "volume": 0.4 + idx * 0.1,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'for i in range(6):',
-                    '    timers.append(bs.AppTimer(i * 0.3, lambda: bs.emitfx(',
-                    '        position=(0, 1, 0),',
-                    '        count=10,',
-                    '        scale=0.3,',
-                    '        chunk_type="spark"',
-                    '    )))',
-                    '',
-                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("swish"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("freeze"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.0, lambda: bs.emitfx(',
-                    '    position=(0, 1.5, 0),',
-                    '    velocity=(0, 0, 5),',
-                    '    count=80,',
-                    '    scale=1.0,',
-                    '    spread=0.5,',
-                    '    chunk_type="spark",',
-                    '    emit_type="tendrils"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Cartoon Chase Music',
-        'Frantic run-away tune\nwith comedic sounds.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Cartoon Chase',
-                    'timers = []',
-                    '',
-                    'bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("runAwayMusic"),',
-                    '    "volume": 0.5,',
-                    '    "loop": False',
-                    '})',
-                    '',
-                    'for i in range(6):',
-                    '    timers.append(bs.AppTimer(i * 0.4, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("scamper01"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("skid01"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bunnyJump"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
-                    '    position=(0, 0.5, 0),',
-                    '    velocity=(-3, 0, 0),',
-                    '    count=30,',
-                    '    chunk_type="sweat",',
-                    '    spread=1.0',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Reveille Wake-Up Call',
-        'Military bugle call to\nstart the day!',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Reveille',
-                    'notes = [',
-                    '    ("ding", 0.3), ("ding", 0.3), ("ding", 0.3),',
-                    '    ("dingSmall", 0.6), ("dingSmallHigh", 0.6),',
-                    '    ("ding", 0.3), ("dingSmall", 0.3), ("dingSmallHigh", 0.3),',
-                    '    ("dingSmall", 0.6), ("ding", 0.6),',
-                    ']',
-                    '',
-                    'timers = []',
-                    't = 0.0',
-                    'for sound, duration in notes:',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '    t += duration',
-                    '',
-                    'timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("forwardMarchMusic"),',
-                    '    "volume": 0.5,',
-                    '    "loop": False',
-                    '})))',
-                ))
-            }
-        }
-    ))
-
-    # ------------------------------------------------------------------
-    # CREATIVE MUSIC COMPOSITIONS
-    # ------------------------------------------------------------------
-
-    presets.append((
-        6,
-        'Retro 8-bit Game',
-        'Classic 8-bit video game\nmelody with beeps.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Retro 8-bit Game',
-                    'timers = []',
-                    '',
-                    '# Main melody using dingSmallHigh',
-                    'melody = [',
-                    '    (0.0, "dingSmallHigh", 0.2), (0.2, "dingSmallHigh", 0.2),',
-                    '    (0.4, "dingSmallHigh", 0.2), (0.6, "dingSmallHigh", 0.4),',
-                    '    (1.0, "dingSmall", 0.2), (1.2, "dingSmall", 0.2),',
-                    '    (1.4, "dingSmall", 0.2), (1.6, "dingSmall", 0.4),',
-                    '    (2.0, "dingSmallHigh", 0.2), (2.2, "dingSmallHigh", 0.2),',
-                    '    (2.4, "dingSmallHigh", 0.2), (2.6, "dingSmallHigh", 0.4),',
-                    '    (3.0, "bellHigh", 0.2), (3.2, "bellHigh", 0.2),',
-                    '    (3.4, "bellHigh", 0.2), (3.6, "bellHigh", 0.6),',
-                    ']',
-                    '',
-                    'for time, sound, duration in melody:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Loop it a few times',
-                    'for loop in range(1, 3):',
-                    '    for time, sound, duration in melody:',
-                    '        timers.append(bs.AppTimer(4.2 + loop * 4.2 + time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": 0.6,',
-                    '            "loop": False',
-                    '        })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Spooky Manor Waltz',
-        'Eerie organ-like waltz\nwith ghostly effects.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Spooky Manor Waltz',
-                    'timers = []',
-                    '',
-                    '# 3/4 waltz pattern',
-                    'waltz = [',
-                    '    (0.0, "bellLow", 0.6),   # Beat 1',
-                    '    (0.6, "bellMed", 0.3),   # Beat 2',
-                    '    (0.9, "bellMed", 0.3),   # Beat 3',
-                    '    (1.2, "bellLow", 0.6),',
-                    '    (1.8, "bellMed", 0.3),',
-                    '    (2.1, "bellMed", 0.3),',
-                    '    (2.4, "bellHigh", 0.6),  # Higher note',
-                    '    (3.0, "bellMed", 0.3),',
-                    '    (3.3, "bellMed", 0.3),',
-                    ']',
-                    '',
-                    'for time, sound, duration in waltz:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Spooky background hisses',
-                    'for i in range(5):',
-                    '    timers.append(bs.AppTimer(i * 0.8, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("hiss"),',
-                    '        "volume": 0.2,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Retro Chiptune Boss',
-        'High-energy 8-bit boss\nfight theme.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Retro Chiptune Boss',
-                    'timers = []',
-                    '',
-                    '# Fast, intense melody',
-                    'boss_theme = [',
-                    '    (0.0, "bellHigh", 0.1), (0.1, "bellHigh", 0.1),',
-                    '    (0.2, "bellMed", 0.1), (0.3, "bellMed", 0.1),',
-                    '    (0.4, "bellHigh", 0.1), (0.5, "bellHigh", 0.1),',
-                    '    (0.6, "bellLow", 0.2),',
-                    '    (0.8, "bellHigh", 0.1), (0.9, "bellHigh", 0.1),',
-                    '    (1.0, "bellMed", 0.1), (1.1, "bellMed", 0.1),',
-                    '    (1.2, "bellHigh", 0.1), (1.3, "bellHigh", 0.1),',
-                    '    (1.4, "bellLow", 0.2),',
-                    '    (1.6, "dingSmallHigh", 0.15), (1.75, "dingSmallHigh", 0.15),',
-                    '    (1.9, "dingSmall", 0.3),',
-                    ']',
-                    '',
-                    'for time, sound, duration in boss_theme:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Tension drums',
-                    'for i in range(8):',
-                    '    timers.append(bs.AppTimer(i * 0.25, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Tropical Disco',
-        'Groovy disco beat with\ntropical flair.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Tropical Disco',
-                    'timers = []',
-                    '',
-                    '# Disco bassline',
-                    'beat = 0.4',
-                    'for measure in range(4):',
-                    '    t = measure * (beat * 4)',
-                    '    # Bass',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                    '    # Snare on 2 and 4',
-                    '    timers.append(bs.AppTimer(t + beat, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + beat*2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + beat*3, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Hi-hat on 16ths',
-                    'for i in range(16):',
-                    '    t = i * (beat/4)',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tick"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Tropical stabs',
-                    'for i in range(4):',
-                    '    timers.append(bs.AppTimer(i * 1.6, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Sci-Fi Alert System',
-        'Futuristic alarm with\nrobotic elements.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Sci-Fi Alert System',
-                    'timers = []',
-                    '',
-                    '# Ascending warning tones',
-                    'alert = [',
-                    '    ("dingSmall", 0.2), ("dingSmallHigh", 0.2),',
-                    '    ("bellHigh", 0.2), ("dingSmallHigh", 0.2),',
-                    '    ("bellHigh", 0.2), ("bellHigh", 0.2),',
-                    ']',
-                    '',
-                    'for cycle in range(3):',
-                    '    for i, (sound, duration) in enumerate(alert):',
-                    '        t = cycle * 1.5 + i * 0.25',
-                    '        timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": 0.7,',
-                    '            "loop": False',
-                    '        })))',
-                    '',
-                    '# Descending alert at end',
-                    'for i in range(4):',
-                    '    t = 4.5 + i * 0.15',
-                    '    sound = "bellHigh" if i % 2 == 0 else "dingSmallHigh"',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Cowboy Showdown',
-        'Western duel with dramatic\ntrumpet and drums.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Cowboy Showdown',
-                    'timers = []',
-                    '',
-                    '# Western drama build',
                     'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("drumRoll"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
+                    '    "sound": bs.getsound("drumRoll"), "volume": 0.9, "loop": False',
                     '})))',
-                    '',
-                    '# Tension notes',
-                    'for i in range(6):',
-                    '    t = i * 0.3',
-                    '    sound = "bellLow" if i % 2 == 0 else "bellMed"',
-                    '    timers.append(bs.AppTimer(t + 0.5, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# THE SHOT!',
-                    'timers.append(bs.AppTimer(2.3, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("gunCocking"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Impact and explosion',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion01"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.emitfx(',
-                    '    position=(0, 1, 0),',
-                    '    count=50,',
-                    '    chunk_type="spark",',
-                    '    spread=1.5',
-                    ')))',
-                    '',
-                    '# Victory',
-                    'timers.append(bs.AppTimer(3.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("fanfare"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
+                    'def _spawn_hero():',
+                    '    bot = Spaz(character="Spaz", start_invincible=False,',
+                    '               color=(0.4, 0.5, 0.8), highlight=(1.0, 1.0, 1.0))',
+                    '    bot.handlemessage(bs.StandMessage((0, 1, 0), 0))',
+                    'timers.append(bs.AppTimer(1.6, _spawn_hero))',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'Submarine Depths',
-        'Eerie underwater sonar\nand metallic pings.',
+        'Instant Boss Reveal',
+        'Dark red wash + gong hit +\noversized villain step-in, all\nin one preset for a fast boss\nintro.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI Submarine Depths',
+                    '# MOVI Instant Boss Reveal',
                     'timers = []',
-                    '',
-                    '# Sonar pings at irregular intervals',
-                    'sonar_pattern = [0.0, 0.8, 1.3, 2.1, 2.9, 3.2, 4.5, 5.1]',
-                    '',
-                    'for t in sonar_pattern:',
-                    '    # Main ping',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '    # Echo',
-                    '    timers.append(bs.AppTimer(t + 0.15, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Metal creaks',
-                    'for i in range(4):',
-                    '    timers.append(bs.AppTimer(i * 1.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("metalHit"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Distant alarm',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("alarm"),',
-                    '    "volume": 0.3,',
-                    '    "loop": False',
-                    '})))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Forest Birds Morning',
-        'Peaceful nature ambience\nwith bell sounds.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Forest Birds Morning',
-                    'timers = []',
-                    '',
-                    '# Gentle bell melody (C major chord progression)',
-                    'birds = [',
-                    '    (0.0, "bellMed", 0.4),',
-                    '    (0.5, "bellHigh", 0.4),',
-                    '    (1.0, "bellMed", 0.4),',
-                    '    (1.5, "bellLow", 0.4),',
-                    '    (2.0, "bellMed", 0.4),',
-                    '    (2.5, "bellHigh", 0.4),',
-                    '    (3.0, "bellMed", 0.6),',
-                    ']',
-                    '',
-                    'for cycle in range(2):',
-                    '    for time, sound, duration in birds:',
-                    '        timers.append(bs.AppTimer(cycle * 3.5 + time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": 0.5,',
-                    '            "loop": False',
-                    '        })))',
-                    '',
-                    '# Random light pings',
-                    'import random',
-                    'for i in range(6):',
-                    '    t = random.uniform(0, 7)',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("dingSmallHigh"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Arcade Game Over',
-        'Classic sad 8-bit game\nover melody.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Arcade Game Over',
-                    'timers = []',
-                    '',
-                    '# Descending sad melody',
-                    'game_over = [',
-                    '    (0.0, "bellHigh", 0.3),',
-                    '    (0.4, "bellMed", 0.3),',
-                    '    (0.8, "bellLow", 0.3),',
-                    '    (1.2, "dingSmall", 0.3),',
-                    '    (1.6, "bellLow", 0.3),',
-                    '    (2.0, "bellLow", 0.6),',
-                    ']',
-                    '',
-                    'for time, sound, duration in game_over:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Sad echo',
-                    'timers.append(bs.AppTimer(2.7, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bellLow"),',
-                    '    "volume": 0.3,',
-                    '    "loop": False',
-                    '})))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Robot Dance Party',
-        'Robotic rhythm with\nmechanical beats.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Robot Dance Party',
-                    'timers = []',
-                    '',
-                    '# 4-on-the-floor beat',
-                    'beat_len = 0.25',
-                    'for measure in range(8):',
-                    '    base_t = measure * beat_len * 4',
-                    '    # Kick (bass)',
-                    '    timers.append(bs.AppTimer(base_t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.9,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base_t + beat_len*2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.9,',
-                    '        "loop": False',
-                    '    })))',
-                    '    # Hi-hat (hi)',
-                    '    timers.append(bs.AppTimer(base_t + beat_len, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base_t + beat_len*3, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Synth melody',
-                    'synth = [(0, "bellHigh"), (1, "bellMed"), (2, "bellHigh"), (3, "bellLow")]',
-                    'for i, (beat, sound) in enumerate(synth):',
-                    '    timers.append(bs.AppTimer(beat, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Eerie Bell Tower',
-        'Haunting bell tolls at\ndusk.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Eerie Bell Tower',
-                    'timers = []',
-                    '',
-                    '# Slow bell tolls',
-                    'tolls = [0, 1.5, 3.2, 5.1, 7.2, 9.5]',
-                    'for t in tolls:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("gong"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '    # Reverb (quieter second toll)',
-                    '    timers.append(bs.AppTimer(t + 0.3, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.2,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Eerie wind',
-                    'for i in range(3):',
-                    '    timers.append(bs.AppTimer(i * 2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("hiss"),',
-                    '        "volume": 0.2,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Cha-Cha-Cha Latin',
-        'Lively Latin dance rhythm\nwith brass-like bells.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Cha-Cha-Cha Latin',
-                    'timers = []',
-                    '',
-                    '# Cha-cha-cha pattern (quick-quick-slow)',
-                    'step = 0.3',
-                    'for measure in range(4):',
-                    '    t = measure * (step * 5)',
-                    '    # Cha cha cha (quick)',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + step, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + step*2, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '    # Slow beat',
-                    '    timers.append(bs.AppTimer(t + step*3.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellHigh"),',
-                    '        "volume": 0.6,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Background bass',
-                    'for i in range(8):',
-                    '    timers.append(bs.AppTimer(i * 0.75, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Trap Beat Drop',
-        'Modern trap with 808 bass,\nhi-hats, and snare rolls.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Trap Beat Drop',
-                    'timers = []',
-                    '',
-                    '# 808 Sub Bass (deep, punchy)',
-                    'beat = 0.25',
-                    'for bar in range(2):',
-                    '    t = bar * 2',
-                    '    # Drop the bass',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 1.0,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + 0.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 1.0,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + 1.0, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.9,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Snare on 2 and 4 (trap snare)',
-                    'for bar in range(4):',
-                    '    t = bar * 1.0',
-                    '    timers.append(bs.AppTimer(t + 0.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("punchStrong01"),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Rapid hi-hat rolls (16th notes)',
-                    'for i in range(32):',
-                    '    t = i * 0.125',
-                    '    if i % 4 != 0:  # Skip on main beats',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound("tick"),',
-                    '            "volume": 0.35,',
-                    '            "loop": False',
-                    '        })))',
-                    '',
-                    '# Cymbal crash buildup',
-                    'for i in range(4):',
-                    '    t = 3.5 + i * 0.15',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("cymbal"),',
-                    '        "volume": 0.6 + i * 0.1,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# THE DROP with all bells',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bellLow"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bellMed"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    velocity=(0, 5, 0),',
-                    '    count=100,',
-                    '    scale=1.5,',
-                    '    spread=2.0,',
-                    '    chunk_type="spark"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'Funk Groove Supreme',
-        'Funky synth bass with\nsyncopated rhythms and\nbrass stabs.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Funk Groove Supreme',
-                    'timers = []',
-                    '',
-                    '# Classic funk drum pattern (kick on 1, 3, and +)',
-                    'kick_times = [0.0, 0.75, 1.5, 1.75, 2.25, 3.0, 3.75]',
-                    'for t in kick_times:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.95,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Snare/clap hits (tight, on 2 and 4)',
-                    'snare_times = [0.75, 2.25]',
-                    'for t in snare_times:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("punchStrong01"),',
-                    '        "volume": 0.8,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Tight closed hi-hats (8th notes, every beat)',
-                    'for i in range(32):',
-                    '    t = i * 0.1875',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tick"),',
-                    '        "volume": 0.45,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Funky bass guitar riff (syncopated groove)',
-                    'bass_riff = [',
-                    '    (0.0, "bellMed", 0.95),',
-                    '    (0.375, "bellLow", 0.95),',
-                    '    (0.75, "bellMed", 0.85),',
-                    '    (1.125, "bellLow", 0.9),',
-                    '    (1.5, "bellMed", 0.95),',
-                    '    (1.875, "bellLow", 0.85),',
-                    '    (2.25, "bellHigh", 0.8),',
-                    '    (2.625, "bellMed", 0.9),',
-                    '    (3.0, "bellLow", 0.95),',
-                    '    (3.375, "bellMed", 0.85),',
-                    '    (3.75, "bellLow", 0.9),',
-                    ']',
-                    '',
-                    'for time, sound, vol in bass_riff:',
-                    '    timers.append(bs.AppTimer(time, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": v,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Brass horn stabs (horn hits on upbeats)',
-                    'horn_stabs = [0.375, 1.125, 2.625, 3.375]',
-                    'for t in horn_stabs:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellHigh"),',
-                    '        "volume": 0.88,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Percussive lock-in hits (clave rhythm)',
-                    'clave = [0.0, 0.5, 1.25, 2.0, 2.75, 3.5]',
-                    'for t in clave:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tap"),',
-                    '        "volume": 0.35,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Loop the groove 2x for that groove feel',
-                    'for loop in range(1, 2):',
-                    '    offset = loop * 4.0',
-                    '    for time, sound, vol in bass_riff:',
-                    '        timers.append(bs.AppTimer(offset + time, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
-                    '            "sound": bs.getsound(s),',
-                    '            "volume": v,',
-                    '            "loop": False',
-                    '        })))',
-                    '',
-                    '# Build to climax with layered brass',
-                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bellHigh"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bellMed"),',
-                    '    "volume": 0.85,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(7.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("punchStrong02"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(7.5, lambda: bs.emitfx(',
-                    '    position=(0, 1.5, 0),',
-                    '    velocity=(0, 2.5, 0),',
-                    '    count=60,',
-                    '    scale=1.0,',
-                    '    spread=1.5,',
-                    '    chunk_type="spark"',
-                    ')))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'BombSquad Swag Banger',
-        'Ultimate BombSquad remix using\ngame sounds for maximum\nenergy and nostalgia.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI BombSquad Swag Banger',
-                    'timers = []',
-                    'nice_nodes = []',
-                    '',
-                    '# INTRO: Tension build with ascending tones',
+                    'bs.newnode("light", attrs={',
+                    '    "intensity": 1.6, "radius": 5.0, "color": (2.0, 0.1, 0.1),',
+                    '    "position": (0, 3, 0), "volume_intensity_scale": 0.0',
+                    '})',
                     'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("alarm"),',
-                    '    "volume": 0.4,',
-                    '    "loop": False',
+                    '    "sound": bs.getsound("gong"), "volume": 1.1, "loop": False',
                     '})))',
-                    '',
-                    '# Slow countdown announces (generous spacing)',
-                    'announces = ["Five", "Four", "Three", "Two", "One"]',
-                    'for i, num_name in enumerate(announces):',
-                    '    t = 1.0 + i * 1.5',
-                    '    sound_name = f"announce{num_name}"',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.85,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Background pattern: bellLow - bellMed alternating',
-                    'for cycle in range(4):',
-                    '    t = 1.2 + cycle * 1.2',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellLow"),',
-                    '        "volume": 0.25,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + 0.6, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellMed"),',
-                    '        "volume": 0.25,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Sci-fi tension: ascending then descending',
-                    'for cycle in range(2):',
-                    '    base = 2.0 + cycle * 3.0',
-                    '    timers.append(bs.AppTimer(base, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("dingSmall"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base + 0.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("dingSmallHigh"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base + 1.0, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("bellHigh"),',
-                    '        "volume": 0.35,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base + 1.5, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("dingSmallHigh"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(base + 2.0, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("dingSmall"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# MOMENT OF SILENCE (8.0-8.5)',
-                    '',
-                    '# BASS DROP EXPLOSION',
-                    'timers.append(bs.AppTimer(8.5, lambda: bs.emitfx(',
-                    '    position=(0, 0, 0),',
-                    '    velocity=(0, 6, 0),',
-                    '    count=120,',
-                    '    scale=2.5,',
-                    '    spread=2.0,',
-                    '    chunk_type="spark"',
-                    ')))',
-                    '',
-                    '# KICK PATTERN: explosion - bellLow alternating',
-                    'kick_times = [8.5, 9.0, 9.5, 10.2, 10.9]',
-                    'for i, t in enumerate(kick_times):',
-                    '    sound = "explosion01" if i % 2 == 0 else "bellLow"',
-                    '    vol = 0.75 if i % 2 == 0 else 0.8',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": v,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# SPAZ ATTACK sequence with spacing',
-                    'spaz_attacks = ["spazAttack01", "spazAttack02", "spazAttack03", "spazAttack04"]',
-                    'spaz_times = [8.8, 9.5, 10.3, 11.1]',
-                    'for i, t in enumerate(spaz_times):',
-                    '    sound = spaz_attacks[i % 4]',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# PUNCH SWISH pattern (sparse)',
-                    'for i in range(8):',
-                    '    t = 8.5 + i * 0.6',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("punchSwish"),',
-                    '        "volume": 0.3,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# ORCHESTRA HIT stabs (moments of impact)',
-                    'stab_times = [9.0, 10.0, 11.0]',
-                    'for t in stab_times:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("orchestraHitBig1"),',
-                    '        "volume": 0.9,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# HYPE reactions (spaced)',
-                    'hype_times = [9.3, 10.5]',
-                    'hype_sounds = ["cheer", "woo"]',
-                    'for t, sound in zip(hype_times, hype_sounds):',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.65,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# BOMB DROP signature',
-                    'timers.append(bs.AppTimer(9.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bombDrop01"),',
-                    '    "volume": 0.75,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# SPAZ IMPACT layering',
-                    'impact_times = [8.7, 9.8, 10.8, 11.5]',
-                    'impacts = ["spazImpact01", "spazImpact02", "spazImpact03", "spazImpact04"]',
-                    'for t, impact in zip(impact_times, impacts):',
-                    '    timers.append(bs.AppTimer(t, lambda s=impact: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": 0.65,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# CLIMAX: Gather energy',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("powerup01"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# NICE stutter with proper cutoff/spacing',
-                    '# First "Nice!"',
-                    'timers.append(bs.AppTimer(12.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("nice"),',
-                    '    "volume": 0.85,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Second "Nice!" (cut off first)',
-                    'timers.append(bs.AppTimer(12.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("nice"),',
-                    '    "volume": 0.85,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Rapid stutter: "Ni- Ni- Ni-"',
-                    'for i in range(3):',
-                    '    t = 13.1 + i * 0.25',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("nice"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Full "Nice!" finale',
-                    'timers.append(bs.AppTimer(13.85, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("nice"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# ORCHESTRAL finale stabs',
-                    'timers.append(bs.AppTimer(13.6, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("orchestraHitBig2"),',
-                    '    "volume": 0.95,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(13.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("orchestraHit"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# MASSIVE FINAL EXPLOSION',
-                    'timers.append(bs.AppTimer(13.6, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    velocity=(0, 8, 0),',
-                    '    count=200,',
-                    '    scale=3.0,',
-                    '    spread=2.8,',
-                    '    chunk_type="spark",',
-                    '    emit_type="distortion"',
-                    ')))',
-                    '',
-                    '# Victory sting (final bow)',
-                    'timers.append(bs.AppTimer(14.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("victoryMusic"),',
-                    '    "volume": 0.85,',
-                    '    "loop": False',
-                    '})))',
+                    'def _spawn_boss():',
+                    '    bot = Spaz(character="Grumbledorf", start_invincible=False,',
+                    '               color=(0.3, 0.0, 0.0), highlight=(1.5, 0.0, 0.0))',
+                    '    bot.handlemessage(bs.StandMessage((0, 1, 0), 0))',
+                    'timers.append(bs.AppTimer(0.8, _spawn_boss))',
                 ))
-            }
         }
+    }
     ))
 
     presets.append((
         6,
-        'THE REAL BANGER',
-        'Heavily layered trap remix.\nSyncopated rhythms and\nglitch FX.',
+        'Victory Podium',
+        'Cheer + achievement chime +\nspark shower + "WINNER" text,\nready to drop on a win screen.',
         {
             'data': {
                 'code': '\n'.join((
-                    '# MOVI: THE REAL BANGER',
+                    '# MOVI Victory Podium',
                     'timers = []',
-                    '',
-                    '# --- HELPER: BEAT MAKER ---',
-                    '# Function to layer sounds for "thick" drums',
-                    'def drum(t, type="kick"):',
-                    '    if type == "kick":',
-                    '        # Sub + Thud + Click layer',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("bombDrop01"), "volume":1.0})))',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("footImpact03"), "volume":0.8})))',
-                    '    elif type == "snare":',
-                    '        # Punch + Pop + High freq layer',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("punchStrong01"), "volume":1.0})))',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("corkPop"), "volume":0.6})))',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shatter"), "volume":0.3})))',
-                    '    elif type == "hat":',
-                    '        timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("tick"), "volume":0.5})))',
-                    '',
-                    '# --- INTRO: ATMOSPHERE (0-4s) ---',
-                    'timers.append(bs.AppTimer(0.1, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("orchestraHitBig2"), "volume":1.0})))',
-                    'timers.append(bs.AppTimer(0.1, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("crowdChant"), "volume":0.6})))',
-                    '',
-                    '# Clock ticking speed up',
-                    'for i in range(8):',
-                    '    t = 0.5 + i * 0.4',
-                    '    drum(t, "hat")',
-                    '',
-                    '# --- THE BUILD (4-6s) ---',
-                    '# Rising tension using reverse laser',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("laserReverse"), "volume":0.8})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("fuse01"), "volume":0.5})))',
-                    '',
-                    '# Pre-drop Vocal chop',
-                    'timers.append(bs.AppTimer(5.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceThree"), "volume":0.9})))',
-                    'timers.append(bs.AppTimer(5.4, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceTwo"), "volume":0.9})))',
-                    'timers.append(bs.AppTimer(5.8, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("announceOne"), "volume":0.9})))',
-                    '',
-                    '# Silence right before drop for impact',
-                    '',
-                    '# --- THE DROP (6.0s) - TRAP BEAT ---',
-                    'bpm = 0.45',
-                    'start_drop = 6.2',
-                    '',
-                    '# The Bass Line (Wub Wub using ShieldUp)',
-                    'for i in range(16):',
-                    '    t = start_drop + i * (bpm/2)',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("shieldUp"), "volume":0.4})))',
-                    '',
-                    '# Beat Pattern: Kick - Hat - Snare - Hat - Kick - Kick - Snare - Roll',
-                    'pattern_times = [0, 0.5, 1.0, 1.5, 2.0, 2.25, 3.0, 3.5, 3.75]',
-                    'pattern_types = ["kick", "hat", "snare", "hat", "kick", "kick", "snare", "hat", "hat"]',
-                    '',
-                    '# Loop the beat twice',
-                    'for loop in range(2):',
-                    '    offset = start_drop + (loop * bpm * 4)',
-                    '    for p_time, p_type in zip(pattern_times, pattern_types):',
-                    '        drum(offset + (p_time * bpm), p_type)',
-                    '',
-                    '    # Add "Nice" vocal stutter on the 1st beat of loop',
-                    '    timers.append(bs.AppTimer(offset, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("nice"), "volume":0.8})))',
-                    '    timers.append(bs.AppTimer(offset + 0.15, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("nice"), "volume":0.6})))',
-                    '',
-                    '# --- GLITCH BREAK (9.8s) ---',
-                    '# Rapid fire gun cocking (Drill style roll)',
-                    'for i in range(8):',
-                    '    timers.append(bs.AppTimer(9.8 + i*0.06, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("gunCocking"), "volume":0.7})))',
-                    '',
-                    '# --- SECOND DROP (10.5s) ---',
-                    '# Heavier, with visual FX',
-                    'timers.append(bs.AppTimer(10.5, lambda: bs.emitfx(position=(0, 2, 0), velocity=(0,5,0), count=100, scale=3.0, spread=1.0, chunk_type="spark")))',
-                    'drum(10.5, "kick")',
-                    'timers.append(bs.AppTimer(10.5, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("orchestraHitBig1"), "volume":1.0})))',
-                    '',
-                    '# "Laser" melody',
-                    'mel_notes = [10.5, 10.8, 11.1, 11.4]',
-                    'for t in mel_notes:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("laser"), "volume":0.6})))',
-                    '',
-                    '# --- OUTRO (12.0s) ---',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("powerdown01"), "volume":1.0})))',
-                    'timers.append(bs.AppTimer(13.0, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("scamper01"), "volume":1.0}))) # Scratch sound',
-                    'timers.append(bs.AppTimer(13.5, lambda: bs.newnode("sound", attrs={"sound":bs.getsound("ooh"), "volume":1.0})))',
-                ))
-            }
-        }
-    ))
-
-    presets.append((
-        6,
-        'ABSOLUTE CHAOS',
-        'Heavy dubstep drop with\nvocal chops, explosion bass,\nand drill-style rolls.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI: ABSOLUTE CHAOS - THE REAL DEAL',
-                    'timers = []',
-                    '',
-                    '# === INTRO: TENSION BUILD (0-4s) ===',
-                    '# Alarm + crowd building anticipation',
+                    'bs.newnode("text", attrs={',
+                    '    "text": "WINNER", "position": (0, 2.4, 0), "in_world": True,',
+                    '    "shadow": 1.0, "flatness": 0.8, "scale": 0.024,',
+                    '    "color": (2.0, 2.0, 0.4), "h_align": "center"',
+                    '})',
                     'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("alarm"),',
-                    '    "volume": 0.5,',
-                    '    "loop": False',
+                    '    "sound": bs.getsound("cheer"), "volume": 1.0, "loop": False',
                     '})))',
                     'timers.append(bs.AppTimer(0.2, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("crowdChant"),',
-                    '    "volume": 0.4,',
-                    '    "loop": False',
+                    '    "sound": bs.getsound("achievement"), "volume": 0.9, "loop": False',
                     '})))',
-                    '',
-                    '# Rising laser tension',
-                    'timers.append(bs.AppTimer(1.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("laserReverse"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Countdown with character vocal chops (aggressive)',
-                    'timers.append(bs.AppTimer(2.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("announceThree"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(2.5, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("announceTwo"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("announceOne"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Fuse burning for extra tension',
-                    'timers.append(bs.AppTimer(3.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("fuse01"),',
-                    '    "volume": 0.6,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Pre-drop silence at 3.8s',
-                    '',
-                    '# === THE DROP (4.0s) - MASSIVE EXPLOSION BASS ===',
-                    '# TRIPLE LAYER BASS HIT',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion05"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bombDrop01"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("impactHard3"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Massive visual explosion',
-                    'timers.append(bs.AppTimer(4.0, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    velocity=(0, 8, 0),',
-                    '    count=150,',
-                    '    scale=3.5,',
-                    '    spread=2.5,',
-                    '    chunk_type="spark",',
-                    '    emit_type="distortion"',
+                    'timers.append(bs.AppTimer(0.2, lambda: bs.emitfx(',
+                    '    position=(0, 1.2, 0), velocity=(0, 3, 0), count=40, scale=1.0,',
+                    '    spread=1.0, chunk_type="spark", emit_type="stickers"',
                     ')))',
-                    '',
-                    '# === MAIN BEAT PATTERN (4.0-8.0s) ===',
-                    'beat = 0.42  # ~142 BPM',
-                    '',
-                    '# Kick pattern with explosion bass',
-                    'kick_times = [4.0, 4.5, 5.2, 5.8, 6.4, 6.65, 7.3, 7.8]',
-                    'for t in kick_times:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("explosion01"),',
-                    '        "volume": 0.85,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("impactHard"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Snare hits (punchStrong + shatter combo)',
-                    'snare_times = [4.84, 5.68, 6.52, 7.36]',
-                    'for t in snare_times:',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("punchStrong02"),',
-                    '        "volume": 1.0,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("shatter"),',
-                    '        "volume": 0.4,',
-                    '        "loop": False',
-                    '    })))',
-                    '    timers.append(bs.AppTimer(t + 0.05, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("metalHit"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Hi-hats (rapid ticking pattern)',
-                    'for i in range(32):',
-                    '    t = 4.0 + i * 0.125',
-                    '    vol = 0.4 if i % 4 == 0 else 0.25',
-                    '    timers.append(bs.AppTimer(t, lambda v=vol: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("tick"),',
-                    '        "volume": v,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# === VOCAL CHOP MELODY (spaz/ninja vocals) ===',
-                    'vocal_pattern = [',
-                    '    (4.2, "spazAttack01", 0.8),',
-                    '    (4.6, "ninjaAttack3", 0.7),',
-                    '    (5.0, "spazAttack02", 0.8),',
-                    '    (5.4, "ninjaAttack5", 0.75),',
-                    '    (5.8, "spazAttack03", 0.8),',
-                    '    (6.2, "ninjaAttack7", 0.7),',
-                    '    (6.6, "spazAttack04", 0.85),',
-                    '    (7.0, "ninjaAttack1", 0.75),',
-                    ']',
-                    'for t, sound, vol in vocal_pattern:',
-                    '    timers.append(bs.AppTimer(t, lambda s=sound, v=vol: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound(s),',
-                    '        "volume": v,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# === ORCHESTRA STABS (epic moments) ===',
-                    'timers.append(bs.AppTimer(5.26, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("orchestraHitBig1"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(6.94, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("orchestraHitBig2"),',
-                    '    "volume": 0.95,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# === DRILL ROLL BREAKDOWN (8.0-8.8s) ===',
-                    '# Rapid gunCocking drill pattern',
-                    'for i in range(16):',
-                    '    t = 8.0 + i * 0.05',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("gunCocking"),',
-                    '        "volume": 0.7 + (i * 0.015),',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Layered punch swishes for intensity',
-                    'for i in range(8):',
-                    '    t = 8.0 + i * 0.1',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("punchSwish"),',
-                    '        "volume": 0.5,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# === SECOND DROP (8.8s) - EVEN HEAVIER ===',
-                    '# QUAD LAYER MEGA BASS',
-                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion05"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion04"),',
-                    '    "volume": 0.95,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bombDrop02"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(8.8, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("bigImpact2"),',
-                    '    "volume": 0.85,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Massive explosion FX',
-                    'timers.append(bs.AppTimer(8.8, lambda: bs.emitfx(',
-                    '    position=(0, 2, 0),',
-                    '    velocity=(0, 10, 0),',
-                    '    count=200,',
-                    '    scale=4.0,',
-                    '    spread=3.0,',
-                    '    chunk_type="spark",',
-                    '    emit_type="distortion"',
-                    ')))',
-                    '',
-                    '# Laser rips (aggressive high freq)',
-                    'for i in range(6):',
-                    '    t = 8.9 + i * 0.15',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("laser"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# === "NICE" VOCAL STUTTER (10.0-10.8s) ===',
-                    '# Clean "Nice" starter',
-                    'timers.append(bs.AppTimer(10.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("nice"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Rapid stutter',
-                    'for i in range(5):',
-                    '    t = 10.3 + i * 0.08',
-                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
-                    '        "sound": bs.getsound("nice"),',
-                    '        "volume": 0.7,',
-                    '        "loop": False',
-                    '    })))',
-                    '',
-                    '# Final clean "Nice"',
-                    'timers.append(bs.AppTimer(10.7, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("nice"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# === HYPE SECTION (11.0-12.0s) ===',
-                    '# Crowd reactions',
-                    'timers.append(bs.AppTimer(11.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("cheer"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(11.3, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("woo2"),',
-                    '    "volume": 0.7,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(11.6, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("yeah"),',
-                    '    "volume": 0.75,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# === FINAL CLIMAX (12.0s) ===',
-                    '# Everything at once',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("orchestraHitBig2"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("explosion05"),',
-                    '    "volume": 1.0,',
-                    '    "loop": False',
-                    '})))',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("superPunch"),',
-                    '    "volume": 0.9,',
-                    '    "loop": False',
-                    '})))',
-                    '',
-                    '# Ultimate FX finale',
-                    'timers.append(bs.AppTimer(12.0, lambda: bs.emitfx(',
-                    '    position=(0, 3, 0),',
-                    '    velocity=(0, 12, 0),',
-                    '    count=250,',
-                    '    scale=5.0,',
-                    '    spread=3.5,',
-                    '    chunk_type="spark",',
-                    '    emit_type="distortion"',
-                    ')))',
-                    '',
-                    '# Victory sting',
-                    'timers.append(bs.AppTimer(13.0, lambda: bs.newnode("sound", attrs={',
-                    '    "sound": bs.getsound("victoryMusic"),',
-                    '    "volume": 0.8,',
-                    '    "loop": False',
-                    '})))',
                 ))
-            }
         }
+    }
     ))
 
+    presets.append((
+        6,
+        'Countdown Launch',
+        'Five-to-one voice countdown\nthat ends in an explosion -\nthe whole beat in one preset.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Countdown Launch',
+                    'timers = []',
+                    'announces = ["Five", "Four", "Three", "Two", "One"]',
+                    'for i, num_name in enumerate(announces):',
+                    '    t = i * 1.0',
+                    '    sound_name = f"announce{num_name}"',
+                    '    timers.append(bs.AppTimer(t, lambda s=sound_name: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(s), "volume": 0.9, "loop": False}',
+                    '    )))',
+                    'timers.append(bs.AppTimer(5.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("explosion05"), "volume": 1.0, "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(5.0, lambda: bs.emitfx(',
+                    '    position=(0, 1.5, 0), velocity=(0, 5, 0), chunk_type="rock",',
+                    '    emit_type="stickers", count=60, scale=2.0, spread=1.5',
+                    ')))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Quick Two-Character Duel',
+        'Spawns two ready-to-go Spaz\ncharacters facing each other -\nsaves setting up both by hand.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Quick Two-Character Duel',
+                    'left = Spaz(character="Spaz", start_invincible=False,',
+                    '            color=(0.4, 0.5, 0.8), highlight=(1.0, 1.0, 1.0))',
+                    'left.handlemessage(bs.StandMessage((-2, 1, 0), 1.57))',
+                    'right = Spaz(character="Snake Shadow", start_invincible=False,',
+                    '             color=(2.2, 0.0, 0.4), highlight=(2.5, 0.0, 4.0))',
+                    'right.handlemessage(bs.StandMessage((2, 1, 0), -1.57))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Suspense Build',
+        'Burning fuse loop + a dim red\nlight + a warning beep - a\nready-made tension bed.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Suspense Build',
+                    'timers = []',
+                    'bs.newnode("light", attrs={',
+                    '    "intensity": 0.8, "radius": 2.0, "color": (1.2, 0.1, 0.1),',
+                    '    "position": (0, 1.5, 0), "volume_intensity_scale": 0.0',
+                    '})',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("fuse01"), "volume": 0.7, "loop": True',
+                    '})))',
+                    'timers.append(bs.AppTimer(1.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("warnBeep"), "volume": 0.8, "loop": False',
+                    '})))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Comedy Fail',
+        'Error buzz + crowd boo + a\nslime splat FX for a fast\nslapstick fail beat.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Comedy Fail',
+                    'timers = []',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("error"), "volume": 1.0, "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(0.3, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("boo"), "volume": 0.9, "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(0.3, lambda: bs.emitfx(',
+                    '    position=(0, 1.0, 0), chunk_type="slime", emit_type="stickers",',
+                    '    count=22, scale=0.9, spread=0.7',
+                    ')))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Sports Intro',
+        'Boxing bell + looping crowd\nchant + a referee whistle -\nready for a match-start scene.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Sports Intro',
+                    'timers = []',
+                    'timers.append(bs.AppTimer(0.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("crowdChant"), "volume": 0.6, "loop": True',
+                    '})))',
+                    'timers.append(bs.AppTimer(0.5, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("boxingBell"), "volume": 1.0, "loop": False',
+                    '})))',
+                    'timers.append(bs.AppTimer(1.0, lambda: bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("refWhistle"), "volume": 1.0, "loop": False',
+                    '})))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Retro Arcade Blips',
+        'Quick ascending arcade-style\nblip run - good for a menu or\nscore-tick moment.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Retro Arcade Blips',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'ding', 0.7),",
+                    "    (0.15, 'dingSmall', 0.6),",
+                    "    (0.3, 'dingSmallHigh', 0.6),",
+                    "    (0.45, 'ding', 0.7),",
+                    "    (0.6, 'dingSmallHigh', 0.8),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Suspense Rising Tension',
+        'Alarm pulse followed by rising\ndings - simple building tension\nbed.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Suspense Rising Tension',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'alarm', 0.4),",
+                    "    (0.8, 'dingSmall', 0.3),",
+                    "    (1.6, 'dingSmallHigh', 0.35),",
+                    "    (2.4, 'bellHigh', 0.4),",
+                    "    (3.2, 'bellHigh', 0.5),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Bell Chime Cascade',
+        'Low-to-high bell run, works\nwell for a peaceful or magical\nmoment.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Bell Chime Cascade',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'bellLow', 0.6),",
+                    "    (0.4, 'bellMed', 0.6),",
+                    "    (0.8, 'bellHigh', 0.6),",
+                    "    (1.4, 'bellLow', 0.4),",
+                    "    (1.8, 'bellHigh', 0.5),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Explosive Climax',
+        'Three layered explosions plus\na big particle burst, all on\none beat - a ready-made\nfinale moment.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Explosive Climax',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'explosion05', 1.0),",
+                    "    (0.0, 'explosion04', 0.9),",
+                    "    (0.05, 'bigImpact', 0.8),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                    '',
+                    'fx_events = [',
+                    "    (0.0, {'position': (0, 2, 0), 'velocity': (0, 10, 0), 'count': 150, 'scale': 3.5, 'spread': 3.0, 'chunk_type': 'spark', 'emit_type': 'distortion'}),",
+                    ']',
+                    'for t, kwargs in fx_events:',
+                    '    timers.append(bs.AppTimer(t, lambda kwargs=kwargs: bs.emitfx(**kwargs)))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Score Combo Ding',
+        'Five quick rising dings for a\ncombo/score-multiplier feel.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Score Combo Ding',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'dingSmallHigh', 0.4),",
+                    "    (0.12, 'dingSmallHigh', 0.5),",
+                    "    (0.24, 'dingSmallHigh', 0.6),",
+                    "    (0.36, 'dingSmallHigh', 0.75),",
+                    "    (0.48, 'scoreHit02', 1.0),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Robotic Glitch Sequence',
+        'Power up/down and error\nsounds layered for a glitching\nrobot/machine feel.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Robotic Glitch Sequence',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'powerup01', 0.7),",
+                    "    (0.3, 'error', 0.5),",
+                    "    (0.6, 'powerdown01', 0.6),",
+                    "    (0.9, 'powerup01', 0.8),",
+                    "    (1.1, 'click01', 0.5),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Impact Barrage',
+        'Layered punch sounds for a\nfast, punchy fight montage\nbeat.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Impact Barrage',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'punch01', 0.8),",
+                    "    (0.2, 'punchWeak01', 0.6),",
+                    "    (0.4, 'punchStrong01', 0.9),",
+                    "    (0.6, 'punchStrong02', 1.0),",
+                    "    (0.9, 'superPunch', 1.0),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Crowd Hype Wave',
+        'Cheer building into a looping\nchant with a bell hit - good\nfor a stadium hype moment.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Crowd Hype Wave',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'cheer', 0.9),",
+                    "    (0.4, 'crowdChant', 0.6),",
+                    "    (1.2, 'boxingBell', 0.8),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Footstep Walk Cycle',
+        'Alternating footstep sounds\ntimed for a walk cycle - handy\nfor syncing to a character\nwalking on-screen.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Footstep Walk Cycle',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'footImpact01', 0.6),",
+                    "    (0.4, 'footImpact02', 0.6),",
+                    "    (0.8, 'footImpact03', 0.6),",
+                    "    (1.2, 'footImpact01', 0.6),",
+                    "    (1.6, 'footImpact02', 0.6),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Glass Break Sequence',
+        'Shatter, splatter, and\ndebris fall layered for a full\nglass-breaking beat.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Glass Break Sequence',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'shatter', 1.0),",
+                    "    (0.05, 'splatter', 0.6),",
+                    "    (0.15, 'debrisFall', 0.7),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Metal Clang Rhythm',
+        'Rhythmic metal hits for a\nmachine-shop or forge feel.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Metal Clang Rhythm',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'metalHit', 0.8),",
+                    "    (0.5, 'metalSkid', 0.5),",
+                    "    (1.0, 'metalHit', 0.8),",
+                    "    (1.5, 'metalHit', 0.6),",
+                    "    (2.0, 'metalSkid', 0.5),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Ticking Clock Loop',
+        'Steady ticking that speeds up\ninto a final impact - great\nfor a time-pressure beat.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Ticking Clock Loop',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'tick', 0.5),",
+                    "    (0.6, 'tick', 0.5),",
+                    "    (1.1, 'tick', 0.5),",
+                    "    (1.5, 'tick', 0.5),",
+                    "    (1.8, 'ticking', 0.6),",
+                    "    (2.1, 'ticking', 0.6),",
+                    "    (2.3, 'bigImpact', 1.0),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Race Start Sequence',
+        'Two warning beeps then a go-\nsignal and revving engine -\nready for a race start.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Race Start Sequence',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'raceBeep1', 0.8),",
+                    "    (0.8, 'raceBeep1', 0.8),",
+                    "    (1.6, 'raceBeep2', 1.0),",
+                    "    (1.6, 'revUp', 0.9),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Cash Reward Jingle',
+        'Powerup chime into a cash\nregister hit - a satisfying\nreward stinger.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Cash Reward Jingle',
+                    'timers = []',
+                    'seq = [',
+                    "    (0.0, 'healthPowerup', 0.7),",
+                    "    (0.3, 'powerup01', 0.7),",
+                    "    (0.6, 'cashRegister', 1.0),",
+                    ']',
+                    'for t, nm, vol in seq:',
+                    '    timers.append(bs.AppTimer(t, lambda nm=nm, vol=vol: bs.newnode(',
+                    '        "sound", attrs={"sound": bs.getsound(nm), "volume": vol, "loop": False}',
+                    '    )))',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Freeze Frame Flash',
+        'Freeze sound + a bright white\nflash light + "FREEZE!" text -\ngood for a slow-mo/pause gag.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Freeze Frame Flash',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("freeze"), "volume": 1.0, "loop": False',
+                    '})',
+                    'bs.newnode("light", attrs={',
+                    '    "intensity": 3.0, "radius": 6.0, "color": (2.0, 2.0, 2.2),',
+                    '    "position": (0, 3, 0), "volume_intensity_scale": 0.0',
+                    '})',
+                    'bs.newnode("text", attrs={',
+                    '    "text": "FREEZE!", "position": (0, 2.4, 0), "in_world": True,',
+                    '    "shadow": 1.0, "flatness": 0.8, "scale": 0.024,',
+                    '    "color": (1.6, 1.9, 2.2), "h_align": "center"',
+                    '})',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Chapter Title Sequence',
+        'A gong hit paired with a\ncentered chapter title - a\nfast way to mark a new scene.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Chapter Title Sequence',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("gong"), "volume": 1.0, "loop": False',
+                    '})',
+                    'bs.newnode("text", attrs={',
+                    '    "text": "CHAPTER ONE", "position": (0, 3.0, 0), "in_world": True,',
+                    '    "shadow": 1.0, "flatness": 0.7, "scale": 0.025,',
+                    '    "color": (2.2, 2.2, 1.0), "h_align": "center"',
+                    '})',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Slow-Mo Sting',
+        'Freeze sound + a dim blue\nlight, useful right before a\nslow-motion replay beat.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Slow-Mo Sting',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("freeze"), "volume": 0.8, "loop": False',
+                    '})',
+                    'bs.newnode("light", attrs={',
+                    '    "intensity": 0.9, "radius": 4.0, "color": (0.4, 0.6, 1.4),',
+                    '    "position": (0, 2, 0), "volume_intensity_scale": 0.0',
+                    '})',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Credits Roll Setup',
+        'Orchestra hit stinger + a\ncentered "THE END" card - a\nready-made closer.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Credits Roll Setup',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("orchestraHit"), "volume": 1.0, "loop": False',
+                    '})',
+                    'bs.newnode("text", attrs={',
+                    '    "text": "THE END", "position": (0, 2.2, 0), "in_world": True,',
+                    '    "shadow": 1.0, "flatness": 0.8, "scale": 0.022,',
+                    '    "color": (2.0, 2.0, 2.0), "h_align": "center"',
+                    '})',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Confetti Celebration',
+        'Gold spark burst + a cheer -\na quick celebratory moment\nwithout needing separate FX\nand Sound presets.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Confetti Celebration',
+                    'bs.newnode("sound", attrs={',
+                    '    "sound": bs.getsound("cheer"), "volume": 1.0, "loop": False',
+                    '})',
+                    'bs.emitfx(',
+                    '    position=(0, 2.0, 0), velocity=(0, 4, 0), count=70, scale=1.3,',
+                    '    spread=2.0, chunk_type="spark", emit_type="stickers"',
+                    ')',
+                ))
+        }
+    }
+    ))
+
+    presets.append((
+        6,
+        'Random Sound Roulette',
+        'Fires a random sound from a\ncurated safe list every 0.4s -\na fun chaos/easter-egg preset\nfor testing or a silly montage.',
+        {
+            'data': {
+                'code': '\n'.join((
+                    '# MOVI Random Sound Roulette',
+                    'timers = []',
+                    'pool = ["ding", "boo", "cheer", "error", "gong", "achievement",',
+                    '        "powerup01", "punchWeak01", "click01", "dripity"]',
+                    'for i in range(8):',
+                    '    t = i * 0.4',
+                    '    timers.append(bs.AppTimer(t, lambda: bs.newnode("sound", attrs={',
+                    '        "sound": bs.getsound(random.choice(pool)), "volume": 0.8, "loop": False',
+                    '    })))',
+                ))
+        }
+    }
+    ))
+
+
     return presets
+
 
 # You have hit the EOF -- Thanks for trying Movi!
 # I'm sorry the code may seem dirty or unreadable
