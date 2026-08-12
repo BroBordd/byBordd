@@ -108,6 +108,7 @@ class Editor:
         s.event_kids = {}
         s.event_top = None
         s.window_on = ()
+        s.window_sub_on = None
         s.window_kids = []
         s.window_trash = []
         s.magic_x = 5.5
@@ -152,6 +153,9 @@ class Editor:
         else: s.pending.append((lag,f))
 
     def universal_back(s):
+        if s.window_sub_on:
+            s.window_sub_on[2]()
+            return
         if s.window_on or s.event_on:
             s.event_button.activate()
         else: s.square.activate()
@@ -735,6 +739,8 @@ class Editor:
         callable(on_finish) and bui.apptimer(butter,on_finish)
 
     def collapse_all(s,hard=False):
+        if s.window_sub_on:
+            s.window_sub_on[2](instant=True)
         if not s.event_on and s.window_on:
             s.window_back(into_nothing=True)
         if s.event_on and s.window_on:
@@ -1114,7 +1120,7 @@ class Editor:
                         ),
                         size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
                         texture=Eval.TEXTURE(Const.KEY),
-                        color=Color.TEMP,
+                        color=Color.COLD,
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
@@ -1321,7 +1327,7 @@ class Editor:
                         ),
                         size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
                         texture=Eval.TEXTURE(Const.KEY),
-                        color=Color.TEMP,
+                        color=Color.COLD,
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
@@ -1524,7 +1530,7 @@ class Editor:
                         ),
                         size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
                         texture=Eval.TEXTURE(Const.KEY),
-                        color=Color.TEMP,
+                        color=Color.COLD,
                         opacity=Color.OPACITY
                     )
                     mem['prev_off'] = new
@@ -2808,6 +2814,9 @@ class Editor:
         x,y = s.window_pos
         sx,sy = s.window_size
         def bye():
+            if s.window_sub_on:
+                s.window_sub_on[2]()
+                return
             s.window_clean()
             s.window_back()
         s.window_marg = 5
@@ -3020,13 +3029,49 @@ class Editor:
             }
         )
 
+    # Every attr here matches a real, *writable* engine attribute
+    # (cross-checked against the C++ node type registries — readonly
+    # attrs like spaz's 'damage' or math's 'output' are excluded since
+    # they can't be set at creation time and would just error).
     NODE_DEFAULT_ATTRS = {
         'prop': {'mesh': 'tnt', 'color_texture': 'tnt', 'body': 'crate', 'gravity_scale': '1.0', 'reflection': 'soft'},
         'text': {'text': 'Hello!', 'color': '(1, 1, 1)', 'scale': '0.02', 'in_world': 'True', 'h_align': 'center'},
         'light': {'color': '(1, 1, 1)', 'radius': '1.0', 'intensity': '1.0'},
         'math': {'input1': '(0, 0, 0)', 'operation': 'add'},
-        'spaz': {'color': '(1, 1, 1)', 'highlight': '(1, 1, 1)'}
+        'spaz': {
+            'character': 'Spaz', 'color': '(1, 1, 1)', 'highlight': '(1, 1, 1)',
+            'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+            'roller_materials': '[_factory.roller_material, _shared.player_material]',
+            'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+            'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+        },
+        'bomb': {'fuse_length': '3.0'},
+        'combine': {'size': '3', 'input0': '0.0', 'input1': '0.0', 'input2': '0.0'},
+        'explosion': {'radius': '2.0', 'color': '(1, 1, 1)', 'big': 'False'},
+        'flag': {'color_texture': 'flagColor', 'color': '(1, 1, 1)', 'lightWeight': 'False'},
+        'flash': {'size': '1.0', 'color': '(1, 1, 1)'},
+        'image': {'texture': 'light', 'opacity': '1.0', 'color': '(1, 1, 1)', 'attach': 'center'},
+        'locator': {'shape': 'box', 'size': '(1, 1, 1)', 'color': '(1, 1, 1)', 'opacity': '1.0'},
+        'region': {'type': 'box', 'scale': '(1, 1, 1)'},
+        'scorch': {'size': '1.0', 'presence': '1.0', 'color': '(0, 0, 0)'},
+        'shield': {'radius': '1.0', 'color': '(1, 0.25, 0.25)'},
+        'sound': {'sound': 'ding', 'volume': '1.0', 'loop': 'False', 'positional': 'True'},
+        'terrain': {'mesh': 'thePad', 'color_texture': 'thePadColor', 'collision_mesh': 'thePadCollide', 'color': '(1, 1, 1)'},
+        'texture_sequence': {'rate': '30'},
+        'time_display': {'timemin': '0', 'timemax': '0', 'time1': '0', 'time2': '0'},
+        'anim_curve': {'times': '(0, 1000)', 'values': '(0.0, 1.0)', 'loop': 'False'}
     }
+
+    # Node types intentionally left out of the cycle: 'globals' and
+    # 'session_globals' are per-activity singletons, 'player' nodes
+    # are engine-managed per connected player, and 'null' is an inert
+    # placeholder with no attrs worth editing.
+    NODE_TYPES = [
+        'prop', 'text', 'light', 'math', 'spaz', 'bomb', 'combine',
+        'explosion', 'flag', 'flash', 'image', 'locator', 'region',
+        'scorch', 'shield', 'sound', 'terrain', 'texture_sequence',
+        'time_display', 'anim_curve'
+    ]
 
     def make_node_window(s, edit=None, load=False):
         x, y = s.window_pos
@@ -3037,12 +3082,12 @@ class Editor:
 
         s.current_node_type = data.get('type', 'prop') if data else 'prop'
         
-        init_pos = (0, 0, 0)
+        init_pos = (0, 1, 0)
         s.current_attrs = {}
         
         def to_friendly(k, v):
             val = str(v).strip()
-            for prefix in ['bs.getmesh("', "bs.getmesh('", 'bs.gettexture("', "bs.gettexture('"]:
+            for prefix in ['bs.getmesh("', "bs.getmesh('", 'bs.gettexture("', "bs.gettexture('", 'bs.getsound("', "bs.getsound('"]:
                 if val.startswith(prefix): return val[len(prefix):-2]
             if val.startswith('"') and val.endswith('"'): return val[1:-1]
             if val.startswith("'") and val.endswith("'"): return val[1:-1]
@@ -3050,9 +3095,10 @@ class Editor:
 
         def to_eval(k, v):
             v = str(v).strip()
-            if k in ['mesh', 'collision_mesh']: return f'bs.getmesh("{v}")'
-            if k in ['color_texture', 'color_mask_texture', 'texture']: return f'bs.gettexture("{v}")'
-            if k in ['name', 'body', 'reflection', 'text', 'h_align', 'v_align', 'chunk_type', 'emit_type', 'operation']: return f'"{v}"'
+            if k in ['mesh', 'collision_mesh', 'light_mesh', 'mesh_opaque', 'mesh_transparent']: return f'bs.getmesh("{v}")'
+            if k in ['color_texture', 'color_mask_texture', 'texture', 'tint_texture', 'mask_texture']: return f'bs.gettexture("{v}")'
+            if k == 'sound': return f'bs.getsound("{v}")'
+            if k in ['name', 'body', 'reflection', 'text', 'h_align', 'v_align', 'chunk_type', 'emit_type', 'operation', 'attach', 'shape', 'type', 'character', 'style', 'counter_text']: return f'"{v}"'
             return v
 
         if data and 'attrs' in data:
@@ -3081,22 +3127,164 @@ class Editor:
             color=Color.BASE,
             textcolor=Const.INVISIBLE,
             texture=Eval.TEXTURE(Const.SKIN),
-            on_activate_call=lambda: cycle_type(),
+            on_activate_call=lambda: open_type_picker(),
             enable_sound=False
         )
         s.window_kids.append((type_btn, pos_inp, text_push, delay, ('size', ((0, 35), (90, 35)))))
 
-        def cycle_type():
-            Eval.SOUND(Const.OK_SOUND).play()
-            types = ['prop', 'text', 'light', 'math', 'spaz']
-            idx = types.index(s.current_node_type)
-            s.current_node_type = types[(idx + 1) % len(types)]
+        type_btn_pos = (x + pos_inp[0], y + pos_inp[1])
+        type_btn_shadow = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            texture=Eval.TEXTURE(Const.SHADOW),
+            color=Color.BASE
+        )
+        s.window_trash.append([type_btn_shadow])
+
+        def apply_type(new_type):
+            s.current_node_type = new_type
             bui.buttonwidget(edit=type_btn, label=s.current_node_type.capitalize())
-            
+
             s.current_attrs.clear()
             for k, v in s.NODE_DEFAULT_ATTRS[s.current_node_type].items():
                 s.current_attrs[k] = v
             refresh_right_pane(initial=False)
+
+        def open_type_picker():
+            if s.window_sub_on:
+                s.window_sub_on[2]()
+            Eval.SOUND(Const.OK_SOUND).play()
+            bui.buttonwidget(
+                type_btn,
+                on_activate_call=Const.DO_NOTHING,
+                selectable=False
+            )
+
+            wx, wy = s.window_pos
+            wsx, wsy = s.window_size
+            picker_x, picker_sx = 120, 130
+            picker_pos = (wx + wsx + 100, wy)
+            picker_size = (picker_sx, wsy)
+            (
+                picker_shadow_pos,
+                picker_shadow_size
+            ) = Eval.SHADOW(*picker_pos, *picker_size)
+
+            btn_start_pos, btn_start_size = type_btn_pos, (90, 35)
+            butter = s.global_butter * 1.3
+
+            grow_anim = Animate(
+                widget=type_btn,
+                duration=butter,
+                attrs={
+                    'position': (btn_start_pos, picker_pos),
+                    'size': (btn_start_size, picker_size),
+                    'textcolor': (
+                        (*Color.TEXT, Color.OPACITY),
+                        Const.INVISIBLE
+                    )
+                }
+            )
+            shadow_anim = Animate(
+                widget=type_btn_shadow,
+                attrs={
+                    'opacity': (0, Color.OPACITY),
+                    'position': (btn_start_pos, picker_shadow_pos),
+                    'size': (btn_start_size, picker_shadow_size)
+                },
+                duration=butter
+            )
+
+            child_start_progress = 0.35
+            child_delay = butter * child_start_progress
+            child_duration = butter * (1 - child_start_progress) + 0.05
+
+            picker_kids = []
+            kid_anims = []
+
+            picker_scroll = bui.scrollwidget(
+                parent=s.root,
+                position=picker_pos,
+                size=(0, picker_size[1]),
+                color=Color.COLD,
+                border_opacity=0
+            )
+            picker_kids.append(picker_scroll)
+            kid_anims.append(Animate(
+                widget=picker_scroll,
+                duration=child_duration,
+                delay=child_delay,
+                attrs={
+                    'size': ((0, picker_size[1]), picker_size),
+                    'border_opacity': (0, Color.OPACITY),
+                    'color': (Color.COLD, Color.BASE)
+                }
+            ))
+
+            row_h = 35
+            types = s.NODE_TYPES
+            picker_root = bui.containerwidget(
+                parent=picker_scroll,
+                background=False,
+                size=(picker_x, row_h * len(types))
+            )
+            picker_kids.append(picker_root)
+
+            def close_sub(instant=False):
+                s.window_sub_on = None
+                for anim in kid_anims: anim.cancel()
+                kid_anims.clear()
+                for w in picker_kids:
+                    if w.exists(): w.delete()
+                picker_kids.clear()
+                dur = instant and 0.0001 or butter
+                grow_anim.reverse(duration=dur)
+                shadow_anim.reverse(duration=dur)
+                bui.buttonwidget(
+                    type_btn,
+                    on_activate_call=open_type_picker,
+                    selectable=True
+                )
+                if not instant:
+                    Eval.SOUND(Const.OK_SOUND).play()
+
+            def pick(t):
+                Eval.SOUND(Const.OK_SOUND).play()
+                apply_type(t)
+                close_sub()
+
+            row_off = 15
+            for i, t in enumerate(types):
+                y_pos = row_h * (len(types) - 1 - i)
+                btn = bui.buttonwidget(
+                    parent=picker_root,
+                    position=(row_off, y_pos),
+                    size=(picker_x, row_h),
+                    label=t.capitalize(),
+                    color=Color.BASE if t != s.current_node_type else Color.COLD,
+                    textcolor=Const.INVISIBLE,
+                    opacity=0,
+                    texture=Eval.TEXTURE(Const.SKIN),
+                    enable_sound=False,
+                    on_activate_call=bui.CallPartial(pick, t)
+                )
+                picker_kids.append(btn)
+                stagger = 0.02 * i
+                kid_anims.append(Animate(
+                    widget=btn,
+                    duration=child_duration,
+                    delay=child_delay + stagger,
+                    attrs={
+                        'position': ((row_off, y_pos), (0, y_pos)),
+                        'opacity': (0, Color.OPACITY),
+                        'textcolor': (
+                            Const.INVISIBLE,
+                            (*Color.TEXT, Color.OPACITY)
+                        )
+                    }
+                ))
+
+            s.window_sub_on = (type_btn, open_type_picker, close_sub)
 
         pos_lbl = (left_x, sy - 130)
         w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.NAME, color=Const.INVISIBLE, maxwidth=50, h_align='left')
@@ -3549,7 +3737,7 @@ class Editor:
                                 'in_world':True,
                                 'scale':0.01,
                                 'flatness':1,
-                                'color':Color.TEMP,
+                                'color':Color.COLD,
                                 'shadow':1.0
                             }
                         )
@@ -4179,21 +4367,164 @@ class Editor:
             color=Color.BASE,
             textcolor=Const.INVISIBLE,
             texture=Eval.TEXTURE(Const.SKIN),
-            on_activate_call=lambda: cycle_type(),
+            on_activate_call=lambda: open_type_picker(),
             enable_sound=False
         )
         s.window_kids.append((type_btn, pos_inp, text_push, delay, ('size', ((0, 35), (90, 35)))))
 
-        def cycle_type():
-            Eval.SOUND(Const.OK_SOUND).play()
-            idx = s.FX_TYPES.index(s.current_fx_type)
-            s.current_fx_type = s.FX_TYPES[(idx + 1) % len(s.FX_TYPES)]
+        type_btn_pos = (x + pos_inp[0], y + pos_inp[1])
+        type_btn_shadow = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            texture=Eval.TEXTURE(Const.SHADOW),
+            color=Color.BASE
+        )
+        s.window_trash.append([type_btn_shadow])
+
+        def apply_type(new_type):
+            s.current_fx_type = new_type
             bui.buttonwidget(edit=type_btn, label=s.current_fx_type.capitalize())
 
             s.current_fx_attrs.clear()
             for k, v in s.FX_DEFAULT_ATTRS[s.current_fx_type].items():
                 s.current_fx_attrs[k] = v
             refresh_right_pane(initial=False)
+
+        def open_type_picker():
+            if s.window_sub_on:
+                s.window_sub_on[2]()
+            Eval.SOUND(Const.OK_SOUND).play()
+            bui.buttonwidget(
+                type_btn,
+                on_activate_call=Const.DO_NOTHING,
+                selectable=False
+            )
+
+            wx, wy = s.window_pos
+            wsx, wsy = s.window_size
+            picker_x, picker_sx = 120, 130
+            picker_pos = (wx + wsx + 100, wy)
+            picker_size = (picker_sx, wsy)
+            (
+                picker_shadow_pos,
+                picker_shadow_size
+            ) = Eval.SHADOW(*picker_pos, *picker_size)
+
+            btn_start_pos, btn_start_size = type_btn_pos, (90, 35)
+            butter = s.global_butter * 1.3
+
+            grow_anim = Animate(
+                widget=type_btn,
+                duration=butter,
+                attrs={
+                    'position': (btn_start_pos, picker_pos),
+                    'size': (btn_start_size, picker_size),
+                    'textcolor': (
+                        (*Color.TEXT, Color.OPACITY),
+                        Const.INVISIBLE
+                    )
+                }
+            )
+            shadow_anim = Animate(
+                widget=type_btn_shadow,
+                attrs={
+                    'opacity': (0, Color.OPACITY),
+                    'position': (btn_start_pos, picker_shadow_pos),
+                    'size': (btn_start_size, picker_shadow_size)
+                },
+                duration=butter
+            )
+
+            child_start_progress = 0.35
+            child_delay = butter * child_start_progress
+            child_duration = butter * (1 - child_start_progress) + 0.05
+
+            picker_kids = []
+            kid_anims = []
+
+            picker_scroll = bui.scrollwidget(
+                parent=s.root,
+                position=picker_pos,
+                size=(0, picker_size[1]),
+                color=Color.COLD,
+                border_opacity=0
+            )
+            picker_kids.append(picker_scroll)
+            kid_anims.append(Animate(
+                widget=picker_scroll,
+                duration=child_duration,
+                delay=child_delay,
+                attrs={
+                    'size': ((0, picker_size[1]), picker_size),
+                    'border_opacity': (0, Color.OPACITY),
+                    'color': (Color.COLD, Color.BASE)
+                }
+            ))
+
+            row_h = 35
+            types = s.FX_TYPES
+            picker_root = bui.containerwidget(
+                parent=picker_scroll,
+                background=False,
+                size=(picker_x, row_h * len(types))
+            )
+            picker_kids.append(picker_root)
+
+            def close_sub(instant=False):
+                s.window_sub_on = None
+                for anim in kid_anims: anim.cancel()
+                kid_anims.clear()
+                for w in picker_kids:
+                    if w.exists(): w.delete()
+                picker_kids.clear()
+                dur = instant and 0.0001 or butter
+                grow_anim.reverse(duration=dur)
+                shadow_anim.reverse(duration=dur)
+                bui.buttonwidget(
+                    type_btn,
+                    on_activate_call=open_type_picker,
+                    selectable=True
+                )
+                if not instant:
+                    Eval.SOUND(Const.OK_SOUND).play()
+
+            def pick(t):
+                Eval.SOUND(Const.OK_SOUND).play()
+                apply_type(t)
+                close_sub()
+
+            row_off = 15
+            for i, t in enumerate(types):
+                y_pos = row_h * (len(types) - 1 - i)
+                btn = bui.buttonwidget(
+                    parent=picker_root,
+                    position=(row_off, y_pos),
+                    size=(picker_x, row_h),
+                    label=t.capitalize(),
+                    color=Color.BASE if t != s.current_fx_type else Color.COLD,
+                    textcolor=Const.INVISIBLE,
+                    opacity=0,
+                    texture=Eval.TEXTURE(Const.SKIN),
+                    enable_sound=False,
+                    on_activate_call=bui.CallPartial(pick, t)
+                )
+                picker_kids.append(btn)
+                stagger = 0.02 * i
+                kid_anims.append(Animate(
+                    widget=btn,
+                    duration=child_duration,
+                    delay=child_delay + stagger,
+                    attrs={
+                        'position': ((row_off, y_pos), (0, y_pos)),
+                        'opacity': (0, Color.OPACITY),
+                        'textcolor': (
+                            Const.INVISIBLE,
+                            (*Color.TEXT, Color.OPACITY)
+                        )
+                    }
+                ))
+
+            s.window_sub_on = (type_btn, open_type_picker, close_sub)
 
         pos_lbl = (left_x, sy - 130)
         w = bui.textwidget(parent=s.root, position=pos_lbl, size=(50, 30), text=Strings.NAME, color=Const.INVISIBLE, maxwidth=50, h_align='left')
@@ -4762,7 +5093,7 @@ class Editor:
             Eval.SOUND(Const.OK_SOUND).play()
             s.current_map_name = name
             for nm, btn in s.map_list_buttons.items():
-                bui.buttonwidget(edit=btn, color=Color.BASE if nm != name else Color.TEMP)
+                bui.buttonwidget(edit=btn, color=Color.BASE if nm != name else Color.COLD)
 
             cls = bs.get_map_class(name)
             s.current_map_attrs = {
@@ -4779,7 +5110,7 @@ class Editor:
                 position=(0, y_pos),
                 size=(list_w - 10, row_h - 4),
                 label=name,
-                color=Color.TEMP if name == s.current_map_name else Color.BASE,
+                color=Color.COLD if name == s.current_map_name else Color.BASE,
                 textcolor=(*Color.TEXT, Color.OPACITY),
                 texture=Eval.TEXTURE(Const.SKIN),
                 enable_sound=False,
@@ -5384,6 +5715,9 @@ class Editor:
             getattr(s,'prev_off_wid',None) and s.prev_off_wid.delete()
 
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
+        if s.window_sub_on:
+            s.window_sub_on[2]()
+            return
         b,call,on_back = s.window_on
         callable(on_back) and on_back()
         def enable():
@@ -5740,10 +6074,30 @@ class Editor:
         if what == 0:
             if start:
                 with bs.get_foreground_host_activity().context:
-                    attrs = {
-                        attr:eval(val)
-                        for attr,val in data['attrs'].items()
-                    }
+                    _shared = None
+                    _factory = None
+                    if data['type'] == 'spaz':
+                        from bascenev1lib.gameutils import SharedObjects
+                        from bascenev1lib.actor.spazfactory import SpazFactory
+                        _shared = SharedObjects.get()
+                        _factory = SpazFactory.get()
+                    attrs = {}
+                    for attr, val in data['attrs'].items():
+                        attrs[attr] = eval(val)
+                    if data['type'] == 'spaz':
+                        character = attrs.pop('character', None)
+                        if character:
+                            try:
+                                media = _factory.get_media(character)
+                                style = _factory.get_style(character)
+                                # Explicit attrs on the node (color, highlight,
+                                # etc.) win over the character's own media, so
+                                # only fill in keys the user hasn't already set.
+                                for mk, mv in media.items():
+                                    attrs.setdefault(mk, mv)
+                                attrs.setdefault('style', style)
+                            except Exception as ex:
+                                s.toast(Format.ERROR(ex))
                     if data['type'] == 'spaz' and 'position' in data['attrs']:
                         position = attrs.pop('position')
                         call = lambda: n.handlemessage(
@@ -7508,6 +7862,7 @@ class Animate:
             s.timer = None
             s.delay_timer = None
             s.cancelled = True
+            s._release_callbacks()
             return
 
         elapsed = perf_counter() - s.start_time
@@ -7533,12 +7888,14 @@ class Animate:
             s.timer = None
             s.delay_timer = None
             s.cancelled = True
+            s._release_callbacks()
             return
         try: s.func(s.widget, **kwargs)
         except:
             s.timer = None
             s.delay_timer = None
             s.cancelled = True
+            s._release_callbacks()
             return
 
         if progress >= 1.0:
@@ -7548,16 +7905,41 @@ class Animate:
     def ease_out(s, t):
         return 1 - (1 - t) ** 3
 
+    def _release_callbacks(s):
+        """
+        Drop callback references once they're no longer needed.
+        on_finish in particular can hold a self-referencing CallPartial
+        (see the tuple-on_finish handling in __init__, which wraps
+        s.reverse -- a bound method of this very instance), so leaving
+        it set after it's already fired keeps this instance alive as a
+        reference cycle that only the periodic cyclic gc pass can
+        collect, instead of being freed immediately by refcounting once
+        nothing else references it.
+
+        on_reverse is deliberately NOT cleared here -- it's only ever
+        read inside reverse() itself (including synchronously, when a
+        tuple on_finish auto-triggers reverse() from within finish()),
+        so it's cleared there instead, right after it's actually used.
+        """
+        s.on_finish = None
+        s.on_start = None
+        s.on_cancel = None
+        s.condition = None
+
     def finish(s):
         s.finished = True
-        if callable(s.on_finish) and not s.cancelled:
-            s.on_finish()
+        on_finish = s.on_finish
+        should_call = callable(on_finish) and not s.cancelled
+        s._release_callbacks()
+        if should_call:
+            on_finish()
 
     def complete(s):
         """Immediately complete the animation by applying final values."""
         if s.cancelled or s.finished:
             return
 
+        on_finish = s.on_finish
         s.cancel()
 
         if s.widget.exists():
@@ -7571,17 +7953,21 @@ class Animate:
             s.func(s.widget, **kwargs)
 
         s.finished = True
-        if callable(s.on_finish):
-            s.on_finish()
+        if callable(on_finish):
+            on_finish()
 
     def cancel(s):
         s.cancelled = True
         s.timer = None
         if s.delay_timer:
             s.delay_timer = None
-        if not s.widget or not s.widget.exists(): return
-        if callable(s.on_cancel) and not s.finished:
-            s.on_cancel()
+        on_cancel = s.on_cancel
+        should_call = callable(on_cancel) and not s.finished
+        exists = s.widget and s.widget.exists()
+        s._release_callbacks()
+        if not exists: return
+        if should_call:
+            on_cancel()
 
     def get_state(s):
         """Returns current animation state for all attributes."""
@@ -7603,6 +7989,7 @@ class Animate:
             New Animate instance with reversed animation
         """
         callable(s.on_reverse) and s.on_reverse()
+        s.on_reverse = None
         s.cancel()
 
         reversed_attrs = {}
@@ -8207,7 +8594,6 @@ class Color:
     BASE = (0,0,0)
     COLD = (0.5,0.5,0.5)
     WARM = (2,0,0)
-    TEMP = (0,0,1)
     TEXT = (2,2,2)
     OPACITY = 0.4
 
@@ -8282,8 +8668,32 @@ class byBordd(ba.Plugin):
     def __init__(s):
         ba.app.register_subsystem(MoviSubsystem())
 
+class _BSWrapper:
+    def __init__(self, original_module, newnode_func):
+        self._original = original_module
+        self.newnode = newnode_func
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
+    def __setattr__(self, name, value):
+        if name in ('_original', 'newnode'):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._original, name, value)
+
+
+def _make_tracked_spaz(OriginalSpaz, runner):
+    class TrackedSpaz(OriginalSpaz):
+        def __init__(inner_self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            runner.created_actors.append(inner_self)
+    return TrackedSpaz
+
+
 class CodeRunner:
     _SHARED = {}
+
     def __init__(self, on_error=None, parent_runner=None):
         self.on_error = on_error
         self.parent_runner = parent_runner
@@ -8292,10 +8702,12 @@ class CodeRunner:
             self.namespace = parent_runner.namespace
             self.created_nodes = parent_runner.created_nodes
             self.created_actors = parent_runner.created_actors
+            self._tracked_spaz = None
         else:
             self.namespace = {}
             self.created_nodes = []
             self.created_actors = []
+            self._tracked_spaz = None
 
         self.stdout_capture = StringIO()
         self.stderr_capture = StringIO()
@@ -8332,21 +8744,15 @@ class CodeRunner:
             self.created_nodes.append(node)
             return node
 
-        class TrackedSpaz(OriginalSpaz):
-            def __init__(inner_self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.node = None
-                self.created_actors.append(inner_self)
+        # Root runner (the one that owns created_actors) decides which
+        # TrackedSpaz to use; children share their parent's, so we only
+        # ever build one class per *root* runner instead of one per exec.
+        root = self.parent_runner or self
+        if root._tracked_spaz is None:
+            root._tracked_spaz = _make_tracked_spaz(OriginalSpaz, root)
+        TrackedSpaz = root._tracked_spaz
 
-        class BSWrapper:
-            def __init__(self, original_module, newnode_func):
-                self._original = original_module
-                self.newnode = newnode_func
-
-            def __getattr__(self, name):
-                return getattr(self._original, name)
-
-        bs_wrapped = BSWrapper(bs, tracked_newnode)
+        bs_wrapped = _BSWrapper(bs, tracked_newnode)
 
         self.namespace.update({
             '__stop_flag__': self.stop_flag,
@@ -8456,6 +8862,8 @@ class CodeRunner:
             child.on_end()
         self.children.clear()
 
+        self._tracked_spaz = None
+
         if not self.parent_runner:
             bs.pushcall(self._cleanup_all)
 
@@ -8496,6 +8904,318 @@ def get_presets():
     bs.AppTimer blocks, so they're much shorter and easy to edit.
     """
     presets = []
+
+    presets.append((
+        0,
+        'World Anchor',
+        'Invisible dummy node at\norigin, handy to parent\nother nodes/effects to.',
+        {
+            'data': {
+                'type': 'math',
+                'name': 'WorldAnchor',
+                'attrs': {'input1': (0, 0, 0), 'operation': 'add'}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Offstage Anchor',
+        'Dummy node placed off to\nthe side, out of frame -\nuseful as a parking spot.',
+        {
+            'data': {
+                'type': 'math',
+                'name': 'OffstageAnchor',
+                'attrs': {'input1': (20, 0, 0), 'operation': 'add'}
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Basic Spaz',
+        'Standard blue Spaz character\nat center stage - the safest\nstarting point.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Spaz',
+                'attrs': {
+                    'character': '"Spaz"',
+                    'color': '(0.4, 0.5, 0.8)',
+                    'highlight': '(1.0, 1.0, 1.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Neon Assassin',
+        'Stealthy ninja with electric\npurple glow.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Shadow Strike',
+                'attrs': {
+                    'character': '"Snake Shadow"',
+                    'color': '(2.2, 0.0, 0.4)',
+                    'highlight': '(2.5, 0.0, 4.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Cyber Warrior',
+        'Futuristic agent with intense\ncyan energy.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'NetRunner',
+                'attrs': {
+                    'character': '"Agent Johnson"',
+                    'color': '(0.0, 0.1, 0.2)',
+                    'highlight': '(0.0, 3.5, 5.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(2, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Plasma Knight',
+        'Medieval warrior radiating\nblue-white plasma.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Sir Voltage',
+                'attrs': {
+                    'character': '"Kronk"',
+                    'color': '(0.1, 0.15, 0.3)',
+                    'highlight': '(1.5, 2.5, 6.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(-2, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Toxic Menace',
+        'Radioactive character with\nsickly green glow.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Biohazard',
+                'attrs': {
+                    'character': '"Mel"',
+                    'color': '(0.1, 0.2, 0.0)',
+                    'highlight': '(2.0, 5.0, 0.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, -2)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Frosty Sentinel',
+        'Icy pale character, good for\na winter/frozen-map scene.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Permafrost',
+                'attrs': {
+                    'character': '"Frosty"',
+                    'color': '(0.5, 0.7, 0.9)',
+                    'highlight': '(0.8, 1.0, 1.3)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 2)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Skeleton Crew',
+        "Bones's default look, works\nwell for a spooky scene.",
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Rattler',
+                'attrs': {
+                    'character': '"Bones"',
+                    'color': '(0.8, 0.8, 0.75)',
+                    'highlight': '(1.0, 1.0, 1.0)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(-2, 1, 2)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Old Wizard',
+        'Grumbledorf tinted purple for\na mystical caster look.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'The Archmage',
+                'attrs': {
+                    'character': '"Grumbledorf"',
+                    'color': '(0.4, 0.1, 0.5)',
+                    'highlight': '(0.9, 0.5, 1.4)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Jungle Explorer',
+        'Zoe recolored earthy green,\ngood for an adventurer role.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Trailblazer',
+                'attrs': {
+                    'character': '"Zoe"',
+                    'color': '(0.3, 0.5, 0.2)',
+                    'highlight': '(0.9, 1.0, 0.6)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(2, 1, -2)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Deep Sea Diver',
+        'Pixel recolored deep blue,\nfits an underwater/submarine\nscene.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Fathom',
+                'attrs': {
+                    'character': '"Pixel"',
+                    'color': '(0.0, 0.2, 0.5)',
+                    'highlight': '(0.3, 0.6, 1.2)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Old-Timer Gunslinger',
+        'Jack Morgan recolored dusty\nbrown for a western scene.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Doc Ironside',
+                'attrs': {
+                    'character': '"Jack Morgan"',
+                    'color': '(0.4, 0.3, 0.2)',
+                    'highlight': '(0.9, 0.8, 0.6)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(-2, 1, -2)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Butler Bernard',
+        'Bernard kept close to natural\ncolors, calm supporting-cast\nlook.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Bernard',
+                'attrs': {
+                    'character': '"Bernard"',
+                    'color': '(0.5, 0.45, 0.4)',
+                    'highlight': '(1.0, 1.0, 0.95)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(0, 1, 0)'
+                }
+        }
+    }
+    ))
+
+    presets.append((
+        0,
+        'Mascot Todd',
+        'Todd McBurton with a bright,\nfriendly palette - good for a\ncomic-relief role.',
+        {
+            'data': {
+                'type': 'spaz',
+                'name': 'Big Todd',
+                'attrs': {
+                    'character': '"Todd McBurton"',
+                    'color': '(0.9, 0.6, 0.2)',
+                    'highlight': '(1.2, 1.0, 0.6)',
+                    'materials': '[_factory.spaz_material, _shared.object_material, _shared.player_material]',
+                    'roller_materials': '[_factory.roller_material, _shared.player_material]',
+                    'punch_materials': '[_factory.punch_material, _shared.attack_material]',
+                    'pickup_materials': '[_factory.pickup_material, _shared.pickup_material]',
+                    'position': '(2, 1, 2)'
+                }
+        }
+    }
+    ))
 
     presets.append((
         0,
@@ -8675,32 +9395,6 @@ def get_presets():
                 'type': 'text',
                 'name': 'EndCard',
                 'attrs': {'text': 'THE END', 'position': (0, 2.2, 0), 'in_world': True, 'shadow': 1.0, 'flatness': 0.8, 'scale': 0.022, 'color': (2.0, 2.0, 2.0), 'h_align': 'center'}
-        }
-    }
-    ))
-
-    presets.append((
-        0,
-        'World Anchor',
-        'Invisible dummy node at\norigin, handy to parent\nother nodes/effects to.',
-        {
-            'data': {
-                'type': 'math',
-                'name': 'WorldAnchor',
-                'attrs': {'input1': (0, 0, 0), 'operation': 'add'}
-        }
-    }
-    ))
-
-    presets.append((
-        0,
-        'Offstage Anchor',
-        'Dummy node placed off to\nthe side, out of frame -\nuseful as a parking spot.',
-        {
-            'data': {
-                'type': 'math',
-                'name': 'OffstageAnchor',
-                'attrs': {'input1': (20, 0, 0), 'operation': 'add'}
         }
     }
     ))
@@ -9630,383 +10324,6 @@ def get_presets():
                 'map': 'Rampage',
                 'name': 'Map',
                 'attrs': {'ambient_color': (0.75, 0.78, 0.8), 'tint': (0.85, 0.87, 0.9), 'vignette_outer': (0.08, 0.08, 0.1), 'vignette_inner': (0.8, 0.82, 0.85)}
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Basic Spaz',
-        'Standard blue Spaz character\nat center stage - the safest\nstarting point.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Basic Spaz',
-                    "name = 'Spaz'",
-                    'color = (0.4, 0.5, 0.8)',
-                    'highlight = (1.0, 1.0, 1.0)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Spaz',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Neon Assassin',
-        'Stealthy ninja with electric\npurple glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Neon Assassin',
-                    "name = 'Shadow Strike'",
-                    'color = (2.2, 0.0, 0.4)',
-                    'highlight = (2.5, 0.0, 4.0)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Snake Shadow',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Cyber Warrior',
-        'Futuristic agent with intense\ncyan energy.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Cyber Warrior',
-                    "name = 'NetRunner'",
-                    'color = (0.0, 0.1, 0.2)',
-                    'highlight = (0.0, 3.5, 5.0)',
-                    'position = (2, 1, 0)',
-                    'angle = 1.5',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Agent Johnson',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Plasma Knight',
-        'Medieval warrior radiating\nblue-white plasma.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Plasma Knight',
-                    "name = 'Sir Voltage'",
-                    'color = (0.1, 0.15, 0.3)',
-                    'highlight = (1.5, 2.5, 6.0)',
-                    'position = (-2, 1, 0)',
-                    'angle = 4.7',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Kronk',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Toxic Menace',
-        'Radioactive character with\nsickly green glow.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Toxic Menace',
-                    "name = 'Biohazard'",
-                    'color = (0.1, 0.2, 0.0)',
-                    'highlight = (2.0, 5.0, 0.0)',
-                    'position = (0, 1, -2)',
-                    'angle = 3.14',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Mel',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Frosty Sentinel',
-        'Icy pale character, good for\na winter/frozen-map scene.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Frosty Sentinel',
-                    "name = 'Permafrost'",
-                    'color = (0.5, 0.7, 0.9)',
-                    'highlight = (0.8, 1.0, 1.3)',
-                    'position = (0, 1, 2)',
-                    'angle = 3.14',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Frosty',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Skeleton Crew',
-        "Bones's default look, works\nwell for a spooky scene.",
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Skeleton Crew',
-                    "name = 'Rattler'",
-                    'color = (0.8, 0.8, 0.75)',
-                    'highlight = (1.0, 1.0, 1.0)',
-                    'position = (-2, 1, 2)',
-                    'angle = 2.3',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Bones',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Old Wizard',
-        'Grumbledorf tinted purple for\na mystical caster look.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Old Wizard',
-                    "name = 'The Archmage'",
-                    'color = (0.4, 0.1, 0.5)',
-                    'highlight = (0.9, 0.5, 1.4)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Grumbledorf',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Jungle Explorer',
-        'Zoe recolored earthy green,\ngood for an adventurer role.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Jungle Explorer',
-                    "name = 'Trailblazer'",
-                    'color = (0.3, 0.5, 0.2)',
-                    'highlight = (0.9, 1.0, 0.6)',
-                    'position = (2, 1, -2)',
-                    'angle = 1.0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Zoe',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Deep Sea Diver',
-        'Pixel recolored deep blue,\nfits an underwater/submarine\nscene.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Deep Sea Diver',
-                    "name = 'Fathom'",
-                    'color = (0.0, 0.2, 0.5)',
-                    'highlight = (0.3, 0.6, 1.2)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Pixel',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Old-Timer Gunslinger',
-        'Jack Morgan recolored dusty\nbrown for a western scene.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Old-Timer Gunslinger',
-                    "name = 'Doc Ironside'",
-                    'color = (0.4, 0.3, 0.2)',
-                    'highlight = (0.9, 0.8, 0.6)',
-                    'position = (-2, 1, -2)',
-                    'angle = 5.5',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Jack Morgan',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Butler Bernard',
-        'Bernard kept close to natural\ncolors, calm supporting-cast\nlook.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Butler Bernard',
-                    "name = 'Bernard'",
-                    'color = (0.5, 0.45, 0.4)',
-                    'highlight = (1.0, 1.0, 0.95)',
-                    'position = (0, 1, 0)',
-                    'angle = 0',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Bernard',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
-        }
-    }
-    ))
-
-    presets.append((
-        6,
-        'Mascot Todd',
-        'Todd McBurton with a bright,\nfriendly palette - good for a\ncomic-relief role.',
-        {
-            'data': {
-                'code': '\n'.join((
-                    '# MOVI Mascot Todd',
-                    "name = 'Big Todd'",
-                    'color = (0.9, 0.6, 0.2)',
-                    'highlight = (1.2, 1.0, 0.6)',
-                    'position = (2, 1, 2)',
-                    'angle = 0.8',
-                    '',
-                    'bot = Spaz(',
-                    "    character='Todd McBurton',",
-                    '    start_invincible=False,',
-                    '    color=color,',
-                    '    highlight=highlight,',
-                    ')',
-                    'bot.handlemessage(',
-                    '    bs.StandMessage(position, angle)',
-                    ')',
-                    'bot.node.name = name',
-                ))
         }
     }
     ))
