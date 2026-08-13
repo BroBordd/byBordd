@@ -19,7 +19,7 @@ from os import listdir
 from io import StringIO
 from shutil import copy
 from hashlib import md5
-from random import choice
+from random import choice, uniform
 from base64 import b85decode
 from time import perf_counter
 from json import dumps, loads
@@ -136,6 +136,9 @@ class Editor:
         s.tools_shown = False
         s.camera_timer = None
         s.camera_data = {}
+        s.autosave_timer = None
+        s.autosave_kids = []
+        s.autosave_kill_timer = None
         s.sl = None
         s.global_butter = 0.3
         s.can_do = False
@@ -173,6 +176,245 @@ class Editor:
     def save_state(s):
         Config.set('last',Eval.ENCODE(s.memory))
 
+    @ui_safe
+    def autosave(s):
+        if not s.memory: return
+        s.save_state()
+        s.play_autosave_anim()
+
+    def play_autosave_anim(s):
+        for w in s.autosave_kids:
+            if w.exists(): w.delete()
+        s.autosave_kids.clear()
+
+        rx,ry = bui.get_virtual_screen_size()
+        area = Const.AUTOSAVE_AREA
+        marg = Const.AUTOSAVE_MARGIN
+        pad = Const.AUTOSAVE_BG_PADDING
+
+        # icon sits inset by `pad` from the container's edges
+        area_bl = (marg+pad,ry-marg-pad-area)
+        area_cx = marg+pad+area/2
+        area_cy = ry-marg-pad-area/2
+
+        def square(size,pos,opacity):
+            w = bui.imagewidget(
+                parent=s.root,
+                texture=Eval.TEXTURE(Const.SKIN),
+                color=Color.BASE,
+                position=pos,
+                size=size,
+                opacity=opacity
+            )
+            s.autosave_kids.append(w)
+            return w
+
+        p_size = Const.AUTOSAVE_PARENT_SIZE
+        p_dur = Const.AUTOSAVE_PARENT_DUR
+
+        # --- backing panel: a landscape container, bigger than its
+        # content on every side by `pad`, that pops in first. The
+        # autosave icon lives inset at its left, the "still saving"
+        # copy fills the rest, inset the same amount on the right. ---
+        inner_w = Const.AUTOSAVE_BG_WIDTH
+        bg_w = inner_w+pad*2
+        bg_h = area+pad*2
+        bg_end_pos = (marg,ry-marg-bg_h)
+        bg_cx = marg+bg_w/2
+        bg_cy = ry-marg-bg_h/2
+        pop = Const.AUTOSAVE_BG_POP_SCALE
+        bg_start_size = (bg_w*pop,bg_h*pop)
+        bg_start_pos = (bg_cx-bg_start_size[0]/2,bg_cy-bg_start_size[1]/2)
+
+        bg = square(bg_start_size,bg_start_pos,0)
+        Animate(
+            widget=bg,
+            duration=p_dur,
+            attrs={
+                'size':(bg_start_size,(bg_w,bg_h)),
+                'position':(bg_start_pos,bg_end_pos),
+                'opacity':(0,Color.OPACITY)
+            }
+        )
+
+        text_x = area_bl[0]+area-5
+        text_w = inner_w-area-pad
+
+        title = bui.textwidget(
+            parent=s.root,
+            text=choice(Const.AUTOSAVE_TITLES),
+            position=(text_x,bg_cy+14),
+            size=(text_w,20),
+            h_align='left',
+            v_align='center',
+            scale=0.9,
+            maxwidth=text_w,
+            color=Const.INVISIBLE
+        )
+        s.autosave_kids.append(title)
+        Animate(
+            widget=title,
+            duration=p_dur,
+            attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.OPACITY))}
+        )
+
+        tips = []
+        for index,line in enumerate(
+            choice(Const.AUTOSAVE_TIPS).splitlines()
+        ):
+            tip = bui.textwidget(
+                parent=s.root,
+                text=line,
+                position=(text_x-30,bg_cy-10-(index*15)),
+                size=(text_w,30),
+                h_align='left',
+                v_align='center',
+                scale=0.6,
+                maxwidth=text_w,
+                color=Const.INVISIBLE
+            )
+            s.autosave_kids.append(tip)
+            Animate(
+                widget=tip,
+                duration=p_dur,
+                attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.OPACITY*0.7))}
+            )
+            tips.append(tip)
+
+        # --- autosave icon, unchanged shape, sitting at the panel's
+        # left side. ---
+        p_start_pos = (area_cx-p_size/2,area_cy-p_size/2)
+        p_end_pos = (area_cx-area/2,area_cy-area/2)
+
+        parent = square((p_size,p_size),p_start_pos,0)
+        Animate(
+            widget=parent,
+            duration=p_dur,
+            attrs={
+                'size':((p_size,p_size),(area,area)),
+                'position':(p_start_pos,p_end_pos),
+                'opacity':(0,Color.OPACITY)
+            }
+        )
+
+        swap_dur = Const.AUTOSAVE_CHILD_GROW_DUR
+        swap_wait = Const.AUTOSAVE_CHILD_WAIT1*2
+        swap_count = Const.AUTOSAVE_SWAP_COUNT
+        min_diff = Const.AUTOSAVE_MIN_SPLIT_DIFF
+
+        # bottom-left square anchors its bottom-left corner at area_bl,
+        # top-right square anchors its top-right corner at the top-right
+        # of `area` - so as each swaps size, it stays pinned to its corner.
+        area_tr_corner = (marg+pad+area, ry-marg-pad)
+
+        def bl_pos(sz):
+            return area_bl
+
+        def tr_pos(sz):
+            return (area_tr_corner[0]-sz, area_tr_corner[1]-sz)
+
+        def rand_split(prev_pct=None):
+            # Force each step to land far enough from the previous one
+            # that the swap actually reads as a transition instead of
+            # random jitter around the same split.
+            while True:
+                pct = uniform(0.15,0.85)
+                if prev_pct is None or abs(pct-prev_pct) >= min_diff:
+                    return pct
+
+        pct = rand_split()
+        a_size,b_size = area*pct, area*(1-pct)
+
+        # square A starts at bottom-left, square B at top-right
+        a = square((a_size,a_size),bl_pos(a_size),0)
+        b = square((b_size,b_size),tr_pos(b_size),0)
+
+        Animate(
+            widget=a,
+            duration=p_dur,
+            attrs={'opacity':(0,Color.OPACITY)}
+        )
+        Animate(
+            widget=b,
+            duration=p_dur,
+            attrs={'opacity':(0,Color.OPACITY)}
+        )
+
+        last_delay = 0
+
+        for i in range(swap_count):
+            base = p_dur+i*(swap_dur+swap_wait)
+            a_from,b_from = a_size,b_size
+            pct = rand_split(pct)
+            a_size,b_size = area*pct, area*(1-pct)
+            a_to,b_to = a_size,b_size
+
+            Animate(
+                widget=a,
+                delay=base,
+                duration=swap_dur,
+                attrs={
+                    'size':((a_from,a_from),(a_to,a_to)),
+                    'position':(bl_pos(a_from),bl_pos(a_to))
+                }
+            )
+            Animate(
+                widget=b,
+                delay=base,
+                duration=swap_dur,
+                attrs={
+                    'size':((b_from,b_from),(b_to,b_to)),
+                    'position':(tr_pos(b_from),tr_pos(b_to))
+                }
+            )
+
+            last_delay = base+swap_dur+swap_wait
+
+        def kill_kids():
+            if a.exists(): a.delete()
+            if b.exists(): b.delete()
+        s.autosave_kill_timer = bui.AppTimer(last_delay, kill_kids)
+
+        Animate(
+            widget=parent,
+            delay=last_delay,
+            duration=p_dur,
+            attrs={
+                'size':((area,area),(p_size,p_size)),
+                'position':(p_end_pos,p_start_pos),
+                'opacity':(Color.OPACITY,0)
+            },
+            on_finish=lambda: parent.exists() and parent.delete()
+        )
+
+        # panel + copy bow out alongside the icon
+        Animate(
+            widget=bg,
+            delay=last_delay,
+            duration=p_dur,
+            attrs={
+                'size':((bg_w,bg_h),bg_start_size),
+                'position':(bg_end_pos,bg_start_pos),
+                'opacity':(Color.OPACITY,0)
+            },
+            on_finish=lambda: bg.exists() and bg.delete()
+        )
+        Animate(
+            widget=title,
+            delay=last_delay,
+            duration=p_dur,
+            attrs={'color':((*Color.TEXT,Color.OPACITY),Const.INVISIBLE)},
+            on_finish=lambda: title.exists() and title.delete()
+        )
+        for tip in tips:
+            Animate(
+                widget=tip,
+                delay=last_delay,
+                duration=p_dur,
+                attrs={'color':((*Color.TEXT,Color.OPACITY*0.7),Const.INVISIBLE)},
+                on_finish=lambda: tip.exists() and tip.delete()
+            )
+
     def recreate(s):
         type(s)._shared['callbacks'].remove(s.shared_callback)
         Movi.recreate()
@@ -197,6 +439,9 @@ class Editor:
         on_create = type(s)._shared['on_create']
         for call,args in on_create: call(s,*args)
         on_create.clear()
+        s.autosave_timer = bui.AppTimer(
+            Const.AUTOSAVE_INTERVAL,s.autosave,repeat=True
+        )
 
     def start_recording(s):
         s.export_flag = True
@@ -1645,6 +1890,275 @@ class Editor:
                 textcolor=Const.INVISIBLE
             )
             s.key_kids.append((b,2))
+        elif i == 3:
+            tx = Strings.TEXT
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            text_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                description=tx,
+                v_align=Const.ALIGN,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('text','Hello!'))
+            )
+            s.key_kids.append((text_inp,1))
+            tx = Strings.COLOR
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*2-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            color_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*2-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                description=tx,
+                v_align=Const.ALIGN,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('color','(1,1,1)'))
+            )
+            s.key_kids.append((color_inp,1))
+            tx = Strings.TIME
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*3-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            btime_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*3-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                description=tx,
+                v_align=Const.ALIGN,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('time',4))
+            )
+            s.key_kids.append((btime_inp,1))
+            tx = Strings.NAME
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*4-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            name_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*4-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                description=tx,
+                v_align=Const.ALIGN,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=nam
+            )
+            s.key_kids.append((name_inp,1))
+            bx,by = 100,40
+            tx = Strings.OFFSET
+            t = bui.textwidget(
+                parent=s.root,
+                position=(x,y+sy-37*5-2),
+                text=tx,
+                maxwidth=60,
+                color=Const.INVISIBLE
+            )
+            s.key_kids.append((t,0))
+            time_inp = bui.textwidget(
+                parent=s.root,
+                position=(x+70,y+sy-37*5-5),
+                glow_type=Const.GLOW,
+                editable=True,
+                size=(sx-80,35),
+                allow_clear_button=False,
+                v_align=Const.ALIGN,
+                description=tx,
+                color=(*Color.TEXT,Color.OPACITY),
+                text=str(data.get('offset',''))
+            )
+            s.key_kids.append((time_inp,1))
+            _old_off = None
+            def _off_spy():
+                nonlocal _old_off
+                if not time_inp.exists():
+                    s.off_spy = None
+                    return
+                o = bui.textwidget(query=time_inp)
+                if (
+                    o.replace('.','',1).isdigit()
+                    and (new:=float(o)) != _old_off
+                ):
+                    mem = s.memory[id(s.sl)]
+                    _old_off = new
+                    mem.get('prev_off_wid') and s.widgets.pop(mem.pop('prev_off_wid')).delete()
+                    if not (0 <= new <= mem['duration']): return
+                    s.prev_off_wid = bui.imagewidget(
+                        parent=s.stamp_hscroll_root,
+                        position=(
+                            s.magic_x + s.entry_xs_real * (mem['start'] + new) * s.entries_per_sec - s.entry_ys_real/4,
+                            s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
+                        ),
+                        size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                        texture=Eval.TEXTURE(Const.KEY),
+                        color=Color.COLD,
+                        opacity=Color.OPACITY
+                    )
+                    mem['prev_off'] = new
+                    mem['prev_off_wid'] = id(s.prev_off_wid)
+                    s.widgets[id(s.prev_off_wid)] = s.prev_off_wid
+            s.off_spy = bui.AppTimer(
+                0.02, _off_spy, repeat=True
+            )
+            def do_done():
+                txt = bui.textwidget(query=text_inp)
+                col = bui.textwidget(query=color_inp)
+                bt = bui.textwidget(query=btime_inp)
+                o = bui.textwidget(query=time_inp)
+                nam = bui.textwidget(query=name_inp)
+                if not txt:
+                    s.toast(Format.ERROR_EMPTY(Strings.TEXT))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not col:
+                    s.toast(Format.ERROR_EMPTY(Strings.COLOR))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not bt:
+                    s.toast(Format.ERROR_EMPTY(Strings.TIME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not nam:
+                    s.toast(Format.ERROR_EMPTY(Strings.NAME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                if not o:
+                    s.toast(Format.ERROR_EMPTY(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    with bs.get_foreground_host_activity().context:
+                        eval(col)
+                except Exception as e:
+                    s.toast(Format.ERROR(e))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    time_val = float(bt)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.TIME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                try:
+                    offset_val = float(o)
+                except ValueError:
+                    s.toast(Format.INVALID(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if not (0 <= offset_val <= mem['duration']):
+                    s.toast(Format.OUT_OF_RANGE(Strings.OFFSET))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                actual_time = mem['start'] + offset_val
+                key_x = s.magic_x + s.entry_xs_real * actual_time * s.entries_per_sec - s.entry_ys_real/4
+                key_y = s.entry_ys_real * (len(s.memory) - mem['order'] - 1)
+                key_wid = bui.imagewidget(
+                    parent=s.stamp_hscroll_root,
+                    position=(key_x, key_y),
+                    size=(s.entry_ys_real, s.entry_ys_real - s.magic_y),
+                    texture=Eval.TEXTURE(Const.KEY),
+                    color=Color.WARM,
+                    opacity=Color.OPACITY
+                )
+                existed = False
+                if nam in mem['keys']:
+                    s.widgets.pop(mem['keys'][nam]['widget']).delete()
+                    existed = True
+                mem['keys'][nam] = {
+                    'time':actual_time,
+                    'action':i,
+                    'data':{
+                        'text':txt,
+                        'color':col,
+                        'time':time_val,
+                        'offset':o,
+                        'name':nam
+                    },
+                    'widget':id(key_wid)
+                }
+                s.widgets[id(key_wid)] = key_wid
+                s.toast(
+                    existed and
+                    Strings.INFO_EDITED_KEY or
+                    Strings.INFO_ADDED_KEY
+                )
+                s.window_back()
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+sx-(bx+5),y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_done,
+                enable_sound=False,
+                label=Strings.DONE,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
+            def do_pop():
+                n = bui.textwidget(query=name_inp)
+                if not n:
+                    s.toast(Format.ERROR_EMPTY(Strings.NAME))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                mem = s.memory[id(s.sl)]
+                if n not in mem['keys']:
+                    s.toast(Format.NOT_FOUND(n))
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    return
+                s.widgets[mem['keys'].pop(n)['widget']].delete()
+                s.toast(Strings.INFO_POPPED(n))
+                Eval.SOUND(Const.OK_SOUND).play()
+                s.fresh_current_key_texts()
+            b = bui.buttonwidget(
+                parent=s.root,
+                position=(x+10,y),
+                size=(bx,by),
+                texture=Eval.TEXTURE(Const.SKIN),
+                opacity=0,
+                on_activate_call=do_pop,
+                enable_sound=False,
+                label=Strings.POP,
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE
+            )
+            s.key_kids.append((b,2))
         for k,_ in s.key_kids:
             if _ == 1: continue
             attrs = _ == 2 and {
@@ -1792,9 +2306,10 @@ class Editor:
         )
         s.stamp_deep_x = max(rightmost_edge + s.entry_xs_real * 1, smolx)
         y_off = 70
-        xoff, = Eval.SCALE(25)
-        one, = Eval.SCALE(1)
+        xoff, = Eval.SCALE_REAL(25)
+        one, = Eval.SCALE_REAL(1)
         s.event_kid_ts = one
+        one_ba, = Eval.SCALE_BA(1)
         s.window_size = wx,wy = 450,300
         s.window_pos = Eval.OFFSET(rx,ry,-wx/2,-wy/2,0,-y_off*2)
         (
@@ -1804,17 +2319,17 @@ class Editor:
             *s.window_pos,
             *s.window_size
         )
-        s.event_button_size = dx,dy = Eval.SCALE(100,40)
-        s.event_kid_off, = Eval.SCALE(40)
+        s.event_button_size = dx,dy = Eval.SCALE_REAL(100,40)
+        s.event_kid_off, = Eval.SCALE_REAL(40)
         num_events = len(Strings.EVENTS)
         button_height = 40
         spacing = 10
         menu_height = button_height * (num_events + 1) + spacing * (num_events + 2)
-        ex,ey = s.event_menu_size = Eval.SCALE(300, menu_height)
+        ex,ey = s.event_menu_size = Eval.SCALE_REAL(300, menu_height)
         s.event_kid_size = (ex-s.event_kid_off,dy)
 
-        s.edit_button_xoff, = Eval.SCALE(200)
-        s.edit_button_xtra, = Eval.SCALE(10)
+        s.edit_button_xoff, = Eval.SCALE_REAL(200)
+        s.edit_button_xtra, = Eval.SCALE_REAL(10)
         s.edit_button_pos = pos = (
             dx+s.edit_button_xtra,
             sy+6.5
@@ -1832,13 +2347,13 @@ class Editor:
             pos[0]+ex-dx,
             pos[1]
         )
-        s.control_off, = Eval.SCALE(5)
-        s.control_size = conx,cony = Eval.SCALE(50,50)
+        s.control_off, = Eval.SCALE_REAL(5)
+        s.control_size = conx,cony = Eval.SCALE_REAL(50,50)
         s.control_pos = lambda i:(
             sx-conx*(i+1)-s.control_off*i-2,sy+s.control_off
         )
-        s.tool_off, = Eval.SCALE(5)
-        s.tool_size = tx,ty = Eval.SCALE(50,50)
+        s.tool_off, = Eval.SCALE_REAL(5)
+        s.tool_size = tx,ty = Eval.SCALE_REAL(50,50)
         s.tool_pos = lambda i:(
             sx-tx*(i+1)-s.tool_off*i-2,sy+s.tool_off
         )
@@ -1852,7 +2367,7 @@ class Editor:
             )
             s.toast_position = (sx/2,sy+10)
             bui.imagewidget(s.stamp_bg,size=s.stamp_size)
-            bx, = Eval.SCALE(55)
+            bx, = Eval.SCALE_BA(55)
             px1,_ = Eval.OFFSET(
                 rx, ry, *bui.get_special_widget(
                     'menu_button'
@@ -1867,13 +2382,13 @@ class Editor:
                 s.square,
                 position=(px1,py),
                 size=(bx,bx),
-                text_scale=one
+                text_scale=one_ba
             )
             bui.buttonwidget(
                 s.triangle,
                 position=(px2,py),
                 size=(bx,bx),
-                text_scale=one
+                text_scale=one_ba
             )
             bui.textwidget(
                 s.top_left_h,
@@ -1980,8 +2495,8 @@ class Editor:
                 text_scale=one
             )
             s.event_top = sy+ey+5
-            s.ev_mult = s.event_button_size[1]+Eval.SCALE(10)[0]
-            s.ev_x, = Eval.SCALE(20)
+            s.ev_mult = s.event_button_size[1]+Eval.SCALE_REAL(10)[0]
+            s.ev_x, = Eval.SCALE_REAL(20)
             for i,g in enumerate(s.event_kids.items(),start=1):
                 kid,dat = g
                 win = kid in s.window_on
@@ -2208,18 +2723,18 @@ class Editor:
 
     def wrap_menu(s):
         rx,ry = bui.get_virtual_screen_size()
-        sx,sy = s.menu_size = Eval.SCALE(240,370)
+        sx,sy = s.menu_size = Eval.SCALE_REAL(240,370)
         s.menu_start_size = (sx*0.8,sy*0.8)
-        s.menu_yoff, = Eval.SCALE(62)
-        s.menu_marg, = Eval.SCALE(10)
+        s.menu_yoff, = Eval.SCALE_REAL(62)
+        s.menu_marg, = Eval.SCALE_REAL(10)
         x,y = s.menu_pos = rx-sx+2,ry-sy-s.menu_yoff
         s.menu_start_pos = (
             rx-s.menu_start_size[0],
             ry-s.menu_yoff-s.menu_start_size[1]
         )
         bx = sx-s.menu_marg*4
-        by, = Eval.SCALE(40)
-        one, = Eval.SCALE(1)
+        by, = Eval.SCALE_REAL(40)
+        one, = Eval.SCALE_REAL(1)
         s.menu_kid_size = bx,by
         s.menu_kid_start_size = (bx/2,by)
         s.menu_button_xp = x+s.menu_marg*2
@@ -3082,7 +3597,7 @@ class Editor:
 
         s.current_node_type = data.get('type', 'prop') if data else 'prop'
         
-        init_pos = (0, 1, 0)
+        init_pos = (0, 0, 0)
         s.current_attrs = {}
         
         def to_friendly(k, v):
@@ -3395,6 +3910,13 @@ class Editor:
             
             try:
                 with bs.get_foreground_host_activity().context:
+                    _shared = None
+                    _factory = None
+                    if s.current_node_type == 'spaz':
+                        from bascenev1lib.gameutils import SharedObjects
+                        from bascenev1lib.actor.spazfactory import SpazFactory
+                        _shared = SharedObjects.get()
+                        _factory = SpazFactory.get()
                     eval(to_eval(k, v))
             except Exception as e:
                 s.toast(Format.ERROR(e))
@@ -3493,6 +4015,70 @@ class Editor:
 
         refresh_right_pane(initial=True)
 
+        prv_on = False
+        prv_node = None
+
+        def do_preview():
+            nonlocal prv_on, prv_node
+            if prv_on:
+                prv_on = False
+                bui.buttonwidget(prv_btn, label=Strings.PREVIEW)
+                if prv_node and prv_node.exists():
+                    prv_node.delete()
+                prv_node = None
+                Eval.SOUND(Const.OK_SOUND).play()
+                return
+
+            try:
+                pos_tuple = (
+                    float(bui.textwidget(query=s.pos_inputs[0]) or '0'),
+                    float(bui.textwidget(query=s.pos_inputs[1]) or '0'),
+                    float(bui.textwidget(query=s.pos_inputs[2]) or '0')
+                )
+            except Exception:
+                s.toast("Invalid Position!")
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            sync_edits()
+            try:
+                with bs.get_foreground_host_activity().context:
+                    _shared = None
+                    _factory = None
+                    if s.current_node_type == 'spaz':
+                        from bascenev1lib.gameutils import SharedObjects
+                        from bascenev1lib.actor.spazfactory import SpazFactory
+                        _shared = SharedObjects.get()
+                        _factory = SpazFactory.get()
+                    kw = {'position': pos_tuple}
+                    for key, val in s.current_attrs.items():
+                        if val:
+                            kw[key] = eval(to_eval(key, val))
+                    prv_node = bs.newnode(s.current_node_type, attrs=kw)
+            except Exception as e:
+                s.toast(Format.ERROR(e))
+                Eval.SOUND(Const.BAD_SOUND).play()
+                return
+
+            Eval.SOUND(Const.OK_SOUND).play()
+            bui.buttonwidget(prv_btn, label=Strings.STOP)
+            prv_on = True
+
+        pos = (left_x - 3, s.window_marg)
+        size = (145, 40)
+        prv_btn = bui.buttonwidget(
+            parent=s.root,
+            size=(0, 0),
+            position=pos,
+            texture=Eval.TEXTURE(Const.SKIN),
+            color=Color.BASE,
+            enable_sound=False,
+            label=Strings.PREVIEW,
+            textcolor=Const.INVISIBLE,
+            on_activate_call=do_preview
+        )
+        s.window_kids.append((prv_btn, pos, 50, delay + 0.1, ('size', ((0, size[1]), size))))
+
         def do_done():
             nam = bui.textwidget(query=name_text)
             if not nam:
@@ -3516,6 +4102,13 @@ class Editor:
 
             try:
                 with bs.get_foreground_host_activity().context:
+                    _shared = None
+                    _factory = None
+                    if s.current_node_type == 'spaz':
+                        from bascenev1lib.gameutils import SharedObjects
+                        from bascenev1lib.actor.spazfactory import SpazFactory
+                        _shared = SharedObjects.get()
+                        _factory = SpazFactory.get()
                     for key, val in s.current_attrs.items():
                         if val:
                             eval_str = to_eval(key, val)
@@ -3557,6 +4150,8 @@ class Editor:
         s.window_kids.append((done_btn, done_pos, 50, delay+0.1, ('size', ((0, 40), (95, 40)))))
 
         s.window_trash = [s.attr_widgets]
+
+        return lambda: prv_node and prv_node.exists() and prv_node.delete()
 
     def make_camera_window(s,edit=None,load=False):
         x,y = s.window_pos
@@ -6308,6 +6903,16 @@ class Editor:
                 node = tracker.active[btn_id]
                 if node.exists():
                     try:
+                        _shared = None
+                        _factory = None
+                        if attr_name in (
+                            'materials', 'roller_materials',
+                            'punch_materials', 'pickup_materials'
+                        ):
+                            from bascenev1lib.gameutils import SharedObjects
+                            from bascenev1lib.actor.spazfactory import SpazFactory
+                            _shared = SharedObjects.get()
+                            _factory = SpazFactory.get()
                         setattr(node, attr_name, eval(attr_eval))
                     except Exception as e:
                         s.toast(Format.ERROR(e))
@@ -6335,6 +6940,23 @@ class Editor:
                             s.toast(Format.ERROR(e))
                             Eval.SOUND(Const.BAD_SOUND).play()
                     tracker.active_sounds[node] = v
+
+        elif action == 3:
+            da = key_data['data']
+            if btn_id in tracker.active:
+                node = tracker.active[btn_id]
+                if node.exists():
+                    try:
+                        with bs.get_foreground_host_activity().context:
+                            Bubble(
+                                node,
+                                text=da['text'],
+                                color=eval(da['color']),
+                                time=da['time']
+                            )
+                    except Exception as e:
+                        s.toast(Format.ERROR(e))
+                        Eval.SOUND(Const.BAD_SOUND).play()
 
     def make_playhead(s):
         s.playhead and s.playhead.delete()
@@ -8063,6 +8685,12 @@ class Strings:
     EVAL = 'Eval'
     EVAL_HELP = 'The node\'s attr value in attr dict (evaluated)\nbascenev1.newnode(attrs={\'attr\':THIS})\nEnter'
     OFFSET = 'Offset'
+    TEXT = 'Text'
+    COLOR = 'Color'
+    TIME = 'Time'
+    BUBBLE_TEXT_HELP = 'The bubble\'s message\nEnter'
+    BUBBLE_COLOR_HELP = 'The bubble\'s color (evaluated tuple)\nEnter'
+    BUBBLE_TIME_HELP = 'How long the bubble stays, in seconds\nEnter'
     TYPE = 'Type'
     TYPE_HELP = 'The node\'s type kwarg\nbascenev1.newnode(type=\'THIS\')\nEnter'
     SEED_HELP = 'The Movi\'s project seed. Get it from Square -> Copy Seed\nEnter'
@@ -8084,7 +8712,8 @@ class Strings:
     ACTIONS = [
         'Attribute',
         'Code',
-        'Volume'
+        'Volume',
+        'Bubble'
     ]
     ACTION_PLACEHOLDER = 'Select an action\nNice UI appears here'
     SOUND_PLACEHOLDER = 'Select a sound'
@@ -8314,10 +8943,15 @@ class Const:
     BA_LAG = 0.04
     BA_LAG_SMALL = 0.01
     INVISIBLE = (0,0,0,0)
-    SCALE = {
+    SCALE_BA = {
         bui.UIScale.SMALL: 1.275,
         bui.UIScale.MEDIUM: 1,
         bui.UIScale.LARGE: 0.764
+    }
+    SCALE_REAL = {
+        bui.UIScale.SMALL: 0.93,
+        bui.UIScale.MEDIUM: 0.9,
+        bui.UIScale.LARGE: 0.7
     }
     SKIN = 'white'
     EMPTY = 'empty'
@@ -8344,7 +8978,7 @@ class Const:
         'PLAY_STATION_CROSS_BUTTON'
     )
     EVENT_KEYS = {
-        0: (0,),
+        0: (0,3),
         2: (2,),
         6: (1,)
     }
@@ -8403,6 +9037,121 @@ class Const:
         'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
         '1Pc'
     )))
+    AUTOSAVE_INTERVAL = 60
+    AUTOSAVE_AREA = 70
+    AUTOSAVE_MARGIN = 20
+    AUTOSAVE_PARENT_SIZE = 100
+    AUTOSAVE_PARENT_DUR = 0.3
+    AUTOSAVE_CHILD_GROW_DUR = 0.25
+    AUTOSAVE_CHILD_WAIT1 = 0.2
+    AUTOSAVE_CHILD_MOVE_DUR = 0.25
+    AUTOSAVE_CHILD_WAIT2 = 0.3
+    AUTOSAVE_SWAP_COUNT = 8
+    AUTOSAVE_MIN_SPLIT_DIFF = 0.18
+    AUTOSAVE_BG_WIDTH = 300
+    AUTOSAVE_BG_PADDING = 16
+    AUTOSAVE_BG_POP_SCALE = 1.25
+    AUTOSAVE_TITLES = (
+        'Saving your chaos...',
+        'Backing up the damage...',
+        'Committing your nonsense...',
+        'Saving before you break it...',
+        'Snapshotting the mess...',
+        'Autosave, doing its one job...',
+        'Committing to a bit...',
+        'Quietly saving your seed...',
+        'Backing up before you regret this...',
+        'Saving. Try not to jinx it...',
+        'Saving the director\'s cut...',
+        'Yelling "Cut!" to back this up...',
+        'Printing the dailies...',
+        'Fixing it in post...',
+        'Saving this cinematic masterpiece...',
+        'Telling the actors to hold still...',
+        'Archiving the blooper reel...',
+        'Securing the Oscar nomination...',
+        'Documenting your directorial debut...',
+        'Waiting for the camera to focus...',
+        'Saving... grab some popcorn.',
+        'Rolling the credits on this session...',
+        'Sending the footage to editing...',
+        'Protecting your keyframes...',
+        'Packing memory into CJK...',
+        'Stashing your spaghetti code...',
+        'Making sure the Spazes survive...',
+        'Stashing your explosive ideas...',
+        'Saving before the next explosion...',
+        'Packing nodes into boxes...',
+        'Sweeping the timeline for loose bombs...',
+        'Updating the BRP manifest...',
+        'Baking the keyframes...',
+        'Reticulating splines...',
+        'Securing the evidence...',
+        'Saving your "art"...',
+        'Preserving this timeline disaster...',
+        'Saving... don\'t touch anything.',
+        'Encoding your questionable choices...',
+        'Saving before the engine crashes...',
+        'Adding another layer of duct tape...',
+        'Saving you from yourself...',
+        'Preventing a total cinematic disaster...',
+        'Hold please, writing to disk...',
+        'Quick, act natural. Saving...',
+        'Writing your "genius" to a file...',
+        'Putting the timeline on ice...',
+        'Holding the code together with glue...'
+    )
+    # Casual, occasionally multi-line filler shown under the title while
+    # we save. Use '\n' for a line break. Purely decorative - swap the
+    # array or wire it up to a real tips source whenever.
+    AUTOSAVE_TIPS = (
+        'Wide Preview collapses the UI.\nTry it sometime.',
+        'Toggle Editor hides all UI if it\'s\never in your way.',
+        'Presets are just entries someone\nalready tuned.',
+        'Code events run parallel to their\nown keyframes.',
+        'Duplicating an entry is faster\nthan rebuilding it.',
+        'Recording makes a BRP which is\njust replays.',
+        'The square menu has seven options.\nTry one you haven\'t.',
+        'Triangle just opens your squad.\nNothing fancier.',
+        'Spam the UI too fast and it\'ll\ntell you to slow down.',
+        'A seed is your whole project\nencoded as text.',
+        'Always copy your seed before\nbig changes. There is no\nCtrl+Z in Movi!',
+        'Need to reuse a complex setup?\nDuplicating an entry copies\nits keyframes too.',
+        'You can make characters talk\nby adding a Bubble action\nin the Keys menu.',
+        'Use Keyframes to change a node\'s\nattributes mid-scene without\ncoding.',
+        'Need a soundtrack to fade out?\nUse a Volume keyframe on a\nSound entry.',
+        'Map events can completely\nalter the arena\'s lighting,\ntint, and vignette.',
+        'Evaluated attribute boxes let\nyou run Python directly to\nfetch textures or sounds.',
+        'Your seeds look like ancient\ntexts because Movi uses CJK\ncharacters for compression.',
+        'Movi was made with love and tea.\nProbably mostly tea.',
+        'To create ambient background\nmusic, add a Sound event and\ncheck Everywhere and Loop.',
+        'Code Keyframes run as children\nof the main event, meaning\nthey share the same variables.',
+        'Recorded projects are exported\nas .brp files prefixed with\n"movi_" in your replays.',
+        'Autosave is doing its best\nright now. Please do not\nperceive it.',
+        'Who needs a render farm\nwhen you have BombSquad\nand a dream?',
+        'Made a mistake with a\nkeyframe? Use the "Pop" button\nin the Keys menu to delete it.',
+        'Keyframe offsets are relative\nto the start of the event.\n0.0 means it happens instantly.',
+        'You can set a keyframe to\nexecute exact code. Perfect for\nfiring complex logic mid-scene.',
+        'Movi automatically formats\nmesh and texture names for you.\nNo need to type bs.getmesh()!',
+        'Need a dummy target? A locator\nnode is invisible in-game but\ngreat for the camera to track.',
+        'You can share your projects\nwith other directors by copying\nthe Seed and sending the text.',
+        'When you\'re ready to record a\nBRP, hide the UI with Wide\nPreview for a clean capture.',
+        'Yes, the Code Editor lets\nyou do *anything*. Try not to\ndelete the universe by accident.',
+        'Welcome to Movi v1.0.\nIf you find a bug, let\'s just\ncall it an avant-garde feature.',
+        'Every masterpiece takes time.\nOr in this case, a lot of\nmeticulously placed keyframes.',
+        'Need a cinematic look? Crank\nup the map\'s vignette_outer\nand vignette_inner attributes.',
+        'The Random Sound Roulette\npreset is a highly effective\nway to annoy everyone on set.',
+        'When playback stops, Movi\ncleans up all spawned nodes\nautomatically. No mess left!',
+        'Map events let you swap the\narena mid-scene. Instant\nteleportation budget unlocked.',
+        'The Playhead is your best\nfriend. Just click Play and\nwatch your timeline come to life.',
+        'Spaz characters can be spawned\nvia Code events. Check the\nBasic Spaz preset to see how.',
+        'The _SHARED dictionary in\nthe Code Editor lets your\nseparate scripts talk.',
+        'Seeds are pure text. Paste\nthem in a Notepad file to\nbuild your own movie library!',
+        'If your actors aren\'t hitting\ntheir marks, remember: you\nliterally programmed them.',
+        'No Spazes were harmed in\nthe making of this movie.\nWell, maybe just a few.',
+        'Because we both know you\nweren\'t going to back\nthis up manually.',
+        'We can fix it in post.\nWait, this IS post.\nUh oh.'
+    )
 
 # --- CJK seed charset -------------------------------------------------
 # Seeds now pack into CJK ideograph characters instead of decimal digits.
@@ -8489,8 +9238,13 @@ class Eval:
     OFFSET = lambda rx,ry,cx,cy,dx=0,dy=0:(
         (rx/2+cx-dx/2,ry/2+cy-dy/2)
     )
-    SCALE = lambda *a: (
-        (m:=Const.SCALE[
+    SCALE_BA = lambda *a: (
+        (m:=Const.SCALE_BA[
+            bui.app.ui_v1.uiscale
+        ]) and tuple(m*n for n in a)
+    )
+    SCALE_REAL = lambda *a: (
+        (m:=Const.SCALE_REAL[
             bui.app.ui_v1.uiscale
         ]) and tuple(m*n for n in a)
     )
