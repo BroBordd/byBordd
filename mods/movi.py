@@ -15,6 +15,7 @@ import bascenev1 as bs
 
 from re import sub
 from math import ceil
+from colorsys import hsv_to_rgb
 from os import listdir
 from io import StringIO
 from shutil import copy
@@ -22,6 +23,7 @@ from hashlib import md5
 from random import choice, uniform
 from base64 import b85decode
 from time import perf_counter
+from datetime import datetime
 from json import dumps, loads
 from weakref import WeakMethod
 from traceback import format_exc
@@ -123,7 +125,7 @@ class Editor:
         s.stamp_timeline = []
         s.stamp_hack = 14
         s.entries_per_sec = 5
-        s.object_duration = 1
+        s.object_duration = Settings.get('entry_duration')
         s.memory = {}
         s.widgets = {}
         s.anims = defaultdict(dict)
@@ -138,7 +140,11 @@ class Editor:
         s.camera_data = {}
         s.autosave_timer = None
         s.autosave_kids = []
+        s.autosave_img_kids = []
+        s.autosave_text_kids = []
+        s.autosave_text_anim = {}
         s.autosave_kill_timer = None
+        s.about_letter_kids = []
         s.sl = None
         s.global_butter = 0.3
         s.can_do = False
@@ -146,6 +152,10 @@ class Editor:
         s.increment = 1
         s.info_fps_was_on = bui.app.config.get(Const.CONFIG_FPS_KEY,False)
         s.info_dev_was_on = bui.app.config.get(Const.CONFIG_DEV_KEY,False)
+        Settings.apply_all()
+        s.grid_nodes = []
+        s.aspect_bars = None
+        s.aspect_fill_bars = []
         s.schedule_on_ui(
             s.on_ui_ready,
             lag=0.23
@@ -179,23 +189,125 @@ class Editor:
     @ui_safe
     def autosave(s):
         if not s.memory: return
+        if not Settings.get('autosave_on'): return
         s.save_state()
         s.play_autosave_anim()
+
+    def restart_autosave_timer(s):
+        """Called whenever Settings' 'autosave_interval' changes so
+        the live AppTimer picks up the new period immediately."""
+        s.autosave_timer = None
+        s.autosave_timer = bui.AppTimer(
+            max(Settings.get('autosave_interval'),Const.AUTOSAVE_MIN_INTERVAL),
+            s.autosave, repeat=True
+        )
+
+    def build_grid(s):
+        """Populates the scene with spatial references while editing -
+        a flat 2D grid, a full 3D lattice, or both, per their own
+        independent settings. Purely visual - never touched by
+        playback or export. Safe to call repeatedly (always clears
+        the previous grid first).
+
+        The 2D grid draws actual lines (thin red 'image' nodes tinted
+        over the plain 'white' texture) rather than a dot at every
+        intersection - the 3D grid stays as locator-box markers,
+        since a full lattice of lines would just be visual noise."""
+        s.destroy_grid()
+        if s.playing: return
+        show_2d = Settings.get('show_grid_2d')
+        show_3d = Settings.get('show_grid_3d')
+        if not show_2d and not show_3d: return
+        try:
+            activity = bs.get_foreground_host_activity()
+        except Exception:
+            return
+        span = Const.GRID_SPAN
+        step = Const.GRID_STEP
+        n = int(span/step)
+        try:
+            with activity.context:
+                if show_2d:
+                    rx,ry = bui.get_virtual_screen_size()
+                    step2d = min(rx,ry)/Const.GRID_2D_DIVISIONS
+                    nx2d = int((rx/2)/step2d)
+                    ny2d = int((ry/2)/step2d)
+                    total_len_x = 2*nx2d*step2d
+                    total_len_y = 2*ny2d*step2d
+                    thickness = Const.GRID_2D_THICKNESS
+                    grid_opacity = min(Color.OPACITY*1.6,1)
+                    for ix in range(-nx2d,nx2d+1):
+                        s.grid_nodes.append(bs.newnode(
+                            'image',
+                            attrs={
+                                'texture':bs.gettexture('white'),
+                                'position':(ix*step2d,0.0),
+                                'scale':(thickness,total_len_y),
+                                'color':(1,0,0),
+                                'opacity':grid_opacity
+                            }
+                        ))
+                    for iy in range(-ny2d,ny2d+1):
+                        s.grid_nodes.append(bs.newnode(
+                            'image',
+                            attrs={
+                                'texture':bs.gettexture('white'),
+                                'position':(0.0,iy*step2d),
+                                'scale':(total_len_x,thickness),
+                                'color':(1,0,0),
+                                'opacity':grid_opacity
+                            }
+                        ))
+                if show_3d:
+                    span_y = Const.GRID_SPAN_3D
+                    step_y = Const.GRID_STEP_3D
+                    ny = int(span_y/step_y)
+                    for ix in range(-n,n+1):
+                        for iy in range(-ny,ny+1):
+                            for iz in range(-n,n+1):
+                                if show_2d and iy == 0: continue
+                                s.grid_nodes.append(bs.newnode(
+                                    'locator',
+                                    attrs={
+                                        'position':(ix*step,iy*step_y,iz*step),
+                                        'shape':'box',
+                                        'size':[Const.GRID_MARK_SIZE]*3,
+                                        'color':Color.WARM,
+                                        'opacity':min(Color.OPACITY*1.6,1),
+                                        'additive':False,
+                                        'draw_beauty':True
+                                    }
+                                ))
+        except Exception as e:
+            print(format_exc())
+            s.destroy_grid()
+
+    def destroy_grid(s):
+        for n in getattr(s,'grid_nodes',None) or []:
+            if n.exists(): n.delete()
+        s.grid_nodes = []
 
     def play_autosave_anim(s):
         for w in s.autosave_kids:
             if w.exists(): w.delete()
         s.autosave_kids.clear()
+        s.autosave_img_kids.clear()
+        s.autosave_text_kids.clear()
+        s.autosave_text_anim.clear()
 
         rx,ry = bui.get_virtual_screen_size()
         area = Const.AUTOSAVE_AREA
         marg = Const.AUTOSAVE_MARGIN
         pad = Const.AUTOSAVE_BG_PADDING
+        fancy = Settings.get('fancy_autosave')
+        epic = Settings.get('epic_mode')
 
-        # icon sits inset by `pad` from the container's edges
-        area_bl = (marg+pad,ry-marg-pad-area)
-        area_cx = marg+pad+area/2
-        area_cy = ry-marg-pad-area/2
+        icon_pad = pad if fancy else Const.AUTOSAVE_COMPACT_BG_PAD/2
+
+        # icon sits inset by `icon_pad` from the container's edges
+        area_bl = (marg+icon_pad,ry-marg-icon_pad-area)
+        area_cx = marg+icon_pad+area/2
+        area_cy = ry-marg-icon_pad-area/2
 
         def square(size,pos,opacity):
             w = bui.imagewidget(
@@ -207,22 +319,22 @@ class Editor:
                 opacity=opacity
             )
             s.autosave_kids.append(w)
+            s.autosave_img_kids.append(w)
             return w
 
-        p_size = Const.AUTOSAVE_PARENT_SIZE
         p_dur = Const.AUTOSAVE_PARENT_DUR
 
-        # --- backing panel: a landscape container, bigger than its
-        # content on every side by `pad`, that pops in first. The
-        # autosave icon lives inset at its left, the "still saving"
-        # copy fills the rest, inset the same amount on the right. ---
-        inner_w = Const.AUTOSAVE_BG_WIDTH
-        bg_w = inner_w+pad*2
-        bg_h = area+pad*2
+        if fancy:
+            inner_w = Const.AUTOSAVE_BG_WIDTH
+            bg_w = inner_w+pad*2
+            bg_h = area+pad*2
+        else:
+            inner_w = area
+            bg_w = bg_h = area+icon_pad*2
         bg_end_pos = (marg,ry-marg-bg_h)
         bg_cx = marg+bg_w/2
         bg_cy = ry-marg-bg_h/2
-        pop = Const.AUTOSAVE_BG_POP_SCALE
+        pop = Const.AUTOSAVE_BG_POP_SCALE * (Const.EPIC_POP_MULT if epic else 1)
         bg_start_size = (bg_w*pop,bg_h*pop)
         bg_start_pos = (bg_cx-bg_start_size[0]/2,bg_cy-bg_start_size[1]/2)
 
@@ -240,72 +352,69 @@ class Editor:
         text_x = area_bl[0]+area-5
         text_w = inner_w-area-pad
 
-        title = bui.textwidget(
-            parent=s.root,
-            text=choice(Const.AUTOSAVE_TITLES),
-            position=(text_x,bg_cy+14),
-            size=(text_w,20),
-            h_align='left',
-            v_align='center',
-            scale=0.9,
-            maxwidth=text_w,
-            color=Const.INVISIBLE
-        )
-        s.autosave_kids.append(title)
-        Animate(
-            widget=title,
-            duration=p_dur,
-            attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.OPACITY))}
-        )
-
-        tips = []
-        for index,line in enumerate(
-            choice(Const.AUTOSAVE_TIPS).splitlines()
-        ):
-            tip = bui.textwidget(
+        title = None
+        if fancy:
+            title = bui.textwidget(
                 parent=s.root,
-                text=line,
-                position=(text_x-30,bg_cy-10-(index*15)),
-                size=(text_w,30),
+                text=choice(Const.AUTOSAVE_TITLES),
+                position=(text_x,bg_cy+14),
+                size=(text_w,20),
                 h_align='left',
                 v_align='center',
-                scale=0.6,
+                scale=0.9,
                 maxwidth=text_w,
                 color=Const.INVISIBLE
             )
-            s.autosave_kids.append(tip)
-            Animate(
-                widget=tip,
+            s.autosave_kids.append(title)
+            s.autosave_text_kids.append(title)
+            s.autosave_text_anim[id(title)] = Animate(
+                widget=title,
                 duration=p_dur,
-                attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.OPACITY*0.7))}
+                attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.TEXT_OPACITY))}
             )
-            tips.append(tip)
 
-        # --- autosave icon, unchanged shape, sitting at the panel's
-        # left side. ---
-        p_start_pos = (area_cx-p_size/2,area_cy-p_size/2)
+        tips = []
+        if fancy:
+            for index,line in enumerate(
+                choice(Const.AUTOSAVE_TIPS).splitlines()
+            ):
+                tip = bui.textwidget(
+                    parent=s.root,
+                    text=line,
+                    position=(text_x-30,bg_cy-10-(index*15)),
+                    size=(text_w,30),
+                    h_align='left',
+                    v_align='center',
+                    scale=0.6,
+                    maxwidth=text_w,
+                    color=Const.INVISIBLE
+                )
+                s.autosave_kids.append(tip)
+                s.autosave_text_kids.append(tip)
+                s.autosave_text_anim[id(tip)] = Animate(
+                    widget=tip,
+                    duration=p_dur,
+                    attrs={'color':(Const.INVISIBLE,(*Color.TEXT,Color.TEXT_OPACITY*0.7))}
+                )
+                tips.append(tip)
+
         p_end_pos = (area_cx-area/2,area_cy-area/2)
 
-        parent = square((p_size,p_size),p_start_pos,0)
+        parent = square((area,area),p_end_pos,0)
         Animate(
             widget=parent,
             duration=p_dur,
             attrs={
-                'size':((p_size,p_size),(area,area)),
-                'position':(p_start_pos,p_end_pos),
                 'opacity':(0,Color.OPACITY)
             }
         )
 
         swap_dur = Const.AUTOSAVE_CHILD_GROW_DUR
         swap_wait = Const.AUTOSAVE_CHILD_WAIT1*2
-        swap_count = Const.AUTOSAVE_SWAP_COUNT
+        swap_count = Const.AUTOSAVE_SWAP_COUNT * (Const.EPIC_SWAP_MULT if epic else 1)
         min_diff = Const.AUTOSAVE_MIN_SPLIT_DIFF
 
-        # bottom-left square anchors its bottom-left corner at area_bl,
-        # top-right square anchors its top-right corner at the top-right
-        # of `area` - so as each swaps size, it stays pinned to its corner.
-        area_tr_corner = (marg+pad+area, ry-marg-pad)
+        area_tr_corner = (marg+icon_pad+area, ry-marg-icon_pad)
 
         def bl_pos(sz):
             return area_bl
@@ -314,9 +423,6 @@ class Editor:
             return (area_tr_corner[0]-sz, area_tr_corner[1]-sz)
 
         def rand_split(prev_pct=None):
-            # Force each step to land far enough from the previous one
-            # that the swap actually reads as a transition instead of
-            # random jitter around the same split.
             while True:
                 pct = uniform(0.15,0.85)
                 if prev_pct is None or abs(pct-prev_pct) >= min_diff:
@@ -341,79 +447,54 @@ class Editor:
         )
 
         last_delay = 0
+        anims_off = not Settings.get('ui_anim_on')
 
-        for i in range(swap_count):
-            base = p_dur+i*(swap_dur+swap_wait)
-            a_from,b_from = a_size,b_size
-            pct = rand_split(pct)
-            a_size,b_size = area*pct, area*(1-pct)
-            a_to,b_to = a_size,b_size
+        if not anims_off:
+            for i in range(swap_count):
+                base = p_dur+i*(swap_dur+swap_wait)
+                a_from,b_from = a_size,b_size
+                pct = rand_split(pct)
+                a_size,b_size = area*pct, area*(1-pct)
+                a_to,b_to = a_size,b_size
 
+                Animate(
+                    widget=a,
+                    delay=base,
+                    duration=swap_dur,
+                    attrs={
+                        'size':((a_from,a_from),(a_to,a_to)),
+                        'position':(bl_pos(a_from),bl_pos(a_to))
+                    }
+                )
+                Animate(
+                    widget=b,
+                    delay=base,
+                    duration=swap_dur,
+                    attrs={
+                        'size':((b_from,b_from),(b_to,b_to)),
+                        'position':(tr_pos(b_from),tr_pos(b_to))
+                    }
+                )
+
+                last_delay = base+swap_dur+swap_wait
+        else:
+            last_delay = Const.AUTOSAVE_STATIC_HOLD
+
+        def die():
+            for w in (a,b,parent,title,*tips):
+                if w is not None and w.exists(): w.delete()
+                s.autosave_text_anim.pop(id(w),None)
             Animate(
-                widget=a,
-                delay=base,
-                duration=swap_dur,
-                attrs={
-                    'size':((a_from,a_from),(a_to,a_to)),
-                    'position':(bl_pos(a_from),bl_pos(a_to))
-                }
-            )
-            Animate(
-                widget=b,
-                delay=base,
-                duration=swap_dur,
-                attrs={
-                    'size':((b_from,b_from),(b_to,b_to)),
-                    'position':(tr_pos(b_from),tr_pos(b_to))
-                }
-            )
-
-            last_delay = base+swap_dur+swap_wait
-
-        def kill_kids():
-            if a.exists(): a.delete()
-            if b.exists(): b.delete()
-        s.autosave_kill_timer = bui.AppTimer(last_delay, kill_kids)
-
-        Animate(
-            widget=parent,
-            delay=last_delay,
-            duration=p_dur,
-            attrs={
-                'size':((area,area),(p_size,p_size)),
-                'position':(p_end_pos,p_start_pos),
-                'opacity':(Color.OPACITY,0)
-            },
-            on_finish=lambda: parent.exists() and parent.delete()
-        )
-
-        # panel + copy bow out alongside the icon
-        Animate(
-            widget=bg,
-            delay=last_delay,
-            duration=p_dur,
-            attrs={
-                'size':((bg_w,bg_h),bg_start_size),
-                'position':(bg_end_pos,bg_start_pos),
-                'opacity':(Color.OPACITY,0)
-            },
-            on_finish=lambda: bg.exists() and bg.delete()
-        )
-        Animate(
-            widget=title,
-            delay=last_delay,
-            duration=p_dur,
-            attrs={'color':((*Color.TEXT,Color.OPACITY),Const.INVISIBLE)},
-            on_finish=lambda: title.exists() and title.delete()
-        )
-        for tip in tips:
-            Animate(
-                widget=tip,
-                delay=last_delay,
+                widget=bg,
                 duration=p_dur,
-                attrs={'color':((*Color.TEXT,Color.OPACITY*0.7),Const.INVISIBLE)},
-                on_finish=lambda: tip.exists() and tip.delete()
+                attrs={
+                    'size':((bg_w,bg_h),bg_start_size),
+                    'position':(bg_end_pos,bg_start_pos),
+                    'opacity':(Color.OPACITY,0)
+                },
+                on_finish=lambda: bg.exists() and bg.delete()
             )
+        s.autosave_kill_timer = bui.AppTimer(last_delay, die)
 
     def recreate(s):
         type(s)._shared['callbacks'].remove(s.shared_callback)
@@ -440,8 +521,9 @@ class Editor:
         for call,args in on_create: call(s,*args)
         on_create.clear()
         s.autosave_timer = bui.AppTimer(
-            Const.AUTOSAVE_INTERVAL,s.autosave,repeat=True
+            max(Settings.get('autosave_interval'),Const.AUTOSAVE_MIN_INTERVAL),s.autosave,repeat=True
         )
+        s.build_grid()
 
     def start_recording(s):
         s.export_flag = True
@@ -449,10 +531,29 @@ class Editor:
         s.toast(Strings.INFO_RECORDING_NOW)
         bui.buttonwidget(
             s.controls[0],
-            label=Eval.CHAR(
-                Const.STOP_RECORDING
-            )
+            label=Strings.STOP_RECORDING_LABEL
         )
+
+    def render_export_filename(s,uid):
+        """Turns the 'export_filename_template' setting (e.g.
+        'movi_{uuid}') into a real, filesystem-safe base filename -
+        no extension, that's added by the caller. Unknown {tokens}
+        are dropped instead of raising, and anything that isn't
+        alnum/underscore/dash collapses to '_' so a stray character
+        in the template can't produce a broken path."""
+        now = datetime.now()
+        tokens = defaultdict(str,{
+            'uuid':uid,
+            'date':now.strftime('%Y%m%d'),
+            'time':now.strftime('%H%M%S'),
+        })
+        template = Settings.get('export_filename_template') or Const.EXPORT_DEFAULT_TEMPLATE
+        try:
+            rendered = template.format_map(tokens)
+        except Exception:
+            rendered = Const.EXPORT_DEFAULT_TEMPLATE.format_map(tokens)
+        rendered = sub(r'[^A-Za-z0-9_\-]+','_',rendered).strip('_')
+        return rendered or Const.EXPORT_PREFIX+uid
 
     def export_replay(s,wait=True):
         if wait:
@@ -464,12 +565,14 @@ class Editor:
                 )
             )
             return
-        name = Const.EXPORT_PREFIX+md5(
+        uid = md5(
             dumps(
                 s.memory,
                 sort_keys=True
             ).encode()
-        ).hexdigest()[:8]+Const.EXPORT_SUFFIX
+        ).hexdigest()[:8]
+        base_name = s.render_export_filename(uid)
+        name = base_name+Const.EXPORT_SUFFIX
         copy(
             join(
                 Const.REPLAYS,
@@ -480,6 +583,13 @@ class Editor:
                 name
             )
         )
+        if Settings.get('brp_text_export'):
+            text_name = base_name+Const.EXPORT_TEXT_SUFFIX
+            try:
+                with open(join(Const.REPLAYS,text_name),'w',encoding='utf-8') as f:
+                    f.write(dumps(s.memory,indent=2,sort_keys=True))
+            except Exception as e:
+                s.toast(Format.ERROR(e))
         s.toast(Format.SAVED_AS(name))
         Eval.SOUND(Const.GOOD_SOUND).play()
 
@@ -543,7 +653,7 @@ class Editor:
                 duration=zoom_time,
                 on_finish=(enable,)
             )
-        start_textcolor = (*Color.TEXT,Color.OPACITY)
+        start_textcolor = (*Color.TEXT,Color.TEXT_OPACITY)
         blink_time = 0.2
         apply_text = bui.CallPartial(
             bui.buttonwidget,
@@ -584,10 +694,25 @@ class Editor:
             on_finish=zoom
         )
         s.toast_timer = inp and bui.AppTimer(
-            max(len(t)*0.07,3),
+            max(len(t)*0.07,Settings.get('toast_duration')),
             s.toast
         )
         s.last_toast = t
+
+    def reset_toast_position(s):
+        """toast()'s continuous-toast-chain animation deliberately
+        starts each new toast from the previous one's current position
+        (anim.attrs_current) instead of s.toast_position, so back-to-
+        back toasts flow into each other instead of jumping. But that
+        means once 'toast_top' changes, the very next toast still
+        inherits the old anim's last position and springs across the
+        screen to the new spot - only settling into place correctly
+        from then on, since by then attrs_current matches the new
+        s.toast_position. Dropping the stored anim here makes that
+        next toast fall through to s.toast_position immediately,
+        exactly like the very first toast of a session does."""
+        if (anim := s.anims.pop(id(s.toast_bg),None)):
+            anim.cancel()
 
     def make(s):
         s.root = bui.containerwidget(
@@ -619,7 +744,7 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             label=Eval.CHAR(Const.SQUARE),
             color=Color.BASE,
-            textcolor=(*Color.TEXT,Color.OPACITY),
+            textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
             enable_sound=False,
             on_activate_call=s.on_square
         )
@@ -628,9 +753,39 @@ class Editor:
             texture=Eval.TEXTURE(Const.SKIN),
             label=Eval.CHAR(Const.TRIANGLE),
             color=Color.BASE,
-            textcolor=(*Color.TEXT,Color.OPACITY),
+            textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
             enable_sound=False,
             on_activate_call=s.on_triangle
+        )
+        s.circle = bui.buttonwidget(
+            parent=s.root,
+            texture=Eval.TEXTURE(Const.SKIN),
+            label=Eval.CHAR(Const.CIRCLE),
+            color=Color.BASE,
+            textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
+            enable_sound=False,
+            on_activate_call=s.on_circle
+        )
+        s.circle_shadow = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            texture=Eval.TEXTURE(Const.SHADOW),
+            color=Color.SHADOW
+        )
+        s.about = bui.buttonwidget(
+            parent=s.root,
+            texture=Eval.TEXTURE(Const.SKIN),
+            label=Strings.ABOUT_LABEL,
+            color=Color.BASE,
+            textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
+            enable_sound=False,
+            on_activate_call=s.on_about
+        )
+        s.about_shadow = bui.imagewidget(
+            parent=s.root,
+            opacity=0,
+            texture=Eval.TEXTURE(Const.SHADOW),
+            color=Color.SHADOW
         )
         s.stamp_scroll = bui.scrollwidget(
             parent=s.root,
@@ -696,7 +851,7 @@ class Editor:
                 parent=s.root,
                 opacity=0,
                 texture=Eval.TEXTURE(Const.SHADOW),
-                color=Color.BASE
+                color=Color.SHADOW
             )
             s.event_kids[b] = {'shadow':sh}
         s.edit_button = bui.buttonwidget(
@@ -713,7 +868,7 @@ class Editor:
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
-            color=Color.BASE
+            color=Color.SHADOW
         )
         s.key_button = bui.buttonwidget(
             parent=s.root,
@@ -729,7 +884,7 @@ class Editor:
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
-            color=Color.BASE
+            color=Color.SHADOW
         )
         for i,t in enumerate(Const.TOOLS):
             b = bui.buttonwidget(
@@ -806,7 +961,7 @@ class Editor:
                 scale=0.5,
                 color=(
                     Const.INVISIBLE if init else
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             )
             l = bui.imagewidget(
@@ -856,6 +1011,131 @@ class Editor:
                 l,
                 position=(px+4,-s.stamp_deep_y/2)
             )
+
+    def refresh_ui(s,message=None):
+        """Existing widgets don't repaint themselves just because a
+        live global (Color.OPACITY, Color.BASE/COLD/WARM/TEXT via a
+        theme swap, or a Strings.* lookup via a language swap)
+        changed underneath them - a hide/show cycle is what actually
+        rebuilds them onto whatever's current (animate_in() re-reads
+        every one of those fresh each time it runs). Shared by every
+        setting that needs a full repaint - opacity, theme, and
+        language all fall through to this one path. No-op if the UI
+        was already hidden - nothing visible to refresh, and flipping
+        it on would undo whatever the person hid it for."""
+        if not s.ui_on: return
+        message and s.toast(message)
+        s.toggle_ui(on_finish=lambda: bui.apptimer(0.2,s.toggle_ui))
+
+    def refresh_opacity_via_ui_toggle(s):
+        s.refresh_ui(Strings.INFO_CHANGING_OPACITY)
+
+    def repaint_theme(s):
+        """refresh_ui()/animate_in() only ever re-paints the small
+        handful of widgets wired into the hide/show fade - everything
+        else built once in make() (or added to it later, like
+        event_kids/stamp_kids) bakes in whatever Color.BASE was live
+        at creation and just keeps it forever, so a theme change only
+        ever reached that cherry-picked subset. This walks every
+        persistent widget instead and snaps its fill straight to the
+        current Color.BASE, so a theme switch actually repaints the
+        whole UI - regardless of ui_on, since these exist either way.
+
+        Only ever touches `color` (the background fill), never
+        `textcolor`/`opacity` - several of these widgets (edit_button,
+        key_button, event_root/event_kids, tools, controls) have their
+        own separate show/hide state machine driving those, and
+        stomping them here would fight that instead of just fixing
+        the color underneath it. Shadow widgets get Color.SHADOW
+        instead of Color.BASE - they're a separate, always-dark tint
+        so a shadow still reads as a shadow on light/pale themes
+        instead of brightening along with the panel it's cast by.
+
+        stamp_kids are the one exception to the color-only rule above:
+        unlike edit_button/tools/controls/etc, they don't have any
+        ongoing show/hide cycle of their own once created (fade in
+        once via add_entry/load_memory, then just sit on the timeline
+        for the rest of the session) - nothing else was ever going to
+        come back and refresh their textcolor, so it stayed pinned to
+        whatever theme was live when each one was created."""
+        if not (hasattr(s,'root') and s.root.exists()): return
+        bui.imagewidget(s.stamp_bg,color=Color.BASE)
+        bui.buttonwidget(s.square,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY))
+        bui.buttonwidget(s.triangle,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY))
+        bui.buttonwidget(s.circle,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY))
+        bui.imagewidget(s.circle_shadow,color=Color.SHADOW)
+        if (anim := s.anims.get(id(s.circle),{}).get('window')):
+            anim.attrs_start['textcolor'] = (*Color.TEXT,Color.TEXT_OPACITY)
+        bui.buttonwidget(s.about,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY))
+        bui.imagewidget(s.about_shadow,color=Color.SHADOW)
+        if (anim := s.anims.get(id(s.about),{}).get('window')):
+            anim.attrs_start['textcolor'] = (*Color.TEXT,Color.TEXT_OPACITY)
+        bui.scrollwidget(s.stamp_scroll,color=Color.BASE)
+        bui.hscrollwidget(s.stamp_hscroll,color=Color.BASE)
+        bui.imagewidget(s.event_root,color=Color.BASE)
+        for b,data in s.event_kids.items():
+            b.exists() and bui.buttonwidget(b,color=Color.BASE)
+            data['shadow'].exists() and bui.imagewidget(data['shadow'],color=Color.SHADOW)
+        bui.buttonwidget(s.edit_button,color=Color.BASE)
+        bui.imagewidget(s.edit_button_shadow,color=Color.SHADOW)
+        bui.buttonwidget(s.key_button,color=Color.BASE)
+        bui.imagewidget(s.key_button_shadow,color=Color.SHADOW)
+        for b in s.tools:
+            b.exists() and bui.buttonwidget(b,color=Color.BASE)
+        for b in s.controls:
+            b.exists() and bui.buttonwidget(b,color=Color.BASE)
+        bui.buttonwidget(s.toast_bg,color=Color.BASE)
+        for kid in s.stamp_kids:
+            kid.exists() and bui.buttonwidget(
+                kid,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY)
+            )
+        bui.imagewidget(s.menu_bg,color=Color.BASE)
+        for kid in s.menu_kids:
+            kid.exists() and bui.buttonwidget(kid,color=Color.BASE)
+        bui.textwidget(s.seed_input,color=(*Color.TEXT,Color.TEXT_OPACITY))
+
+        for w in s.autosave_img_kids:
+            w.exists() and bui.imagewidget(w,color=Color.BASE)
+        for w in s.autosave_text_kids:
+            if not w.exists(): continue
+            anim = s.autosave_text_anim.get(id(w))
+            if not anim: continue
+            for attrs in (anim.attrs_start,anim.attrs_end):
+                c = attrs.get('color')
+                if c and c != Const.INVISIBLE and len(c) == 4:
+                    attrs['color'] = (*Color.TEXT,c[3])
+            cur = anim.attrs_current.get('color')
+            if cur and tuple(cur) != Const.INVISIBLE and len(cur) == 4:
+                new_cur = (*Color.TEXT,cur[3])
+                anim.attrs_current['color'] = list(new_cur)
+                bui.textwidget(w,color=new_cur)
+
+        for w in s.about_letter_kids:
+            if not w.exists(): continue
+            if id(w) in s.anims and 'about_sweep' in s.anims[id(w)]:
+                continue
+            bui.imagewidget(w,color=Color.TEXT,opacity=Color.TEXT_OPACITY)
+
+    def refresh_theme(s):
+        Settings.apply_all()
+        s.repaint_theme()
+        s.refresh_ui(Strings.INFO_CHANGING_THEME)
+
+    def repaint_language(s):
+        if not (hasattr(s,'root') and s.root.exists()): return
+        bui.buttonwidget(s.about,label=Strings.ABOUT_LABEL)
+        bui.buttonwidget(s.edit_button,label=Strings.EDIT_BUTTON)
+        bui.buttonwidget(s.key_button,label=Strings.KEYS)
+        bui.buttonwidget(
+            s.event_button,
+            label=s.event_on and Strings.EVENT_BUTTON_ON or Strings.EVENT_BUTTON_OFF
+        )
+        for kid,label in zip(s.menu_kids,Strings.MENUS):
+            kid.exists() and bui.buttonwidget(kid,label=label)
+
+    def refresh_language(s):
+        s.repaint_language()
+        s.refresh_ui(Strings.INFO_CHANGING_LANGUAGE)
 
     def toggle_ui(s,on_finish=None):
         if s.ui_on:
@@ -907,7 +1187,7 @@ class Editor:
                 attrs={
                     'color':(
                         Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     )
                 }
             )
@@ -920,13 +1200,23 @@ class Editor:
                 }
             )
             s.in_anims.append(a)
+        for kid in s.stamp_kids:
+            a = Animate(
+                widget=kid,
+                duration=butter,
+                attrs={
+                    'opacity':(0,Color.OPACITY),
+                    'color':(Color.BASE,Color.BASE)
+                }
+            )
+            s.in_anims.append(a)
         a = Animate(
             widget=s.event_button,
             duration=butter,
             attrs={
                 'textcolor':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             }
         )
@@ -946,7 +1236,7 @@ class Editor:
                 'opacity':(0,Color.OPACITY),
                 'textcolor':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             }
         )
@@ -958,7 +1248,7 @@ class Editor:
                 'opacity':(0,Color.OPACITY),
                 'textcolor':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             }
         )
@@ -1000,8 +1290,7 @@ class Editor:
 
     @clickable
     def edit_window(s):
-        if s.window_on:
-            s.window_back()
+        s.dismiss_window()
         if not s.sl:
             Eval.SOUND(Const.BAD_SOUND).play()
             s.toast(Strings.ERROR_SELECT_SOMETHING)
@@ -1024,7 +1313,7 @@ class Editor:
                 'position':(start_pos,end_pos),
                 'size':(start_size,end_size),
                 'textcolor':(
-                    (*Color.TEXT,Color.OPACITY),
+                    (*Color.TEXT,Color.TEXT_OPACITY),
                     Const.INVISIBLE
                 )
             }
@@ -1033,7 +1322,7 @@ class Editor:
             Animate(
                 widget=s.edit_button_shadow,
                 attrs={
-                    'opacity':(0,Color.OPACITY),
+                    'opacity':(0,Color.SHADOW_OPACITY),
                     'position':(
                         start_pos,
                         s.window_shadow_pos
@@ -1069,7 +1358,7 @@ class Editor:
             s.toast(Strings.NO_ACTIONS)
             return
         if s.window_on:
-            s.window_back()
+            s.dismiss_window()
         Eval.SOUND(Const.OK_SOUND).play()
         bui.buttonwidget(
             s.key_button,
@@ -1088,7 +1377,7 @@ class Editor:
                 'position':(start_pos,end_pos),
                 'size':(start_size,end_size),
                 'textcolor':(
-                    (*Color.TEXT,Color.OPACITY),
+                    (*Color.TEXT,Color.TEXT_OPACITY),
                     Const.INVISIBLE
                 )
             }
@@ -1097,7 +1386,7 @@ class Editor:
             Animate(
                 widget=s.key_button_shadow,
                 attrs={
-                    'opacity':(0,Color.OPACITY),
+                    'opacity':(0,Color.SHADOW_OPACITY),
                     'position':(
                         start_pos,
                         s.window_shadow_pos
@@ -1157,7 +1446,7 @@ class Editor:
                 parent=what_root,
                 size=(dx,30),
                 position=(0,top-j*30),
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 selectable=True,
                 click_activate=True,
                 on_activate_call=bui.CallPartial(
@@ -1196,7 +1485,7 @@ class Editor:
         s.window_kids.append((t,pos,70,delay+0.13,
             ('color',(
                 Const.INVISIBLE,
-                (*Color.TEXT,Color.OPACITY)
+                (*Color.TEXT,Color.TEXT_OPACITY)
             ))
         ))
         s.key_kids = [(t,0)]
@@ -1214,7 +1503,7 @@ class Editor:
                 parent=s.current_key_root,
                 size=(dx,30),
                 position=(0,top-i*30),
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 selectable=True,
                 click_activate=True,
                 maxwidth=dx-10,
@@ -1271,7 +1560,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=data.get('attr','')
             )
             s.key_kids.append((attr,1))
@@ -1293,7 +1582,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=data.get('eval','')
             )
             s.key_kids.append((val,1))
@@ -1315,7 +1604,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=nam
             )
             s.key_kids.append((name_inp,1))
@@ -1338,7 +1627,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=data.get('offset','')
             )
             s.key_kids.append((time_inp,1))
@@ -1444,7 +1733,7 @@ class Editor:
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
-                s.window_back()
+                s.dismiss_window()
             b = bui.buttonwidget(
                 parent=s.root,
                 position=(x+sx-(bx+5),y),
@@ -1523,7 +1812,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=data.get('name','')
             )
             s.key_kids.append((name_inp,1))
@@ -1545,7 +1834,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('offset',''))
             )
             s.key_kids.append((time_inp,1))
@@ -1703,7 +1992,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('volume',''))
             )
             s.key_kids.append((vol_inp,1))
@@ -1726,7 +2015,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('offset',''))
             )
             s.key_kids.append((time_inp,1))
@@ -1748,7 +2037,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('name',''))
             )
             s.key_kids.append((name_inp,1))
@@ -1848,7 +2137,7 @@ class Editor:
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
-                s.window_back()
+                s.dismiss_window()
             b = bui.buttonwidget(
                 parent=s.root,
                 position=(x+sx-(bx+5),y),
@@ -1909,7 +2198,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('text','Hello!'))
             )
             s.key_kids.append((text_inp,1))
@@ -1931,7 +2220,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('color','(1,1,1)'))
             )
             s.key_kids.append((color_inp,1))
@@ -1953,7 +2242,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('time',4))
             )
             s.key_kids.append((btime_inp,1))
@@ -1975,7 +2264,7 @@ class Editor:
                 allow_clear_button=False,
                 description=tx,
                 v_align=Const.ALIGN,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=nam
             )
             s.key_kids.append((name_inp,1))
@@ -1998,7 +2287,7 @@ class Editor:
                 allow_clear_button=False,
                 v_align=Const.ALIGN,
                 description=tx,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 text=str(data.get('offset',''))
             )
             s.key_kids.append((time_inp,1))
@@ -2117,7 +2406,7 @@ class Editor:
                     Strings.INFO_EDITED_KEY or
                     Strings.INFO_ADDED_KEY
                 )
-                s.window_back()
+                s.dismiss_window()
             b = bui.buttonwidget(
                 parent=s.root,
                 position=(x+sx-(bx+5),y),
@@ -2165,12 +2454,12 @@ class Editor:
                 'opacity':(0,Color.OPACITY),
                 'textcolor':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             } or {
                 'color':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 )
             }
             s.anims[id(k)] = Animate(
@@ -2211,9 +2500,9 @@ class Editor:
                 parent=s.stamp_hscroll_root,
                 texture=Eval.TEXTURE(Const.SKIN),
                 label=data['name'],
-                textcolor=(*Color.TEXT, Color.OPACITY),
+                textcolor=(*Color.TEXT, Color.TEXT_OPACITY),
                 color=Color.BASE,
-                opacity=Color.OPACITY,
+                opacity=0,
                 enable_sound=False,
                 size=size,
                 button_type='square'
@@ -2365,7 +2654,10 @@ class Editor:
                 size=s.stamp_size,
                 stack_offset=Eval.OFFSET(-rx,-ry,sx/2,sy/2)
             )
-            s.toast_position = (sx/2,sy+10)
+            s.toast_position = (
+                sx/2,
+                ry-40 if Settings.get('toast_top') else sy+10
+            )
             bui.imagewidget(s.stamp_bg,size=s.stamp_size)
             bx, = Eval.SCALE_BA(55)
             px1,_ = Eval.OFFSET(
@@ -2390,6 +2682,50 @@ class Editor:
                 size=(bx,bx),
                 text_scale=one_ba
             )
+            s.circle_pos = (px2-bx,py)
+            s.circle_size = (bx,bx)
+            s.about_pos = (px2-bx*2-s.control_off,py)
+            s.about_size = (bx,bx)
+            win = s.circle in s.window_on
+            bui.buttonwidget(
+                s.circle,
+                position=(
+                    win and s.window_pos
+                    or s.circle_pos
+                ),
+                size=(
+                    win and s.window_size
+                    or s.circle_size
+                ),
+                text_scale=one_ba
+            )
+            if win:
+                a = s.anims[id(s.circle)]['window'].attrs_start
+                a['position'] = s.circle_pos
+                a['size'] = s.circle_size
+                a = s.anims[id(s.circle)]['shadow'].attrs_start
+                a['position'] = s.circle_pos
+                a['size'] = s.circle_size
+            about_win = s.about in s.window_on
+            bui.buttonwidget(
+                s.about,
+                position=(
+                    about_win and s.window_pos
+                    or s.about_pos
+                ),
+                size=(
+                    about_win and s.window_size
+                    or s.about_size
+                ),
+                text_scale=one_ba
+            )
+            if about_win:
+                a = s.anims[id(s.about)]['window'].attrs_start
+                a['position'] = s.about_pos
+                a['size'] = s.about_size
+                a = s.anims[id(s.about)]['shadow'].attrs_start
+                a['position'] = s.about_pos
+                a['size'] = s.about_size
             bui.textwidget(
                 s.top_left_h,
                 position=(0,s.stamp_deep_y)
@@ -2598,6 +2934,51 @@ class Editor:
                 a = s.anims[id(s.key_button)]['shadow'].attrs_start
                 a['position'] = pos
                 a['size'] = size
+        if yes or 9 in what:
+            win = s.circle in s.window_on
+            pos = s.circle_pos
+            size = s.circle_size
+            bui.buttonwidget(
+                s.circle,
+                size=(
+                    win and s.window_size or
+                    s.circle_size
+                ),
+                position=(
+                    win and s.window_pos
+                    or pos
+                ),
+                text_scale=one
+            )
+            if win:
+                a = s.anims[id(s.circle)]['window'].attrs_start
+                a['position'] = pos
+                a['size'] = size
+                a = s.anims[id(s.circle)]['shadow'].attrs_start
+                a['position'] = pos
+                a['size'] = size
+            about_win = s.about in s.window_on
+            about_pos = s.about_pos
+            about_size = s.about_size
+            bui.buttonwidget(
+                s.about,
+                size=(
+                    about_win and s.window_size or
+                    s.about_size
+                ),
+                position=(
+                    about_win and s.window_pos
+                    or about_pos
+                ),
+                text_scale=one
+            )
+            if about_win:
+                a = s.anims[id(s.about)]['window'].attrs_start
+                a['position'] = about_pos
+                a['size'] = about_size
+                a = s.anims[id(s.about)]['shadow'].attrs_start
+                a['position'] = about_pos
+                a['size'] = about_size
         if yes or 7 in what:
             for i,b in enumerate(s.controls):
                 bui.buttonwidget(
@@ -2656,6 +3037,766 @@ class Editor:
     def on_triangle(s):
         bui.get_special_widget('squad_button').activate()
 
+    @clickable
+    def on_circle(s):
+        if s.window_on:
+            s.dismiss_window()
+        Eval.SOUND(Const.OK_SOUND).play()
+        bui.buttonwidget(
+            s.circle,
+            on_activate_call=Const.DO_NOTHING,
+            selectable=False
+        )
+        start_pos = s.circle_pos
+        end_pos = s.window_pos
+        start_size = s.circle_size
+        end_size = s.window_size
+        butter = s.global_butter*1.3
+        s.anims[id(s.circle)]['window'] = Animate(
+            s.circle,
+            duration=butter,
+            attrs={
+                'position':(start_pos,end_pos),
+                'size':(start_size,end_size),
+                'opacity':(1,Color.OPACITY),
+                'textcolor':(
+                    (*Color.TEXT,Color.TEXT_OPACITY),
+                    Const.INVISIBLE
+                )
+            }
+        )
+        s.anims[id(s.circle)]['shadow'] = (
+            Animate(
+                widget=s.circle_shadow,
+                attrs={
+                    'opacity':(0,Color.SHADOW_OPACITY),
+                    'position':(
+                        start_pos,
+                        s.window_shadow_pos
+                    ),
+                    'size':(
+                        start_size,
+                        s.window_shadow_size
+                    )
+                },
+                duration=butter
+            )
+        )
+        s.make_window_kids_settings()
+        def settings_on_back():
+            if s.settings_opacity_dirty:
+                s.settings_opacity_dirty = False
+                s.refresh_opacity_via_ui_toggle()
+        s.window_on = (s.circle,s.on_circle,settings_on_back)
+
+    @clickable
+    def on_about(s):
+        if s.window_on:
+            s.dismiss_window()
+        Eval.SOUND(Const.OK_SOUND).play()
+        bui.buttonwidget(
+            s.about,
+            on_activate_call=Const.DO_NOTHING,
+            selectable=False
+        )
+        start_pos = s.about_pos
+        end_pos = s.window_pos
+        start_size = s.about_size
+        end_size = s.window_size
+        butter = s.global_butter*1.3
+        s.anims[id(s.about)]['window'] = Animate(
+            s.about,
+            duration=butter,
+            attrs={
+                'position':(start_pos,end_pos),
+                'size':(start_size,end_size),
+                'opacity':(1,Color.OPACITY),
+                'textcolor':(
+                    (*Color.TEXT,Color.TEXT_OPACITY),
+                    Const.INVISIBLE
+                )
+            }
+        )
+        s.anims[id(s.about)]['shadow'] = (
+            Animate(
+                widget=s.about_shadow,
+                attrs={
+                    'opacity':(0,Color.SHADOW_OPACITY),
+                    'position':(
+                        start_pos,
+                        s.window_shadow_pos
+                    ),
+                    'size':(
+                        start_size,
+                        s.window_shadow_size
+                    )
+                },
+                duration=butter
+            )
+        )
+        s.make_window_kids_about()
+        s.window_on = (s.about,s.on_about,None)
+
+    def open_side_picker(s,btn,btn_screen_pos,btn_size,shadow,options,get_current,on_pick,label=None,option_color=None,option_textcolor=None):
+        """Generic 'grow a button into a side list' picker - the same
+        interaction make_node_window uses for its node-type picker,
+        pulled out so any button anywhere (settings' Theme/Language
+        cycles included) can open one without re-implementing the
+        grow/shrink/stagger/close_sub machinery. Traps on_back the
+        same way: wires s.window_sub_on so universal_back and every
+        other close-this-window path closes the picker first instead
+        of falling through past it.
+
+        btn: the button widget that grows into the picker panel.
+        btn_screen_pos: that button's *screen-space* position (i.e.
+            window position + its local offset) - needed because the
+            grow animation interpolates from here, not from wherever
+            the button's local (window-relative) position says.
+        btn_size: the button's current (shrunk) size.
+        shadow: an imagewidget used purely for the picker's drop
+            shadow while open (mirrors type_btn_shadow).
+        options: list of label strings, offered top-to-bottom.
+        get_current: zero-arg callable returning whichever option is
+            currently selected (drawn highlighted) - a callable
+            rather than a fixed value so reopening after a pick
+            always highlights the up-to-date choice.
+        on_pick(value): called with the chosen option; picker closes
+            right after.
+        label: display text per option; defaults to the option itself
+            (callers needing e.g. capitalized labels pass this).
+        option_color(opt): optional - returns the swatch color for
+            that specific option (e.g. the theme picker passes each
+            theme's own 'base' tuple, so every row previews what it
+            will actually set Color.BASE to). Defaults to None, which
+            keeps the old behavior of every row sharing Color.BASE
+            with only the current pick tinted Color.COLD.
+        option_textcolor(opt): optional, same idea for the row's own
+            label color (theme picker passes each theme's 'text').
+            Defaults to None, which keeps using the live Color.TEXT
+            for every row."""
+        if s.window_sub_on:
+            s.window_sub_on[2]()
+        Eval.SOUND(Const.OK_SOUND).play()
+        bui.buttonwidget(btn,on_activate_call=Const.DO_NOTHING,selectable=False)
+
+        wx,wy = s.window_pos
+        wsx,wsy = s.window_size
+        picker_x,picker_sx = 150,160
+        picker_pos = (wx+wsx+100,wy)
+        picker_size = (picker_sx,wsy)
+        (
+            picker_shadow_pos,
+            picker_shadow_size
+        ) = Eval.SHADOW(*picker_pos,*picker_size)
+
+        btn_start_pos,btn_start_size = btn_screen_pos,btn_size
+        butter = s.global_butter*1.3
+
+        grow_anim = Animate(
+            widget=btn,
+            duration=butter,
+            attrs={
+                'position':(btn_start_pos,picker_pos),
+                'size':(btn_start_size,picker_size),
+                'textcolor':(
+                    (*Color.TEXT,Color.TEXT_OPACITY),
+                    Const.INVISIBLE
+                )
+            }
+        )
+        shadow_anim = Animate(
+            widget=shadow,
+            attrs={
+                'opacity':(0,Color.SHADOW_OPACITY),
+                'position':(btn_start_pos,picker_shadow_pos),
+                'size':(btn_start_size,picker_shadow_size)
+            },
+            duration=butter
+        )
+
+        child_start_progress = 0.35
+        child_delay = butter*child_start_progress
+        child_duration = butter*(1-child_start_progress)+0.05
+
+        picker_kids = []
+        kid_anims = []
+
+        picker_scroll = bui.scrollwidget(
+            parent=s.root,
+            position=picker_pos,
+            size=(0,picker_size[1]),
+            color=Color.COLD,
+            border_opacity=0
+        )
+        picker_kids.append(picker_scroll)
+        kid_anims.append(Animate(
+            widget=picker_scroll,
+            duration=child_duration,
+            delay=child_delay,
+            attrs={
+                'size':((0,picker_size[1]),picker_size),
+                'border_opacity':(0,Color.OPACITY),
+                'color':(Color.COLD,Color.BASE)
+            }
+        ))
+
+        row_h = 35
+        picker_root = bui.containerwidget(
+            parent=picker_scroll,
+            background=False,
+            size=(picker_x,row_h*len(options))
+        )
+        picker_kids.append(picker_root)
+
+        def close_sub(instant=False):
+            s.window_sub_on = None
+            for anim in kid_anims: anim.cancel()
+            kid_anims.clear()
+            for w in picker_kids:
+                if w.exists(): w.delete()
+            picker_kids.clear()
+            dur = instant and 0.0001 or butter
+            grow_anim.reverse(duration=dur)
+            shadow_anim.reverse(duration=dur)
+            bui.buttonwidget(btn,on_activate_call=reopen,selectable=True)
+            if not instant:
+                Eval.SOUND(Const.OK_SOUND).play()
+
+        def pick(v):
+            Eval.SOUND(Const.OK_SOUND).play()
+            on_pick(v)
+            close_sub()
+
+        def reopen():
+            s.open_side_picker(
+                btn,btn_screen_pos,btn_size,shadow,
+                options,get_current,on_pick,label,option_color,option_textcolor
+            )
+
+        current = get_current()
+        row_off = 15
+        for i,opt in enumerate(options):
+            y_pos = row_h*(len(options)-1-i)
+            txt = label(opt) if callable(label) else str(opt)
+            if option_color:
+                cr,cg,cb = option_color(opt)
+                luma = (cr+cg+cb)/3
+                nudge = 1.6 if luma < 1.0 else 0.75
+                swatch = (cr*nudge,cg*nudge,cb*nudge) if opt == current else (cr,cg,cb)
+            else:
+                swatch = Color.BASE if opt != current else Color.COLD
+            row_text = option_textcolor(opt) if option_textcolor else Color.TEXT
+            b = bui.buttonwidget(
+                parent=picker_root,
+                position=(row_off,y_pos),
+                size=(picker_x,row_h),
+                label=txt,
+                color=swatch,
+                textcolor=Const.INVISIBLE,
+                opacity=0,
+                texture=Eval.TEXTURE(Const.SKIN),
+                enable_sound=False,
+                on_activate_call=bui.CallPartial(pick,opt)
+            )
+            picker_kids.append(b)
+            stagger = 0.02*i
+            kid_anims.append(Animate(
+                widget=b,
+                duration=child_duration,
+                delay=child_delay+stagger,
+                attrs={
+                    'position':((row_off,y_pos),(0,y_pos)),
+                    'opacity':(0,Color.OPACITY),
+                    'textcolor':(
+                        Const.INVISIBLE,
+                        (*row_text,Color.OPACITY)
+                    )
+                }
+            ))
+
+        s.window_sub_on = (btn,reopen,close_sub)
+
+    def make_window_kids_settings(s):
+        s.making_window_kids = True
+        s.make_window_default(title=Strings.SETTINGS,reverse_off=True)
+        s.settings_opacity_dirty = False
+
+        sx,sy = s.window_size
+        delay = 0.35
+        row_h = Const.SETTINGS_ROW_H
+        step = row_h+Const.SETTINGS_ROW_GAP
+        ctrl_w = Const.SETTINGS_CYCLE_W
+        num_w = Const.SETTINGS_NUMERIC_W
+
+        tb_size = (35,35)
+        tb_w,tb_h = tb_size
+        tb_gap = 8
+        tb_inset = s.window_marg-s.window_fix
+        top_y = sy-tb_h-s.window_marg
+        lang_x = sx-tb_w-tb_inset
+        theme_x = lang_x-tb_gap-tb_w
+
+        size = dx,dy = (sx-s.window_marg*2-s.window_fix+10, sy-s.window_marg*9)
+        pos = px,py = (s.window_marg-s.window_fix, s.window_marg-s.window_fix)
+        scroll = bui.scrollwidget(
+            parent=s.root,
+            position=pos,
+            color=Color.BASE,
+            size=(0,0),
+            border_opacity=0
+        )
+        s.window_kids.append((scroll,pos,20,delay,
+            ('size',((dx*2/3,dy*2/3),size)),
+            ('border_opacity',(0,Color.OPACITY)),
+            ('color',(Color.COLD,Color.BASE))
+        ))
+        root = bui.containerwidget(parent=scroll,background=False)
+
+        trash = []
+        label_w = dx-ctrl_w-40
+
+
+        def add_label(y,text):
+            trash.append(bui.textwidget(
+                parent=root,
+                position=(10,y),
+                size=(label_w,row_h),
+                text=text,
+                h_align='left',
+                v_align='center',
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
+                maxwidth=label_w
+            ))
+
+        def add_checkbox(y,text,key,on_change=None):
+            add_label(y,text)
+            def do(v):
+                Settings.set(key,v)
+                callable(on_change) and on_change(v)
+            trash.append(bui.checkboxwidget(
+                parent=root,
+                position=(dx-54,y+row_h/2-15),
+                size=(30,30),
+                text='',
+                value=Settings.get(key),
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE,
+                on_value_change_call=do
+            ))
+
+        live_fields = []
+
+        def add_numeric(y,text,key,fmt='{:.2f}',minv=None,maxv=None,on_change=None):
+            add_label(y,text)
+            field = bui.textwidget(
+                parent=root,
+                position=(dx-num_w-10,y+2),
+                size=(num_w,row_h-4),
+                text=fmt.format(Settings.get(key)),
+                editable=True,
+                allow_clear_button=False,
+                h_align='center',
+                v_align='center',
+                color=(*Color.TEXT,Color.TEXT_OPACITY)
+            )
+            trash.append(field)
+            live_fields.append({
+                'kind':'numeric','field':field,'key':key,'fmt':fmt,
+                'minv':minv,'maxv':maxv,'on_change':on_change,
+                'last':fmt.format(Settings.get(key))
+            })
+
+        def add_text(y,text,key,width,on_change=None):
+            add_label(y,text)
+            eat = 40
+            field = bui.textwidget(
+                parent=root,
+                position=(dx-(width-eat)-10,y+2),
+                size=(width-eat,row_h-4),
+                text=str(Settings.get(key)),
+                editable=True,
+                allow_clear_button=False,
+                h_align='center',
+                v_align='center',
+                color=(*Color.TEXT,Color.TEXT_OPACITY)
+            )
+            trash.append(field)
+            live_fields.append({
+                'kind':'text','field':field,'key':key,
+                'on_change':on_change,'last':str(Settings.get(key)),
+                'fallback':Settings.DEFAULTS.get(key,'')
+            })
+
+        def poll_live_fields():
+            if not root.exists():
+                s.settings_live_timer = None
+                return
+            for lf in live_fields:
+                field = lf['field']
+                if not field.exists(): continue
+                raw = bui.textwidget(query=field)
+                if raw == lf['last']: continue
+
+                if lf['kind'] == 'text':
+                    value = raw.strip() or lf['fallback']
+                    if value != Settings.get(lf['key']):
+                        Settings.set(lf['key'],value)
+                        callable(lf['on_change']) and lf['on_change'](value)
+                    lf['last'] = raw
+                    continue
+
+                try:
+                    v = float(raw)
+                except Exception:
+                    lf['last'] = raw
+                    continue
+                clamped = v
+                if lf['minv'] is not None: clamped = max(lf['minv'],clamped)
+                if lf['maxv'] is not None: clamped = min(lf['maxv'],clamped)
+                if clamped != Settings.get(lf['key']):
+                    Settings.set(lf['key'],clamped)
+                    callable(lf['on_change']) and lf['on_change'](clamped)
+                shown = lf['fmt'].format(clamped)
+                if shown != raw:
+                    bui.textwidget(field,text=shown)
+                lf['last'] = shown
+        s.settings_live_timer = bui.AppTimer(0.1,poll_live_fields,repeat=True)
+
+        def add_cycle(y,text,key,options,on_change=None):
+            add_label(y,text)
+            def do():
+                cur = Settings.get(key)
+                i = options.index(cur) if cur in options else 0
+                nxt = options[(i+1) % len(options)]
+                Settings.set(key,nxt)
+                bui.buttonwidget(btn,label=str(nxt))
+                Eval.SOUND(Const.OK_SOUND).play()
+                callable(on_change) and on_change(nxt)
+            btn = bui.buttonwidget(
+                parent=root,
+                position=(dx-ctrl_w-10,y+2),
+                size=(ctrl_w,row_h-4),
+                label=str(Settings.get(key)),
+                texture=Eval.TEXTURE(Const.SKIN),
+                color=Color.BASE,
+                textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
+                enable_sound=False,
+                on_activate_call=do
+            )
+            trash.append(btn)
+
+        def add_top_picker(x,char_label,key,options,label=None,on_change=None,option_color=None,option_textcolor=None):
+            pos = (x,top_y)
+            btn = bui.buttonwidget(
+                parent=s.root,
+                position=pos,
+                size=tb_size,
+                label=char_label,
+                enable_sound=False,
+                texture=Eval.TEXTURE(Const.SKIN),
+                color=Color.BASE,
+                textcolor=Const.INVISIBLE,
+                opacity=0,
+                selectable=True
+            )
+            s.window_kids.append((btn,pos,-50,delay))
+            shadow = bui.imagewidget(
+                parent=s.root,
+                opacity=0,
+                texture=Eval.TEXTURE(Const.SHADOW),
+                color=Color.SHADOW
+            )
+            trash.append(shadow)
+
+            def do_pick(v):
+                Settings.set(key,v)
+                callable(on_change) and on_change(v)
+
+            def open_picker():
+                wx,wy = s.window_pos
+                btn_screen_pos = (wx+pos[0],wy+pos[1])
+                s.open_side_picker(
+                    btn,btn_screen_pos,tb_size,shadow,
+                    options,lambda: Settings.get(key),do_pick,label,option_color,option_textcolor
+                )
+            bui.buttonwidget(btn,on_activate_call=open_picker,selectable=True)
+
+        def add_button(y,text,on_press):
+            def do():
+                Eval.SOUND(Const.OK_SOUND).play()
+                on_press()
+            trash.append(bui.buttonwidget(
+                parent=root,
+                position=(10,y+2),
+                size=(dx-20,row_h-4),
+                label=text,
+                texture=Eval.TEXTURE(Const.SKIN),
+                color=Color.BASE,
+                textcolor=(*Color.TEXT,Color.TEXT_OPACITY),
+                enable_sound=False,
+                on_activate_call=do
+            ))
+
+        def add_header(y,text):
+            trash.append(bui.textwidget(
+                parent=root,
+                position=(0,y),
+                size=(dx,row_h),
+                text=text,
+                h_align='center',
+                v_align='center',
+                scale=0.85,
+                color=(*Color.TEMP,Color.OPACITY)
+            ))
+
+        add_top_picker(theme_x,Eval.CHAR(Const.THEME_ICON),'theme',tuple(Settings.THEMES),
+            on_change=lambda v: s.refresh_theme(),
+            option_color=lambda v: Settings.THEMES[v]['base'],
+            option_textcolor=lambda v: Settings.THEMES[v]['text'])
+        add_top_picker(lang_x,'A\u3042','language',tuple(Strings.LANGUAGES),
+            label=lambda v: Strings.LANGUAGE_NAMES.get(v,v),
+            on_change=lambda v: s.refresh_language())
+
+        general_rows = 16
+        debug_rows = 6
+        total_slots = general_rows+1+debug_rows  # +1 for the "Debug" header
+        rsy = max(total_slots*step+20, dy-15)
+        y = rsy-row_h
+
+        add_numeric(y,Strings.SETTING_ENTRY_DURATION,'entry_duration',
+            minv=0.05,maxv=60,
+            on_change=lambda v: setattr(s,'object_duration',v)); y -= step
+        add_numeric(y,Strings.SETTING_ANIM_SPEED,'anim_speed',
+            minv=0.1,maxv=5); y -= step
+        add_numeric(y,Strings.SETTING_BASE_OPACITY,'base_opacity',
+            minv=0.05,maxv=1,
+            on_change=lambda v: (
+                Settings.apply_all(),
+                setattr(s,'settings_opacity_dirty',True)
+            )); y -= step
+        add_numeric(y,Strings.SETTING_TEXT_OPACITY,'text_opacity',
+            minv=0.05,maxv=1,
+            on_change=lambda v: (
+                Settings.apply_all(),
+                setattr(s,'settings_opacity_dirty',True)
+            )); y -= step
+        add_checkbox(y,Strings.SETTING_AUTOSAVE_ON,'autosave_on'); y -= step
+        add_numeric(y,Strings.SETTING_AUTOSAVE_INTERVAL,'autosave_interval',
+            fmt='{:.0f}',minv=Const.AUTOSAVE_MIN_INTERVAL,maxv=600,
+            on_change=lambda v: s.restart_autosave_timer()); y -= step
+        add_checkbox(y,Strings.SETTING_UI_ANIM_ON,'ui_anim_on'); y -= step
+        add_checkbox(y,Strings.SETTING_SFX_EDITOR,'sfx_editor_on'); y -= step
+        add_checkbox(y,Strings.SETTING_SFX_UI,'sfx_ui_on'); y -= step
+        add_checkbox(y,Strings.SETTING_IGNORE_PLAYBACK_ERRORS,'ignore_playback_errors'); y -= step
+        add_checkbox(y,Strings.SETTING_BRP_TEXT_EXPORT,'brp_text_export'); y -= step
+        add_text(y,Strings.SETTING_EXPORT_FILENAME,'export_filename_template',
+            dx-100); y -= step
+        add_checkbox(y,Strings.SETTING_TOAST_TOP,'toast_top',
+            on_change=lambda v: (s.wrap([1]),s.reset_toast_position())); y -= step
+        add_checkbox(y,Strings.SETTING_FANCY_AUTOSAVE,'fancy_autosave'); y -= step
+        add_numeric(y,Strings.SETTING_TOAST_DURATION,'toast_duration',
+            fmt='{:.1f}',minv=0.5,maxv=15); y -= step
+        add_checkbox(y,Strings.SETTING_EPIC_MODE,'epic_mode',
+            on_change=lambda v: s.toast(
+                Strings.INFO_EPIC_ON if v else Strings.INFO_EPIC_OFF
+            )); y -= step
+
+        add_header(y,Strings.SETTING_DEBUG_HEADER); y -= step
+
+        add_checkbox(y,Strings.SETTING_SHOW_GRID_2D,'show_grid_2d',
+            on_change=lambda v: s.build_grid()); y -= step
+        add_checkbox(y,Strings.SETTING_SHOW_GRID_3D,'show_grid_3d',
+            on_change=lambda v: s.build_grid()); y -= step
+        add_button(y,Strings.SETTING_DUMP_MEMORY,lambda: (
+            print('=== MOVI DEBUG: s.memory ==='),
+            print(s.memory),
+            s.toast(Strings.INFO_DUMPED_MEMORY)
+        )); y -= step
+        add_button(y,Strings.SETTING_DUMP_TIMELINE,lambda: (
+            print('=== MOVI DEBUG: s.timeline ==='),
+            print(s.timeline),
+            s.toast(Strings.INFO_DUMPED_TIMELINE)
+        )); y -= step
+        add_cycle(y,Strings.SETTING_ASPECT_RATIO,'aspect_ratio',Settings.ASPECT_RATIOS,
+            on_change=lambda v: s.wrap_aspect_bars()); y -= step
+        add_checkbox(y,Strings.SETTING_FILL_ASPECT_RATIO,'fill_aspect_ratio',
+            on_change=lambda v: s.wrap_aspect_bars()); y -= step
+
+        bui.containerwidget(root,size=(dx,rsy))
+        s.window_trash = [trash]
+
+        s.wrap_window_kids()
+        s.animate_window_kids()
+        s.making_window_kids = False
+
+    ABOUT_FONT_5X7 = {
+        'M': ('10001','11011','10101','10001','10001','10001','10001'),
+        'O': ('01110','10001','10001','10001','10001','10001','01110'),
+        'V': ('10001','10001','10001','10001','10001','01010','00100'),
+        'I': ('11111','00100','00100','00100','00100','00100','11111'),
+    }
+
+    def make_window_kids_about(s):
+        """About window - same grow-from-button/back-button/scroll
+        shell as make_window_kids_settings (make_window_default is
+        shared with it), just a static bit of content instead of a
+        settings list: a big "MOVI" logo built out of small square
+        imagewidgets (a dot-matrix glyph per letter, see
+        ABOUT_FONT_5X7) that does one hue sweep - each letter phase-
+        shifted from its neighbour so the sweep reads as a single
+        band of color walking left-to-right across the whole word -
+        before settling on the theme's own text color, followed by
+        the version, copyright, and a thank-you line."""
+        s.making_window_kids = True
+        s.make_window_default(title=Strings.ABOUT_TITLE,reverse_off=True)
+
+        sx,sy = s.window_size
+        x,y = s.window_pos
+        delay = 0.35
+        trash = []
+
+        title_text = 'MOVI'
+        cell = 11
+        gap_px = 1
+        letter_gap = 16
+        cols,rows = 5,7
+        letter_w = cols*cell
+        logo_w = len(title_text)*letter_w+(len(title_text)-1)*letter_gap
+        start_x = sx/2-logo_w/2
+
+        bottom_margin = 28
+        text_h = 24
+        thanks_y = bottom_margin+text_h/2
+        tagline_y = thanks_y+26
+        version_y = tagline_y+32
+        logo_bottom_y = version_y+50
+        logo_top_y = logo_bottom_y+rows*cell
+
+        letter_pixel_groups = []
+        pixel_widgets = []
+        for li,ch in enumerate(title_text):
+            pattern = s.ABOUT_FONT_5X7[ch]
+            letter_x = start_x+li*(letter_w+letter_gap)
+            pixels = []
+            for r,row in enumerate(pattern):
+                for c,bit in enumerate(row):
+                    if bit != '1': continue
+                    px = x+letter_x+c*cell
+                    py = y+logo_top_y-(r+1)*cell
+                    w = bui.imagewidget(
+                        parent=s.root,
+                        texture=Eval.TEXTURE(Const.SKIN),
+                        position=(px,py),
+                        size=(cell-gap_px,cell-gap_px),
+                        color=Color.BASE,
+                        opacity=0
+                    )
+                    trash.append(w)
+                    pixels.append(w)
+                    pixel_widgets.append(w)
+            letter_pixel_groups.append(pixels)
+
+        hue_span = 0.85
+        fine_steps = 48
+        step_dur = 0.035
+
+        def hue_color(h):
+            r,g,b = hsv_to_rgb(h%1.0,1.0,1.0)
+            return (r*2.3,g*2.3,b*2.3)
+
+        def make_stops(hue_start):
+            return tuple(
+                hue_color(hue_start+hue_span*(i/(fine_steps-1)))
+                for i in range(fine_steps)
+            )
+
+        def settle_color(w):
+            s.anims[id(w)].pop('about_sweep',None)
+            if not w.exists(): return
+            bui.imagewidget(w,color=Color.TEXT,opacity=Color.TEXT_OPACITY)
+
+        def sweep_pixel(w,prev_color,stops,step_dur):
+            if not w.exists():
+                s.anims[id(w)].pop('about_sweep',None)
+                return
+            if not stops:
+                settle_color(w)
+                return
+            nxt,*rest = stops
+            anim = Animate(
+                widget=w,
+                duration=step_dur,
+                attrs={'color':(prev_color,nxt)},
+                on_finish=lambda: sweep_pixel(w,nxt,rest,step_dur)
+            )
+            s.anims[id(w)]['about_sweep'] = anim
+
+        letter_hue_offset = 0.05
+        letter_stagger = 0.05
+        for li,pixels in enumerate(letter_pixel_groups):
+            stops = make_stops(li*letter_hue_offset)
+            first,*rest = stops
+            letter_delay = delay+li*letter_stagger
+            for w in pixels:
+                anim = Animate(
+                    widget=w,
+                    duration=step_dur,
+                    delay=letter_delay,
+                    attrs={
+                        'opacity':(0,Color.TEXT_OPACITY),
+                        'color':(Color.BASE,first)
+                    },
+                    on_finish=lambda w=w,rest=rest,first=first: sweep_pixel(w,first,rest,step_dur)
+                )
+                s.anims[id(w)]['about_sweep'] = anim
+
+        s.about_letter_kids = pixel_widgets
+
+        version = bui.textwidget(
+            parent=s.root,
+            text=Strings.ABOUT_VERSION.format(__version__),
+            position=(0,version_y),
+            size=(sx,24),
+            h_align=Const.ALIGN,
+            v_align=Const.ALIGN,
+            scale=0.75,
+            color=Const.INVISIBLE
+        )
+        trash.append(version)
+        s.window_kids.append((version,(0,version_y),50,delay+0.15))
+
+        tagline_w = bui.textwidget(
+            parent=s.root,
+            text=Strings.ABOUT_TAGLINE,
+            position=(0,tagline_y),
+            size=(sx,24),
+            h_align=Const.ALIGN,
+            v_align=Const.ALIGN,
+            scale=0.68,
+            color=Const.INVISIBLE
+        )
+        trash.append(tagline_w)
+        s.window_kids.append((tagline_w,(0,tagline_y),50,delay+0.2))
+
+        thanks_w = bui.textwidget(
+            parent=s.root,
+            text=Strings.ABOUT_THANKS,
+            position=(0,thanks_y),
+            size=(sx,24),
+            h_align=Const.ALIGN,
+            v_align=Const.ALIGN,
+            scale=0.68,
+            color=Const.INVISIBLE
+        )
+        trash.append(thanks_w)
+        s.window_kids.append((thanks_w,(0,thanks_y),50,delay+0.25))
+
+        s.window_trash = [trash]
+
+        s.wrap_window_kids()
+        s.animate_window_kids()
+        s.making_window_kids = False
+
     def kill(s,on_kill=None):
         def finish():
             callable(on_kill) and on_kill()
@@ -2698,7 +3839,7 @@ class Editor:
             size=(0,0),
             editable=True,
             allow_clear_button=False,
-            color=(*Color.TEXT,Color.OPACITY),
+            color=(*Color.TEXT,Color.TEXT_OPACITY),
             v_align=Const.ALIGN,
             glow_type=Const.GLOW,
             description=Strings.SEED
@@ -2716,10 +3857,105 @@ class Editor:
         s.wrap(init=init)
         s.wrap_menu()
         s.wrap_window_kids()
+        s.wrap_aspect_bars()
         autofix and bui.apptimer(
             Const.BA_LAG, bui.CallPartial(
             s.wrap_all, autofix=False
         ))
+
+    def wrap_aspect_bars(s):
+        """Letterbox/pillarbox preview: draws flat black bars over
+        whatever's outside the chosen aspect ratio, so you can see
+        what a recording would crop before it's too late.
+
+        These are scene 'image' nodes attached to screen corners
+        (bascenev1), not UI widgets - they belong on the scene screen
+        itself so they sit under/over the world the same way a real
+        letterbox would, independent of whichever editor window
+        happens to be open.
+
+        If 'fill_aspect_ratio' is on, four more bars are added behind
+        these same four, each massively overscanned past the safe
+        window's own edge (see Const.FILL_ASPECT_OVERSCAN) - like
+        painting the wall around a window frame, not just the window
+        itself, so whatever real device margin exists outside
+        get_virtual_screen_size()'s safe box reads as part of the
+        letterbox too instead of showing raw unpainted screen."""
+        name = Settings.get('aspect_ratio')
+        ratio = Const.ASPECT_RATIO_VALUES.get(name)
+        if not ratio:
+            s.destroy_aspect_bars()
+            return
+        rx,ry = bui.get_virtual_screen_size()
+        target_w,target_h = rx,rx/ratio
+        if target_h > ry:
+            target_h,target_w = ry,ry*ratio
+        bar_h = max((ry-target_h)/2,0)
+        bar_w = max((rx-target_w)/2,0)
+        fill = Settings.get('fill_aspect_ratio')
+        over = Const.FILL_ASPECT_OVERSCAN
+        try:
+            activity = bs.get_foreground_host_activity()
+        except Exception:
+            return
+        try:
+            with activity.context:
+                if not s.aspect_bars:
+                    s.aspect_bars = [
+                        bs.newnode('image',attrs={
+                            'texture':bs.gettexture(Const.SKIN),
+                            'color':(0,0,0),
+                            'opacity':1,
+                            'attach':'bottomLeft'
+                        }) for _ in range(4)
+                    ]
+                if fill and not s.aspect_fill_bars:
+                    s.aspect_fill_bars = [
+                        bs.newnode('image',attrs={
+                            'texture':bs.gettexture(Const.SKIN),
+                            'color':(0,0,0),
+                            'opacity':1,
+                            'attach':'bottomLeft'
+                        }) for _ in range(4)
+                    ]
+                elif not fill and s.aspect_fill_bars:
+                    for n in s.aspect_fill_bars:
+                        if n.exists(): n.delete()
+                    s.aspect_fill_bars = []
+
+                top,bottom,left,right = s.aspect_bars
+                for n,pos,scale in (
+                    (top,   (rx/2,ry-bar_h/2), (rx,bar_h)),
+                    (bottom,(rx/2,bar_h/2),    (rx,bar_h)),
+                    (left,  (bar_w/2,ry/2),    (bar_w,ry)),
+                    (right, (rx-bar_w/2,ry/2), (bar_w,ry)),
+                ):
+                    n.position = pos
+                    n.scale = scale
+
+                if fill and s.aspect_fill_bars:
+                    ftop,fbottom,fleft,fright = s.aspect_fill_bars
+                    over_h = ry*over
+                    over_w = rx*over
+                    for n,pos,scale in (
+                        (ftop,   (rx/2,ry-bar_h+over_h/2), (rx+over_w*2,over_h)),
+                        (fbottom,(rx/2,bar_h-over_h/2),    (rx+over_w*2,over_h)),
+                        (fleft,  (bar_w-over_w/2,ry/2),    (over_w,ry+over_h*2)),
+                        (fright, (rx-bar_w+over_w/2,ry/2), (over_w,ry+over_h*2)),
+                    ):
+                        n.position = pos
+                        n.scale = scale
+        except Exception:
+            print(format_exc())
+            s.destroy_aspect_bars()
+
+    def destroy_aspect_bars(s):
+        for n in getattr(s,'aspect_bars',None) or []:
+            if n.exists(): n.delete()
+        s.aspect_bars = None
+        for n in getattr(s,'aspect_fill_bars',None) or []:
+            if n.exists(): n.delete()
+        s.aspect_fill_bars = []
 
     def wrap_menu(s):
         rx,ry = bui.get_virtual_screen_size()
@@ -2906,7 +4142,7 @@ class Editor:
                             attrs={
                                 'textcolor': (
                                     Const.INVISIBLE,
-                                    (*Color.TEXT, Color.OPACITY)
+                                    (*Color.TEXT, Color.TEXT_OPACITY)
                                 )
                             },
                             duration=s.global_butter / 2
@@ -2918,7 +4154,7 @@ class Editor:
                             'size': (start_size, target_size),
                             'position': (start_pos, target_pos),
                             'textcolor': (
-                                (*Color.TEXT, Color.OPACITY),
+                                (*Color.TEXT, Color.TEXT_OPACITY),
                                 Const.INVISIBLE
                             )
                         },
@@ -2939,7 +4175,7 @@ class Editor:
                         widget=s.seed_input,
                         attrs={
                             'size': (start_input_size, s.seed_input_size),
-                            'color': (Const.INVISIBLE, (*Color.TEXT,Color.OPACITY))
+                            'color': (Const.INVISIBLE, (*Color.TEXT,Color.TEXT_OPACITY))
                         },
                         duration=s.global_butter
                     )
@@ -3018,7 +4254,7 @@ class Editor:
                     'opacity':(0,Color.OPACITY),
                     'textcolor':(
                         Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     ),
                     'position':(
                         s.menu_kid_start_pos(i),
@@ -3051,7 +4287,7 @@ class Editor:
     @clickable
     def toggle_event(s,passive=False):
         if s.window_on and not passive:
-            s.window_back()
+            s.dismiss_window()
             return
         Eval.SOUND(Const.OK_SOUND).play()
         for kid in s.event_kids:
@@ -3166,7 +4402,7 @@ class Editor:
                         'opacity': (0, Color.OPACITY),
                         'textcolor': (
                             Const.INVISIBLE,
-                            (*Color.TEXT, Color.OPACITY)
+                            (*Color.TEXT, Color.TEXT_OPACITY)
                         ),
                         'size': ((mx * start_width_ratio, dy), s.event_kid_size)
                     },
@@ -3192,7 +4428,7 @@ class Editor:
             s.toast(Strings.INFO_SLOW_DOWN)
             Eval.SOUND(Const.BAD_SOUND).play()
             return
-        if s.window_on and not passive: s.window_back()
+        if s.window_on and not passive: s.dismiss_window()
         else: Eval.SOUND(Const.OK_SOUND).play()
         b = list(s.event_kids)[i]
         call = bui.CallPartial(s.event_window,i)
@@ -3221,7 +4457,7 @@ class Editor:
                         s.window_size
                     ),
                     'textcolor':(
-                        (*Color.TEXT, Color.OPACITY),
+                        (*Color.TEXT, Color.TEXT_OPACITY),
                         (*Color.TEXT, 0)
                     )
                 }
@@ -3231,7 +4467,7 @@ class Editor:
             Animate(
                 widget=s.event_kids[b]['shadow'],
                 attrs={
-                    'opacity':(0,Color.OPACITY),
+                    'opacity':(0,Color.SHADOW_OPACITY),
                     'position':(
                         s.event_kid_pos,
                         s.window_shadow_pos
@@ -3297,14 +4533,14 @@ class Editor:
                 attrs.update({
                     'textcolor':(
                         Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     )
                 })
             if ty in ['text']:
                 attrs.update({
                     'color':(
                         Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     )
                 })
             if ty in ['image','button']:
@@ -3325,7 +4561,7 @@ class Editor:
             px,py = p
             Eval.WIDGET(w)(w,position=(x+px,y+py))
 
-    def make_window_default(s,title):
+    def make_window_default(s,title,reverse_off=False):
         x,y = s.window_pos
         sx,sy = s.window_size
         def bye():
@@ -3337,6 +4573,7 @@ class Editor:
         s.window_marg = 5
         s.window_fix = 8
         dx,dy = 35,35
+        off = reverse_off and -50 or 50
 
         pos = (s.window_marg-s.window_fix,sy-dy-s.window_marg)
         back = bui.buttonwidget(
@@ -3350,7 +4587,8 @@ class Editor:
             textcolor=Const.INVISIBLE,
             opacity=0
         )
-        s.window_kids.append((back,pos,50,0.35))
+        s.window_back_btn = back
+        s.window_kids.append((back,pos,off,0.35))
 
         pos = (sx/2-s.window_marg*4,sy-s.window_marg-32.5)
         w = bui.textwidget(
@@ -3361,7 +4599,7 @@ class Editor:
             v_align=Const.ALIGN,
             maxwidth=sx-s.window_marg*3-dx
         )
-        s.window_kids.append((w,pos,50,0.35))
+        s.window_kids.append((w,pos,off,0.35))
 
     def add_entry(s,final,smol=False):
         nam = final['name']
@@ -3517,7 +4755,7 @@ class Editor:
             extra={
                 'textcolor':(
                     Const.INVISIBLE,
-                    (*Color.TEXT,Color.OPACITY)
+                    (*Color.TEXT,Color.TEXT_OPACITY)
                 ),
                 'size':(
                     s.window_size,
@@ -3544,10 +4782,6 @@ class Editor:
             }
         )
 
-    # Every attr here matches a real, *writable* engine attribute
-    # (cross-checked against the C++ node type registries — readonly
-    # attrs like spaz's 'damage' or math's 'output' are excluded since
-    # they can't be set at creation time and would just error).
     NODE_DEFAULT_ATTRS = {
         'prop': {'mesh': 'tnt', 'color_texture': 'tnt', 'body': 'crate', 'gravity_scale': '1.0', 'reflection': 'soft'},
         'text': {'text': 'Hello!', 'color': '(1, 1, 1)', 'scale': '0.02', 'in_world': 'True', 'h_align': 'center'},
@@ -3577,10 +4811,6 @@ class Editor:
         'anim_curve': {'times': '(0, 1000)', 'values': '(0.0, 1.0)', 'loop': 'False'}
     }
 
-    # Node types intentionally left out of the cycle: 'globals' and
-    # 'session_globals' are per-activity singletons, 'player' nodes
-    # are engine-managed per connected player, and 'null' is an inert
-    # placeholder with no attrs worth editing.
     NODE_TYPES = [
         'prop', 'text', 'light', 'math', 'spaz', 'bomb', 'combine',
         'explosion', 'flag', 'flash', 'image', 'locator', 'region',
@@ -3652,7 +4882,7 @@ class Editor:
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
-            color=Color.BASE
+            color=Color.SHADOW
         )
         s.window_trash.append([type_btn_shadow])
 
@@ -3695,7 +4925,7 @@ class Editor:
                     'position': (btn_start_pos, picker_pos),
                     'size': (btn_start_size, picker_size),
                     'textcolor': (
-                        (*Color.TEXT, Color.OPACITY),
+                        (*Color.TEXT, Color.TEXT_OPACITY),
                         Const.INVISIBLE
                     )
                 }
@@ -3703,7 +4933,7 @@ class Editor:
             shadow_anim = Animate(
                 widget=type_btn_shadow,
                 attrs={
-                    'opacity': (0, Color.OPACITY),
+                    'opacity': (0, Color.SHADOW_OPACITY),
                     'position': (btn_start_pos, picker_shadow_pos),
                     'size': (btn_start_size, picker_shadow_size)
                 },
@@ -3794,7 +5024,7 @@ class Editor:
                         'opacity': (0, Color.OPACITY),
                         'textcolor': (
                             Const.INVISIBLE,
-                            (*Color.TEXT, Color.OPACITY)
+                            (*Color.TEXT, Color.TEXT_OPACITY)
                         )
                     }
                 ))
@@ -3889,10 +5119,10 @@ class Editor:
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
-                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
-                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
@@ -3952,7 +5182,7 @@ class Editor:
                 lbl = bui.textwidget(
                     parent=s.attr_root, position=(0, y_pos), size=(85, row_h), 
                     text=k, h_align='left', v_align='center', maxwidth=80, 
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.attr_widgets.append(lbl)
                 
@@ -3960,8 +5190,8 @@ class Editor:
                 inp = bui.textwidget(
                     parent=s.attr_root, position=(90, y_pos+5), size=(120, row_h-5), 
                     text=val, editable=True, h_align='left', v_align='center', 
-                    maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    glow_type=Const.GLOW, allow_clear_button=False,
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.attr_widgets.append(inp)
                 s.current_inputs[k] = inp
@@ -3972,7 +5202,7 @@ class Editor:
                     button_type='square', enable_sound=False,
                     texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                     opacity=0 if initial else Color.OPACITY, 
-                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.attr_widgets.append(del_btn)
 
@@ -3986,15 +5216,15 @@ class Editor:
                 parent=s.attr_root, position=(0, y_pos+5), size=(85, row_h-5), 
                 text="new_attr", editable=True, h_align='left', v_align='center', 
                 maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.attr_widgets.append(new_k)
 
             new_v = bui.textwidget(
                 parent=s.attr_root, position=(90, y_pos+5), size=(120, row_h-5), 
                 text="value", editable=True, h_align='left', v_align='center', 
-                maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                glow_type=Const.GLOW, allow_clear_button=False,
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.attr_widgets.append(new_v)
 
@@ -4004,7 +5234,7 @@ class Editor:
                 button_type='square', enable_sound=False,
                 texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                 opacity=0 if initial else Color.OPACITY, 
-                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.attr_widgets.append(add_btn)
 
@@ -4050,11 +5280,29 @@ class Editor:
                         from bascenev1lib.actor.spazfactory import SpazFactory
                         _shared = SharedObjects.get()
                         _factory = SpazFactory.get()
-                    kw = {'position': pos_tuple}
+                    kw = {} if s.current_node_type == 'spaz' else {'position': pos_tuple}
                     for key, val in s.current_attrs.items():
                         if val:
                             kw[key] = eval(to_eval(key, val))
-                    prv_node = bs.newnode(s.current_node_type, attrs=kw)
+                    if s.current_node_type == 'spaz':
+                        from bascenev1lib.actor.spaz import Spaz
+                        for extraneous in ('materials','roller_materials','punch_materials','pickup_materials','style'):
+                            kw.pop(extraneous, None)
+                        prv_actor = Spaz(
+                            character=kw.pop('character', None) or 'Spaz',
+                            color=kw.pop('color', (1, 1, 1)),
+                            highlight=kw.pop('highlight', (1, 1, 1)),
+                            start_invincible=False
+                        ).autoretain()
+                        for k, v in kw.items():
+                            setattr(prv_actor.node, k, v)
+                        prv_node = prv_actor.node
+                        bs.timer(
+                            0,
+                            lambda a=prv_actor: a.node.exists() and a.handlemessage(bs.StandMessage(pos_tuple, 0.0))
+                        )
+                    else:
+                        prv_node = bs.newnode(s.current_node_type, attrs=kw)
             except Exception as e:
                 s.toast(Format.ERROR(e))
                 Eval.SOUND(Const.BAD_SOUND).play()
@@ -4129,7 +5377,7 @@ class Editor:
             if edit and not load:
                 data.update(final_data)
                 bui.buttonwidget(s.stamp_kids[edit['order']], label=nam)
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else:
                 s.add_entry(final_data)
@@ -4504,7 +5752,7 @@ class Editor:
             Eval.SOUND(Const.OK_SOUND).play()
             if edit and not load:
                 data.update(final)
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else:
                 s.add_entry(final)
@@ -4734,7 +5982,7 @@ class Editor:
                 attrs={
                     'color': (
                         Const.INVISIBLE,
-                        (*Color.TEXT, Color.OPACITY)
+                        (*Color.TEXT, Color.TEXT_OPACITY)
                     ),
                     'position': (
                         (50, i * text_y),
@@ -4858,7 +6106,7 @@ class Editor:
                     s.stamp_kids[edit['order']],
                     label=final['name']
                 )
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else:
                 s.add_entry(final)
@@ -4972,7 +6220,7 @@ class Editor:
             parent=s.root,
             opacity=0,
             texture=Eval.TEXTURE(Const.SHADOW),
-            color=Color.BASE
+            color=Color.SHADOW
         )
         s.window_trash.append([type_btn_shadow])
 
@@ -5015,7 +6263,7 @@ class Editor:
                     'position': (btn_start_pos, picker_pos),
                     'size': (btn_start_size, picker_size),
                     'textcolor': (
-                        (*Color.TEXT, Color.OPACITY),
+                        (*Color.TEXT, Color.TEXT_OPACITY),
                         Const.INVISIBLE
                     )
                 }
@@ -5023,7 +6271,7 @@ class Editor:
             shadow_anim = Animate(
                 widget=type_btn_shadow,
                 attrs={
-                    'opacity': (0, Color.OPACITY),
+                    'opacity': (0, Color.SHADOW_OPACITY),
                     'position': (btn_start_pos, picker_shadow_pos),
                     'size': (btn_start_size, picker_shadow_size)
                 },
@@ -5114,7 +6362,7 @@ class Editor:
                         'opacity': (0, Color.OPACITY),
                         'textcolor': (
                             Const.INVISIBLE,
-                            (*Color.TEXT, Color.OPACITY)
+                            (*Color.TEXT, Color.TEXT_OPACITY)
                         )
                     }
                 ))
@@ -5208,10 +6456,10 @@ class Editor:
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
-                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
-                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
@@ -5268,7 +6516,7 @@ class Editor:
                 lbl = bui.textwidget(
                     parent=s.fx_attr_root, position=(0, y_pos), size=(85, row_h),
                     text=k, h_align='left', v_align='center', maxwidth=80,
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.fx_attr_widgets.append(lbl)
 
@@ -5277,7 +6525,7 @@ class Editor:
                     parent=s.fx_attr_root, position=(90, y_pos + 5), size=(120, row_h - 5),
                     text=val, editable=True, h_align='left', v_align='center',
                     maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.fx_attr_widgets.append(inp)
                 s.fx_current_inputs[k] = inp
@@ -5288,7 +6536,7 @@ class Editor:
                     button_type='square', enable_sound=False,
                     texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                     opacity=0 if initial else Color.OPACITY,
-                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.fx_attr_widgets.append(del_btn)
 
@@ -5302,7 +6550,7 @@ class Editor:
                 parent=s.fx_attr_root, position=(0, y_pos + 5), size=(85, row_h - 5),
                 text="new_attr", editable=True, h_align='left', v_align='center',
                 maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.fx_attr_widgets.append(new_k)
 
@@ -5310,7 +6558,7 @@ class Editor:
                 parent=s.fx_attr_root, position=(90, y_pos + 5), size=(120, row_h - 5),
                 text="value", editable=True, h_align='left', v_align='center',
                 maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.fx_attr_widgets.append(new_v)
 
@@ -5320,7 +6568,7 @@ class Editor:
                 button_type='square', enable_sound=False,
                 texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                 opacity=0 if initial else Color.OPACITY,
-                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.fx_attr_widgets.append(add_btn)
 
@@ -5406,7 +6654,7 @@ class Editor:
             if edit and not load:
                 data.update(final_data)
                 bui.buttonwidget(s.stamp_kids[edit['order']], label=nam)
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else:
                 s.add_entry(final_data)
@@ -5706,7 +6954,7 @@ class Editor:
                 size=(list_w - 10, row_h - 4),
                 label=name,
                 color=Color.COLD if name == s.current_map_name else Color.BASE,
-                textcolor=(*Color.TEXT, Color.OPACITY),
+                textcolor=(*Color.TEXT, Color.TEXT_OPACITY),
                 texture=Eval.TEXTURE(Const.SKIN),
                 enable_sound=False,
                 opacity=Color.OPACITY,
@@ -5741,10 +6989,10 @@ class Editor:
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
-                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['color'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
-                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.OPACITY))
+                attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
             s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
@@ -5795,7 +7043,7 @@ class Editor:
                 lbl = bui.textwidget(
                     parent=s.map_attr_root, position=(0, y_pos), size=(85, row_h2),
                     text=k, h_align='left', v_align='center', maxwidth=80,
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.map_attr_widgets.append(lbl)
 
@@ -5804,7 +7052,7 @@ class Editor:
                     parent=s.map_attr_root, position=(90, y_pos + 5), size=(120, row_h2 - 5),
                     text=val, editable=True, h_align='left', v_align='center',
                     maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.map_attr_widgets.append(inp)
                 s.map_current_inputs[k] = inp
@@ -5815,7 +7063,7 @@ class Editor:
                     button_type='square', enable_sound=False,
                     texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                     opacity=0 if initial else Color.OPACITY,
-                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                    textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
                 )
                 s.map_attr_widgets.append(del_btn)
 
@@ -5829,7 +7077,7 @@ class Editor:
                 parent=s.map_attr_root, position=(0, y_pos + 5), size=(85, row_h2 - 5),
                 text="new_attr", editable=True, h_align='left', v_align='center',
                 maxwidth=80, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.map_attr_widgets.append(new_k)
 
@@ -5837,7 +7085,7 @@ class Editor:
                 parent=s.map_attr_root, position=(90, y_pos + 5), size=(120, row_h2 - 5),
                 text="value", editable=True, h_align='left', v_align='center',
                 maxwidth=100, glow_type=Const.GLOW, allow_clear_button=False,
-                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                color=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.map_attr_widgets.append(new_v)
 
@@ -5847,7 +7095,7 @@ class Editor:
                 button_type='square', enable_sound=False,
                 texture=Eval.TEXTURE(Const.SKIN), color=Color.BASE,
                 opacity=0 if initial else Color.OPACITY,
-                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.OPACITY)
+                textcolor=Const.INVISIBLE if initial else (*Color.TEXT, Color.TEXT_OPACITY)
             )
             s.map_attr_widgets.append(add_btn)
 
@@ -5904,7 +7152,7 @@ class Editor:
             }
             if edit and not load:
                 data.update(final_data)
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else:
                 s.add_entry(final_data, smol=True)
@@ -5982,7 +7230,7 @@ class Editor:
                 glow_type=Const.GLOW,
                 click_activate=True,
                 text=nam,
-                color=(*Color.TEXT,Color.OPACITY),
+                color=(*Color.TEXT,Color.TEXT_OPACITY),
                 v_align=Const.ALIGN,
                 on_activate_call=bui.CallPartial(
                     do_select, i, j, nam, dsc, data
@@ -6177,11 +7425,11 @@ class Editor:
                         s.stamp_kids[edit['order']],
                         label=na
                     )
-                    s.window_back()
+                    s.dismiss_window()
                     s.toast(Strings.INFO_SAVED)
                 elif not callable(on_done): s.add_entry(final)
                 else:
-                    s.window_back()
+                    s.dismiss_window()
                     on_done(final)
         for i,t in enumerate((
             Strings.COPY,
@@ -6271,7 +7519,7 @@ class Editor:
             }
             if edit:
                 data.update(final)
-                s.window_back()
+                s.dismiss_window()
                 s.toast(Strings.INFO_SAVED)
             else: s.add_entry(final)
         done_pos = (s.window_marg*4, s.window_marg)
@@ -6309,11 +7557,34 @@ class Editor:
         else:
             getattr(s,'prev_off_wid',None) and s.prev_off_wid.delete()
 
+    def dismiss_window(s,**kw):
+        """Fully closes whatever window is open, popup included, in
+        one call. window_back() on its own only peels off one layer -
+        if a popup is open it closes *that* and returns, leaving
+        window_on untouched, which is exactly the right feel for an
+        actual back-button press (first press dismisses the popup,
+        second press leaves the window). But every call site that
+        means to open something else next - a different window, a
+        select/delete action, toggling event view - wants the whole
+        trap gone unconditionally. Calling window_back() alone there
+        closes the popup but silently leaves window_on non-empty, so
+        the window itself never gets torn down even though nothing
+        appears to be covering it anymore. Route all of those through
+        here instead so a live popup can never survive an attempt to
+        open (or otherwise move past) a window."""
+        if s.window_sub_on:
+            s.window_sub_on[2](instant=True)
+        if s.window_on:
+            s.window_back(**kw)
+
     def window_back(s,to=None,shadow_to=None,on_fix=None,wait=0,extra={},shadow_extra={},instant={},into_nothing=False,skip=False):
         if s.window_sub_on:
             s.window_sub_on[2]()
             return
         b,call,on_back = s.window_on
+        butter = s.global_butter*1.66
+        anim = s.anims[id(b)]['window']
+        s.window_on = ()
         callable(on_back) and on_back()
         def enable():
             bui.buttonwidget(
@@ -6321,8 +7592,6 @@ class Editor:
                 on_activate_call=call,
                 selectable=True
             )
-        butter = s.global_butter*1.66
-        anim = s.anims[id(b)]['window']
         Eval.SOUND(Const.OK_SOUND).play()
         s.window_clean()
         if to:
@@ -6340,7 +7609,7 @@ class Editor:
                         attrs={
                             'textcolor':(
                                 Const.INVISIBLE,
-                                (*Color.TEXT,Color.OPACITY)
+                                (*Color.TEXT,Color.TEXT_OPACITY)
                             ),
                             'opacity':(0,Color.OPACITY),
                             'position':(
@@ -6404,8 +7673,6 @@ class Editor:
             )
         else:
             zero = 0.0001
-            if into_nothing:
-                anim.attrs_start['textcolor'] = Const.INVISIBLE
             s.anims[id(b)]['window'] = anim.reverse(
                 duration=skip and zero or butter
             )
@@ -6414,14 +7681,44 @@ class Editor:
                 duration=skip and zero or butter
             )
             enable()
-        s.window_on = ()
 
     def show_controls(s,up=False):
         if s.controls_shown: return
         s.controls_shown = True
         if up:
-            for b in s.controls:
-                s.anims[id(b)][up].reverse()
+            dx,dy = s.control_size
+            end_size = (dx,0)
+            for i,b in enumerate(s.controls):
+                for a in s.anims[id(b)].values():
+                    a.cancel()
+                px,py = s.control_pos(i)
+                bui.buttonwidget(
+                    b,
+                    position=(px,py+dy),
+                    size=end_size,
+                    textcolor=Const.INVISIBLE,
+                    opacity=0
+                )
+                attrs = {
+                    'size':(
+                        end_size,
+                        s.control_size
+                    ),
+                    'textcolor':(
+                        Const.INVISIBLE,
+                        (*Color.TEXT,Color.TEXT_OPACITY)
+                    ),
+                    'opacity':(0,Color.OPACITY),
+                    'position':(
+                        (px,py+dy),
+                        (px,py)
+                    )
+                }
+                s.anims[id(b)][up] = Animate(
+                    widget=b,
+                    duration=s.global_butter,
+                    attrs=attrs
+                )
         else:
             dx,dy = s.control_size
             sx,sy = s.stamp_size
@@ -6439,7 +7736,7 @@ class Editor:
                     ),
                     'textcolor':(
                         Const.INVISIBLE,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     ),
                     'opacity':(0,Color.OPACITY)
                 }
@@ -6467,7 +7764,7 @@ class Editor:
                         end_size
                     ),
                     'textcolor':(
-                        (*Color.TEXT,Color.OPACITY),
+                        (*Color.TEXT,Color.TEXT_OPACITY),
                         Const.INVISIBLE
                     ),
                     'opacity':(Color.OPACITY,0),
@@ -6581,6 +7878,7 @@ class Editor:
             s.is_wide = False
             if not s.ui_on:
                 s.toggle_ui()
+        s.build_grid()
 
     def wrap_play(s,init=False):
         s.pause_start = None
@@ -6598,6 +7896,7 @@ class Editor:
             for sound,vol in s.active_sounds.items():
                 setattr(sound,'volume',vol)
             return
+        s.destroy_grid()
         s.collapse_all()
         s.ui_clickable = False
         s.make_playhead()
@@ -6622,12 +7921,15 @@ class Editor:
             event = s.timeline[s.timeline_index]
             try: s.execute_event(event)
             except Exception as e:
+                print(format_exc())
                 t = event['memory']['data']['name']
                 s.toast(Strings.ERROR_EVENT(t,e))
-                print(format_exc())
-                s.stop(shut=1)
                 Eval.SOUND(Const.BAD_SOUND).play()
-                return
+                if not Settings.get('ignore_playback_errors'):
+                    s.stop(shut=1)
+                    return
+                s.timeline_index += 1
+                continue
             s.timeline_index += 1
 
         for btn_id, keys in list(s.active_key_schedule.items()):
@@ -6674,36 +7976,39 @@ class Editor:
                     if data['type'] == 'spaz':
                         from bascenev1lib.gameutils import SharedObjects
                         from bascenev1lib.actor.spazfactory import SpazFactory
+                        from bascenev1lib.actor.spaz import Spaz
                         _shared = SharedObjects.get()
                         _factory = SpazFactory.get()
                     attrs = {}
                     for attr, val in data['attrs'].items():
                         attrs[attr] = eval(val)
                     if data['type'] == 'spaz':
-                        character = attrs.pop('character', None)
-                        if character:
-                            try:
-                                media = _factory.get_media(character)
-                                style = _factory.get_style(character)
-                                # Explicit attrs on the node (color, highlight,
-                                # etc.) win over the character's own media, so
-                                # only fill in keys the user hasn't already set.
-                                for mk, mv in media.items():
-                                    attrs.setdefault(mk, mv)
-                                attrs.setdefault('style', style)
-                            except Exception as ex:
-                                s.toast(Format.ERROR(ex))
-                    if data['type'] == 'spaz' and 'position' in data['attrs']:
-                        position = attrs.pop('position')
-                        call = lambda: n.handlemessage(
-                            bs.StandMessage,
-                            position
+                        for extraneous in ('materials','roller_materials','punch_materials','pickup_materials','style'):
+                            attrs.pop(extraneous, None)
+                        position = attrs.pop('position', None)
+                        actor = Spaz(
+                            character=attrs.pop('character', None) or 'Spaz',
+                            color=attrs.pop('color', (1, 1, 1)),
+                            highlight=attrs.pop('highlight', (1, 1, 1)),
+                            start_invincible=False
+                        ).autoretain()
+                        for k, v in attrs.items():
+                            setattr(actor.node, k, v)
+                        tracker.active[key] = n = actor.node
+                        if position is not None:
+                            activity = bs.get_foreground_host_activity()
+                            def call(activity=activity,position=position,actor=actor):
+                                with activity.context:
+                                    bs.timer(
+                                        0,
+                                        lambda: actor.node.exists() and actor.handlemessage(bs.StandMessage(position, 0.0))
+                                    )
+                    else:
+                        tracker.active[key] = n = bs.newnode(
+                            type=data['type'],
+                            name=data['name'],
+                            attrs=attrs
                         )
-                    tracker.active[key] = n = bs.newnode(
-                        type=data['type'],
-                        name=data['name'],
-                        attrs=attrs
-                    )
             else:
                 if key in tracker.active:
                     tracker.active.pop(key).delete()
@@ -7022,7 +8327,7 @@ class Editor:
         if s.window_on and s.window_on[1] in (
             s.edit_window,
             s.key_window
-        ): s.window_back()
+        ): s.dismiss_window()
         sl = b
         yes = lambda: bui.buttonwidget(
             b,color=Color.COLD
@@ -7062,7 +8367,7 @@ class Editor:
                     ),
                     'textcolor':(
                         start_tc,
-                        (*Color.TEXT,Color.OPACITY)
+                        (*Color.TEXT,Color.TEXT_OPACITY)
                     ),
                     'opacity':(start_op,Color.OPACITY)
                 }
@@ -7788,7 +9093,7 @@ class Editor:
                     bui.buttonwidget(
                         kid,
                         opacity=Color.OPACITY,
-                        textcolor=(*Color.TEXT, Color.OPACITY)
+                        textcolor=(*Color.TEXT, Color.TEXT_OPACITY)
                     )
 
             original_data = mem.copy()
@@ -7932,7 +9237,7 @@ class Editor:
                     'opacity': (0, Color.OPACITY),
                     'textcolor': (
                         Const.INVISIBLE,
-                        (*Color.TEXT, Color.OPACITY)
+                        (*Color.TEXT, Color.TEXT_OPACITY)
                     ),
                     'position': ((final_x, orig_y), (final_x, final_y))
                 },
@@ -7981,7 +9286,7 @@ class Editor:
                 return
 
             if s.window_on and s.window_on[1] == s.edit_window:
-                s.window_back()
+                s.dismiss_window()
 
             node_name = mem['data']['name']
             deleted_order = mem['order']
@@ -8144,7 +9449,7 @@ class Editor:
                 attrs={
                     'opacity': (Color.OPACITY, 0),
                     'textcolor': (
-                        (*Color.TEXT, Color.OPACITY),
+                        (*Color.TEXT, Color.TEXT_OPACITY),
                         Const.INVISIBLE
                     )
                 },
@@ -8449,6 +9754,13 @@ class Animate:
             else:
                 s.attrs_current[attr_name] = start_val
 
+        anim_speed = max(Settings.get('anim_speed') or 1.0, 0.05)
+        if not Settings.get('ui_anim_on'):
+            duration = Const.ANIM_INSTANT
+            s.delay = 0
+        else:
+            duration = duration/anim_speed
+
         s.duration = duration
         s.start_time = None
 
@@ -8638,7 +9950,7 @@ class Animate:
 
 # hardcoded stuff
 
-class Strings:
+class _StringsEN:
     MAP_TITLE = 'Movi'
     MAP_DESCRIPTION = 'Movie Maker'
     INSTANCE_DESCRIPTION = 'Three Two One Action!'
@@ -8653,6 +9965,7 @@ class Strings:
         'Wide Preview'
     )
     EDIT_BUTTON = 'Edit'
+    SETTINGS = 'Settings'
     EVENT_BUTTON_OFF = 'Event'
     EVENT_BUTTON_ON = 'Back'
     EVENTS = {
@@ -8801,9 +10114,15 @@ class Strings:
         'I\'m clean now, regret.'
     )
     INFO_RECORDING_NOW = (
-        'Recording now! Press circle to finish',
+        'Recording now! Press OK to finish recording',
         'Just watch your movie silently'
     )
+    STOP_RECORDING_LABEL = 'OK'
+    ABOUT_LABEL = '!'
+    ABOUT_TITLE = 'About'
+    ABOUT_VERSION = 'Version {}'
+    ABOUT_TAGLINE = 'Made with love and tea.'
+    ABOUT_THANKS = 'Special thanks to: YOU for trying Movi!'
     INFO_RECORDING_SAVED = (
         'Recording Saved!',
         'A wild shiny BRP file was created'
@@ -8918,6 +10237,628 @@ class Strings:
         'Aka not implemented yet lmao'
     )
 
+    SETTING_ENTRY_DURATION = 'Default Entry Duration'
+    SETTING_ANIM_SPEED = 'UI Animation Speed'
+    SETTING_BASE_OPACITY = 'Base Opacity'
+    SETTING_TEXT_OPACITY = 'Text Opacity'
+    SETTING_THEME = 'Theme'
+    SETTING_LANGUAGE = 'Language'
+    SETTING_AUTOSAVE_ON = 'Autosave'
+    SETTING_AUTOSAVE_INTERVAL = 'Autosave Interval (s)'
+    SETTING_UI_ANIM_ON = 'UI Animations'
+    SETTING_SFX_EDITOR = 'Editor SFX'
+    SETTING_SFX_UI = 'UI SFX'
+    SETTING_IGNORE_PLAYBACK_ERRORS = 'Ignore Errors During Playback'
+    SETTING_SHOW_GRID_2D = 'Show 2D Grid'
+    SETTING_SHOW_GRID_3D = 'Show 3D Grid'
+    SETTING_BRP_TEXT_EXPORT = 'Also Export Memory JSON'
+    SETTING_EXPORT_FILENAME = 'Filename'
+    SETTING_TOAST_TOP = 'Toast at Top'
+    SETTING_FANCY_AUTOSAVE = 'Fancy Autosave'
+    SETTING_TOAST_DURATION = 'Toast Duration (s)'
+    SETTING_EPIC_MODE = 'Epic Mode'
+    SETTING_DEBUG_HEADER = 'Debug'
+    SETTING_DUMP_MEMORY = 'Dump Memory to Log'
+    SETTING_DUMP_TIMELINE = 'Dump Timeline to Log'
+    SETTING_ASPECT_RATIO = 'Aspect Ratio'
+    INFO_DUMPED_MEMORY = (
+        'Memory dumped!',
+        'Check your console/log'
+    )
+    INFO_DUMPED_TIMELINE = (
+        'Timeline dumped!',
+        'Check your console/log'
+    )
+    INFO_EPIC_ON = (
+        'Epic mode engaged!',
+        'The autosave panel is showing off now'
+    )
+    INFO_EPIC_OFF = (
+        'Epic mode disengaged',
+        'Back to being humble'
+    )
+    INFO_CHANGING_OPACITY = (
+        'Changing opacity...',
+        'Refreshing the timeline'
+    )
+    INFO_CHANGING_THEME = (
+        'Changing theme...',
+        'Refreshing the timeline'
+    )
+    INFO_CHANGING_LANGUAGE = (
+        'Changing language...',
+        'Refreshing the timeline'
+    )
+    SETTING_FILL_ASPECT_RATIO = 'Fill Outside Frame'
+
+
+class _StringsMeta(type):
+    def __getattr__(cls,name):
+        table = _TRANSLATIONS.get(Settings.get('language'))
+        if table and name in table:
+            return table[name]
+        return getattr(_StringsEN,name)
+
+class Strings(metaclass=_StringsMeta):
+    """Dynamic, language-aware replacement for the old flat Strings
+    class. Every Strings.FOO lookup resolves against the current
+    language's translation table, falling back to English (via
+    _StringsEN) for anything not yet translated. See _StringsMeta."""
+    LANGUAGES = ('English','Arabic','Japanese','French','Chinese',
+                 'Spanish','German','Portuguese','Russian','Korean',
+                 'Hindi','Italian','Bruh')
+    LANGUAGE_NAMES = {
+        'English':    'English',
+        'Arabic':     'العربية',
+        'Japanese':   '日本語',
+        'French':     'Français',
+        'Chinese':    '中文',
+        'Spanish':    'Español',
+        'German':     'Deutsch',
+        'Portuguese': 'Português',
+        'Russian':    'Русский',
+        'Korean':     '한국어',
+        'Hindi':      'हिन्दी',
+        'Italian':    'Italiano',
+        'Bruh':       'bruh 💀',
+    }
+
+_TRANSLATIONS = {
+    'Arabic': {
+        'SETTINGS':'الإعدادات','EDIT_BUTTON':'تعديل',
+        'EVENT_BUTTON_OFF':'حدث','EVENT_BUTTON_ON':'رجوع',
+        'DONE':'تم','LOAD':'تحميل','SET':'ضبط','POP':'إزالة',
+        'KEYS':'مفاتيح','NAME':'الاسم','TYPE':'النوع','VALUE':'القيمة',
+        'POSITION':'الموضع','TARGET':'الهدف','PREVIEW':'معاينة',
+        'STOP':'إيقاف','COPY':'نسخ','RUN':'تشغيل','PASTE':'لصق',
+        'SEED':'البذرة','CODE':'الكود','NEXT':'التالي','LOOP':'تكرار',
+        'EVERYWHERE':'في كل مكان','ERROR':'خطأ!',
+        'MENUS':('حفظ وخروج','مسح الجلسة','تحميل بذرة','نسخ البذرة',
+                 'تبديل المحرر','تسجيل BRP','معاينة عريضة'),
+        'EVENTS':{'Node':'إنشاء عقدة مشهد','Camera':'ضبط الكاميرا',
+                  'Sound':'تشغيل صوت','FX':'إطلاق تأثير',
+                  'Map':'التحكم بالخريطة','Preset':'تحميل إعداد مسبق',
+                  'Code':'كود مخصص','Seed':'بذرة المشروع'},
+        'SETTING_ENTRY_DURATION':'مدة الإدخال الافتراضية',
+        'SETTING_ANIM_SPEED':'سرعة حركة الواجهة',
+        'SETTING_BASE_OPACITY':'الشفافية الأساسية',
+        'SETTING_TEXT_OPACITY':'شفافية النص',
+        'SETTING_THEME':'السمة','SETTING_LANGUAGE':'اللغة',
+        'SETTING_AUTOSAVE_ON':'الحفظ التلقائي',
+        'SETTING_AUTOSAVE_INTERVAL':'فاصل الحفظ التلقائي (ث)',
+        'SETTING_UI_ANIM_ON':'حركات الواجهة',
+        'SETTING_SFX_EDITOR':'أصوات المحرر',
+        'SETTING_SFX_UI':'أصوات الواجهة',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':'تجاهل الأخطاء أثناء التشغيل',
+        'SETTING_SHOW_GRID_2D':'إظهار الشبكة ثنائية الأبعاد',
+        'SETTING_SHOW_GRID_3D':'إظهار الشبكة ثلاثية الأبعاد',
+        'SETTING_BRP_TEXT_EXPORT':'تصدير JSON للذاكرة أيضاً',
+        'SETTING_EXPORT_FILENAME':'اسم الملف',
+        'SETTING_TOAST_TOP':'الإشعارات في الأعلى',
+        'SETTING_FANCY_AUTOSAVE':'حفظ تلقائي مزخرف',
+        'SETTING_TOAST_DURATION':'مدة الإشعار (ث)',
+        'SETTING_EPIC_MODE':'الوضع الملحمي',
+        'SETTING_DEBUG_HEADER':'التصحيح',
+        'SETTING_DUMP_MEMORY':'تفريغ الذاكرة إلى السجل',
+        'SETTING_DUMP_TIMELINE':'تفريغ الخط الزمني إلى السجل',
+        'SETTING_ASPECT_RATIO':'نسبة العرض إلى الارتفاع',
+        'SETTING_FILL_ASPECT_RATIO':'ملء ما وراء الإطار',
+        'COMING_SOON':('قريباً!','لم يتم تنفيذه بعد'),
+    },
+    'Japanese': {
+        'SETTINGS':'設定','EDIT_BUTTON':'編集',
+        'EVENT_BUTTON_OFF':'イベント','EVENT_BUTTON_ON':'戻る',
+        'DONE':'完了','LOAD':'読み込み','SET':'設定','POP':'削除',
+        'KEYS':'キー','NAME':'名前','TYPE':'タイプ','VALUE':'値',
+        'POSITION':'位置','TARGET':'ターゲット','PREVIEW':'プレビュー',
+        'STOP':'停止','COPY':'コピー','RUN':'実行','PASTE':'貼り付け',
+        'SEED':'シード','CODE':'コード','NEXT':'次へ','LOOP':'ループ',
+        'EVERYWHERE':'どこでも','ERROR':'エラー！',
+        'MENUS':('保存して終了','セッションをクリア','シードを読み込む',
+                 'シードをコピー','エディタ切替','BRPを録画',
+                 'ワイドプレビュー'),
+        'EVENTS':{'Node':'シーンノードを作成','Camera':'カメラを調整',
+                  'Sound':'サウンドを再生','FX':'エフェクトを発生',
+                  'Map':'マップを操作','Preset':'プリセットを読み込む',
+                  'Code':'カスタムコード','Seed':'プロジェクトシード'},
+        'SETTING_ENTRY_DURATION':'デフォルトの継続時間',
+        'SETTING_ANIM_SPEED':'UIアニメーション速度',
+        'SETTING_BASE_OPACITY':'基本の不透明度',
+        'SETTING_TEXT_OPACITY':'テキストの不透明度',
+        'SETTING_THEME':'テーマ','SETTING_LANGUAGE':'言語',
+        'SETTING_AUTOSAVE_ON':'自動保存',
+        'SETTING_AUTOSAVE_INTERVAL':'自動保存間隔（秒）',
+        'SETTING_UI_ANIM_ON':'UIアニメーション',
+        'SETTING_SFX_EDITOR':'エディタ効果音',
+        'SETTING_SFX_UI':'UI効果音',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':'再生中のエラーを無視',
+        'SETTING_SHOW_GRID_2D':'2Dグリッドを表示',
+        'SETTING_SHOW_GRID_3D':'3Dグリッドを表示',
+        'SETTING_BRP_TEXT_EXPORT':'メモリJSONも書き出す',
+        'SETTING_EXPORT_FILENAME':'ファイル名',
+        'SETTING_TOAST_TOP':'通知を上部に表示',
+        'SETTING_FANCY_AUTOSAVE':'装飾された自動保存',
+        'SETTING_TOAST_DURATION':'通知の表示時間（秒）',
+        'SETTING_EPIC_MODE':'エピックモード',
+        'SETTING_DEBUG_HEADER':'デバッグ',
+        'SETTING_DUMP_MEMORY':'メモリをログに出力',
+        'SETTING_DUMP_TIMELINE':'タイムラインをログに出力',
+        'SETTING_ASPECT_RATIO':'アスペクト比',
+        'SETTING_FILL_ASPECT_RATIO':'フレーム外を塗りつぶす',
+        'COMING_SOON':('近日公開！','まだ実装されていません'),
+    },
+    'French': {
+        'SETTINGS':'Paramètres','EDIT_BUTTON':'Modifier',
+        'EVENT_BUTTON_OFF':'Événement','EVENT_BUTTON_ON':'Retour',
+        'DONE':'Terminé','LOAD':'Charger','SET':'Définir',
+        'POP':'Retirer','KEYS':'Clés','NAME':'Nom','TYPE':'Type',
+        'VALUE':'Valeur','POSITION':'Position','TARGET':'Cible',
+        'PREVIEW':'Aperçu','STOP':'Arrêter','COPY':'Copier',
+        'RUN':'Exécuter','PASTE':'Coller','SEED':'Graine',
+        'CODE':'Code','NEXT':'Suivant','LOOP':'Boucle',
+        'EVERYWHERE':'Partout','ERROR':'Erreur !',
+        'MENUS':('Enregistrer et quitter','Effacer la session',
+                 'Charger une graine','Copier la graine',
+                 "Basculer l'éditeur",'Enregistrer BRP',
+                 'Aperçu large'),
+        'EVENTS':{'Node':'Créer un nœud de scène',
+                  'Camera':'Régler la caméra','Sound':'Jouer un son',
+                  'FX':'Émettre un effet','Map':'Contrôler la carte',
+                  'Preset':'Charger un préréglage',
+                  'Code':'Code personnalisé','Seed':'Graine du projet'},
+        'SETTING_ENTRY_DURATION':"Durée d'entrée par défaut",
+        'SETTING_ANIM_SPEED':"Vitesse d'animation UI",
+        'SETTING_BASE_OPACITY':'Opacité de base',
+        'SETTING_TEXT_OPACITY':'Opacité du texte',
+        'SETTING_THEME':'Thème','SETTING_LANGUAGE':'Langue',
+        'SETTING_AUTOSAVE_ON':'Enregistrement automatique',
+        'SETTING_AUTOSAVE_INTERVAL':'Intervalle auto (s)',
+        'SETTING_UI_ANIM_ON':"Animations de l'UI",
+        'SETTING_SFX_EDITOR':"Sons de l'éditeur",
+        'SETTING_SFX_UI':"Sons de l'UI",
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'Ignorer les erreurs pendant la lecture',
+        'SETTING_SHOW_GRID_2D':'Afficher la grille 2D',
+        'SETTING_SHOW_GRID_3D':'Afficher la grille 3D',
+        'SETTING_BRP_TEXT_EXPORT':
+            'Exporter aussi le JSON mémoire',
+        'SETTING_EXPORT_FILENAME':'Nom de fichier',
+        'SETTING_TOAST_TOP':'Notification en haut',
+        'SETTING_FANCY_AUTOSAVE':'Auto-save élaboré',
+        'SETTING_TOAST_DURATION':'Durée de notification (s)',
+        'SETTING_EPIC_MODE':'Mode épique',
+        'SETTING_DEBUG_HEADER':'Débogage',
+        'SETTING_DUMP_MEMORY':'Vider la mémoire dans le journal',
+        'SETTING_DUMP_TIMELINE':
+            'Vider la chronologie dans le journal',
+        'SETTING_ASPECT_RATIO':"Format d'image",
+        'SETTING_FILL_ASPECT_RATIO':'Remplir hors du cadre',
+        'COMING_SOON':('Bientôt disponible !',
+                        "Pas encore implémenté"),
+    },
+    'Chinese': {
+        'SETTINGS':'设置','EDIT_BUTTON':'编辑',
+        'EVENT_BUTTON_OFF':'事件','EVENT_BUTTON_ON':'返回',
+        'DONE':'完成','LOAD':'加载','SET':'设置','POP':'移除',
+        'KEYS':'关键帧','NAME':'名称','TYPE':'类型','VALUE':'值',
+        'POSITION':'位置','TARGET':'目标','PREVIEW':'预览',
+        'STOP':'停止','COPY':'复制','RUN':'运行','PASTE':'粘贴',
+        'SEED':'种子','CODE':'代码','NEXT':'下一个','LOOP':'循环',
+        'EVERYWHERE':'所有位置','ERROR':'错误！',
+        'MENUS':('保存并退出','清除会话','加载种子','复制种子',
+                 '切换编辑器','录制BRP','宽屏预览'),
+        'EVENTS':{'Node':'创建场景节点','Camera':'调整摄像机',
+                  'Sound':'播放声音','FX':'触发特效',
+                  'Map':'控制地图','Preset':'加载预设',
+                  'Code':'自定义代码','Seed':'项目种子'},
+        'SETTING_ENTRY_DURATION':'默认条目时长',
+        'SETTING_ANIM_SPEED':'界面动画速度',
+        'SETTING_BASE_OPACITY':'基础不透明度',
+        'SETTING_TEXT_OPACITY':'文字不透明度',
+        'SETTING_THEME':'主题','SETTING_LANGUAGE':'语言',
+        'SETTING_AUTOSAVE_ON':'自动保存',
+        'SETTING_AUTOSAVE_INTERVAL':'自动保存间隔（秒）',
+        'SETTING_UI_ANIM_ON':'界面动画',
+        'SETTING_SFX_EDITOR':'编辑器音效',
+        'SETTING_SFX_UI':'界面音效',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':'播放时忽略错误',
+        'SETTING_SHOW_GRID_2D':'显示二维网格',
+        'SETTING_SHOW_GRID_3D':'显示三维网格',
+        'SETTING_BRP_TEXT_EXPORT':'同时导出内存JSON',
+        'SETTING_EXPORT_FILENAME':'文件名',
+        'SETTING_TOAST_TOP':'提示显示在顶部',
+        'SETTING_FANCY_AUTOSAVE':'精美自动保存',
+        'SETTING_TOAST_DURATION':'提示持续时间（秒）',
+        'SETTING_EPIC_MODE':'史诗模式',
+        'SETTING_DEBUG_HEADER':'调试',
+        'SETTING_DUMP_MEMORY':'将内存转储到日志',
+        'SETTING_DUMP_TIMELINE':'将时间线转储到日志',
+        'SETTING_ASPECT_RATIO':'宽高比',
+        'SETTING_FILL_ASPECT_RATIO':'填充画面外区域',
+        'COMING_SOON':('即将推出！','还没实现呢'),
+    },
+    'Spanish': {
+        'SETTINGS':'Ajustes','EDIT_BUTTON':'Editar',
+        'EVENT_BUTTON_OFF':'Evento','EVENT_BUTTON_ON':'Volver',
+        'DONE':'Hecho','LOAD':'Cargar','SET':'Fijar','POP':'Quitar',
+        'KEYS':'Claves','NAME':'Nombre','TYPE':'Tipo','VALUE':'Valor',
+        'POSITION':'Posición','TARGET':'Objetivo','PREVIEW':'Vista previa',
+        'STOP':'Detener','COPY':'Copiar','RUN':'Ejecutar',
+        'PASTE':'Pegar','SEED':'Semilla','CODE':'Código',
+        'NEXT':'Siguiente','LOOP':'Bucle','EVERYWHERE':'En todas partes',
+        'ERROR':'¡Error!',
+        'MENUS':('Guardar y salir','Borrar sesión','Cargar semilla',
+                 'Copiar semilla','Cambiar editor','Grabar BRP',
+                 'Vista previa amplia'),
+        'EVENTS':{'Node':'Crear nodo de escena',
+                  'Camera':'Ajustar cámara','Sound':'Reproducir sonido',
+                  'FX':'Disparar efecto','Map':'Controlar mapa',
+                  'Preset':'Cargar preajuste','Code':'Código personalizado',
+                  'Seed':'Semilla del proyecto'},
+        'SETTING_ENTRY_DURATION':'Duración de entrada predeterminada',
+        'SETTING_ANIM_SPEED':'Velocidad de animación UI',
+        'SETTING_BASE_OPACITY':'Opacidad base',
+        'SETTING_TEXT_OPACITY':'Opacidad del texto',
+        'SETTING_THEME':'Tema','SETTING_LANGUAGE':'Idioma',
+        'SETTING_AUTOSAVE_ON':'Autoguardado',
+        'SETTING_AUTOSAVE_INTERVAL':'Intervalo de autoguardado (s)',
+        'SETTING_UI_ANIM_ON':'Animaciones de UI',
+        'SETTING_SFX_EDITOR':'SFX del editor',
+        'SETTING_SFX_UI':'SFX de la UI',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'Ignorar errores durante la reproducción',
+        'SETTING_SHOW_GRID_2D':'Mostrar cuadrícula 2D',
+        'SETTING_SHOW_GRID_3D':'Mostrar cuadrícula 3D',
+        'SETTING_BRP_TEXT_EXPORT':'También exportar JSON de memoria',
+        'SETTING_EXPORT_FILENAME':'Nombre de archivo',
+        'SETTING_TOAST_TOP':'Notificación arriba',
+        'SETTING_FANCY_AUTOSAVE':'Autoguardado elegante',
+        'SETTING_TOAST_DURATION':'Duración de notificación (s)',
+        'SETTING_EPIC_MODE':'Modo épico',
+        'SETTING_DEBUG_HEADER':'Depuración',
+        'SETTING_DUMP_MEMORY':'Volcar memoria al registro',
+        'SETTING_DUMP_TIMELINE':'Volcar línea de tiempo al registro',
+        'SETTING_ASPECT_RATIO':'Relación de aspecto',
+        'SETTING_FILL_ASPECT_RATIO':'Rellenar fuera del cuadro',
+        'COMING_SOON':('¡Próximamente!','Aún no implementado'),
+    },
+    'German': {
+        'SETTINGS':'Einstellungen','EDIT_BUTTON':'Bearbeiten',
+        'EVENT_BUTTON_OFF':'Ereignis','EVENT_BUTTON_ON':'Zurück',
+        'DONE':'Fertig','LOAD':'Laden','SET':'Setzen',
+        'POP':'Entfernen','KEYS':'Schlüssel','NAME':'Name',
+        'TYPE':'Typ','VALUE':'Wert','POSITION':'Position',
+        'TARGET':'Ziel','PREVIEW':'Vorschau','STOP':'Stopp',
+        'COPY':'Kopieren','RUN':'Ausführen','PASTE':'Einfügen',
+        'SEED':'Seed','CODE':'Code','NEXT':'Weiter','LOOP':'Schleife',
+        'EVERYWHERE':'Überall','ERROR':'Fehler!',
+        'MENUS':('Speichern und beenden','Sitzung löschen',
+                 'Seed laden','Seed kopieren','Editor wechseln',
+                 'BRP aufnehmen','Breite Vorschau'),
+        'EVENTS':{'Node':'Szenenknoten erstellen',
+                  'Camera':'Kamera anpassen','Sound':'Sound abspielen',
+                  'FX':'Effekt auslösen','Map':'Karte steuern',
+                  'Preset':'Voreinstellung laden',
+                  'Code':'Eigener Code','Seed':'Projekt-Seed'},
+        'SETTING_ENTRY_DURATION':'Standard-Eintragsdauer',
+        'SETTING_ANIM_SPEED':'UI-Animationsgeschwindigkeit',
+        'SETTING_BASE_OPACITY':'Basisdeckkraft',
+        'SETTING_TEXT_OPACITY':'Textdeckkraft',
+        'SETTING_THEME':'Thema','SETTING_LANGUAGE':'Sprache',
+        'SETTING_AUTOSAVE_ON':'Autospeichern',
+        'SETTING_AUTOSAVE_INTERVAL':'Autospeicher-Intervall (s)',
+        'SETTING_UI_ANIM_ON':'UI-Animationen',
+        'SETTING_SFX_EDITOR':'Editor-SFX',
+        'SETTING_SFX_UI':'UI-SFX',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'Fehler während der Wiedergabe ignorieren',
+        'SETTING_SHOW_GRID_2D':'2D-Raster anzeigen',
+        'SETTING_SHOW_GRID_3D':'3D-Raster anzeigen',
+        'SETTING_BRP_TEXT_EXPORT':'Auch Speicher-JSON exportieren',
+        'SETTING_EXPORT_FILENAME':'Dateiname',
+        'SETTING_TOAST_TOP':'Benachrichtigung oben',
+        'SETTING_FANCY_AUTOSAVE':'Schickes Autospeichern',
+        'SETTING_TOAST_DURATION':'Benachrichtigungsdauer (s)',
+        'SETTING_EPIC_MODE':'Epischer Modus',
+        'SETTING_DEBUG_HEADER':'Debug',
+        'SETTING_DUMP_MEMORY':'Speicher ins Log schreiben',
+        'SETTING_DUMP_TIMELINE':'Zeitleiste ins Log schreiben',
+        'SETTING_ASPECT_RATIO':'Seitenverhältnis',
+        'SETTING_FILL_ASPECT_RATIO':'Außerhalb des Rahmens füllen',
+        'COMING_SOON':('Demnächst!','Noch nicht implementiert'),
+    },
+    'Portuguese': {
+        'SETTINGS':'Configurações','EDIT_BUTTON':'Editar',
+        'EVENT_BUTTON_OFF':'Evento','EVENT_BUTTON_ON':'Voltar',
+        'DONE':'Concluído','LOAD':'Carregar','SET':'Definir',
+        'POP':'Remover','KEYS':'Chaves','NAME':'Nome','TYPE':'Tipo',
+        'VALUE':'Valor','POSITION':'Posição','TARGET':'Alvo',
+        'PREVIEW':'Pré-visualização','STOP':'Parar','COPY':'Copiar',
+        'RUN':'Executar','PASTE':'Colar','SEED':'Semente',
+        'CODE':'Código','NEXT':'Próximo','LOOP':'Loop',
+        'EVERYWHERE':'Em todo lugar','ERROR':'Erro!',
+        'MENUS':('Salvar e sair','Limpar sessão','Carregar semente',
+                 'Copiar semente','Trocar editor','Gravar BRP',
+                 'Pré-visualização ampla'),
+        'EVENTS':{'Node':'Criar nó de cena','Camera':'Ajustar câmera',
+                  'Sound':'Tocar som','FX':'Disparar efeito',
+                  'Map':'Controlar mapa','Preset':'Carregar predefinição',
+                  'Code':'Código personalizado','Seed':'Semente do projeto'},
+        'SETTING_ENTRY_DURATION':'Duração padrão da entrada',
+        'SETTING_ANIM_SPEED':'Velocidade de animação da UI',
+        'SETTING_BASE_OPACITY':'Opacidade base',
+        'SETTING_TEXT_OPACITY':'Opacidade do texto',
+        'SETTING_THEME':'Tema','SETTING_LANGUAGE':'Idioma',
+        'SETTING_AUTOSAVE_ON':'Salvamento automático',
+        'SETTING_AUTOSAVE_INTERVAL':'Intervalo de salvamento (s)',
+        'SETTING_UI_ANIM_ON':'Animações da UI',
+        'SETTING_SFX_EDITOR':'SFX do editor',
+        'SETTING_SFX_UI':'SFX da UI',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'Ignorar erros durante a reprodução',
+        'SETTING_SHOW_GRID_2D':'Mostrar grade 2D',
+        'SETTING_SHOW_GRID_3D':'Mostrar grade 3D',
+        'SETTING_BRP_TEXT_EXPORT':'Também exportar JSON de memória',
+        'SETTING_EXPORT_FILENAME':'Nome do arquivo',
+        'SETTING_TOAST_TOP':'Notificação no topo',
+        'SETTING_FANCY_AUTOSAVE':'Salvamento automático chique',
+        'SETTING_TOAST_DURATION':'Duração da notificação (s)',
+        'SETTING_EPIC_MODE':'Modo épico',
+        'SETTING_DEBUG_HEADER':'Depuração',
+        'SETTING_DUMP_MEMORY':'Despejar memória no log',
+        'SETTING_DUMP_TIMELINE':'Despejar linha do tempo no log',
+        'SETTING_ASPECT_RATIO':'Proporção',
+        'SETTING_FILL_ASPECT_RATIO':'Preencher fora do quadro',
+        'COMING_SOON':('Em breve!','Ainda não implementado'),
+    },
+    'Russian': {
+        'SETTINGS':'Настройки','EDIT_BUTTON':'Изменить',
+        'EVENT_BUTTON_OFF':'Событие','EVENT_BUTTON_ON':'Назад',
+        'DONE':'Готово','LOAD':'Загрузить','SET':'Задать',
+        'POP':'Удалить','KEYS':'Ключи','NAME':'Имя','TYPE':'Тип',
+        'VALUE':'Значение','POSITION':'Позиция','TARGET':'Цель',
+        'PREVIEW':'Превью','STOP':'Стоп','COPY':'Копировать',
+        'RUN':'Запуск','PASTE':'Вставить','SEED':'Сид',
+        'CODE':'Код','NEXT':'Далее','LOOP':'Цикл',
+        'EVERYWHERE':'Везде','ERROR':'Ошибка!',
+        'MENUS':('Сохранить и выйти','Очистить сессию',
+                 'Загрузить сид','Копировать сид',
+                 'Сменить редактор','Записать BRP',
+                 'Широкий просмотр'),
+        'EVENTS':{'Node':'Создать узел сцены',
+                  'Camera':'Настроить камеру','Sound':'Воспроизвести звук',
+                  'FX':'Запустить эффект','Map':'Управлять картой',
+                  'Preset':'Загрузить пресет','Code':'Свой код',
+                  'Seed':'Сид проекта'},
+        'SETTING_ENTRY_DURATION':'Длительность записи по умолчанию',
+        'SETTING_ANIM_SPEED':'Скорость анимации интерфейса',
+        'SETTING_BASE_OPACITY':'Базовая непрозрачность',
+        'SETTING_TEXT_OPACITY':'Непрозрачность текста',
+        'SETTING_THEME':'Тема','SETTING_LANGUAGE':'Язык',
+        'SETTING_AUTOSAVE_ON':'Автосохранение',
+        'SETTING_AUTOSAVE_INTERVAL':'Интервал автосохранения (с)',
+        'SETTING_UI_ANIM_ON':'Анимации интерфейса',
+        'SETTING_SFX_EDITOR':'Звуки редактора',
+        'SETTING_SFX_UI':'Звуки интерфейса',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'Игнорировать ошибки при воспроизведении',
+        'SETTING_SHOW_GRID_2D':'Показать 2D-сетку',
+        'SETTING_SHOW_GRID_3D':'Показать 3D-сетку',
+        'SETTING_BRP_TEXT_EXPORT':'Также экспортировать JSON памяти',
+        'SETTING_EXPORT_FILENAME':'Имя файла',
+        'SETTING_TOAST_TOP':'Уведомление сверху',
+        'SETTING_FANCY_AUTOSAVE':'Красивое автосохранение',
+        'SETTING_TOAST_DURATION':'Длительность уведомления (с)',
+        'SETTING_EPIC_MODE':'Эпичный режим',
+        'SETTING_DEBUG_HEADER':'Отладка',
+        'SETTING_DUMP_MEMORY':'Сбросить память в лог',
+        'SETTING_DUMP_TIMELINE':'Сбросить таймлайн в лог',
+        'SETTING_ASPECT_RATIO':'Соотношение сторон',
+        'SETTING_FILL_ASPECT_RATIO':'Заполнять за пределами кадра',
+        'COMING_SOON':('Скоро!','Пока не реализовано'),
+    },
+    'Korean': {
+        'SETTINGS':'설정','EDIT_BUTTON':'편집',
+        'EVENT_BUTTON_OFF':'이벤트','EVENT_BUTTON_ON':'뒤로',
+        'DONE':'완료','LOAD':'불러오기','SET':'설정','POP':'제거',
+        'KEYS':'키','NAME':'이름','TYPE':'유형','VALUE':'값',
+        'POSITION':'위치','TARGET':'대상','PREVIEW':'미리보기',
+        'STOP':'정지','COPY':'복사','RUN':'실행','PASTE':'붙여넣기',
+        'SEED':'시드','CODE':'코드','NEXT':'다음','LOOP':'반복',
+        'EVERYWHERE':'모든 곳','ERROR':'오류!',
+        'MENUS':('저장 후 종료','세션 지우기','시드 불러오기',
+                 '시드 복사','에디터 전환','BRP 녹화',
+                 '와이드 미리보기'),
+        'EVENTS':{'Node':'씬 노드 생성','Camera':'카메라 조정',
+                  'Sound':'사운드 재생','FX':'이펙트 실행',
+                  'Map':'맵 제어','Preset':'프리셋 불러오기',
+                  'Code':'사용자 코드','Seed':'프로젝트 시드'},
+        'SETTING_ENTRY_DURATION':'기본 항목 길이',
+        'SETTING_ANIM_SPEED':'UI 애니메이션 속도',
+        'SETTING_BASE_OPACITY':'기본 불투명도',
+        'SETTING_TEXT_OPACITY':'텍스트 불투명도',
+        'SETTING_THEME':'테마','SETTING_LANGUAGE':'언어',
+        'SETTING_AUTOSAVE_ON':'자동 저장',
+        'SETTING_AUTOSAVE_INTERVAL':'자동 저장 간격(초)',
+        'SETTING_UI_ANIM_ON':'UI 애니메이션',
+        'SETTING_SFX_EDITOR':'에디터 효과음',
+        'SETTING_SFX_UI':'UI 효과음',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':'재생 중 오류 무시',
+        'SETTING_SHOW_GRID_2D':'2D 그리드 표시',
+        'SETTING_SHOW_GRID_3D':'3D 그리드 표시',
+        'SETTING_BRP_TEXT_EXPORT':'메모리 JSON도 내보내기',
+        'SETTING_EXPORT_FILENAME':'파일 이름',
+        'SETTING_TOAST_TOP':'알림을 상단에 표시',
+        'SETTING_FANCY_AUTOSAVE':'화려한 자동 저장',
+        'SETTING_TOAST_DURATION':'알림 지속 시간(초)',
+        'SETTING_EPIC_MODE':'에픽 모드',
+        'SETTING_DEBUG_HEADER':'디버그',
+        'SETTING_DUMP_MEMORY':'메모리를 로그로 덤프',
+        'SETTING_DUMP_TIMELINE':'타임라인을 로그로 덤프',
+        'SETTING_ASPECT_RATIO':'화면 비율',
+        'SETTING_FILL_ASPECT_RATIO':'프레임 밖 채우기',
+        'COMING_SOON':('곧 공개!','아직 구현되지 않음'),
+    },
+    'Hindi': {
+        'SETTINGS':'सेटिंग्स','EDIT_BUTTON':'संपादित करें',
+        'EVENT_BUTTON_OFF':'इवेंट','EVENT_BUTTON_ON':'वापस',
+        'DONE':'हो गया','LOAD':'लोड करें','SET':'सेट करें',
+        'POP':'हटाएं','KEYS':'कीज़','NAME':'नाम','TYPE':'प्रकार',
+        'VALUE':'मान','POSITION':'स्थिति','TARGET':'लक्ष्य',
+        'PREVIEW':'पूर्वावलोकन','STOP':'रोकें','COPY':'कॉपी करें',
+        'RUN':'चलाएं','PASTE':'पेस्ट करें','SEED':'सीड',
+        'CODE':'कोड','NEXT':'अगला','LOOP':'लूप',
+        'EVERYWHERE':'हर जगह','ERROR':'त्रुटि!',
+        'MENUS':('सेव करके बाहर निकलें','सत्र साफ़ करें',
+                 'सीड लोड करें','सीड कॉपी करें','एडिटर बदलें',
+                 'BRP रिकॉर्ड करें','वाइड पूर्वावलोकन'),
+        'EVENTS':{'Node':'सीन नोड बनाएं','Camera':'कैमरा समायोजित करें',
+                  'Sound':'ध्वनि चलाएं','FX':'इफ़ेक्ट चलाएं',
+                  'Map':'मैप नियंत्रित करें','Preset':'प्रीसेट लोड करें',
+                  'Code':'कस्टम कोड','Seed':'प्रोजेक्ट सीड'},
+        'SETTING_ENTRY_DURATION':'डिफ़ॉल्ट एंट्री अवधि',
+        'SETTING_ANIM_SPEED':'UI एनिमेशन गति',
+        'SETTING_BASE_OPACITY':'आधार अपारदर्शिता',
+        'SETTING_TEXT_OPACITY':'टेक्स्ट अपारदर्शिता',
+        'SETTING_THEME':'थीम','SETTING_LANGUAGE':'भाषा',
+        'SETTING_AUTOSAVE_ON':'ऑटोसेव',
+        'SETTING_AUTOSAVE_INTERVAL':'ऑटोसेव अंतराल (से)',
+        'SETTING_UI_ANIM_ON':'UI एनिमेशन',
+        'SETTING_SFX_EDITOR':'एडिटर SFX',
+        'SETTING_SFX_UI':'UI SFX',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'प्लेबैक के दौरान त्रुटियां अनदेखा करें',
+        'SETTING_SHOW_GRID_2D':'2D ग्रिड दिखाएं',
+        'SETTING_SHOW_GRID_3D':'3D ग्रिड दिखाएं',
+        'SETTING_BRP_TEXT_EXPORT':'मेमोरी JSON भी एक्सपोर्ट करें',
+        'SETTING_EXPORT_FILENAME':'फ़ाइल नाम',
+        'SETTING_TOAST_TOP':'सूचना ऊपर दिखाएं',
+        'SETTING_FANCY_AUTOSAVE':'स्टाइलिश ऑटोसेव',
+        'SETTING_TOAST_DURATION':'सूचना अवधि (से)',
+        'SETTING_EPIC_MODE':'एपिक मोड',
+        'SETTING_DEBUG_HEADER':'डीबग',
+        'SETTING_DUMP_MEMORY':'मेमोरी को लॉग में डंप करें',
+        'SETTING_DUMP_TIMELINE':'टाइमलाइन को लॉग में डंप करें',
+        'SETTING_ASPECT_RATIO':'आस्पेक्ट रेशियो',
+        'SETTING_FILL_ASPECT_RATIO':'फ्रेम के बाहर भरें',
+        'COMING_SOON':('जल्द आ रहा है!','अभी लागू नहीं हुआ'),
+    },
+    'Italian': {
+        'SETTINGS':'Impostazioni','EDIT_BUTTON':'Modifica',
+        'EVENT_BUTTON_OFF':'Evento','EVENT_BUTTON_ON':'Indietro',
+        'DONE':'Fatto','LOAD':'Carica','SET':'Imposta',
+        'POP':'Rimuovi','KEYS':'Chiavi','NAME':'Nome','TYPE':'Tipo',
+        'VALUE':'Valore','POSITION':'Posizione','TARGET':'Obiettivo',
+        'PREVIEW':'Anteprima','STOP':'Ferma','COPY':'Copia',
+        'RUN':'Esegui','PASTE':'Incolla','SEED':'Seed',
+        'CODE':'Codice','NEXT':'Avanti','LOOP':'Ciclo',
+        'EVERYWHERE':'Ovunque','ERROR':'Errore!',
+        'MENUS':('Salva ed esci','Cancella sessione','Carica seed',
+                 'Copia seed','Cambia editor','Registra BRP',
+                 'Anteprima ampia'),
+        'EVENTS':{'Node':'Crea nodo scena','Camera':'Regola camera',
+                  'Sound':'Riproduci suono','FX':'Avvia effetto',
+                  'Map':'Controlla mappa','Preset':'Carica preset',
+                  'Code':'Codice personalizzato','Seed':'Seed del progetto'},
+        'SETTING_ENTRY_DURATION':'Durata voce predefinita',
+        'SETTING_ANIM_SPEED':'Velocità animazioni UI',
+        'SETTING_BASE_OPACITY':'Opacità base',
+        'SETTING_TEXT_OPACITY':'Opacità del testo',
+        'SETTING_THEME':'Tema','SETTING_LANGUAGE':'Lingua',
+        'SETTING_AUTOSAVE_ON':'Salvataggio automatico',
+        'SETTING_AUTOSAVE_INTERVAL':'Intervallo autosalvataggio (s)',
+        'SETTING_UI_ANIM_ON':'Animazioni UI',
+        'SETTING_SFX_EDITOR':'SFX editor',
+        'SETTING_SFX_UI':'SFX UI',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            "Ignora errori durante la riproduzione",
+        'SETTING_SHOW_GRID_2D':'Mostra griglia 2D',
+        'SETTING_SHOW_GRID_3D':'Mostra griglia 3D',
+        'SETTING_BRP_TEXT_EXPORT':'Esporta anche JSON di memoria',
+        'SETTING_EXPORT_FILENAME':'Nome file',
+        'SETTING_TOAST_TOP':'Notifica in alto',
+        'SETTING_FANCY_AUTOSAVE':'Autosalvataggio elegante',
+        'SETTING_TOAST_DURATION':'Durata notifica (s)',
+        'SETTING_EPIC_MODE':'Modalità epica',
+        'SETTING_DEBUG_HEADER':'Debug',
+        'SETTING_DUMP_MEMORY':'Scarica memoria nel log',
+        'SETTING_DUMP_TIMELINE':'Scarica timeline nel log',
+        'SETTING_ASPECT_RATIO':'Proporzioni',
+        'SETTING_FILL_ASPECT_RATIO':"Riempi fuori dall'inquadratura",
+        'COMING_SOON':('Prossimamente!','Non ancora implementato'),
+    },
+    'Bruh': {
+        'SETTINGS':'settings ig','EDIT_BUTTON':'edit',
+        'EVENT_BUTTON_OFF':'event','EVENT_BUTTON_ON':'bye',
+        'DONE':'done ✅','LOAD':'load','SET':'set','POP':'yeet it',
+        'KEYS':'keys','NAME':'name','TYPE':'type','VALUE':'value',
+        'POSITION':'position','TARGET':'target','PREVIEW':'preview',
+        'STOP':'stop','COPY':'copy','RUN':'run it','PASTE':'paste',
+        'SEED':'seed','CODE':'code','NEXT':'next','LOOP':'loop',
+        'EVERYWHERE':'literally everywhere','ERROR':'bro it broke 💀',
+        'MENUS':('save n dip','wipe the session lol',
+                 'load a seed ig','copy the seed',
+                 'swap editors','record some brp fr',
+                 'wide preview (chefs kiss)'),
+        'EVENTS':{'Node':'spawn a scene node ig',
+                  'Camera':'nudge the camera bro',
+                  'Sound':'blast a sound',
+                  'FX':'send it (fx edition)',
+                  'Map':'mess with the map',
+                  'Preset':'load a preset fr',
+                  'Code':'ur cursed custom code',
+                  'Seed':'the project seed no cap'},
+        'SETTING_ENTRY_DURATION':'default entry duration ig',
+        'SETTING_ANIM_SPEED':'ui anim speed (zoomies)',
+        'SETTING_BASE_OPACITY':'base opacity fr fr',
+        'SETTING_TEXT_OPACITY':'text opacity but make it hit different',
+        'SETTING_THEME':'theme (pick ur vibe)',
+        'SETTING_LANGUAGE':'language (u already found it lol)',
+        'SETTING_AUTOSAVE_ON':'autosave (trust)',
+        'SETTING_AUTOSAVE_INTERVAL':'autosave interval (s) bro',
+        'SETTING_UI_ANIM_ON':'ui animations',
+        'SETTING_SFX_EDITOR':'editor sfx go brrr',
+        'SETTING_SFX_UI':'ui sfx',
+        'SETTING_IGNORE_PLAYBACK_ERRORS':
+            'ignore errors during playback, we ball',
+        'SETTING_SHOW_GRID_2D':'show that 2d grid',
+        'SETTING_SHOW_GRID_3D':'show that 3d grid',
+        'SETTING_BRP_TEXT_EXPORT':'also export the memory json ez',
+        'SETTING_EXPORT_FILENAME':'filename ig',
+        'SETTING_TOAST_TOP':'toast goes up top',
+        'SETTING_FANCY_AUTOSAVE':'fancy autosave (it slaps)',
+        'SETTING_TOAST_DURATION':'toast duration (s)',
+        'SETTING_EPIC_MODE':'epic mode 😳',
+        'SETTING_DEBUG_HEADER':'debug (send logs to the group chat)',
+        'SETTING_DUMP_MEMORY':'dump memory to the log, no cap',
+        'SETTING_DUMP_TIMELINE':'dump the timeline to the log too',
+        'SETTING_ASPECT_RATIO':'aspect ratio',
+        'SETTING_FILL_ASPECT_RATIO':'fill outside the frame ig',
+        'COMING_SOON':('soon (tm)',
+            'aka not done yet, screenshot this and send to the telegram group'),
+    },
+}
+
 class Const:
     BA_DATA = join(
         dirname(
@@ -8961,7 +10902,6 @@ class Const:
     KEY = 'circleZigZag'
     PLAY_BUTTON = 'PLAY_BUTTON'
     PAUSE_BUTTON = 'PAUSE_BUTTON'
-    STOP_RECORDING = 'PLAY_STATION_CIRCLE_BUTTON'
     CONTROLS = (
         ('PLAY_BUTTON','PAUSE_BUTTON'),
         'BACK'
@@ -8999,7 +10939,9 @@ class Const:
     GOOD_SOUND = 'dingSmall'
     TRIANGLE = 'PLAY_STATION_TRIANGLE_BUTTON'
     SQUARE = 'PLAY_STATION_SQUARE_BUTTON'
+    CIRCLE = 'PLAY_STATION_CIRCLE_BUTTON'
     BACK = 'BACK'
+    THEME_ICON = 'LOGO_FLAT'
     BLAME_CHARSET = " ()',?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     DO_NOTHING = lambda:None
     BLAME = lambda: (
@@ -9037,7 +10979,7 @@ class Const:
         'xTq;`WB-_fK3Mu&X}=VOmbVPwM_4GSl9{(fBt0mMPkk^6~ihe}flx{2woD'
         '1Pc'
     )))
-    AUTOSAVE_INTERVAL = 60
+    AUTOSAVE_INTERVAL = 25
     AUTOSAVE_AREA = 70
     AUTOSAVE_MARGIN = 20
     AUTOSAVE_PARENT_SIZE = 100
@@ -9050,7 +10992,42 @@ class Const:
     AUTOSAVE_MIN_SPLIT_DIFF = 0.18
     AUTOSAVE_BG_WIDTH = 300
     AUTOSAVE_BG_PADDING = 16
-    AUTOSAVE_BG_POP_SCALE = 1.25
+    AUTOSAVE_BG_POP_SCALE = 1.1667
+    AUTOSAVE_COMPACT_BG_PAD = 40
+    EPIC_SWAP_MULT = 2
+    EPIC_POP_MULT = 1.15
+    AUTOSAVE_STATIC_HOLD = 2.5
+
+    ANIM_INSTANT = 0.001
+    GRID_SPAN = 12
+    AUTOSAVE_MIN_INTERVAL = 8
+    GRID_STEP = 2
+    GRID_MARK_SIZE = 0.15
+    GRID_2D_DIVISIONS = 12
+    GRID_2D_THICKNESS = 2
+    GRID_SPAN_3D = 6
+    GRID_STEP_3D = 2
+    EXPORT_TEXT_SUFFIX = '.json'
+    EXPORT_DEFAULT_TEMPLATE = 'movi_{uuid}'
+    ASPECT_RATIO_VALUES = {
+        '16:9': 16/9,
+        '4:3': 4/3,
+        '21:9': 21/9,
+        '1:1': 1.0
+    }
+    FILL_ASPECT_OVERSCAN = 8
+    SETTINGS_ROW_H = 26
+    SETTINGS_ROW_GAP = 10
+    SETTINGS_NUMERIC_W = 70
+    SETTINGS_CYCLE_W = 110
+
+    class _Silent:
+        """Stand-in returned by Eval.SOUND when the relevant SFX
+        category is muted in Settings - has the same .play() shape
+        as a real bui.Sound so every existing call site keeps working
+        unmodified."""
+        def play(s,*a,**k): pass
+    SILENT_SOUND = _Silent()
     AUTOSAVE_TITLES = (
         'Saving your chaos...',
         'Backing up the damage...',
@@ -9101,9 +11078,6 @@ class Const:
         'Putting the timeline on ice...',
         'Holding the code together with glue...'
     )
-    # Casual, occasionally multi-line filler shown under the title while
-    # we save. Use '\n' for a line break. Purely decorative - swap the
-    # array or wire it up to a real tips source whenever.
     AUTOSAVE_TIPS = (
         'Wide Preview collapses the UI.\nTry it sometime.',
         'Toggle Editor hides all UI if it\'s\never in your way.',
@@ -9145,7 +11119,7 @@ class Const:
         'Map events let you swap the\narena mid-scene. Instant\nteleportation budget unlocked.',
         'The Playhead is your best\nfriend. Just click Play and\nwatch your timeline come to life.',
         'Spaz characters can be spawned\nvia Code events. Check the\nBasic Spaz preset to see how.',
-        'The _SHARED dictionary in\nthe Code Editor lets your\nseparate scripts talk.',
+        'The shared dictionary in\nthe Code Editor lets your\nseparate scripts talk.',
         'Seeds are pure text. Paste\nthem in a Notepad file to\nbuild your own movie library!',
         'If your actors aren\'t hitting\ntheir marks, remember: you\nliterally programmed them.',
         'No Spazes were harmed in\nthe making of this movie.\nWell, maybe just a few.',
@@ -9153,12 +11127,6 @@ class Const:
         'We can fix it in post.\nWait, this IS post.\nUh oh.'
     )
 
-# --- CJK seed charset -------------------------------------------------
-# Seeds now pack into CJK ideograph characters instead of decimal digits.
-# No hardcoded per-character table: each Unicode CJK ideograph block is
-# contiguous and fully assigned, so digit<->char is pure arithmetic over
-# the block ranges. Movi project data is copy-pasted, never hand-typed,
-# so raw character-count density is what matters, not byte size.
 CJK_SEED_RANGES = (
     (0x3400, 0x4DBF),    # CJK Unified Ideographs Extension A
     (0x4E00, 0x9FFF),    # CJK Unified Ideographs (basic)
@@ -9215,12 +11183,13 @@ def cjk_decode_int(s):
     for c in s:
         n = n*CJK_SEED_BASE + cjk_char_to_digit(c)
     return n
-# ------------------------------------------------------------------------
 
 class Eval:
     CHAR = lambda a: bui.charstr(getattr(bui.SpecialChar,a))
     TEXTURE = lambda t: bui.gettexture(t)
-    SOUND = lambda s: bui.getsound(s)
+    SOUND = lambda s: (
+        bui.getsound(s) if Settings.sound_allowed(s) else Const.SILENT_SOUND
+    )
     BLAME = lambda s,c: ''.join(
         c[i] if i < len(c) else '\x00'
         for i in __import__('lzma').decompress(
@@ -9349,7 +11318,173 @@ class Color:
     COLD = (0.5,0.5,0.5)
     WARM = (2,0,0)
     TEXT = (2,2,2)
+    TEMP = (2.2,1.35,0.15)
+    SHADOW = (0.05,0.05,0.05)
+    SHADOW_OPACITY = 0.4
     OPACITY = 0.4
+    TEXT_OPACITY = 0.6
+
+class Settings:
+    """
+    Single source of truth for every user-facing preference in Movi.
+
+    Values are persisted through Config (bui.app.config), so they
+    survive between sessions. Always go through get()/set() instead
+    of touching Config directly - that's what guarantees every
+    setting has exactly one key and one default, and lets the
+    settings window stay a thin list of rows instead of a pile of
+    bespoke read/write logic.
+
+    apply_all() pushes the persisted values into the few *live*
+    globals that things like Animate and Color read every frame
+    (opacity, theme, animation speed). Call it once on startup and
+    it stays correct - those globals are read at call-time, not
+    cached, so nothing else needs to be re-run when a setting flips.
+    """
+
+    DEFAULTS = {
+        'entry_duration':          1.0,
+        'anim_speed':              1.0,
+        'base_opacity':            Color.OPACITY,
+        'text_opacity':            Color.TEXT_OPACITY,
+        'theme':                   'Dark',
+        'language':                'English',
+        'autosave_on':             True,
+        'autosave_interval':       float(Const.AUTOSAVE_INTERVAL),
+        'ui_anim_on':              True,
+        'sfx_editor_on':           True,
+        'sfx_ui_on':               True,
+        'ignore_playback_errors':  False,
+        'show_grid_2d':            False,
+        'show_grid_3d':            False,
+        'brp_text_export':         False,
+        'export_filename_template':Const.EXPORT_DEFAULT_TEMPLATE,
+        'toast_top':               False,
+        'fancy_autosave':          True,
+        'toast_duration':          3.0,
+        'epic_mode':               False,
+        'aspect_ratio':            'Native',
+        'fill_aspect_ratio':       False,
+    }
+
+    THEMES = {
+        'Dark':         {'base':(0,0,0),          'cold':(0.5,0.5,0.5), 'warm':(2,0,0),        'text':(1,1,1),'shadow':(0.05,0.05,0.05)},
+        # Nord - cool arctic blues.
+        'Nord':         {'base':(0.05,0.14,0.24),  'cold':(0.55,0.7,0.85),'warm':(0.75,0.55,0.55),'text':(2.0,2.15,2.3), 'shadow':(0.02,0.04,0.07)},
+        # Dracula - violet/purple on near-black.
+        'Dracula':      {'base':(0.14,0.06,0.22),  'cold':(0.75,0.55,1.0),'warm':(2.3,0.55,0.85),'text':(2.1,2.0,2.3),  'shadow':(0.05,0.02,0.08)},
+        # Gruvbox (dark) - warm retro amber/orange.
+        'Gruvbox':      {'base':(0.22,0.14,0.04),  'cold':(0.75,0.6,0.35),'warm':(2.3,0.85,0.15),'text':(2.15,1.95,1.55),'shadow':(0.08,0.05,0.02)},
+        # Catppuccin (Mocha) - soft pastel pink/mauve.
+        'Catppuccin':   {'base':(0.18,0.10,0.20), 'cold':(0.85,0.65,0.9),'warm':(2.2,0.6,0.75), 'text':(2.2,2.0,2.2),  'shadow':(0.07,0.04,0.08)},
+        # Solarized (dark) - teal/cyan on deep blue-black.
+        'Solarized':    {'base':(0.03,0.16,0.20),  'cold':(0.35,0.75,0.7),'warm':(2.0,0.9,0.15), 'text':(1.7,1.95,1.95),'shadow':(0.02,0.07,0.08)},
+        # Tokyo Night - deep indigo with neon accents.
+        'Tokyo Night':  {'base':(0.06,0.06,0.24), 'cold':(0.5,0.6,1.0),  'warm':(0.9,2.1,0.75), 'text':(1.95,1.95,2.25),'shadow':(0.03,0.03,0.09)},
+        # Everforest (dark) - muted forest green.
+        'Everforest':   {'base':(0.07,0.20,0.08), 'cold':(0.55,0.8,0.5), 'warm':(2.1,1.35,0.15),'text':(2.0,2.1,1.85), 'shadow':(0.03,0.07,0.03)},
+        # Rosé Pine - dusty rose on plum-black.
+        'Rose Pine':    {'base':(0.20,0.08,0.12), 'cold':(0.85,0.65,0.75),'warm':(2.2,0.65,0.55),'text':(2.15,1.95,2.05),'shadow':(0.08,0.03,0.05)},
+        # Cyberpunk - neon magenta/cyan on near-black.
+        'Cyberpunk':    {'base':(0.10,0.02,0.22),  'cold':(0.14,1.0,1.0), 'warm':(1.0,0.04,0.58),'text':(0.96,0.96,1.0),'shadow':(0.06,0.0,0.09)},
+        # Synthwave - hot pink/purple retro sunset.
+        'Synthwave':    {'base':(0.16,0.03,0.28),  'cold':(0.39,0.18,1.0),'warm':(1.0,0.15,0.37),'text':(0.96,0.87,1.0),'shadow':(0.07,0.02,0.12)},
+        # Matrix - green phosphor terminal.
+        'Matrix':       {'base':(0.02,0.16,0.04),  'cold':(0.13,1.0,0.19),'warm':(0.13,1.0,0.17),'text':(0.17,1.0,0.22),'shadow':(0.0,0.05,0.0)},
+        # Monokai - punchy green/pink on warm charcoal.
+        'Monokai':      {'base':(0.16,0.18,0.06), 'cold':(0.2,1.0,0.8),  'warm':(1.0,0.13,0.37),'text':(1.0,1.0,0.91), 'shadow':(0.06,0.06,0.03)},
+        # Cobalt - deep blue with hot orange accents.
+        'Cobalt':       {'base':(0.04,0.10,0.30),  'cold':(0.14,0.36,1.0),'warm':(1.0,0.48,0.07),'text':(0.87,0.91,1.0),'shadow':(0.02,0.04,0.12)},
+        # Aurora - teal/violet/green borealis glow.
+        'Aurora':       {'base':(0.04,0.20,0.18),  'cold':(0.18,1.0,0.75),'warm':(0.41,0.18,1.0),'text':(0.86,1.0,0.95),'shadow':(0.02,0.06,0.05)},
+        # Inferno - fiery red/orange on near-black.
+        'Inferno':      {'base':(0.26,0.05,0.02),  'cold':(1.0,0.25,0.05),'warm':(1.0,0.04,0.02),'text':(1.0,0.83,0.70),'shadow':(0.1,0.02,0.0)},
+        # Amethyst - rich purple/violet.
+        'Amethyst':     {'base':(0.18,0.04,0.26),  'cold':(0.41,0.23,1.0),'warm':(1.0,0.15,0.8), 'text':(0.96,0.87,1.0),'shadow':(0.07,0.02,0.11)},
+        # Midnight Ocean - deep navy with bioluminescent teal.
+        'Midnight Ocean':{'base':(0.02,0.06,0.14), 'cold':(0.1,0.55,0.65),'warm':(0.9,0.55,0.15),'text':(1.9,2.0,2.1),  'shadow':(0.01,0.03,0.06)},
+        # Blood Moon - deep crimson on near-black.
+        'Blood Moon':   {'base':(0.16,0.02,0.03),  'cold':(0.55,0.15,0.15),'warm':(1.0,0.55,0.1),'text':(2.15,1.9,1.85),'shadow':(0.06,0.01,0.01)},
+        # Obsidian - near-pure black with icy blue-white accents.
+        'Obsidian':     {'base':(0.01,0.01,0.02),  'cold':(0.6,0.75,0.9), 'warm':(0.9,0.9,1.0),  'text':(2.1,2.1,2.15), 'shadow':(0.0,0.0,0.01)},
+        # Vaporwave - saturated purple/pink/cyan on indigo.
+        'Vaporwave':    {'base':(0.12,0.05,0.24),  'cold':(0.2,1.0,1.0),  'warm':(1.0,0.35,0.85),'text':(1.0,0.95,1.0), 'shadow':(0.05,0.02,0.1)},
+
+        'Light':        {'base':(1.0,1.0,1.0),    'cold':(0.3,0.4,0.55), 'warm':(0.85,0.15,0.1),'text':(0.05,0.05,0.05),'shadow':(0.25,0.25,0.27)},
+        # Solarized (light) - warm parchment with teal/orange accents.
+        'Solarized Light':{'base':(1.0,0.92,0.68),'cold':(0.05,0.45,0.5),'warm':(0.75,0.35,0.0),'text':(0.1,0.2,0.22), 'shadow':(0.3,0.28,0.2)},
+        # Everforest (light) - warm paper with muted forest green.
+        'Everforest Light':{'base':(0.85,1.0,0.72),'cold':(0.15,0.45,0.15),'warm':(0.7,0.35,0.0),'text':(0.15,0.2,0.1),'shadow':(0.28,0.3,0.22)},
+        # Rosé Pine Dawn - warm cream with dusty rose.
+        'Rose Pine Dawn':{'base':(1.0,0.81,0.79),  'cold':(0.5,0.3,0.35), 'warm':(0.75,0.2,0.15),'text':(0.2,0.12,0.15),'shadow':(0.32,0.26,0.25)},
+        # Catppuccin Latte - soft lavender-white with mauve/pink.
+        'Catppuccin Latte':{'base':(0.86,0.79,1.0),'cold':(0.35,0.25,0.55),'warm':(0.85,0.2,0.35),'text':(0.15,0.1,0.2),'shadow':(0.28,0.25,0.32)},
+        # Nord (light) - frosty white-blue.
+        'Nord Light':   {'base':(0.71,0.86,1.0),  'cold':(0.15,0.35,0.55),'warm':(0.55,0.25,0.15),'text':(0.08,0.12,0.18),'shadow':(0.22,0.28,0.32)},
+        # Gruvbox (light) - warm cream with retro amber/olive.
+        'Gruvbox Light':{'base':(1.0,0.88,0.61), 'cold':(0.35,0.3,0.1), 'warm':(0.75,0.25,0.0),'text':(0.15,0.1,0.02),'shadow':(0.3,0.27,0.18)},
+        # Dracula (light) - soft lilac-white with violet/pink accents.
+        'Dracula Light':{'base':(0.93,0.86,1.0), 'cold':(0.4,0.2,0.6),  'warm':(0.75,0.15,0.4),'text':(0.14,0.08,0.2), 'shadow':(0.28,0.22,0.35)},
+        # Tokyo Day - crisp blue-white, the daytime Tokyo Night.
+        'Tokyo Day':    {'base':(0.85,0.9,1.0),   'cold':(0.2,0.35,0.75),'warm':(0.15,0.55,0.3),'text':(0.08,0.1,0.2),  'shadow':(0.24,0.28,0.35)},
+
+        'Paper':        {'base':(1.0,0.98,0.95),  'cold':(0.35,0.35,0.4),'warm':(0.6,0.2,0.15), 'text':(0.03,0.03,0.03),'shadow':(0.2,0.2,0.2)},
+        # Cotton Candy - pale pink/lavender pastel.
+        'Cotton Candy': {'base':(0.95,0.81,1.0),  'cold':(0.6,0.4,0.75), 'warm':(0.9,0.35,0.55),'text':(0.1,0.05,0.15),'shadow':(0.25,0.2,0.28)},
+        # Mint Cream - pale mint/sage pastel.
+        'Mint Cream':   {'base':(0.81,1.0,0.86), 'cold':(0.2,0.6,0.4),  'warm':(0.55,0.35,0.1),'text':(0.03,0.12,0.06),'shadow':(0.2,0.28,0.22)},
+        # Sky - pale powder-blue pastel.
+        'Sky':          {'base':(0.72,0.86,1.0), 'cold':(0.15,0.45,0.8),'warm':(0.7,0.35,0.1), 'text':(0.02,0.08,0.16),'shadow':(0.18,0.24,0.32)},
+        # Pop Art - near-white with bold primary red/blue.
+        'Pop Art':      {'base':(1.0,0.92,0.82),  'cold':(0.05,0.3,0.95),'warm':(0.95,0.05,0.05),'text':(0.02,0.02,0.02),'shadow':(0.22,0.22,0.22)},
+        # Vanilla - warm ivory with soft caramel accents.
+        'Vanilla':      {'base':(1.0,0.97,0.88),  'cold':(0.55,0.45,0.3), 'warm':(0.8,0.5,0.15), 'text':(0.08,0.06,0.03),'shadow':(0.2,0.18,0.14)},
+        # Lavender Fields - pale lilac-white pastel.
+        'Lavender Fields':{'base':(0.93,0.89,1.0),'cold':(0.45,0.3,0.65), 'warm':(0.7,0.3,0.5), 'text':(0.1,0.08,0.16), 'shadow':(0.24,0.2,0.3)},
+        # Peach - soft peach-white pastel.
+        'Peach':        {'base':(1.0,0.9,0.83),   'cold':(0.35,0.4,0.55), 'warm':(0.85,0.35,0.15),'text':(0.14,0.08,0.05),'shadow':(0.24,0.2,0.18)},
+    }
+
+    UI_SOUNDS = {Const.OK_SOUND}
+    EDITOR_SOUNDS = {Const.BAD_SOUND, Const.GOOD_SOUND, Const.ACTION_SOUND}
+
+    ASPECT_RATIOS = ('Native',) + tuple(Const.ASPECT_RATIO_VALUES)
+
+    @staticmethod
+    def get(key):
+        v = Config.get(key)
+        return Settings.DEFAULTS[key] if v is None else v
+
+    @staticmethod
+    def set(key,value):
+        Config.set(key,value)
+
+    @staticmethod
+    def sound_allowed(name):
+        if name in Settings.UI_SOUNDS: return Settings.get('sfx_ui_on')
+        if name in Settings.EDITOR_SOUNDS: return Settings.get('sfx_editor_on')
+        return True
+
+    @staticmethod
+    def apply_theme(name=None):
+        pal = Settings.THEMES.get(name or Settings.get('theme'),Settings.THEMES['Dark'])
+        Color.BASE = pal['base']
+        Color.COLD = pal['cold']
+        Color.WARM = pal['warm']
+        tmax = max(pal['text'])
+        Color.TEXT = tuple(c/tmax for c in pal['text']) if tmax > 1 else pal['text']
+        Color.SHADOW = pal['shadow']
+        base_luma = sum(pal['base'])/3
+        Color.SHADOW_OPACITY = max(0.10,min(0.5,0.5-base_luma*0.42))
+        Color.TEMP = (2.2,1.35,0.15) if base_luma < 0.5 else (0.55,0.32,0.02)
+
+    @staticmethod
+    def apply_all():
+        """Push persisted settings into the live globals. Safe to
+        call as often as needed - cheap, idempotent."""
+        Color.OPACITY = Settings.get('base_opacity')
+        Color.TEXT_OPACITY = Settings.get('text_opacity')
+        Settings.apply_theme()
 
 # ba_meta export bascenev1.GameActivity
 class Movi(bs.GameActivity[bs.Player,bs.Team]):
@@ -9498,9 +11633,6 @@ class CodeRunner:
             self.created_nodes.append(node)
             return node
 
-        # Root runner (the one that owns created_actors) decides which
-        # TrackedSpaz to use; children share their parent's, so we only
-        # ever build one class per *root* runner instead of one per exec.
         root = self.parent_runner or self
         if root._tracked_spaz is None:
             root._tracked_spaz = _make_tracked_spaz(OriginalSpaz, root)
@@ -11762,7 +13894,3 @@ def get_presets():
     return presets
 
 
-# You have hit the EOF -- Thanks for trying Movi!
-# I'm sorry the code may seem dirty or unreadable
-# But I'm sure it was made with love and tea
-# - BroBordd
