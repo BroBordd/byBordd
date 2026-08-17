@@ -1089,6 +1089,9 @@ class Editor:
             kid.exists() and bui.buttonwidget(
                 kid,color=Color.BASE,textcolor=(*Color.TEXT,Color.TEXT_OPACITY)
             )
+        for t,l in s.stamp_timeline:
+            t.exists() and bui.textwidget(t,color=(*Color.TEXT,Color.TEXT_OPACITY))
+            l.exists() and bui.imagewidget(l,color=Color.TEXT)
         bui.imagewidget(s.menu_bg,color=Color.BASE)
         for kid in s.menu_kids:
             kid.exists() and bui.buttonwidget(kid,color=Color.BASE)
@@ -5115,7 +5118,7 @@ class Editor:
         s.current_inputs = {}
 
         def anim_scroll_kid(w, px, py, dt):
-            if id(w) in s.anims: s.anims[id(w)].cancel()
+            if (anim := s.anims.get(id(w), {}).get('scroll')): anim.cancel()
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
@@ -5123,7 +5126,7 @@ class Editor:
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
                 attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
-            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+            s.anims[id(w)]['scroll'] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
             for key, wid in s.current_inputs.items():
@@ -6452,7 +6455,7 @@ class Editor:
         s.fx_current_inputs = {}
 
         def anim_scroll_kid(w, px, py, dt):
-            if id(w) in s.anims: s.anims[id(w)].cancel()
+            if (anim := s.anims.get(id(w), {}).get('scroll')): anim.cancel()
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
@@ -6460,7 +6463,7 @@ class Editor:
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
                 attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
-            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+            s.anims[id(w)]['scroll'] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
             for key, wid in s.fx_current_inputs.items():
@@ -6697,8 +6700,8 @@ class Editor:
             'vignette_outer': (0.65, 0.6, 0.55), 'vignette_inner': (0.9, 0.9, 0.93),
         },
         'Big G': {
-            'tint': (1.1, 1.2, 1.3), 'ambient_color': (1.1, 1.2, 1.3),
-            'vignette_outer': (0.65, 0.6, 0.55), 'vignette_inner': (0.9, 0.9, 0.93),
+            'tint': (0.75, 0.8, 0.85), 'ambient_color': (0.75, 0.8, 0.85),
+            'vignette_outer': (0.5, 0.48, 0.45), 'vignette_inner': (0.85, 0.85, 0.88),
         },
         'Roundabout': {
             'tint': (1.0, 1.05, 1.1), 'ambient_color': (1.0, 1.05, 1.1), 'shadow_ortho': True,
@@ -6931,6 +6934,7 @@ class Editor:
 
         row_h = 32
         s.map_list_buttons = {}
+        prv_state = {'on': False}
 
         def select_map(name):
             Eval.SOUND(Const.OK_SOUND).play()
@@ -6943,6 +6947,13 @@ class Editor:
                 k: str(v) for k, v in s.MAP_GNODE_DEFAULTS.get(cls.name, {}).items()
             }
             refresh_right_pane(initial=False)
+            if prv_state['on']:
+                sync_edits()
+                try:
+                    s.change_map(s.current_map_name, extra=s.current_map_attrs)
+                except Exception as e:
+                    Eval.SOUND(Const.BAD_SOUND).play()
+                    s.toast(Format.ERROR(e))
 
         content_h = max(len(map_names) * row_h, list_h)
         bui.containerwidget(edit=s.map_list_root, size=(list_w, content_h))
@@ -6985,7 +6996,7 @@ class Editor:
         s.map_current_inputs = {}
 
         def anim_scroll_kid(w, px, py, dt):
-            if id(w) in s.anims: s.anims[id(w)].cancel()
+            if (anim := s.anims.get(id(w), {}).get('scroll')): anim.cancel()
             ty = w.get_widget_type()
             attrs = {'position': ((px + 50, py), (px, py))}
             if ty == 'text':
@@ -6993,7 +7004,7 @@ class Editor:
             elif ty == 'button':
                 attrs['opacity'] = (0, Color.OPACITY)
                 attrs['textcolor'] = (Const.INVISIBLE, (*Color.TEXT, Color.TEXT_OPACITY))
-            s.anims[id(w)] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
+            s.anims[id(w)]['scroll'] = Animate(widget=w, attrs=attrs, duration=0.18, delay=dt)
 
         def sync_edits():
             for key, wid in s.map_current_inputs.items():
@@ -7106,12 +7117,9 @@ class Editor:
 
         refresh_right_pane(initial=True)
 
-        prv_on = False
-
         def do_preview():
-            nonlocal prv_on
-            if prv_on:
-                prv_on = False
+            if prv_state['on']:
+                prv_state['on'] = False
                 bui.buttonwidget(prv_btn, label=Strings.PREVIEW)
                 s.change_map(old_ma)
                 Eval.SOUND(Const.OK_SOUND).play()
@@ -7125,7 +7133,7 @@ class Editor:
                 return
             Eval.SOUND(Const.OK_SOUND).play()
             bui.buttonwidget(prv_btn, label=Strings.STOP)
-            prv_on = True
+            prv_state['on'] = True
 
         pos = (left_x - 3, s.window_marg)
         size = (145, 40)
