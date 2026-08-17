@@ -5,7 +5,9 @@
 """
 Movi v1.0 - Movie Maker
 
-Experimental.
+A simple movie maker with native BRP replay export.
+Includes timeline sequencing, node manipulation,
+custom cameras, code injection, VFX presets, and more.
 """
 
 import babase as ba
@@ -35,6 +37,24 @@ from ctypes import pythonapi, c_long, py_object
 from contextlib import redirect_stdout, redirect_stderr
 
 __version__ = '1.0'
+
+plugman = dict(
+    plugin_name="movi",
+    description=(
+        "A simple movie maker with native BRP replay export. "
+        "Includes timeline sequencing, node manipulation, "
+        "custom cameras, code injection, VFX presets, and more."
+    ),
+    external_url="https://BroBordd.github.io/byBordd",
+    authors=[
+        {
+            "name": "BrotherBoard",
+            "email": "brobordd@gmail.com",
+            "discord": "BrotherBoard"
+        },
+    ],
+    version=__version__,
+)
 
 class Tracker:
     def __init__(self):
