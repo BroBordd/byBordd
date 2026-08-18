@@ -67,7 +67,7 @@
         "mod_name": "Coolbox",
         "mod_fancy_name": "Own the scene.",
         "mod_version": "1.0",
-        "mod_description": "Unfinished - Experimental - Feedback is appreciated.\nCoolbox is an advanced menu that can do almost everything!\nAccess the menu from pause menu.\nThis is a clean refactored version of Sandbox. Written from scratch.\nThe code itself acts like a closed environment.\nCoolbox uses a lot of scene features for the sake of appearance.",
+        "mod_description": "Experimental - Feedback is appreciated.\nCoolbox is an advanced menu that can do almost everything!\nAccess the menu from pause menu.\nThis is a clean refactored version of Sandbox. Written from scratch.\nThe code itself acts like a closed environment.\nCoolbox uses a lot of scene features for the sake of appearance.",
         "api_version": 9,
         "mod_filename_base": "coolbox"
     },
