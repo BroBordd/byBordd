@@ -1,11 +1,11 @@
-# Copyright 2025 - Solely by BrotherBoard
+# Copyright 2026 - Solely by BrotherBoard
 # Intended for personal use only
 # Bug? Feedback? Telegram >> @GalaxyA14user
 
 """
 Coolbox v1.0 - Own the scene.
 
-Unfinished - Experimental - Feedback is appreciated.
+Experimental - Feedback is appreciated.
 Coolbox is an advanced menu that can do almost everything!
 Access the menu from pause menu.
 This is a clean refactored version of Sandbox. Written from scratch.
@@ -36,7 +36,26 @@ import json
 import os
 import uuid
 
+plugman = dict(
+    plugin_name="coolbox",
+    description=(
+        "Coolbox is an advanced menu that can do almost everything! "
+        "Access the menu from pause menu. "
+        "This is a clean refactored version of Sandbox. Written from scratch."
+    ),
+    external_url="https://BroBordd.github.io/byBordd",
+    authors=[
+        {
+            "name": "BrotherBoard",
+            "email": "brobordd@gmail.com",
+            "discord": "BrotherBoard"
+        },
+    ],
+    version='1.0',
+)
+
 caught = {}
+_rgb_cycle_combines = []
 
 def catch(i,j):
     with bs.get_foreground_host_activity().context:
@@ -1653,11 +1672,14 @@ class ColorPicker:
     def set(s,c):
         bui.getsound('tap').play()
         for i in range(3):
+            var(s.what+s.rgb[i], c[i])
             w = s.kids[s.rgb[i]].widget
             tw(w, text=str(c[i])[:5])
             tw(w, color=(1,0,0) if i < 1 else \
                         (0,1,0) if i < 2 else \
                         (0,0,1))
+        var(s.what+'Hex', c2h(c))
+        s.fresh(None)
     """Obtain rgb"""
     def get_rgb(s):
         a = []
@@ -1921,7 +1943,11 @@ class Modder:
     def mod(s):
         v = s.t.get_text()
         try:
-            with bs.get_foreground_host_activity().context: v = eval(v);setattr(s.obj,s.attr,v)
+            with bs.get_foreground_host_activity().context:
+                v = eval(v)
+                if s.attr == 'position' and isinstance(v, (tuple, list)) and len(v) == 3:
+                    v = tuple(round(c, 2) for c in v)
+                setattr(s.obj,s.attr,v)
         except Exception as E: err(str(E))
         else:
             bui.getsound('ding').play()
@@ -2971,7 +2997,7 @@ class Collector:
 
 class Overlay:
     """Controls overlay"""
-    def __init__(s):
+    def __init__(s,build=False):
         s.colors = [
             [(0.2,0.6,0.2),(0.4,1,0.4)],
             [(0.6,0,0),(1,0,0)],
@@ -2985,31 +3011,41 @@ class Overlay:
         s.nub = []
         s.old = [0,0,0]
         with bs.get_foreground_host_activity().context:
+            # This is a bascenev1 scene overlay, not a bauiv1 window - it
+            # has to use the scene 'attach' node attr (like Scoreboard and
+            # RespawnIcon do) to anchor to a screen corner. bui.get_virtual_
+            # screen_size() is a bauiv1-only call and means nothing here,
+            # which is why it went invisible/out of bounds. 'attach':
+            # 'topRight' + small negative offsets keeps this pinned to the
+            # bottom-right corner regardless of resolution.
             for i in range(4):
                 j = ['Jump','Bomb','PickUp','Punch'][i]
-                k = [600,650,600,550][i]
-                l = [170,220,270,220][i]
+                k = [-210,-160,-210,-260][i]
+                l = [-175,-125,-75,-125][i]
                 c = s.colors[i][0]
                 n = bs.newnode(
                     'image',
                     attrs={
                         'texture': bs.gettexture('button'+j),
                         'absolute_scale': True,
+                        'attach': 'topRight',
                         'position': (k,l),
                         'scale': (60,60),
                         'color': c
                     }
                 )
                 s.pics.append(n)
-                j = ['Down','Pick','Up','Boost'][i]
-                k = [600,680,600,515][i]
-                l = [115,220,325,220][i]
+                j = (['Down','Exit','Up','Build'] if build else ['Down','Pick','Up','Boost'])[i]
+                k = [-210,-130,-210,-295][i]
+                l = [-230,-125,-20,-125][i]
                 h = ['center','left','center','right'][i]
                 v = ['bottom','center','top','center'][i]
                 n = bs.newnode(
                     'text',
                     attrs={
                         'text': j,
+                        'h_attach': 'right',
+                        'v_attach': 'top',
                         'position': (k,l),
                         'color': c,
                         'h_align': h,
@@ -3023,13 +3059,15 @@ class Overlay:
                     'text',
                     attrs={
                         'text': '0',
-                        'position': (640,155-30*i),
+                        'h_attach': 'right',
+                        'v_attach': 'top',
+                        'position': (-170,[-190,-220,-250][i]),
                         'color': c,
                         'h_align': 'left'
                     }
                 )
                 s.pos.append(n)
-            s.np = (790,140)
+            s.np = (-20,-205)
             for i in [0,1]:
                 j = [110,60][i]
                 n = bs.newnode(
@@ -3037,6 +3075,7 @@ class Overlay:
                     attrs={
                         'texture': bs.gettexture('nub'),
                         'absolute_scale': True,
+                        'attach': 'topRight',
                         'position': s.np,
                         'scale': (j,j),
                         'color': s.colors[4][i]
@@ -3090,11 +3129,13 @@ class Overlay:
 class Mapper:
     """In-Game position mapper"""
     last = 0
-    def __init__(s, pipe, pos=None) -> None:
+    def __init__(s, pipe, pos=None, on_exit=None, build=False) -> None:
         s.tired = time.time_ns() - s.__class__.last < 10**9
         if s.tired: btw('Cool down!'); return
         p = pos or getpos()
         s.pipe = pipe
+        s.on_exit = on_exit
+        s.build_mode = build
         s.tex = 'achievementCrossHair'
         s.btex = 'achievementSuperPunch'
         with bs.get_foreground_host_activity().context:
@@ -3139,19 +3180,23 @@ class Mapper:
         s.bstep = s.step * (20/8)
         s.mode = 4
         s.llr = s.lud = 0.0
-        s.overlay = Overlay()
-        LN({
+        s.overlay = Overlay(build=s.build_mode)
+        binds = {
             'UP_DOWN': lambda a: s.manage(a),
             'LEFT_RIGHT': lambda a: s.manage(a,1),
             'PICK_UP_PRESS': lambda: s.start(2),
             'JUMP_PRESS': lambda: s.start(0),
             'PICK_UP_RELEASE': lambda: s.stop(2),
             'JUMP_RELEASE': lambda: s.stop(0),
-            'BOMB_PRESS': s.pick,
-            'BOMB_RELEASE': lambda: s.overlay.release(1),
-            'PUNCH_PRESS': s.boost,
-            'PUNCH_RELEASE': lambda: s.boost(0),
-        })
+        }
+        if s.build_mode:
+            binds['BOMB_PRESS'] = s.exit
+            binds['PUNCH_PRESS'] = s.build
+        else:
+            binds['BOMB_PRESS'] = s.pick
+            binds['PUNCH_PRESS'] = s.boost
+            binds['PUNCH_RELEASE'] = lambda: s.boost(0)
+        LN(binds)
         STATE(True)
         s.move()
     """Handle events"""
@@ -3184,7 +3229,7 @@ class Mapper:
             if STATE():
                 STATE(False)
                 if bs.get_foreground_host_activity() != bs.get_foreground_host_activity(): return
-                bui.apptimer(1,lambda:(s.pipe(),s.complain()))
+                bui.apptimer(1,s.fail)
             return
         s.setpos((p[0]+s.llr*s.step,p[1],p[2]-s.lud*s.step))
         s.overlay.up(*p,s.llr,s.lud)
@@ -3213,7 +3258,7 @@ class Mapper:
     """Set position"""
     def setpos(s,p):
         s.node.position = p
-    """Pick position"""
+    """Pick position (single-shot: exits mapper immediately)"""
     def pick(s):
         s.overlay.press(1)
         s.overlay.destroy()
@@ -3237,12 +3282,47 @@ class Mapper:
         with bs.get_foreground_host_activity().context:
             try: s.node.color_texture = bs.gettexture(s.btex if i else s.tex)
             except: return
+    """Build at current position (repeatable - does not exit)"""
+    def build(s):
+        s.overlay.press(3)
+        try: p = s.node.position
+        except: return
+        with bs.get_foreground_host_activity().context:
+            bs.timer(0.1, lambda: s.overlay.release(3))
+            SND('gunCocking',p)
+            bs.timer(0.2, bs.animate(s.node,'mesh_scale',{0:0.5,0.1:0.3,0.2:0.5}).delete)
+            SPARK(p)
+        s.pipe(p)
+    """Exit mapper without building (graceful pick-style animation, no shatter)"""
+    def exit(s):
+        s.overlay.press(1)
+        s.overlay.destroy()
+        try: p = s.node.position
+        except: p = None
+        with bs.get_foreground_host_activity().context:
+            if p:
+                SND('powerup01',p)
+                bs.timer(0.1, bs.animate(s.node,'mesh_scale',{0:0.5,0.1:1.5}).delete)
+                bs.timer(0.1,lambda: (SPARK(p),s.node.delete()))
+            else:
+                s.node.delete()
+        STATE(False)
+        s.__class__.last = time.time_ns()
+        if s.on_exit and p: bui.apptimer(1, bs.CallPartial(s.on_exit, p))
+        bui.apptimer(1, s.reset)
     """Complain"""
     def complain(s):
         push('You destroyed the mapper!',color=(1,0,0))
         bui.getsound('swip').play()
         s.overlay.destroy()
         None if s.safe else btw('Mapper was destroyed too early.\nFix your positions!')
+    """Handle move() losing the node (e.g. quitting mid-map): only
+    call pipe() if it's the no-arg pick-style callback - build mode's
+    pipe (dispatch) requires a real position and must not be called
+    with none."""
+    def fail(s):
+        if not s.build_mode: s.pipe()
+        s.complain()
 
 def NEW(f):
     """New class-based entry decorator"""
@@ -3975,7 +4055,7 @@ class Modify:
         bui.apptimer(0.2,lambda:([t.blink() for t in h],gun())) if h else None
     """Get position"""
     def getpos(s):
-        return tuple([float(var(f'mpos{i}')) for i in range(3)])
+        return rnd(tuple([float(var(f'mpos{i}')) for i in range(3)]))
     """Map"""
     def map(s):
         s.mapper = Mapper(pipe=s.pick,pos=s.getpos())
@@ -5037,7 +5117,7 @@ class Deploy:
     def mup(s,p=None):
         Coolbox(fb=s.__class__.__name__, fake=True, extra=(p or s.getpos(),s.data,s.vc))
     def getpos(s):
-        return tuple([float(var(f'dpl{i}')) for i in range(3)])
+        return rnd(tuple([float(var(f'dpl{i}')) for i in range(3)]))
     def setpos(s,p):
         p = rnd(p)
         h = []
@@ -5598,22 +5678,44 @@ class Tweak:
         push(f'Shiny World {"On" if not v else "Off"} ({c} nodes)!', color=(1, 1, 0))
 
     def rgb_cycle(s, b):
-        c = 0
-        with bs.get_foreground_host_activity().context:
-            for n in bs.getnodes():
-                if hasattr(n, 'color') and n.getnodetype() != 'globals':
+        global _rgb_cycle_combines
+        v = var('t_rgbcycle')
+        if not v:
+            c = 0
+            with bs.get_foreground_host_activity().context:
+                gnode = bs.get_foreground_host_activity().globalsnode
+                keys = {0: (1, 0, 0), 1: (0, 1, 0), 2: (0, 0, 1), 3: (1, 0, 0)}
+                items = sorted(keys.items())
+                for n in bs.getnodes():
+                    if hasattr(n, 'color') and n.getnodetype() != 'globals':
+                        try:
+                            combine = bs.newnode('combine', owner=n, attrs={'size': 3})
+                            for i in range(3):
+                                curve = bs.newnode('animcurve', owner=n)
+                                gnode.connectattr('time', curve, 'in')
+                                curve.times = [int(1000 * t) for t, _ in items]
+                                curve.values = [val[i] for _, val in items]
+                                curve.loop = True
+                                curve.connectattr('out', combine, f'input{i}')
+                            combine.connectattr('output', n, 'color')
+                            _rgb_cycle_combines.append(combine)
+                            c += 1
+                        except Exception:
+                            pass
+            var('t_rgbcycle', True)
+            ding()
+            push(f'RGB Cycle On ({c} nodes)!', color=(0, 1, 0))
+        else:
+            with bs.get_foreground_host_activity().context:
+                for combine in _rgb_cycle_combines:
                     try:
-                        bs.animate_array(n, 'color', 3, {
-                            0: (1, 0, 0),
-                            1: (0, 1, 0),
-                            2: (0, 0, 1),
-                            3: (1, 0, 0)
-                        }, loop=True)
-                        c += 1
+                        if combine.exists(): combine.delete()
                     except Exception:
                         pass
-        ding()
-        push(f'RGB Cycle applied to {c} nodes!', color=(0, 1, 0))
+            _rgb_cycle_combines = []
+            var('t_rgbcycle', False)
+            ding()
+            push('RGB Cycle Off!', color=(1, 1, 0))
 
 @NEW
 class Gather:
@@ -5686,9 +5788,12 @@ class Gather:
             if t == s.sl_t: valid_sl = True
             y = ss - 40 - (i * 45)
             n = t.name.evaluate() if hasattr(t.name, 'evaluate') else t.name
-            b = bw(p=s.tcv, pos=(5, y), size=(150, 35), label=n, color=t.color, oac=bs.CallPartial(s.show_team, t))
-            if t == s.sl_t:
-                bw(b, textcolor=(0, 1, 0))
+            sl_color = tuple(min(1.0, ch * 1.4 + 0.15) for ch in t.color) if t == s.sl_t else t.color
+            b = bw(
+                p=s.tcv, pos=(5, y), size=(150, 35), label=n, color=sl_color,
+                textcolor=var('t'),
+                oac=bs.CallPartial(s.show_team, t)
+            )
                 
         if not valid_sl: s.sl_t = None
         s.show_team(s.sl_t)
@@ -5730,27 +5835,69 @@ class Gather:
             bw(p=s.dcv, pos=(170, y), size=(70, 35), label='Fetch', oac=bs.CallPartial(s.fetch_player, p))
             bw(p=s.dcv, pos=(245, y), size=(70, 35), label='Goto', oac=bs.CallPartial(s.goto_player, p))
 
+    def _refresh_scoreboard(s, t):
+        """Force the current game's Scoreboard actor (if any) to rebuild
+        this team's entry, since it bakes name/color in once at creation
+        and never updates them live otherwise."""
+        try:
+            act = bs.get_foreground_host_activity()
+            sb = getattr(act, '_scoreboard', None) or getattr(act, 'scoreboard', None)
+            entries = getattr(sb, '_entries', None)
+            if sb is not None and entries is not None and t.id in entries:
+                sb.remove_team(t.id)
+                sb._add_team(t)
+        except Exception:
+            pass
+
     def rename_team(s, t):
         Collector(source=s.w, pipe=bs.CallPartial(s._rename_team, t), first='New Name', title='Rename Team')
         
     def _rename_team(s, t, name):
         try:
-            t.name = name
+            with bs.get_foreground_host_activity().context:
+                t.name = name
+                try:
+                    t.sessionteam.name = name
+                except Exception:
+                    pass
+                s._refresh_scoreboard(t)
             ding()
             s.refresh()
-        except:
-            err('Failed to rename team')
-            
+        except Exception as e:
+            err(f'Failed to rename team: {e}')
+
     def recolor_team(s, t):
         try:
-            t.color = var('t_col')
+            c = var('t_col')
+            with bs.get_foreground_host_activity().context:
+                t.color = c
+                try:
+                    t.sessionteam.color = c
+                except Exception:
+                    pass
+                # Update everyone currently on the team: their cached
+                # color (so respawns pick it up) and their live spaz
+                # node color (so it changes instantly if they're alive).
+                for p in t.players:
+                    p.color = c
+                    try:
+                        p.sessionplayer.color = c
+                    except Exception:
+                        pass
+                    try:
+                        if p.actor and p.actor.node.exists():
+                            p.actor.node.color = c
+                            p.actor.node.name_color = bs.safecolor(c, target_intensity=0.75)
+                    except Exception:
+                        pass
+                s._refresh_scoreboard(t)
             s.refresh()
-        except:
-            pass
+        except Exception as e:
+            err(f'Failed to recolor team: {e}')
 
     def nuke_team(s, t):
         try:
-            bs.get_foreground_host_activity().remove_team(t)
+            bs.get_foreground_host_activity().remove_team(t.sessionteam)
             s.sl_t = None
             ding()
             s.refresh()
@@ -6265,7 +6412,7 @@ class Load:
             )
         else:
             try:
-                tex = bui.gettexture(p['i'])
+                tex = bui.gettexture(p.get('i') or 'logo')
             except Exception:
                 tex = bui.gettexture('logo')
             bui.imagewidget(
@@ -6303,7 +6450,7 @@ class Mapper2D:
 
     last = 0
 
-    def __init__(s, pipe, pos=None):
+    def __init__(s, pipe, pos=None, on_exit=None):
         s.tired = time.time_ns() - s.__class__.last < 10**9
         if s.tired: btw('Cool down!'); return
         
@@ -6312,6 +6459,7 @@ class Mapper2D:
             p = (pos[0], pos[1])
             
         s.pipe = pipe
+        s.on_exit = on_exit
         
         with bs.get_foreground_host_activity().context:
             s.node = bs.newnode('image', attrs={
@@ -6333,15 +6481,13 @@ class Mapper2D:
         s.bstep = s.step * 3
         s.llr = s.lud = 0.0
         
-        s.overlay = Overlay()
+        s.overlay = Overlay(build=True)
         
         LN({
             'UP_DOWN': lambda a: s.manage(a, 0),
             'LEFT_RIGHT': lambda a: s.manage(a, 1),
-            'BOMB_PRESS': s.pick,
-            'BOMB_RELEASE': lambda: s.overlay.release(1),
-            'PUNCH_PRESS': s.boost,
-            'PUNCH_RELEASE': lambda: s.boost(0),
+            'BOMB_PRESS': s.exit,
+            'PUNCH_PRESS': s.build,
         })
         STATE(True)
         s.move()
@@ -6357,7 +6503,7 @@ class Mapper2D:
         except:
             if STATE():
                 STATE(False)
-                bui.apptimer(1, lambda: (s.pipe(), s.complain()))
+                bui.apptimer(1, s.fail)
             return
         
         new_p = (p[0] + s.llr * s.step, p[1] + s.lud * s.step)
@@ -6380,32 +6526,47 @@ class Mapper2D:
         with bs.get_foreground_host_activity().context:
             me.actor.connect_controls_to_player()
 
-    def pick(s):
+    """Build at current position (repeatable - does not exit)"""
+    def build(s):
+        s.overlay.press(3)
+        try: p = s.node.position
+        except: return
+
+        with bs.get_foreground_host_activity().context:
+            bs.timer(0.1, lambda: s.overlay.release(3))
+            bui.getsound('gunCocking').play()
+            bs.timer(0.2, bs.animate(s.node,'scale',{0:(50,50),0.1:(30,30),0.2:(50,50)}).delete)
+
+        s.pipe((p[0], p[1], 0.0))
+
+    """Exit mapper without building (graceful, no shatter)"""
+    def exit(s):
         s.overlay.press(1)
         s.overlay.destroy()
         try: p = s.node.position
-        except: return
-        
+        except: p = None
         with bs.get_foreground_host_activity().context:
-            bui.getsound('powerup01').play()
-            s.node.delete()
-            
+            if p:
+                bui.getsound('powerup01').play()
+                bs.animate(s.node,'scale',{0:(50,50),0.1:(0,0)})
+                bs.timer(0.1, s.node.delete)
+            else:
+                s.node.delete()
         STATE(False)
-        s.pipe((p[0], p[1], 0.0))
-        bui.apptimer(1, s.reset)
         s.__class__.last = time.time_ns()
-
-    def boost(s, i=1):
-        s.step = s.bstep if i else s.ostep
-        s.overlay.press(3) if i else s.overlay.release(3)
-        if i:
-            bui.getsound('punch01').play()
+        if s.on_exit and p: bui.apptimer(1, bs.CallPartial(s.on_exit, (p[0],p[1],0.0)))
+        bui.apptimer(1, s.reset)
 
     def complain(s):
         push('You destroyed the mapper!', color=(1, 0, 0))
         bui.getsound('swip').play()
         s.overlay.destroy()
         None if s.safe else btw('Mapper destroyed too early.')
+
+    """Mapper2D is always build mode (dispatch needs a real position),
+    so on a lost node just complain - never call pipe() with none."""
+    def fail(s):
+        s.complain()
 
 
 @NEW
@@ -6419,6 +6580,8 @@ class Build:
         con('b_tex', 'tnt')
         con('b_body', 'crate')
         con('b_grav', '1.0')
+        con('b_mscale', '1.0')
+        con('b_bscale', '1.0')
         con('b_txt', 'Coolbox!')
         con('b_scl', '0.01')
         con('b_iscal', '100.0')
@@ -6469,14 +6632,6 @@ class Build:
             p, btype = s.ex
             for i in range(3):
                 var(f'pos{i}', str(p[i]))
-            if btype == 'prop':
-                s.do_prop(p)
-            elif btype == 'text':
-                s.do_text(p)
-            elif btype == 'light':
-                s.do_light(p)
-            elif btype == 'image':
-                s.do_image(p)
 
     def clear(s):
         for k in s.kids:
@@ -6511,30 +6666,46 @@ class Build:
             s.kids.append(tw(p=s.rp, pos=(tx, ypos), size=(lw, bh), text=txt, v_align='center', h_align='left', maxwidth=lw))
 
         if m == 0:
-            lbl('Mesh:', r0y)
-            bm = bw(p=s.rp, pos=(bx, r0y), size=(bw_sz, bh), label=var('b_mesh'))
+            p0y,p1y,p2y,p3y,p4y,p5y = 245,210,175,140,105,70
+
+            lbl('Mesh:', p0y)
+            bm = bw(p=s.rp, pos=(bx, p0y), size=(bw_sz, bh), label=var('b_mesh'))
             bw(bm, oac=bs.CallPartial(MeshPicker, source=bm, pipe=s.pick_mesh, extra=bm))
             s.kids.append(bm)
 
-            lbl('Texture:', r1y)
-            bt = bw(p=s.rp, pos=(bx, r1y), size=(bw_sz, bh), label=var('b_tex'))
+            lbl('Texture:', p1y)
+            bt = bw(p=s.rp, pos=(bx, p1y), size=(bw_sz, bh), label=var('b_tex'))
             bw(bt, oac=bs.CallPartial(TexPicker, source=bt, pipe=s.pick_tex))
             s.b_tex_btn = bt
             s.kids.append(bt)
 
-            lbl('Body:', r2y)
+            lbl('Body:', p2y)
             bb = ctw(
-                p=s.rp, pos=(bx, r2y), size=(bw_sz, bh), allow=True,
+                p=s.rp, pos=(bx, p2y), size=(bw_sz, bh), allow=True,
                 hint='crate/sphere/puck', conf='b_body', text=var('b_body')
             )
             s.kids.extend([bb.widget, bb.widget2])
 
-            lbl('Gravity:', r3y)
+            lbl('Gravity:', p3y)
             bg = ctw(
-                p=s.rp, pos=(bx, r3y), size=(bw_sz, bh), allow='-0.123456789',
+                p=s.rp, pos=(bx, p3y), size=(bw_sz, bh), allow='-0.123456789',
                 conf='b_grav', text=var('b_grav'), hint='Float'
             )
             s.kids.extend([bg.widget, bg.widget2])
+
+            lbl('Mesh Scale:', p4y)
+            bms = ctw(
+                p=s.rp, pos=(bx, p4y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_mscale', text=var('b_mscale'), hint='Float'
+            )
+            s.kids.extend([bms.widget, bms.widget2])
+
+            lbl('Body Scale:', p5y)
+            bbs = ctw(
+                p=s.rp, pos=(bx, p5y), size=(bw_sz, bh), allow='0.123456789',
+                conf='b_bscale', text=var('b_bscale'), hint='Float'
+            )
+            s.kids.extend([bbs.widget, bbs.widget2])
 
             bp = bw(
                 p=s.rp, pos=(115, 25), size=(160, 45), label='Map & Build',
@@ -6712,13 +6883,35 @@ class Build:
 
     def map_it(s, btype):
         if btype == 'image' or (btype == 'text' and not var('b_inw')):
-            s.mapper = Mapper2D(pipe=bs.CallPartial(s.mapped, btype), pos=getpos()[:2])
+            s.mapper = Mapper2D(
+                pipe=bs.CallPartial(s.dispatch, btype),
+                pos=getpos()[:2],
+                on_exit=bs.CallPartial(s.reopen, btype)
+            )
         else:
-            s.mapper = Mapper(pipe=bs.CallPartial(s.mapped, btype), pos=getpos())
+            s.mapper = Mapper(
+                pipe=bs.CallPartial(s.dispatch, btype),
+                pos=getpos(),
+                on_exit=bs.CallPartial(s.reopen, btype),
+                build=True
+            )
         None if s.mapper.tired else cw(s.w, transition='out_right')
 
-    def mapped(s, btype, p):
-        Coolbox(fb=s.__class__.__name__, fake=True, extra=(p, btype))
+    """Reopen the Build window at the position mapping ended on, once
+    the mapper is dismissed via bomb."""
+    def reopen(s, btype, p):
+        Coolbox(fb='Build', fake=True, extra=(p, btype))
+
+    """Build directly at a mapped position - no menu/window round-trip,
+    so this is safe to call repeatedly (e.g. once per punch) without
+    tripping the Coolbox-already-running guard."""
+    def dispatch(s, btype, p):
+        {
+            'prop': s.do_prop,
+            'text': s.do_text,
+            'light': s.do_light,
+            'image': s.do_image,
+        }[btype](p)
 
     def do_prop(s, pos, silent=False):
         with bs.get_foreground_host_activity().context:
@@ -6732,7 +6925,9 @@ class Build:
                     'materials': [o.object_material, o.footing_material],
                     'reflection': 'soft',
                     'reflection_scale': [0.5],
-                    'gravity_scale': float(var('b_grav'))
+                    'gravity_scale': float(var('b_grav')),
+                    'mesh_scale': float(var('b_mscale')),
+                    'body_scale': float(var('b_bscale'))
                 })
                 if not silent:
                     SPARK(pos)
@@ -7048,18 +7243,14 @@ class Camera:
 
 @NEW
 class Scene:
-    """Scene control map, tint, ambient"""
+    """Scene control: map, tint presets"""
 
     def __init__(s, *a):
         w = s.w = a[0]
 
         # MAP (left: x=40..290)
-        maps = sorted(
-            m for m in dir(__import__('bascenev1lib').maps)
-            if not m.startswith('_')
-            and isinstance(getattr(__import__('bascenev1lib').maps, m), type)
-        )
-        print(maps)
+        assert bui.app.classic is not None
+        maps = sorted(bui.app.classic.maps.keys())
 
         s.sel_map = None
         s.map_btns = []
@@ -7095,24 +7286,18 @@ class Scene:
         )
 
         # ── TINT (right top: x=305..555) ─────────────────────
-        s.tint_btn = bw(
-            p=w, pos=(305, 335), size=(250, 55),
-            label='Pick Tint', oac=s.open_tint
-        )
-        s.sync_tint()
-
-        bw(p=w, pos=(305, 288), size=(120, 40),
+        bw(p=w, pos=(305, 332), size=(120, 40),
            label='× 1.1', text_scale=0.9,
            oac=bs.CallPartial(s.mult_tint, 1.1))
-        bw(p=w, pos=(433, 288), size=(120, 40),
+        bw(p=w, pos=(433, 332), size=(120, 40),
            label='÷ 1.1', text_scale=0.9,
            oac=bs.CallPartial(s.mult_tint, 1 / 1.1))
 
-        bw(p=w, pos=(305, 240), size=(250, 40),
+        bw(p=w, pos=(305, 284), size=(250, 40),
            label='Reset Tint', icon=bui.gettexture('replayIcon'),
            oac=s.reset_tint)
 
-        # ── AMBIENT (right bottom: x=305..555) ───────────────
+        # ── TINT PRESETS (right bottom: x=305..555) ──────────
         presets = [
             ('Neutral', (1.0, 1.0, 1.0)),
             ('Warm',    (1.3, 1.0, 0.8)),
@@ -7120,21 +7305,24 @@ class Scene:
             ('Dusk',    (1.2, 0.8, 0.6)),
             ('Horror',  (0.5, 0.7, 0.5)),
             ('Void',    (0.3, 0.3, 0.5)),
+            ('Sunset',  (1.3, 0.85, 0.6)),
+            ('Frost',   (0.85, 1.0, 1.2)),
+            ('Toxic',   (0.6, 1.2, 0.5)),
         ]
-        s.ambient_btns = []
+        s.preset_btns = []
         for i, (lbl, col) in enumerate(presets):
             b = bw(
                 p=w,
-                pos=(305 + (i % 3) * 84, 198 - (i // 3) * 44),
+                pos=(305 + (i % 3) * 84, 238 - (i // 3) * 44),
                 size=(78, 38), label=lbl,
-                color=col, oac=bs.CallPartial(s.set_ambient, col)
+                color=col, oac=bs.CallPartial(s.set_tint, col)
             )
-            s.ambient_btns.append(b)
+            s.preset_btns.append(b)
 
-        s.b_custom_ambient = bw(
+        s.b_custom_tint = bw(
             p=w, pos=(305, 60), size=(250, 42),
-            label='Custom Ambient', icon=bui.gettexture('settingsIcon'),
-            oac=s.open_ambient
+            label='Custom Tint', icon=bui.gettexture('settingsIcon'),
+            oac=s.open_tint
         )
 
     # ── helpers ───────────────────────────────────────────────
@@ -7143,13 +7331,6 @@ class Scene:
         return bs.get_foreground_host_activity().globalsnode
 
     # tint
-
-    def sync_tint(s):
-        try:
-            c = s._glob().tint
-        except Exception:
-            c = (1.0, 1.0, 1.0)
-        bw(s.tint_btn, color=c)
 
     def open_tint(s):
         try:
@@ -7161,7 +7342,7 @@ class Scene:
         var('scene_tintGreen', str(round(c[1], 4)))
         var('scene_tintBlue',  str(round(c[2], 4)))
         ColorPicker(
-            in_source=s.tint_btn,
+            in_source=s.b_custom_tint,
             id='scene_tint', what='scene_tint',
             id2='scene_tint', chr='char', mode=2,
             on_back=s.apply_tint
@@ -7171,7 +7352,6 @@ class Scene:
         c = var('scene_tint') or (1.0, 1.0, 1.0)
         with bs.get_foreground_host_activity().context:
             s._glob().tint = c
-        s.sync_tint()
         ding()
         push('Tint applied!', color=(0, 1, 0))
 
@@ -7180,46 +7360,23 @@ class Scene:
             c = s._glob().tint
             nc = tuple(c[i] * factor for i in range(3))
             s._glob().tint = nc
-        s.sync_tint()
         ding()
 
     def reset_tint(s):
         with bs.get_foreground_host_activity().context:
             s._glob().tint = (1.0, 1.0, 1.0)
-        s.sync_tint()
         ding()
         push('Tint reset!', color=(0, 1, 0))
 
-    # ambient
-
-    def set_ambient(s, col):
-        with bs.get_foreground_host_activity().context:
-            s._glob().ambient_color = col
-        ding()
-        push('Ambient set!', color=col)
-
-    def open_ambient(s):
+    def set_tint(s, col):
         try:
-            c = s._glob().ambient_color
-        except Exception:
-            c = (1.0, 1.0, 1.0)
-        var('scene_ambient', c)
-        var('scene_ambientRed',   str(round(c[0], 4)))
-        var('scene_ambientGreen', str(round(c[1], 4)))
-        var('scene_ambientBlue',  str(round(c[2], 4)))
-        ColorPicker(
-            in_source=s.b_custom_ambient,
-            id='scene_ambient', what='scene_ambient',
-            id2='scene_ambient', chr='char', mode=2,
-            on_back=s.apply_ambient
-        )
-
-    def apply_ambient(s):
-        c = var('scene_ambient') or (1.0, 1.0, 1.0)
-        with bs.get_foreground_host_activity().context:
-            s._glob().ambient_color = c
+            with bs.get_foreground_host_activity().context:
+                s._glob().tint = col
+        except Exception as e:
+            err(str(e))
+            return
         ding()
-        push('Ambient applied!', color=(0, 1, 0))
+        push('Tint set!', color=col)
 
     # map
 
@@ -7253,21 +7410,36 @@ class Scene:
         from bascenev1lib.gameutils import SharedObjects
         _act = bs.get_foreground_host_activity()
         old_map = _act.map
-        cls = getattr(
-            __import__('bascenev1lib').maps,
-            ma.replace(' ', '')
-        )
+        cls = bs.get_map_class(ma)
         with _act.context:
             if type(old_map) in _act.preloads:
                 del _act.preloads[type(old_map)]
+            for attr in dir(old_map):
+                if not attr.startswith('_') and attr not in [
+                    'node', 'activity', 'getactivity', 'handlemessage',
+                    'on_expire', 'autoretain', 'is_alive', 'exists'
+                ]:
+                    try:
+                        val = getattr(old_map, attr)
+                        if not callable(val):
+                            if hasattr(val, 'delete') and hasattr(val, 'exists'):
+                                try:
+                                    if val.exists(): val.delete()
+                                except Exception:
+                                    pass
+                            delattr(old_map, attr)
+                    except Exception:
+                        pass
             _act.preloads[cls] = preload = cls.on_preload()
             shared = SharedObjects.get()
-            temp = cls()
-            temp.node and temp.node.delete()
             for node in bs.getnodes():
                 if node.getnodetype() == 'terrain' and node != old_map.node:
                     try: node.delete()
-                    except: pass
+                    except Exception: pass
+            for attr in ['bottom', 'floor', 'stands', 'background', 'railing',
+                         'bg_collide', 'stem', 'player_wall', 'bg2', 'node_bottom']:
+                if hasattr(old_map, attr):
+                    delattr(old_map, attr)
             if hasattr(old_map, 'node') and old_map.node:
                 old_map.node.mesh = (
                     preload.get('mesh') or
@@ -7281,11 +7453,6 @@ class Scene:
                     if 'ice_material' in preload
                     else [shared.footing_material]
                 )
-            for attr in ['bottom', 'floor', 'stands', 'background',
-                         'railing', 'bg_collide', 'stem']:
-                if hasattr(old_map, attr):
-                    try: getattr(old_map, attr).delete(); delattr(old_map, attr)
-                    except: pass
             if 'mesh_bottom' in preload or 'bottom_mesh' in preload:
                 old_map.bottom = bs.newnode('terrain', attrs={
                     'mesh': preload.get('mesh_bottom') or preload.get('bottom_mesh'),
@@ -7303,11 +7470,23 @@ class Scene:
                     'opacity_in_low_or_medium_quality': 1.0,
                     'materials': mats
                 })
+            if 'meshes' in preload and len(preload['meshes']) > 2:
+                old_map.stands = bs.newnode('terrain', attrs={
+                    'mesh': preload['meshes'][2],
+                    'visible_in_reflections': False,
+                    'color_texture': preload.get('stands_tex', preload['tex'])
+                })
             if 'mesh_bg' in preload or 'bgmesh' in preload:
                 old_map.background = bs.newnode('terrain', attrs={
                     'mesh': preload.get('mesh_bg') or preload.get('bgmesh'),
                     'lighting': False, 'background': True,
                     'color_texture': preload.get('mesh_bg_tex') or preload.get('bgtex')
+                })
+            if 'bgmesh2' in preload:
+                old_map.bg2 = bs.newnode('terrain', attrs={
+                    'mesh': preload['bgmesh2'],
+                    'lighting': False, 'background': True,
+                    'color_texture': preload.get('bgtex2', preload.get('tex'))
                 })
             if 'railing_collision_mesh' in preload or 'bumper_collision_mesh' in preload:
                 old_map.railing = bs.newnode('terrain', attrs={
@@ -7327,6 +7506,17 @@ class Scene:
                         shared.death_material
                     ]
                 })
+            if 'stem_mesh' in preload:
+                old_map.stem = bs.newnode('terrain', attrs={
+                    'mesh': preload['stem_mesh'],
+                    'lighting': False, 'color_texture': preload['tex']
+                })
+            if 'player_wall_collision_mesh' in preload and isinstance(bs.getsession(), bs.CoopSession):
+                old_map.player_wall = bs.newnode('terrain', attrs={
+                    'collision_mesh': preload['player_wall_collision_mesh'],
+                    'affect_bg_dynamics': False,
+                    'materials': [preload['player_wall_material']],
+                })
             old_map.preloaddata = preload
             old_map.defs = cls.defs
             old_map.is_hockey = (
@@ -7344,10 +7534,64 @@ class Scene:
                 (-30, -10, -30, 30, 100, 30)
             )
 
+            # old_map keeps its cached point lists from whichever map it was
+            # first built for (Map.__init__ only computes these once) -- with
+            # defs swapped to the new map's defs those lists are now stale,
+            # so recompute them the same way Map.__init__ does or players will
+            # spawn/teleport into the old map's (possibly void) coordinates.
+            old_map.spawn_points = old_map.get_def_points('spawn') or [(0, 0, 0, 0, 0, 0)]
+            old_map.ffa_spawn_points = old_map.get_def_points('ffa_spawn') or [(0, 0, 0, 0, 0, 0)]
+            old_map.spawn_by_flag_points = old_map.get_def_points('spawn_by_flag') or [(0, 0, 0, 0, 0, 0)]
+            flag_pts = old_map.get_def_points('flag') or [(0, 0, 0)]
+            old_map.flag_points = [p[:3] for p in flag_pts]
+            old_map.flag_points_default = old_map.get_def_point('flag_default') or (0, 1, 0)
+            pu_pts = old_map.get_def_points('powerup_spawn') or [(0, 0, 0)]
+            old_map.powerup_spawn_points = [p[:3] for p in pu_pts]
+            old_map.tnt_points = [p[:3] for p in (old_map.get_def_points('tnt') or [])]
+
+            # Teleport every live player to a fresh spawn point on the new
+            # map so nobody is left standing over what is now empty space.
+            for i, p in enumerate(_act.players):
+                if p.actor and p.actor.node.exists():
+                    pos = old_map.get_start_position(i)
+                    p.actor.node.handlemessage(bs.StandMessage(pos, 0))
+
+            # Also StandMessage every bot spawned via Coolbox (tracked in
+            # activity.customdata), so they don't stay stuck in the void.
+            for i, v in enumerate(_act.customdata.values()):
+                if isinstance(v, Bot) and v.node and v.node.exists():
+                    pos = old_map.get_start_position(i)
+                    v.node.handlemessage(bs.StandMessage(pos, 0))
+
 @NEW
 class About:
-    """About the mod"""
-    def __init__(s,*a): pass
+    """About Coolbox"""
+    def __init__(s, *a):
+        w, x, y = a[0], a[1], a[2]
+
+        tw(
+            p=w, pos=(x/2, y-170), size=(0,0), text='COOLBOX',
+            h_align='center', v_align='center', scale=3.2,
+            color=(0.1,0.7,1), big=True
+        )
+
+        tw(
+            p=w, pos=(x/2, y-270), size=(0,0), text='version 1.0',
+            h_align='center', v_align='center', scale=0.9,
+            color=var('t')
+        )
+
+        tw(
+            p=w, pos=(x/2, y-305), size=(0,0), text='made with love and tea',
+            h_align='center', v_align='center', scale=0.9,
+            color=var('t')
+        )
+
+        tw(
+            p=w, pos=(x/2, y-355), size=(0,0), text='special thanks to: YOU for trying coolbox!',
+            h_align='center', v_align='center', scale=0.8, maxwidth=x*0.85,
+            color=(1,0.85,0.3)
+        )
 
 # Dynamic Resources
 # Stored as callabes and only called when needed
@@ -7567,12 +7811,65 @@ ding = lambda: bui.getsound('dingSmallHigh').play()
 UUID = lambda: str(uuid.uuid4())[:5]
 def GA(f):
     with bs.get_foreground_host_activity().context: return f()
+
+# CJK-packed seed system (ported from movi.py) - denser than plain digit strings
+CJK_SEED_RANGES = (
+    (0x3400, 0x4DBF),    # CJK Unified Ideographs Extension A
+    (0x4E00, 0x9FFF),    # CJK Unified Ideographs (basic)
+    (0xF900, 0xFAFF),    # CJK Compatibility Ideographs
+    (0x2F800, 0x2FA1F),  # CJK Compatibility Ideographs Supplement
+    (0x20000, 0x2A6DF),  # CJK Unified Ideographs Extension B
+    (0x2A700, 0x2B73F),  # CJK Unified Ideographs Extension C
+    (0x2B740, 0x2B81F),  # CJK Unified Ideographs Extension D
+    (0x2B820, 0x2CEAF),  # CJK Unified Ideographs Extension E
+    (0x2CEB0, 0x2EBEF),  # CJK Unified Ideographs Extension F
+    (0x2EBF0, 0x2EE5F),  # CJK Unified Ideographs Extension I
+    (0x30000, 0x3134F),  # CJK Unified Ideographs Extension G
+    (0x31350, 0x323AF),  # CJK Unified Ideographs Extension H
+    (0x323B0, 0x3347F),  # CJK Unified Ideographs Extension J
+)
+def _cjk_build_table():
+    table = []
+    cum = 0
+    for lo,hi in CJK_SEED_RANGES:
+        size = hi-lo+1
+        table.append((cum,cum+size-1,lo))
+        cum += size
+    return table,cum
+CJK_SEED_TABLE,CJK_SEED_BASE = _cjk_build_table()
+def cjk_digit_to_char(d):
+    for start,end,lo in CJK_SEED_TABLE:
+        if start <= d <= end:
+            return chr(lo+(d-start))
+    raise ValueError(f'seed digit out of range: {d}')
+def cjk_char_to_digit(c):
+    cp = ord(c)
+    cum = 0
+    for lo,hi in CJK_SEED_RANGES:
+        size = hi-lo+1
+        if lo <= cp <= hi:
+            return cum+(cp-lo)
+        cum += size
+    raise ValueError(f'not a valid seed character: {c!r}')
+def cjk_encode_int(n):
+    if n == 0: return cjk_digit_to_char(0)
+    digits = []
+    while n:
+        n,r = divmod(n,CJK_SEED_BASE)
+        digits.append(r)
+    return ''.join(cjk_digit_to_char(d) for d in reversed(digits))
+def cjk_decode_int(s):
+    n = 0
+    for c in s:
+        n = n*CJK_SEED_BASE + cjk_char_to_digit(c)
+    return n
 def ENCODE(a):
-    c=zlib.compress(json.dumps(a,separators=(',',':')).encode())
-    return str(int.from_bytes(c,'big'))
+    c=zlib.compress(json.dumps(a,separators=(',',':'),sort_keys=True).encode('utf-8'))
+    return cjk_encode_int(int.from_bytes(c,'big'))
 def DECODE(s):
-    b=int(s); n=(b.bit_length()+7)//8
-    return json.loads(zlib.decompress(b.to_bytes(n,'big')).decode())
+    n=cjk_decode_int(s)
+    b=n.to_bytes((n.bit_length()+7)//8,'big')
+    return json.loads(zlib.decompress(b).decode('utf-8'))
 hasm = lambda: bui.app.ui_v1.has_main_window()
 c2h = lambda c: '#{:04x}{:04x}{:04x}'.format(*huge(c))
 DLG = lambda n: n.getdelegate(object)
@@ -7652,7 +7949,7 @@ def LOOK(p,on_found=lambda: None):
     FOCUS(p,2)
     h.play() if d > 0.3 else None
     bui.apptimer(d, lambda: (None if pause() else SPARK(p), h.stop(), on_found()))
-def getpos(): return tuple([float(var(f'pos{i}')) for i in range(3)])
+def getpos(): return rnd(tuple([float(var(f'pos{i}')) for i in range(3)]))
 def rnd(p): return tuple([round(i,3) for i in p])
 def SND(s,p,v=3):
     with bs.get_foreground_host_activity().context: bs.getsound(s).play(v,position=p)
