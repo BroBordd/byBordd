@@ -144,10 +144,10 @@
         "mod_filename_base": "power"
     },
     {
-        "mod_name": "Proto",
-        "mod_fancy_name": "Your client bot",
-        "mod_version": "1.0",
-        "mod_description": "Experimental. Used for debugging and understanding client to server communication.\nStart by sending Proto() in dev console, or via settings UI.",
+        "mod_name": "proto (No Docstring)",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "No docstring found.",
         "api_version": 9,
         "mod_filename_base": "proto"
     },
