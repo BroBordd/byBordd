@@ -152,6 +152,14 @@
         "mod_filename_base": "proto"
     },
     {
+        "mod_name": "Public+",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "Because the current public tab is boring.\nAdds a new tab at the gather window.\nExperimental.",
+        "api_version": 9,
+        "mod_filename_base": "public_plus"
+    },
+    {
         "mod_name": "Replay",
         "mod_fancy_name": "Simple replay player",
         "mod_version": "3.0",
