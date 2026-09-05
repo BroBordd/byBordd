@@ -3,27 +3,11 @@
 # Discord >> @BrotherBoard
 
 """
-bauiv1x v1.2 - Ballistica UI Extended
+bauiv1x v3.5 - Ballistica UI Extended
 
 Experimental.
-
-Changelog v1.1:
-- Fixed Checkbox PULSE and COMET styles: they computed
-  `p = self.anim_t if self.value else 1.0 - self.anim_t`, which always
-  swept 0->1 regardless of toggle direction (since self.value is already
-  flipped before the animation starts). This made both check/uncheck
-  play the same "growing" animation and made the widget always settle
-  on the filled look, with no visible off state. Now uses `p = self.anim_t`
-  directly, same as every other checkbox style, so it correctly grows on
-  check and shrinks on uncheck.
-
-Changelog v1.2:
-- Shrunk the Android demo window height from 600 to 450, trimming the
-  ~200px of empty space that was left below the checkbox row (the last
-  content row). The checkbox row's bottom now lands at y=50, matching
-  the existing 50px side margins, instead of floating in the middle of
-  an oversized window.
 """
+
 
 import bauiv1 as bui
 
@@ -210,6 +194,893 @@ class SnackBar(Widget):
         )
 
     def dismiss(self):
+        self.transitioning_out = True
+        self.anim_finish = self.delete
+        self.anim_out()
+
+    def delete(self):
+        self.anim_timer = None
+        self.life_timer = None
+        self.root.delete()
+
+class Dialog(Widget):
+    """
+    A modal dialog box styled like a Windows 10 dialog box.
+
+    Flat rectangles throughout: a title bar strip up top with a close
+    button, a body area for the message, and a bottom-right button row.
+    The window body scales in from 0.85x to 1.0x centered on the
+    container's own center point while fading in; every other child
+    (border, titlebar, icon, text, buttons) only fades opacity, no
+    scale or position change.
+
+    parent: The current container
+    title: The title text shown in the title bar
+    text: The body text/message
+    action_label: The label of the confirm button
+    action_callback: The call of the confirm button (optional)
+    cancel_label: The label of the cancel button (optional, hides it if None)
+    cancel_callback: The call of the cancel button (optional)
+    color: The window body color
+    """
+    # win10-ish palette (white / black / grey only)
+    TITLEBAR_COL = (0.88, 0.88, 0.88)
+    BODY_COL = (0.94, 0.94, 0.94)
+    BORDER_COL = (0.6, 0.6, 0.6)
+    BTN_COL = (0.90, 0.90, 0.90)
+    BTN_BORDER_COL = (0.55, 0.55, 0.55)
+    BTN_ACCENT_COL = (0.75, 0.75, 0.75)  # grey accent for the default button
+    ICON_COL = (0.5, 0.5, 0.5)
+
+    # min/max scale for the background pop-in (win10 style: subtle, not 0)
+    BG_SCALE_MIN = 0.85
+    BG_SCALE_MAX = 1.0
+
+    def __init__(
+        self,
+        parent: bui.Widget | None = None,
+        title: str = 'Dialog',
+        text: str = '',
+        action_label: str = 'OK',
+        action_callback: Callable | None = None,
+        cancel_label: str | None = 'Cancel',
+        cancel_callback: Callable | None = None,
+        color: tuple[float, float, float] = BODY_COL
+    ):
+        # layout constants
+        pize = (420, 240)
+        margin = 16
+        titlebar_h = 36
+        btn_size = (100, 32)
+        btn_gap = 16
+        icon_size = titlebar_h * 0.7
+
+        # export
+        super().__init__()
+        self.parent = parent or bui.get_special_widget('overlay_stack')
+        self.size = pize
+        self.color = color
+
+        # root (no background - we draw our own rect below)
+        self.root = bui.containerwidget(
+            parent=self.parent,
+            transition='none',
+            size=pize,
+            background=False
+        )
+
+        # window body rect (fills root exactly) - this is the widget we
+        # scale+fade in; everything else only fades (opacity), no scale
+        self.bg_pize = pize
+        self.bg_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=pize,
+            position=(0, 0),
+            color=self.color,
+            opacity=0.0
+        )
+
+        # thin border rect (drawn slightly larger, behind body - approximate
+        # with a border-colored rect peeking out 1px on each edge)
+        self.border_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(pize[0] + 2, pize[1] + 2),
+            position=(-1, -1),
+            color=self.BORDER_COL,
+            opacity=0.0
+        )
+        self.border_fill_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=pize,
+            position=(0, 0),
+            color=self.color,
+            opacity=0.0
+        )
+
+        # titlebar strip
+        titlebar_y = pize[1] - titlebar_h
+        self.titlebar_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(pize[0], titlebar_h),
+            position=(0, titlebar_y),
+            color=self.TITLEBAR_COL,
+            opacity=0.0
+        )
+
+        # window icon (top-left of titlebar): a tiny rectangle face -
+        # square head, two square eyes, one line for a mouth
+        icon_head_x = margin * 0.5
+        icon_head_y = titlebar_y + (titlebar_h - icon_size) / 2
+        self.icon_head_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(icon_size, icon_size),
+            position=(icon_head_x, icon_head_y),
+            color=self.ICON_COL,
+            opacity=0.0
+        )
+        eye_size = icon_size * 0.16
+        eye_y = icon_head_y + icon_size * 0.58
+        eye_l_x = icon_head_x + icon_size * 0.22
+        eye_r_x = icon_head_x + icon_size * 0.62
+        self.icon_eye_l_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(eye_size, eye_size),
+            position=(eye_l_x, eye_y),
+            color=self.color,
+            opacity=0.0
+        )
+        self.icon_eye_r_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(eye_size, eye_size),
+            position=(eye_r_x, eye_y),
+            color=self.color,
+            opacity=0.0
+        )
+        mouth_w = icon_size * 0.55
+        mouth_h = icon_size * 0.09
+        mouth_x = icon_head_x + (icon_size - mouth_w) / 2
+        mouth_y = icon_head_y + icon_size * 0.2
+        self.icon_mouth_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(mouth_w, mouth_h),
+            position=(mouth_x, mouth_y),
+            color=self.color,
+            opacity=0.0
+        )
+
+        # titlebar text (starts right after the icon: x = icon's own
+        # margin doubled, plus the icon's width). Box kept tight to the
+        # available width (not full remaining titlebar) so default
+        # alignment doesn't visually drift the text away from title_x.
+        title_x = icon_head_x * 2 + icon_size - margin
+        title_w = pize[0] - title_x - margin - titlebar_h
+        self.title_col = (0.1, 0.1, 0.1)
+        self.title_widget = bui.textwidget(
+            parent=self.root,
+            position=(title_x, titlebar_y),
+            size=(title_w, titlebar_h),
+            text=title,
+            v_align='center',
+            maxwidth=title_w - 8,
+            scale=0.85,
+            color=(*self.title_col, 0.0)
+        )
+
+        # close button (square, top-right corner of titlebar, downscaled
+        # to 0.9x and inset so it doesn't bleed past the outer border)
+        close_size = titlebar_h * 0.9
+        close_inset = (titlebar_h - close_size) / 2
+        self.close_textcol = (0.1, 0.1, 0.1)
+        self.close_btn = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            color=self.TITLEBAR_COL,
+            textcolor=(*self.close_textcol, 0.0),
+            enable_sound=False,
+            size=(close_size, close_size),
+            position=(pize[0] - close_size - close_inset, titlebar_y + close_inset),
+            label=bui.charstr(
+                bui.SpecialChar.CLOSE
+            ),
+            on_activate_call=self.dismiss,
+            opacity=0.0
+        )
+
+        # body text: sized as the inner area from right under the
+        # titlebar down to right before the button row, vertically
+        # centered within that span (how Windows dialogs lay this out)
+        body_top = titlebar_y
+        body_bottom = btn_size[1] + margin*2
+        self.body_col = (0.15, 0.15, 0.15)
+        self.body_widget = bui.textwidget(
+            parent=self.root,
+            position=(margin, body_bottom),
+            size=(pize[0] - margin*2, body_top - body_bottom),
+            text=text,
+            h_align='left',
+            v_align='center',
+            maxwidth=pize[0] - margin*2,
+            color=(*self.body_col, 0.0)
+        )
+
+        # button row (bottom-right, win10 style)
+        btn_y = margin
+        rip = pize[0] - margin
+
+        self.cancel_btn = None
+        if cancel_label:
+            cancel_x = rip - btn_size[0]
+            self.cancel_textcol = (1, 1, 1)
+            self.cancel_btn = bui.buttonwidget(
+                parent=self.root,
+                texture=bui.gettexture('white'),
+                color=(0.45, 0.45, 0.45),
+                textcolor=(*self.cancel_textcol, 0.0),
+                enable_sound=False,
+                size=btn_size,
+                position=(cancel_x, btn_y),
+                label=cancel_label,
+                on_activate_call=bui.CallPartial(
+                    self.press, cancel_callback
+                ),
+                opacity=0.0
+            )
+            action_x = cancel_x - btn_gap - btn_size[0]
+        else:
+            action_x = rip - btn_size[0]
+
+        self.action_textcol = (1, 1, 1)
+        self.action_btn = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            color=(0.0, 0.0, 0.0),
+            textcolor=(*self.action_textcol, 0.0),
+            enable_sound=False,
+            size=btn_size,
+            position=(action_x, btn_y),
+            label=action_label,
+            on_activate_call=bui.CallPartial(
+                self.press, action_callback
+            ),
+            opacity=0.0
+        )
+
+        # finally
+        self.life_timer = bui.AppTimer(
+            0.01, lambda: (
+                not self and self.delete()
+            ), repeat=True
+        )
+        self.anim_timer = None
+        self.anim_in()
+
+    def anim_in(self):
+        # background pops in from BG_SCALE_MIN (e.g. 0.85x), not from 0 -
+        # win10 dialogs never actually collapse to a point
+        self.anim_start = self.BG_SCALE_MIN
+        self.anim_end = self.BG_SCALE_MAX
+        self.anim_apply(self.anim_start)
+        self.anim_fire()
+
+    def anim_out(self):
+        self.anim_start = self.BG_SCALE_MAX
+        self.anim_end = self.BG_SCALE_MIN
+        self.anim_fire()
+
+    def anim_fire(self):
+        self.anim_duration = 10
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(
+            1 / 60, self.anim_step, repeat=True
+        )
+
+    def anim_step(self):
+        if not self.root.exists():
+            self.anim_timer = None
+            return
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.anim_apply(self.anim_end)
+            if self.transitioning_out:
+                self.delete()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        value = self.lerp(self.anim_start, self.anim_end, eased_t)
+        self.anim_apply(value)
+
+    def anim_apply(self, t):
+        # background: scales from t*pize up to pize, position offset by
+        # POSITIVE half the shrunk-away width/height so the box stays
+        # centered on the container's own center point (not the corner),
+        # and fades in alongside the scale. Opacity here is driven by
+        # how far along the 0.85->1.0 scale range we are, not by t itself
+        # (t is a scale factor, not a 0..1 progress value).
+        scale_span = self.BG_SCALE_MAX - self.BG_SCALE_MIN
+        fade_t = (t - self.BG_SCALE_MIN) / scale_span if scale_span else 1.0
+        fade_t = max(0.0, min(1.0, fade_t))
+
+        bg_w = self.bg_pize[0] * t
+        bg_h = self.bg_pize[1] * t
+        extra_x = self.bg_pize[0] - bg_w
+        extra_y = self.bg_pize[1] - bg_h
+        bui.imagewidget(
+            self.bg_widget,
+            size=(bg_w, bg_h),
+            position=(extra_x/2, extra_y/2),
+            opacity=fade_t
+        )
+        # everything else: opacity-only fade, no scale, no position change
+        bui.imagewidget(self.border_widget, opacity=fade_t)
+        bui.imagewidget(self.border_fill_widget, opacity=fade_t)
+        bui.imagewidget(self.titlebar_widget, opacity=fade_t)
+        bui.imagewidget(self.icon_head_widget, opacity=fade_t)
+        bui.imagewidget(self.icon_eye_l_widget, opacity=fade_t)
+        bui.imagewidget(self.icon_eye_r_widget, opacity=fade_t)
+        bui.imagewidget(self.icon_mouth_widget, opacity=fade_t)
+        bui.textwidget(self.title_widget, color=(*self.title_col, fade_t))
+        bui.textwidget(self.body_widget, color=(*self.body_col, fade_t))
+        bui.buttonwidget(
+            self.close_btn,
+            opacity=fade_t,
+            textcolor=(*self.close_textcol, fade_t)
+        )
+        if self.cancel_btn:
+            bui.buttonwidget(
+                self.cancel_btn,
+                opacity=fade_t,
+                textcolor=(*self.cancel_textcol, fade_t)
+            )
+        bui.buttonwidget(
+            self.action_btn,
+            opacity=fade_t,
+            textcolor=(*self.action_textcol, fade_t)
+        )
+
+    def press(self, callback):
+        bui.getsound('deek').play()
+        if callback:
+            callback()
+        self.dismiss()
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
+        bui.getsound('deek').play()
+        self.transitioning_out = True
+        self.anim_out()
+
+    def delete(self):
+        self.anim_timer = None
+        self.life_timer = None
+        self.root.delete()
+
+class Toast(Widget):
+    """
+    A Windows 10 style toast notification, bottom-right corner
+
+    Same absolute-positioning hack as SnackBar (a probe widget
+    measures parent's own screen transform so position params work
+    in true virtual-screen coordinates no matter what parent is).
+    Unlike SnackBar: no edge-bleed background, no margin (virtual
+    screen size is already margined), and it doesn't slide - it only
+    fades in place. Children fade the same opacity-lerp way Dialog's
+    kids do, but only up to TOAST_OPACITY - Windows toasts are
+    translucent, never fully opaque. A win10-style button row sits
+    at the bottom, same idea as Dialog's - both buttons just dismiss
+    (an optional callback can run first on either one).
+
+    parent: The current container
+    title: The title text shown at the top
+    text: The body/inner text (supports \\n for multiple lines)
+    duration: How long to hold before auto-dismissing
+    action_label: Label of the primary (accent) button, hides if None
+    action_callback: Extra call fired before dismiss on the primary button
+    secondary_label: Label of the secondary button, hides if None
+    secondary_callback: Extra call fired before dismiss on the secondary button
+    """
+    TITLEBAR_COL = Dialog.TITLEBAR_COL
+    BODY_COL = Dialog.BODY_COL
+    BORDER_COL = Dialog.BORDER_COL
+    ICON_COL = Dialog.ICON_COL
+    BTN_COL = Dialog.BTN_COL
+    BTN_ACCENT_COL = Dialog.BTN_ACCENT_COL
+    TOAST_BTN_COL = (0.0, 0.0, 0.0)  # black overlay, not grey
+    TOAST_BTN_ALPHA = 0.15  # low alpha - subtle black tint, not solid
+    TOAST_OPACITY = 0.55  # win10 acrylic is quite see-through, not just a light fade
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        title: str = 'Notification',
+        text: str = 'This is a Toast!\nPick a button below to dismiss it.',
+        duration: float = 4,
+        action_label: str | None = 'Dismiss',
+        action_callback: Callable | None = None,
+        secondary_label: str | None = 'OK',
+        secondary_callback: Callable | None = None,
+        color: tuple[float, float, float] = BODY_COL
+    ):
+        # math (same hack as SnackBar)
+        cent = parent.get_screen_space_center()
+        virt = bui.get_virtual_screen_size()
+        that = (hack:=bui.textwidget(
+            parent=parent,
+            size=(0,0)
+        )).get_screen_space_center()
+        hack.delete()
+        pize = (
+            (cent[0]-that[0])*2,
+            (cent[1]-that[1])*2
+        )
+
+        # export
+        super().__init__()
+        self.duration = duration
+        self.parent = parent
+        self.color = color
+
+        # fixed size, no edge-bleed (unlike SnackBar's *1.4/*1.2 bg) -
+        # taller than before to fit the button row at the bottom
+        size = (360, 150)
+        self.size = size
+
+        # bottom-right corner, no margin (virt is already margined).
+        # right edge of the toast sits on the right edge of the virtual
+        # screen: base_x (left edge of screen, same constant SnackBar
+        # uses) is -virt[0]/2 + pize[0]/2 - cent[0]; the right edge is
+        # that plus a full virt[0], then back off by our own width.
+        self.root_x = virt[0]/2 + pize[0]/2 - size[0] - cent[0]
+        self.root_y = -virt[1]/2 + pize[1]/2 - cent[1]
+
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=size,
+            position=(self.root_x, self.root_y),
+            background=False
+        )
+
+        # window body (translucent - fades to TOAST_OPACITY, not 1.0)
+        self.bg_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=size,
+            position=(0, 0),
+            color=self.color,
+            opacity=0.0
+        )
+        self.border_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(size[0]+2, size[1]+2),
+            position=(-1, -1),
+            color=self.BORDER_COL,
+            opacity=0.0
+        )
+        self.border_fill_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=size,
+            position=(0, 0),
+            color=self.color,
+            opacity=0.0
+        )
+
+        # icon (same face bits as Dialog, scaled to this smaller window)
+        margin = 14
+        icon_size = 22
+        icon_x = margin * 0.5
+        icon_y = size[1] - icon_size - margin * 0.7
+        self.icon_head_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(icon_size, icon_size),
+            position=(icon_x, icon_y),
+            color=self.ICON_COL,
+            opacity=0.0
+        )
+        eye_size = icon_size * 0.16
+        eye_y = icon_y + icon_size * 0.58
+        eye_l_x = icon_x + icon_size * 0.22
+        eye_r_x = icon_x + icon_size * 0.62
+        self.icon_eye_l_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(eye_size, eye_size),
+            position=(eye_l_x, eye_y),
+            color=self.color,
+            opacity=0.0
+        )
+        self.icon_eye_r_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(eye_size, eye_size),
+            position=(eye_r_x, eye_y),
+            color=self.color,
+            opacity=0.0
+        )
+        mouth_w = icon_size * 0.55
+        mouth_h = icon_size * 0.09
+        mouth_x = icon_x + (icon_size - mouth_w) / 2
+        mouth_y = icon_y + icon_size * 0.2
+        self.icon_mouth_widget = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(mouth_w, mouth_h),
+            position=(mouth_x, mouth_y),
+            color=self.color,
+            opacity=0.0
+        )
+
+        # title text (right of icon)
+        title_x = icon_x * 2 + icon_size - margin
+        title_w = size[0] - title_x - margin
+        self.title_col = (0.1, 0.1, 0.1)
+        self.title_widget = bui.textwidget(
+            parent=self.root,
+            position=(title_x, icon_y),
+            size=(title_w, icon_size),
+            text=title,
+            v_align='center',
+            maxwidth=title_w - 8,
+            scale=0.8,
+            color=(*self.title_col, 0.0)
+        )
+
+        # button row - real win10 toast buttons span the full width:
+        # flush with the left/right margins (same margin used
+        # everywhere else) and flush with the bottom margin, with only
+        # a thin gap between the two buttons (smaller than the outer
+        # margins), and both buttons share the same (non-accent) color
+        btn_h = 32
+        btn_row_gap = 24  # gap between the two buttons - smaller than margin
+        btn_y = margin * 0.7
+        row_left = margin
+        row_right = size[0] - margin
+        row_w = row_right - row_left
+
+        if action_label and secondary_label:
+            btn_w = (row_w - btn_row_gap) / 2
+            action_x = row_left
+            secondary_x = row_left + btn_w + btn_row_gap
+        else:
+            btn_w = row_w
+            action_x = row_left
+            secondary_x = row_left
+        btn_size = (btn_w, btn_h)
+
+        self.action_btn = None
+        if action_label:
+            self.action_textcol = (0.1, 0.1, 0.1)
+            self.action_btn = bui.buttonwidget(
+                parent=self.root,
+                texture=bui.gettexture('white'),
+                color=self.TOAST_BTN_COL,
+                textcolor=(*self.action_textcol, 0.0),
+                enable_sound=False,
+                size=btn_size,
+                position=(action_x, btn_y),
+                label=action_label,
+                on_activate_call=bui.CallPartial(
+                    self.press, action_callback
+                ),
+                opacity=0.0
+            )
+
+        self.secondary_btn = None
+        if secondary_label:
+            self.secondary_textcol = (0.1, 0.1, 0.1)
+            self.secondary_btn = bui.buttonwidget(
+                parent=self.root,
+                texture=bui.gettexture('white'),
+                color=self.TOAST_BTN_COL,
+                textcolor=(*self.secondary_textcol, 0.0),
+                enable_sound=False,
+                size=btn_size,
+                position=(secondary_x, btn_y),
+                label=secondary_label,
+                on_activate_call=bui.CallPartial(
+                    self.press, secondary_callback
+                ),
+                opacity=0.0
+            )
+
+        # body/inner text (between the title row and the button row)
+        body_top = icon_y - 4
+        body_bottom = btn_size[1] + margin * 1.4
+        self.body_col = (0.15, 0.15, 0.15)
+        self.body_widget = bui.textwidget(
+            parent=self.root,
+            position=(margin, body_bottom),
+            size=(size[0] - margin*2, body_top - body_bottom),
+            text=text,
+            h_align='left',
+            v_align='center',
+            maxwidth=size[0] - margin*2,
+            color=(*self.body_col, 0.0)
+        )
+
+        # finally
+        self.life_timer = bui.AppTimer(
+            0.01, lambda: (
+                not self and self.delete()
+            ), repeat=True
+        )
+        self.anim_finish = self.standby
+        self.anim_in()
+
+    def anim_in(self):
+        self.anim_start = 0.0
+        self.anim_end = self.TOAST_OPACITY
+        self.anim_fire()
+
+    def standby(self):
+        self.anim_timer = bui.AppTimer(
+            self.duration, self.dismiss
+        )
+
+    def anim_out(self):
+        self.anim_start = self.TOAST_OPACITY
+        self.anim_end = 0.0
+        self.anim_fire()
+
+    def anim_fire(self):
+        self.anim_duration = 10
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(
+            1 / 60, self.anim_step, repeat=True
+        )
+
+    def anim_step(self):
+        if not self: return
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.anim_apply(self.anim_end)
+            self.anim_finish()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        value = self.lerp(self.anim_start, self.anim_end, eased_t)
+        self.anim_apply(value)
+
+    def anim_apply(self, t):
+        bui.imagewidget(self.bg_widget, opacity=t)
+        bui.imagewidget(self.border_widget, opacity=t)
+        bui.imagewidget(self.border_fill_widget, opacity=t)
+        bui.imagewidget(self.icon_head_widget, opacity=t)
+        bui.imagewidget(self.icon_eye_l_widget, opacity=t)
+        bui.imagewidget(self.icon_eye_r_widget, opacity=t)
+        bui.imagewidget(self.icon_mouth_widget, opacity=t)
+        # title fades in at double the normal opacity (reaches full
+        # readability twice as fast as everything else, capped at 1.0)
+        title_t = min(1.0, t * 2)
+        bui.textwidget(self.title_widget, color=(*self.title_col, title_t))
+        bui.textwidget(self.body_widget, color=(*self.body_col, t))
+
+        # button backgrounds: subtle low-alpha black overlay (not
+        # grey), fading in independent of the panel's TOAST_OPACITY.
+        # button text still fades in to full solid opacity so labels
+        # stay readable against the low-alpha black.
+        bg_ratio = min(1.0, t / self.TOAST_OPACITY) if self.TOAST_OPACITY else t
+        btn_bg_t = bg_ratio * self.TOAST_BTN_ALPHA
+        btn_text_t = bg_ratio
+        if self.secondary_btn:
+            bui.buttonwidget(
+                self.secondary_btn,
+                opacity=btn_bg_t,
+                textcolor=(*self.secondary_textcol, btn_text_t)
+            )
+        if self.action_btn:
+            bui.buttonwidget(
+                self.action_btn,
+                opacity=btn_bg_t,
+                textcolor=(*self.action_textcol, btn_text_t)
+            )
+
+    def press(self, callback):
+        bui.getsound('deek').play()
+        if callback:
+            callback()
+        self.dismiss()
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
+        self.transitioning_out = True
+        self.anim_finish = self.delete
+        self.anim_out()
+
+    def delete(self):
+        self.anim_timer = None
+        self.life_timer = None
+        self.root.delete()
+
+class AndroidToast(Widget):
+    """
+    A Material-style Android toast: a small pill/capsule with short
+    centered text, bottom-center of the screen, auto-dismissing.
+
+    Position math is cheated straight from Toast/SnackBar (the same
+    screen-space-probe hack so position lands in true virtual-screen
+    coordinates no matter what parent is, no margin needed since virt
+    is already margined). The capsule shape is cheated from Switch's
+    border rendering: two end-cap circles plus a rectangle between.
+
+    parent: The current container
+    text: The text shown inside the capsule
+    duration: How long to hold before auto-dismissing
+    color: Capsule background color
+    """
+    def __init__(
+        self,
+        parent: bui.Widget,
+        text: str = 'This is a toast!',
+        duration: float = 3,
+        color: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    ):
+        # math (same hack as Toast/SnackBar)
+        cent = parent.get_screen_space_center()
+        virt = bui.get_virtual_screen_size()
+        that = (hack:=bui.textwidget(
+            parent=parent,
+            size=(0,0)
+        )).get_screen_space_center()
+        hack.delete()
+        pize = (
+            (cent[0]-that[0])*2,
+            (cent[1]-that[1])*2
+        )
+
+        # export
+        super().__init__()
+        self.parent = parent
+        self.duration = duration
+        self.color = color
+
+        # size the capsule around the text - measure with
+        # get_string_width(text, True) (True = suppress_warning, the
+        # required 2nd arg). If that comes back 0 despite us having
+        # real text, assume it's broken and fall back to a flat
+        # 30px-per-character estimate instead.
+        text_w = bui.get_string_width(text, True)
+        if text_w <= 0 and text:
+            text_w = len(text) * 30
+
+        pad_x = 40
+        height = 50
+        maxwidth = virt[0] * 0.8
+        width = min(maxwidth, text_w + pad_x * 2)
+        size = (width, height)
+        self.size = size
+
+        # bottom-center: base_x (left edge of screen, same constant
+        # Toast/SnackBar use) plus half the leftover virt width to
+        # land the capsule centered; base_y is the bottom edge, no
+        # margin, same as Toast's y
+        base_x = -virt[0]/2 + pize[0]/2 - cent[0]
+        self.root_x = base_x + (virt[0] - width) / 2
+        self.root_y = -virt[1]/2 + pize[1]/2 - cent[1]
+
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=size,
+            position=(self.root_x, self.root_y),
+            background=False
+        )
+
+        # capsule shape (cheated from Switch's border pieces): two
+        # circle end-caps sized to the capsule's own height, plus a
+        # rectangle spanning the middle. starts invisible - fades in
+        # same as Toast's children.
+        self.cap_l = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, 0),
+            size=(height, height),
+            color=self.color,
+            opacity=0.0
+        )
+        self.cap_r = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(width - height, 0),
+            size=(height, height),
+            color=self.color,
+            opacity=0.0
+        )
+        self.body_widget_bg = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            color=self.color,
+            position=(height / 2, 0),
+            size=(width - height, height),
+            opacity=0.0
+        )
+
+        # centered text, maxwidth leaves the same padding used to
+        # size the capsule. also starts invisible - fades in with
+        # the capsule.
+        self.text_col = (1, 1, 1)
+        self.text_widget = bui.textwidget(
+            parent=self.root,
+            position=(0, 0),
+            size=size,
+            text=text,
+            h_align='center',
+            v_align='center',
+            maxwidth=max(1.0, width - pad_x * 2),
+            color=(*self.text_col, 0.0)
+        )
+
+        # finally - fade in, then hold for duration, then fade out
+        # and delete (same anim_finish handoff pattern as Toast)
+        self.life_timer = bui.AppTimer(
+            0.01, lambda: (
+                not self and self.delete()
+            ), repeat=True
+        )
+        self.anim_finish = self.standby
+        self.anim_in()
+
+    def anim_in(self):
+        self.anim_start = 0.0
+        self.anim_end = 1.0
+        self.anim_fire()
+
+    def standby(self):
+        self.anim_timer = bui.AppTimer(
+            self.duration, self.dismiss
+        )
+
+    def anim_out(self):
+        self.anim_start = 1.0
+        self.anim_end = 0.0
+        self.anim_fire()
+
+    def anim_fire(self):
+        self.anim_duration = 10
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(
+            1 / 60, self.anim_step, repeat=True
+        )
+
+    def anim_step(self):
+        if not self: return
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.anim_apply(self.anim_end)
+            self.anim_finish()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        value = self.lerp(self.anim_start, self.anim_end, eased_t)
+        self.anim_apply(value)
+
+    def anim_apply(self, t):
+        bui.imagewidget(self.cap_l, opacity=t)
+        bui.imagewidget(self.cap_r, opacity=t)
+        bui.imagewidget(self.body_widget_bg, opacity=t)
+        bui.textwidget(self.text_widget, color=(*self.text_col, t))
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
         self.transitioning_out = True
         self.anim_finish = self.delete
         self.anim_out()
@@ -1510,7 +2381,7 @@ class SeekBar(Widget):
     def seek(self, blip_indx):
         bui.getsound('deek').play()
         t = (blip_indx + 0.5) / self.blip_count
-        self.set_value(t)
+        self.animate_to(t)
         if self.on_seek:
             self.on_seek(t)
 
@@ -1525,6 +2396,31 @@ class SeekBar(Widget):
             self.thumb,
             position=self.thumb_pos(value)
         )
+
+    def animate_to(self, target, duration=12):
+        # smoothly lerps thumb position + fill size to target instead
+        # of snapping instantly, same ease_out timer pattern used
+        # elsewhere (ProgressBar.animate_to, indeterminate wave anim)
+        self.anim_val_start = self.value
+        self.anim_val_target = target
+        self.anim_val_indx = 0
+        self.anim_val_duration = max(1, duration)
+        self.anim_val_timer = bui.AppTimer(
+            1 / 60, self.anim_val_step, repeat=True
+        )
+
+    def anim_val_step(self):
+        if not self: return
+        self.anim_val_indx += 1
+        if self.anim_val_indx > self.anim_val_duration:
+            self.anim_val_timer = None
+            self.set_value(self.anim_val_target)
+            return
+
+        t = self.anim_val_indx / self.anim_val_duration
+        eased_t = self.ease_out(t)
+        value = self.lerp(self.anim_val_start, self.anim_val_target, eased_t)
+        self.set_value(value)
 
 class ProgressBar(Widget):
     """
@@ -1673,6 +2569,32 @@ class ProgressBar(Widget):
             self.fill,
             size=(max(0.0,chunk[0]*value-chunk[1]/2), chunk[1])
         )
+
+    def animate_to(self, target, duration=12):
+        # smoothly lerps the fill from its current value to target,
+        # same ease_out timer pattern as the indeterminate wave anim
+        if self.indeterminate:
+            return
+        self.anim_val_start = self.value
+        self.anim_val_target = target
+        self.anim_val_indx = 0
+        self.anim_val_duration = max(1, duration)
+        self.anim_val_timer = bui.AppTimer(
+            1 / 60, self.anim_val_step, repeat=True
+        )
+
+    def anim_val_step(self):
+        if not self: return
+        self.anim_val_indx += 1
+        if self.anim_val_indx > self.anim_val_duration:
+            self.anim_val_timer = None
+            self.set_value(self.anim_val_target)
+            return
+
+        t = self.anim_val_indx / self.anim_val_duration
+        eased_t = self.ease_out(t)
+        value = self.lerp(self.anim_val_start, self.anim_val_target, eased_t)
+        self.set_value(value)
 
     def anim_step(self):
         if not self: return
@@ -1845,7 +2767,7 @@ class DemoWindow:
             self.root,
             transition='out_left'
         )
-        y = 450
+        y = 520
         # root
         self.root = bui.containerwidget(
             parent=bui.get_special_widget(
@@ -1892,8 +2814,20 @@ class DemoWindow:
             flatness=-2,
             color=(0,0,0)
         )
-        # snackbar
+        # toast
         y -= 150
+        self.toast_btn = bui.buttonwidget(
+            parent=self.root,
+            position=(50,y),
+            size=(500,50),
+            label='Toast',
+            color=(1,1,1),
+            textcolor=(0,0,0),
+            on_activate_call=self.show_android_toast,
+            enable_sound=False
+        )
+        # snackbar
+        y -= 60
         self.android_btn = bui.buttonwidget(
             parent=self.root,
             position=(50,y),
@@ -1947,7 +2881,8 @@ class DemoWindow:
             parent=self.root,
             position=(50,y),
             size=(500,20),
-            value=0.3
+            value=0.3,
+            on_seek=lambda t: self.progress_widget_2.animate_to(1.0 - t)
         )
         # progress
         y -= 40
@@ -2064,6 +2999,39 @@ class DemoWindow:
             )
         )
 
+    def show_android_toast(self):
+        bui.getsound('deek').play()
+        existing = getattr(self, '_android_toast', None)
+        if existing and not existing.transitioning_out:
+            existing.dismiss()
+            return
+        self._android_toast = AndroidToast(
+            parent=self.root,
+            text='This is a toast!'
+        )
+
+    def show_dialog(self):
+        bui.getsound('deek').play()
+        Dialog(
+            parent=bui.get_special_widget('overlay_stack'),
+            title='Dialog',
+            text='This is a Dialog! Press a button below.',
+            action_label='OK',
+            cancel_label='Cancel'
+        )
+
+    def show_toast(self):
+        bui.getsound('deek').play()
+        existing = getattr(self, '_toast', None)
+        if existing:
+            existing.dismiss()
+            return
+        self._toast = Toast(
+            parent=self.root,
+            title='Notification',
+            text='This is a Toast!\nPick a button below to dismiss it.'
+        )
+
     def windows_demo(self):
         # bye
         bui.containerwidget(
@@ -2116,6 +3084,30 @@ class DemoWindow:
             scale=2,
             flatness=-2,
             color=(0,0,0)
+        )
+        # dialog
+        y -= 150
+        self.windows_btn = bui.buttonwidget(
+            parent=self.root,
+            position=(50,y),
+            size=(500,50),
+            label='Dialog',
+            color=(1,1,1),
+            textcolor=(0,0,0),
+            on_activate_call=self.show_dialog,
+            enable_sound=False
+        )
+        # toast
+        y -= 60
+        bui.buttonwidget(
+            parent=self.root,
+            position=(50,y),
+            size=(500,50),
+            label='Toast',
+            color=(1,1,1),
+            textcolor=(0,0,0),
+            on_activate_call=self.show_toast,
+            enable_sound=False
         )
 
     def ios_demo(self):
@@ -2184,3 +3176,4 @@ class Demo(bui.Plugin):
         DemoWindow(src)
     def on_app_running(self):
         bui.apptimer(1,DemoWindow)
+
