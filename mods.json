@@ -176,6 +176,14 @@
         "mod_filename_base": "ueye"
     },
     {
+        "mod_name": "bauiv1x",
+        "mod_fancy_name": "Ballistica UI Extended",
+        "mod_version": "1.0",
+        "mod_description": "Experimental.",
+        "api_version": 9,
+        "mod_filename_base": "bauiv1x"
+    },
+    {
         "mod_name": "BitBox",
         "mod_fancy_name": "Bored me brings bits to the game",
         "mod_version": "1.0",
