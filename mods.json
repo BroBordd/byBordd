@@ -178,8 +178,8 @@
     {
         "mod_name": "bauiv1x",
         "mod_fancy_name": "Ballistica UI Extended",
-        "mod_version": "1.0",
-        "mod_description": "Experimental.",
+        "mod_version": "1.2",
+        "mod_description": "Experimental.\n\nChangelog v1.1:\n- Fixed Checkbox PULSE and COMET styles: they computed\n  `p = self.anim_t if self.value else 1.0 - self.anim_t`, which always\n  swept 0->1 regardless of toggle direction (since self.value is already\n  flipped before the animation starts). This made both check/uncheck\n  play the same \"growing\" animation and made the widget always settle\n  on the filled look, with no visible off state. Now uses `p = self.anim_t`\n  directly, same as every other checkbox style, so it correctly grows on\n  check and shrinks on uncheck.\n\nChangelog v1.2:\n- Shrunk the Android demo window height from 600 to 450, trimming the\n  ~200px of empty space that was left below the checkbox row (the last\n  content row). The checkbox row's bottom now lands at y=50, matching\n  the existing 50px side margins, instead of floating in the middle of\n  an oversized window.",
         "api_version": 9,
         "mod_filename_base": "bauiv1x"
     },
