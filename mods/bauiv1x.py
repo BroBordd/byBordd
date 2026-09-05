@@ -269,7 +269,7 @@ class Switch(Widget):
                 size[1]
             )
         )
-        # style build
+        # style
         getattr(self, f'wear_{self.style.name.lower()}')()
         # listener
         self.button = bui.buttonwidget(
@@ -808,6 +808,388 @@ class Switch(Widget):
             color=juice
         )
 
+class Checkbox(Widget):
+    """
+    A checkbox with a couple different Android-style fill animations
+
+    parent: The current container
+    size: How big the box is (square)
+    position: Where it sits
+    value: Starting checked state
+    style: Which fill/border technique to use
+    color: The fill color once checked (border is always black,
+        the empty interior and checkmark use the inverse tone)
+    on_value_change: Called with the new bool value on toggle
+    """
+    class Style(IntEnum):
+        SQUARE = 0
+        RADIAL = 1
+        SWEEP_H = 2
+        SWEEP_V = 3
+        FADE = 4
+        CORNER = 5
+        BOUNCE = 6
+        RING = 7
+        RIPPLE = 8
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        size: tuple[float, float] = (40,40),
+        position: tuple[float, float] = (0,0),
+        value: bool = False,
+        style: int = Style.SQUARE,
+        color: tuple[float, float, float] = (0,0,0),
+        on_value_change: Callable[[bool], None] | None = None
+    ):
+        # export
+        super().__init__()
+        self.parent = parent
+        self.size = size
+        self.value = value
+        self.anim_t = 1.0 if value else 0.0
+        self.style = Checkbox.Style(style)
+        self.color = color
+        self.on_value_change = on_value_change
+        # against
+        self.against = tuple(1.0 - c for c in color)
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=size,
+            background=False,
+            position=position
+        )
+        self.thick = size[0] * 0.09
+        self.outer = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=size,
+            position=(0,0),
+            color=(0,0,0)
+        )
+        # empty
+        self.inner_size = (size[0]-self.thick*2, size[1]-self.thick*2)
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=self.inner_size,
+            position=(self.thick, self.thick),
+            color=self.against
+        )
+        # fill
+        getattr(self, f'wear_{self.style.name.lower()}')()
+        # check
+        self.has_check = self.style in (
+            Checkbox.Style.SWEEP_H, Checkbox.Style.SWEEP_V
+        )
+        self.dots = []
+        if self.has_check:
+            res = 40
+            self.pts = [(0.22,0.55),(0.42,0.30),(0.80,0.68)]
+            self.dot = size[0] * 0.09
+            for i in range(res):
+                t = i / (res-1)
+                seg = t * (len(self.pts)-1)
+                a = self.pts[int(seg)]
+                b = self.pts[min(int(seg)+1, len(self.pts)-1)]
+                f = seg - int(seg)
+                px = self.lerp(a[0], b[0], f)
+                py = self.lerp(a[1], b[1], f)
+                dx = px * size[0] - self.dot/2
+                dy = py * size[1] - self.dot/2
+                d = bui.imagewidget(
+                    parent=self.root,
+                    texture=bui.gettexture('circle'),
+                    position=(dx, dy),
+                    size=(self.dot, self.dot),
+                    color=self.against,
+                    opacity=self.anim_t
+                )
+                self.dots.append(d)
+        # listener
+        self.button = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('empty'),
+            enable_sound=False,
+            label='',
+            size=size,
+            position=(0,0),
+            on_activate_call=self.toggle
+        )
+        # finally
+        self.anim_timer = None
+
+    @staticmethod
+    def lerp_col(a, b, t):
+        return tuple(
+            Widget.lerp(a[i], b[i], t) for i in range(3)
+        )
+
+    def toggle(self):
+        bui.getsound('deek').play()
+        self.value = not self.value
+        self.anim_start = self.anim_t
+        self.anim_end = 1.0 if self.value else 0.0
+        self.anim_fire()
+        if self.on_value_change:
+            self.on_value_change(self.value)
+
+    def anim_fire(self):
+        self.anim_duration = 6 if self.value else 10
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(
+            1 / 60, self.anim_step, repeat=True
+        )
+
+    def anim_step(self):
+        if not self: return
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.anim_t = self.anim_end
+            self.anim_apply()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        self.anim_t = self.lerp(self.anim_start, self.anim_end, eased_t)
+        self.anim_apply()
+
+    def anim_apply(self):
+        getattr(self, f'wiggle_{self.style.name.lower()}')()
+        if self.has_check:
+            for d in self.dots:
+                bui.imagewidget(d, opacity=self.anim_t)
+
+    # square
+    def wear_square(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0] * 0.6, self.anim_t)
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(d, d),
+            position=(
+                size[0]/2 - d/2,
+                size[1]/2 - d/2
+            ),
+            color=self.color
+        )
+
+    def wiggle_square(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0] * 0.6, self.anim_t)
+        bui.imagewidget(
+            self.fill,
+            size=(d, d),
+            position=(
+                size[0]/2 - d/2,
+                size[1]/2 - d/2
+            )
+        )
+
+    # fade
+    def wear_fade(self):
+        size = self.size
+        d = self.inner_size[0] * 0.6
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(d, d),
+            position=(
+                size[0]/2 - d/2,
+                size[1]/2 - d/2
+            ),
+            color=self.color,
+            opacity=self.anim_t
+        )
+
+    def wiggle_fade(self):
+        bui.imagewidget(self.fill, opacity=self.anim_t)
+
+    # corner
+    def wear_corner(self):
+        d = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        pos = (
+            self.thick + self.inner_size[0] - d,
+            self.thick + self.inner_size[1] - d
+        )
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(d, d),
+            position=pos,
+            color=self.color
+        )
+
+    def wiggle_corner(self):
+        d = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        pos = (
+            self.thick + self.inner_size[0] - d,
+            self.thick + self.inner_size[1] - d
+        )
+        bui.imagewidget(self.fill, size=(d, d), position=pos)
+
+    # radial
+    def wear_radial(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            size=(d, d),
+            position=(
+                size[0]/2 - d/2,
+                size[1]/2 - d/2
+            ),
+            color=self.color
+        )
+
+    def wiggle_radial(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        bui.imagewidget(
+            self.fill,
+            size=(d, d),
+            position=(
+                size[0]/2 - d/2,
+                size[1]/2 - d/2
+            )
+        )
+
+    # sweep_h
+    def wear_sweep_h(self):
+        w = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        x = self.thick + self.inner_size[0] - w
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(w, self.inner_size[1]),
+            position=(x, self.thick),
+            color=self.color
+        )
+
+    def wiggle_sweep_h(self):
+        w = self.lerp(0.0, self.inner_size[0], self.anim_t)
+        x = self.thick + self.inner_size[0] - w
+        bui.imagewidget(self.fill, size=(w, self.inner_size[1]), position=(x, self.thick))
+
+    # sweep_v
+    def wear_sweep_v(self):
+        h = self.lerp(0.0, self.inner_size[1], self.anim_t)
+        y = self.thick + self.inner_size[1] - h
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(self.inner_size[0], h),
+            position=(self.thick, y),
+            color=self.color
+        )
+
+    def wiggle_sweep_v(self):
+        h = self.lerp(0.0, self.inner_size[1], self.anim_t)
+        y = self.thick + self.inner_size[1] - h
+        bui.imagewidget(self.fill, size=(self.inner_size[0], h), position=(self.thick, y))
+
+    # bounce
+    @staticmethod
+    def ease_back(t):
+        c1 = 1.70158
+        c3 = c1 + 1
+        return 1 + c3 * (t - 1) ** 3 + c1 * (t - 1) ** 2
+
+    def wear_bounce(self):
+        size = self.size
+        d = self.inner_size[0] * 0.6 * self.ease_back(self.anim_t)
+        d = max(0.0, d)
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(d, d),
+            position=(size[0]/2 - d/2, size[1]/2 - d/2),
+            color=self.color
+        )
+
+    def wiggle_bounce(self):
+        size = self.size
+        d = self.inner_size[0] * 0.6 * self.ease_back(self.anim_t)
+        d = max(0.0, d)
+        bui.imagewidget(
+            self.fill,
+            size=(d, d),
+            position=(size[0]/2 - d/2, size[1]/2 - d/2)
+        )
+
+    # ring
+    def wear_ring(self):
+        size = self.size
+        D = self.inner_size[0]
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            size=(D, D),
+            position=(size[0]/2 - D/2, size[1]/2 - D/2),
+            color=self.color
+        )
+        hd = self.lerp(D, 0.0, self.anim_t)
+        self.hole = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            size=(hd, hd),
+            position=(size[0]/2 - hd/2, size[1]/2 - hd/2),
+            color=self.against
+        )
+
+    def wiggle_ring(self):
+        size = self.size
+        D = self.inner_size[0]
+        hd = self.lerp(D, 0.0, self.anim_t)
+        bui.imagewidget(
+            self.hole,
+            size=(hd, hd),
+            position=(size[0]/2 - hd/2, size[1]/2 - hd/2)
+        )
+
+    # ripple
+    def wear_ripple(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0] * 0.6, self.anim_t)
+        self.fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(d, d),
+            position=(size[0]/2 - d/2, size[1]/2 - d/2),
+            color=self.color
+        )
+        rd = self.lerp(0.0, size[0] * 1.6, self.anim_t)
+        ro = (1.0 - self.anim_t) if self.value else 0.0
+        self.ripple = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            size=(rd, rd),
+            position=(size[0]/2 - rd/2, size[1]/2 - rd/2),
+            color=self.color,
+            opacity=ro
+        )
+
+    def wiggle_ripple(self):
+        size = self.size
+        d = self.lerp(0.0, self.inner_size[0] * 0.6, self.anim_t)
+        bui.imagewidget(
+            self.fill,
+            size=(d, d),
+            position=(size[0]/2 - d/2, size[1]/2 - d/2)
+        )
+        rd = self.lerp(0.0, size[0] * 1.6, self.anim_t)
+        ro = (1.0 - self.anim_t) if self.value else 0.0
+        bui.imagewidget(
+            self.ripple,
+            size=(rd, rd),
+            position=(size[0]/2 - rd/2, size[1]/2 - rd/2),
+            opacity=ro
+        )
+
 class SeekBar(Widget):
     """
     A bar you can tap/drag to jump to a position
@@ -867,7 +1249,7 @@ class SeekBar(Widget):
             position=(pize[1]/2,0),
             size=(pize[0]-pize[1],pize[1])
         )
-        # empty (inset grey space between border and fill)
+        # empty
         rim = pize[1] * 0.12
         chunk = (pize[0]-rim*2, pize[1]-rim*2)
         chunk_y = rim
@@ -911,7 +1293,7 @@ class SeekBar(Widget):
             position=(rim+chunk[1]/2,chunk_y),
             size=(max(0.0,chunk[0]*self.value-chunk[1]/2),chunk[1])
         )
-        # thumb (the classic big circle showing this is clickable)
+        # thumb
         self.thumb_size = pize[1] * 1.5
         self.thumb = bui.imagewidget(
             parent=self.root,
@@ -946,6 +1328,7 @@ class SeekBar(Widget):
         )
 
     def seek(self, blip_indx):
+        bui.getsound('deek').play()
         t = (blip_indx + 0.5) / self.blip_count
         self.set_value(t)
         if self.on_seek:
@@ -1020,7 +1403,7 @@ class ProgressBar(Widget):
             position=(pize[1]/2,0),
             size=(pize[0]-pize[1],pize[1])
         )
-        # empty (inset grey space between border and fill)
+        # empty
         rim = pize[1] * 0.12
         chunk = (pize[0]-rim*2, pize[1]-rim*2)
         chunk_y = rim
@@ -1066,8 +1449,7 @@ class ProgressBar(Widget):
             position=(rim+chunk[1]/2,chunk_y),
             size=(max(0.0,chunk[0]*chunk_t-chunk[1]/2),chunk[1])
         )
-        # chunk (indeterminate only, the edge caps that ride the
-        # wave's tail and head edges)
+        # chunk
         self.wave_l = None
         self.wave_r = None
         self.wave_h = None
@@ -1117,18 +1499,14 @@ class ProgressBar(Widget):
         rim = self.rim
         chunk = self.chunk
         chunk_y = self.chunk_y
-        # radius of the rounded caps, in inner-chunk space, so the
-        # square fill texture's corners never poke past the round
-        # ends: travel is clamped inward by this much on both sides
+        # radius
         radius = chunk[1] / 2
 
         self.anim_indx += 1
         loop = 100
         t = (self.anim_indx % loop) / loop
 
-        # head races out ahead, tail chases and eats it, so the wave
-        # grows then shrinks as it slides across, like the material
-        # indeterminate spec (google sign-in nougat bars, but material)
+        # wave
         head_t = self.ease_out(min(1.0, t*1.6))
         tail_t = self.ease_out(max(0.0, (t-0.35)*1.55))
 
@@ -1136,15 +1514,12 @@ class ProgressBar(Widget):
         tail = self.lerp(0.0, 1.0, tail_t)
         head = max(head, tail)
 
-        # map 0..1 onto the inset travel range instead of the full
-        # chunk width, so head/tail never cross into the cap circles
+        # span
         span = chunk[0] - radius*2
         head_px = rim + radius + span*head
         tail_px = rim + radius + span*tail
         w = max(0.0, head_px-tail_px)
-        # once the fill would shrink down to (or past) a square, the
-        # two edge caps already fully cover that space - so don't let
-        # it shrink further, just cut it instantly with no animation
+        # clamp
         w_drawn = w if w > chunk[1] else 0.0
 
         bui.imagewidget(
@@ -1152,22 +1527,17 @@ class ProgressBar(Widget):
             position=(tail_px,chunk_y),
             size=(w_drawn,chunk[1])
         )
-        # left cap: stays put covering the seam until the tail
-        # actually lifts off the left edge, so there's no gap before
-        # the bar starts moving
+        # leftcap
+        fade_span_l = 0.05
+        alpha_l = 1.0 if tail <= 0.0 else max(0.0, 1.0 - tail/fade_span_l)
         bui.imagewidget(
             self.wave_l,
-            opacity=1.0 if tail <= 0.0 else 0.0
+            opacity=alpha_l
         )
-        # right cap: sticks to the fill's own LEFT (tail) edge the
-        # whole time it's moving, offset inward by half its own width
-        # so it sits centered on that edge - this is the edge that
-        # touches the right wall last, so it rides the whole trip
+        # rightcap
         right_wall = rim + chunk[0] - radius
         cap_x = min(tail_px, right_wall) - radius
-        # fades out instead of hard-cutting: full life is the same
-        # half-hold window as before, but the last chunk of it eases
-        # opacity down to 0 rather than snapping
+        # fade
         hold_start = 0.625
         hold_end = 1.0
         hold_mid = hold_start + (hold_end - hold_start) / 2 + 0.072
@@ -1175,16 +1545,19 @@ class ProgressBar(Widget):
         fade_t = 1.0
         if t >= hold_mid - fade_span:
             fade_t = max(0.0, (hold_mid - t) / fade_span)
-        alpha = fade_t if w > 0.0 else 0.0
-        bui.imagewidget(
-            self.wave_r,
-            position=(cap_x, chunk_y),
-            opacity=alpha
-        )
-        # head cap: same idea, but rides the fill's own RIGHT (head)
-        # edge instead - same inward offset, same fade-out behaviour
+        # headpos
         left_wall = rim + radius
         cap_h_x = max(head_px, left_wall) - radius
+        # tailcap
+        merge_t = self.ease_out(max(0.0, min(1.0, 1.0 - fade_t)))
+        cap_x_merged = self.lerp(cap_x, cap_h_x, merge_t)
+        alpha = (1.0 - merge_t) if w > 0.0 else 0.0
+        bui.imagewidget(
+            self.wave_r,
+            position=(cap_x_merged, chunk_y),
+            opacity=alpha
+        )
+        # headcap
         alpha_h = fade_t if w > 0.0 else 0.0
         bui.imagewidget(
             self.wave_h,
@@ -1384,7 +1757,7 @@ class DemoWindow:
             style=Switch.Style.ICON
         )
         # seekbar
-        y -= 70
+        y -= 40
         self.seekbar_widget = SeekBar(
             parent=self.root,
             position=(50,y),
@@ -1392,7 +1765,7 @@ class DemoWindow:
             value=0.3
         )
         # progress
-        y -= 50
+        y -= 40
         self.progress_widget = ProgressBar(
             parent=self.root,
             position=(50,y),
@@ -1400,12 +1773,92 @@ class DemoWindow:
             indeterminate=True
         )
         # progress2
-        y -= 50
+        y -= 40
         self.progress_widget_2 = ProgressBar(
             parent=self.root,
             position=(50,y),
             size=(500,20),
             value=0.6
+        )
+        # checkbox
+        y -= 60
+        size = (40,40)
+        lip = 50
+        rip = 550
+        goo = rip - lip - size[0]
+        blorp = 9
+        gap = goo / (blorp - 1)
+        self.checkbox_widget = Checkbox(
+            parent=self.root,
+            position=(lip + gap*0, y),
+            size=size,
+            style=Checkbox.Style.SQUARE,
+            value=True,
+            color=(0,0,0)
+        )
+        self.checkbox_widget_2 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*1, y),
+            size=size,
+            style=Checkbox.Style.RADIAL,
+            value=True,
+            color=(1,1,1)
+        )
+        self.checkbox_widget_3 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*2, y),
+            size=size,
+            style=Checkbox.Style.SWEEP_H,
+            value=True,
+            color=(0,0,0)
+        )
+        self.checkbox_widget_4 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*3, y),
+            size=size,
+            style=Checkbox.Style.SWEEP_V,
+            value=True,
+            color=(1,1,1)
+        )
+        self.checkbox_widget_5 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*4, y),
+            size=size,
+            style=Checkbox.Style.FADE,
+            value=True,
+            color=(0,0,0)
+        )
+        self.checkbox_widget_6 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*5, y),
+            size=size,
+            style=Checkbox.Style.CORNER,
+            value=True,
+            color=(1,1,1)
+        )
+        self.checkbox_widget_7 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*6, y),
+            size=size,
+            style=Checkbox.Style.BOUNCE,
+            value=True,
+            color=(0,0,0)
+        )
+        self.checkbox_widget_8 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*7, y),
+            size=size,
+            style=Checkbox.Style.RING,
+            value=True,
+            color=(1,1,1)
+        )
+        self.checkbox_widget_9 = Checkbox(
+            parent=self.root,
+            position=(lip + gap*8, y),
+            size=size,
+            style=Checkbox.Style.RIPPLE,
+            value=True,
+            color=(0,0,0)
         )
 
     def show_snackbar(self):
