@@ -203,6 +203,234 @@ class SnackBar(Widget):
         self.life_timer = None
         self.root.delete()
 
+class SidePane(Widget):
+    """
+    A Windows 10 style sliding navigation drawer shell.
+
+    Anchors to the left virtual screen edge and slides horizontally into view.
+    Fills negative X and vertical Y to bleed past screen boundaries.
+    Provides the frame and exposes layout helpers so callers can populate
+    custom widgets inside.
+
+    parent: The current container
+    title: Top header label (visually flush at x=0 via scale offset)
+    text: Optional description/subtext (visually flush at x=0 via scale offset)
+    width: Width of the visible panel (default: 300)
+    color: Background color of the pane (pure black by default)
+    """
+    BG_COL = (0.0, 0.0, 0.0)             # Pure black background
+    BORDER_COL = (0.22, 0.22, 0.22)      # Separator / border line
+    ITEM_COL = (0.12, 0.12, 0.12)        # Button background
+    ACCENT_COL = (0.0, 0.47, 0.84)       # Windows 10 Accent Blue
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        title: str = 'SidePane',
+        text: str | None = None,
+        width: float = 300,
+        color: tuple[float, float, float] = BG_COL
+    ):
+        # 1. Screen probe math (exact SnackBar hack)
+        cent = parent.get_screen_space_center()
+        virt = bui.get_virtual_screen_size()
+        that = (hack := bui.textwidget(
+            parent=parent,
+            size=(0, 0)
+        )).get_screen_space_center()
+        hack.delete()
+        pize = (
+            (cent[0] - that[0]) * 2,
+            (cent[1] - that[1]) * 2
+        )
+
+        super().__init__()
+        self.parent = parent
+        self.color = color
+        self.size = (width, virt[1])
+
+        # 2. Position math (starts offscreen to the left)
+        base_x = -virt[0] / 2 + pize[0] / 2 - cent[0]
+        base_y = -virt[1] / 2 + pize[1] / 2 - cent[1]
+
+        self.root_x = base_x - self.size[0] * 1.5
+        self.root_y = base_y
+
+        # Root container
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=self.size,
+            position=(self.root_x, self.root_y),
+            background=False
+        )
+
+        # 3. Background bleed (multiplier-based, increased X size)
+        bg_mult_x = 1.9
+        bg_w = self.size[0] * bg_mult_x
+        bleed_x = bg_w - self.size[0]
+        bleed_y = self.size[1] * 0.25
+
+        self.background = bui.imagewidget(
+            parent=self.root,
+            size=(
+                bg_w,
+                self.size[1] + bleed_y * 2
+            ),
+            position=(
+                -bleed_x,
+                -bleed_y
+            ),
+            texture=bui.gettexture('white'),
+            color=self.color
+        )
+
+        # 1px right border
+        bui.imagewidget(
+            parent=self.root,
+            size=(1.5, self.size[1] + bleed_y * 2),
+            position=(self.size[0], -bleed_y),
+            texture=bui.gettexture('white'),
+            color=self.BORDER_COL
+        )
+
+        # 4. Header layout with scale-based X offset
+        top_y = self.size[1] - 46
+        close_size = 32
+
+        # Scale-based compensation: counteracts center-origin scaling
+        title_scale = 1.4
+        title_max_w = self.size[0] - close_size - 14
+        title_offset_x = (title_scale - 1.0) * (title_max_w / 2.0)
+
+        # Title: bigger, visual left at x=0 (no h_align)
+        bui.textwidget(
+            parent=self.root,
+            position=(title_offset_x, top_y),
+            size=(title_max_w, 36),
+            text=title,
+            scale=title_scale,
+            color=(1, 1, 1),
+            v_align='center',
+            maxwidth=title_max_w
+        )
+
+        # Close button top-right
+        bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            color=self.ITEM_COL,
+            textcolor=(1, 1, 1),
+            enable_sound=False,
+            size=(close_size, close_size),
+            position=(self.size[0] - close_size - 8, top_y + 2),
+            label=bui.charstr(bui.SpecialChar.CLOSE),
+            on_activate_call=self.dismiss
+        )
+
+        curr_y = top_y - 6
+
+        # Desc: smaller, grey, visual left pushed back to x=0 (no h_align)
+        if text:
+            curr_y -= 30
+            desc_scale = 0.75
+            desc_w = self.size[0] - 8
+            desc_offset_x = (desc_scale - 1.0) * (desc_w / 2.0)
+
+            bui.textwidget(
+                parent=self.root,
+                position=(desc_offset_x, curr_y),
+                size=(desc_w, 28),
+                text=text,
+                scale=desc_scale,
+                color=(0.6, 0.6, 0.6),
+                v_align='top',
+                maxwidth=desc_w
+            )
+
+        # Header separator
+        curr_y -= 12
+        bui.imagewidget(
+            parent=self.root,
+            size=(self.size[0], 1.5),
+            position=(0, curr_y),
+            texture=bui.gettexture('white'),
+            color=self.BORDER_COL
+        )
+
+        # Expose layout properties for callers to build on
+        self.margin = 16
+        self.content_w = self.size[0] - self.margin * 2
+        self.curr_y = curr_y
+
+        # 5. Lifecycle & Animation
+        self.life_timer = bui.AppTimer(
+            0.01, lambda: (
+                not self and self.delete()
+            ), repeat=True
+        )
+        self.anim_finish = None
+        self.anim_in()
+
+    def anim_in(self):
+        self.anim_buff = 0.0
+        self.anim_start = 0.0
+        self.anim_end = self.size[0] * 1.5
+        self.anim_fire()
+
+    def anim_out(self):
+        self.anim_start = self.anim_buff
+        self.anim_end = 0.0
+        self.anim_fire()
+
+    def anim_fire(self):
+        self.anim_duration = 20
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(
+            1 / 60, self.anim_step, repeat=True
+        )
+
+    def anim_step(self):
+        if not self:
+            return
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.anim_buff = self.anim_end
+            if self.anim_finish:
+                self.anim_finish()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        self.anim_buff = self.lerp(self.anim_start, self.anim_end, eased_t)
+
+        bui.containerwidget(
+            self.root,
+            position=(
+                self.root_x + self.anim_buff,
+                self.root_y
+            )
+        )
+
+    def press(self, callback):
+        bui.getsound('deek').play()
+        if callback:
+            callback()
+        self.dismiss()
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
+        bui.getsound('deek').play()
+        self.transitioning_out = True
+        self.anim_finish = self.delete
+        self.anim_out()
+
+    def delete(self):
+        self.anim_timer = None
+        self.life_timer = None
+        self.root.delete()
+
 class Dialog(Widget):
     """
     A modal dialog box styled like a Windows 10 dialog box.
@@ -2260,7 +2488,8 @@ class SeekBar(Widget):
         value: float = 0.0,
         segments: int = 40,
         color: tuple[float, float, float] = (1,1,1),
-        on_seek: Callable[[float], None] | None = None
+        on_seek: Callable[[float], None] | None = None,
+        thumb_color: tuple[float, float, float] = (0,0,0)
     ):
         # export
         super().__init__()
@@ -2351,7 +2580,7 @@ class SeekBar(Widget):
             texture=bui.gettexture('circle'),
             position=self.thumb_pos(self.value),
             size=(self.thumb_size,self.thumb_size),
-            color=border_col
+            color=thumb_color
         )
         # sensors
         self.blip_count = segments
@@ -3108,6 +3337,182 @@ class DemoWindow:
             textcolor=(0,0,0),
             on_activate_call=self.show_toast,
             enable_sound=False
+        )
+        # sidepane
+        y -= 60
+        bui.buttonwidget(
+            parent=self.root,
+            position=(50,y),
+            size=(500,50),
+            label='SidePane',
+            color=(1,1,1),
+            textcolor=(0,0,0),
+            on_activate_call=self.show_sidepane,
+            enable_sound=False
+        )
+
+    def show_sidepane(self):
+        bui.getsound('deek').play()
+        existing = getattr(self, '_sidepane', None)
+        if existing and not existing.transitioning_out:
+            existing.dismiss()
+            return
+
+        # 1. Instantiate the SidePane shell
+        pane = SidePane(
+            parent=self.root,
+            title='SidePane',
+            text='Customize settings and preferences.'
+        )
+        self._sidepane = pane
+
+        # Layout metrics exposed by pane
+        margin = pane.margin
+        content_w = pane.content_w
+        curr_y = pane.curr_y
+
+        # Helper: counters Ballistica's center-origin scaling so visual left aligns at x
+        def text_scale_x(base_x: float, width: float, scale: float) -> float:
+            return base_x + (scale - 1.0) * (width / 2.0)
+
+        # ----------------------------------------------------
+        # 2. CHECKBOXES (Style.SQUARE on right, text on left)
+        # ----------------------------------------------------
+        chk_size = (30, 30)
+        items = ['Unlock Greatness', 'Be Happy', 'Thrive']
+        chk_text_scale = 0.85
+        chk_text_w = content_w - chk_size[0] - 10
+        chk_text_x = text_scale_x(margin, chk_text_w, chk_text_scale)
+
+        for label in items:
+            curr_y -= 44
+            # Text visually flush at margin
+            bui.textwidget(
+                parent=pane.root,
+                position=(chk_text_x, curr_y),
+                size=(chk_text_w, chk_size[1]),
+                text=label,
+                scale=chk_text_scale,
+                color=(0.95, 0.95, 0.95),
+                v_align='center',
+                maxwidth=chk_text_w
+            )
+            # Checkbox on the right
+            Checkbox(
+                parent=pane.root,
+                position=(margin + content_w - chk_size[0], curr_y),
+                size=chk_size,
+                style=Checkbox.Style.SQUARE,
+                value=True,
+                color=(0, 0, 0)
+            )
+
+        # ----------------------------------------------------
+        # 3. SEPARATOR
+        # ----------------------------------------------------
+        curr_y -= 16
+        bui.imagewidget(
+            parent=pane.root,
+            size=(content_w, 1.5),
+            position=(margin, curr_y),
+            texture=bui.gettexture('white'),
+            color=pane.BORDER_COL
+        )
+
+        # ----------------------------------------------------
+        # 4. TWO BUTTONS: CLOSE & DISMISS (with margin between)
+        # ----------------------------------------------------
+        curr_y -= 46
+        btn_gap = 14  # Generous gap so buttons do not touch
+        btn_w = (content_w - btn_gap) / 2
+        btn_h = 34
+
+        # Close button (left)
+        bui.buttonwidget(
+            parent=pane.root,
+            texture=bui.gettexture('white'),
+            color=pane.ITEM_COL,
+            textcolor=(0.9, 0.9, 0.9),
+            enable_sound=False,
+            size=(btn_w, btn_h),
+            position=(margin, curr_y),
+            label='Close',
+            on_activate_call=pane.dismiss
+        )
+
+        # Dismiss button (right, separated by btn_gap)
+        bui.buttonwidget(
+            parent=pane.root,
+            texture=bui.gettexture('white'),
+            color=pane.ITEM_COL,
+            textcolor=(0.9, 0.9, 0.9),
+            enable_sound=False,
+            size=(btn_w, btn_h),
+            position=(margin + btn_w + btn_gap, curr_y),
+            label='Dismiss',
+            on_activate_call=pane.dismiss
+        )
+
+        # ----------------------------------------------------
+        # 5. SEPARATOR
+        # ----------------------------------------------------
+        curr_y -= 16
+        bui.imagewidget(
+            parent=pane.root,
+            size=(content_w, 1.5),
+            position=(margin, curr_y),
+            texture=bui.gettexture('white'),
+            color=pane.BORDER_COL
+        )
+
+        # ----------------------------------------------------
+        # 6. SEEKBAR: "Cool Level"
+        # ----------------------------------------------------
+        curr_y -= 26
+        cool_scale = 0.8
+        cool_text_x = text_scale_x(margin, content_w, cool_scale)
+
+        # Text visually starts at exact same x pos as the bar below it
+        bui.textwidget(
+            parent=pane.root,
+            position=(cool_text_x, curr_y),
+            size=(content_w, 20),
+            text='Cool Level',
+            scale=cool_scale,
+            color=(0.85, 0.85, 0.85),
+            v_align='center',
+            maxwidth=content_w
+        )
+
+        curr_y -= 26
+        bar = SeekBar(
+            parent=pane.root,
+            position=(margin, curr_y),
+            size=(content_w, 18),
+            value=0.75,
+            color=(1, 1, 1),
+            thumb_color=(0.7,0.7,0.7)
+        )
+        # Force thumb circle to grey instead of black
+        bui.imagewidget(bar.thumb, color=(0.7, 0.7, 0.7))
+
+        # ----------------------------------------------------
+        # 7. DOWNMOST: SAVE BUTTON THAT DISMISSES
+        # ----------------------------------------------------
+        save_h = 36
+        save_y = margin * 1.5
+        bui.buttonwidget(
+            parent=pane.root,
+            texture=bui.gettexture('white'),
+            color=(1,1,1),
+            textcolor=(0,0,0),
+            enable_sound=False,
+            size=(content_w, save_h),
+            position=(margin, save_y),
+            label='Save',
+            on_activate_call=lambda: (
+                bui.getsound('gunCocking').play() or pane.dismiss()
+            )
         )
 
     def ios_demo(self):
