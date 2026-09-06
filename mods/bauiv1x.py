@@ -10,7 +10,6 @@ Experimental.
 
 import bauiv1 as bui
 
-from typing import Callable
 from enum import IntEnum
 
 class Widget:
@@ -56,7 +55,7 @@ class SnackBar(Widget):
         parent: bui.Widget,
         text: str,
         action_label: str | None = None,
-        action_callback: Callable | None = None,
+        action_callback: 'Callable | None' = None,
         duration: float = 2,
         color: tuple[float, float, float] = (1,1,1)
     ):
@@ -422,7 +421,7 @@ class SidePane(Widget):
 
 class Dialog(Widget):
     """
-    A Windows 10 style modal dialog.
+    A modal dialog.
 
     parent: The current container
     title: Title bar text
@@ -431,7 +430,7 @@ class Dialog(Widget):
     action_callback: Confirm button call
     cancel_label: Cancel button label
     cancel_callback: Cancel button call
-    color: Window body color
+    color: Body color
     """
 
     # scale
@@ -444,9 +443,9 @@ class Dialog(Widget):
         title: str = 'Dialog',
         text: str = '',
         action_label: str = 'OK',
-        action_callback: Callable | None = None,
+        action_callback: 'Callable | None' = None,
         cancel_label: str | None = 'Cancel',
-        cancel_callback: Callable | None = None,
+        cancel_callback: 'Callable | None' = None,
         color: tuple[float, float, float] = (0.94, 0.94, 0.94)
     ):
         # layout
@@ -754,7 +753,7 @@ class Dialog(Widget):
 
 class Notification(Widget):
     """
-    A Windows 10 style notification, bottom-right corner.
+    A notification, bottom-right corner.
 
     parent: The current container
     title: Top title text
@@ -775,9 +774,9 @@ class Notification(Widget):
         text: str = 'This is a notification!\nPick a button below to dismiss it.',
         duration: float = 4,
         action_label: str | None = 'Dismiss',
-        action_callback: Callable | None = None,
+        action_callback: 'Callable | None' = None,
         secondary_label: str | None = 'OK',
-        secondary_callback: Callable | None = None,
+        secondary_callback: 'Callable | None' = None,
         color: tuple[float, float, float] = (0.94, 0.94, 0.94)
     ):
         # math
@@ -1253,7 +1252,7 @@ class Switch(Widget):
         value: bool = False,
         style: int = Style.OUTLINE,
         color: tuple[float, float, float] = (0,0,0),
-        on_value_change: Callable[[bool], None] | None = None
+        on_value_change: 'Callable[[bool], None] | None' = None
     ):
         # export
         super().__init__()
@@ -1874,7 +1873,7 @@ class Checkbox(Widget):
         value: bool = False,
         style: int = Style.SQUARE,
         color: tuple[float, float, float] = (0,0,0),
-        on_value_change: Callable[[bool], None] | None = None
+        on_value_change: 'Callable[[bool], None] | None' = None
     ):
         # export
         super().__init__()
@@ -2395,7 +2394,7 @@ class SeekBar(Widget):
         value: float = 0.0,
         segments: int = 40,
         color: tuple[float, float, float] = (1,1,1),
-        on_seek: Callable[[float], None] | None = None,
+        on_seek: 'Callable[[float], None] | None' = None,
         thumb_color: tuple[float, float, float] = (0,0,0)
     ):
         # export
@@ -3473,5 +3472,3 @@ class Demo(bui.Plugin):
         DemoWindow(src)
     def on_app_running(self):
         bui.apptimer(1,DemoWindow)
-
-
