@@ -3393,7 +3393,7 @@ class TextBox(Widget):
         self,
         parent: bui.Widget,
         text: str = '',
-        hint: str = 'Write something...',
+        hint: str = 'Write Something...',
         position: tuple[float, float] = (0, 0),
         size: tuple[float, float] = (300, 40),
         scale: float = 1.0,
@@ -3460,7 +3460,8 @@ class TextBox(Widget):
             label='',
             size=size,
             position=(0, 0),
-            on_activate_call=self.press
+            on_activate_call=self.press,
+            on_select_call=self.focus
         )
         # engine
         self.engine = bui.textwidget(
@@ -3520,13 +3521,28 @@ class TextBox(Widget):
         self.update_blinker_pos()
         self.poll_timer = bui.AppTimer(1 / 60, self.poll, repeat=True)
 
-    def press(self):
-        bui.getsound('deek').play()
-        self.engine.activate()
+    def focus(self):
+        if self.focused:
+            return
         self.focused = True
         bui.textwidget(self.hint_widget, color=(0.55, 0.55, 0.55, 0.0))
         self.update_blinker_pos()
         self.reset_blink()
+
+    def unfocus(self):
+        if not self.focused:
+            return
+        self.focused = False
+        self.stop_blink()
+        bui.textwidget(
+            self.hint_widget,
+            color=(0.55, 0.55, 0.55, 0.0 if self.text else 0.5)
+        )
+
+    def press(self):
+        bui.getsound('deek').play()
+        self.engine.activate()
+        self.focus()
 
     def clear(self):
         bui.getsound('deek').play()
@@ -3578,23 +3594,12 @@ class TextBox(Widget):
             self.stop_blink()
             return
 
-        is_focused = (
-            hasattr(self.parent, 'get_selected_child')
-            and self.parent.get_selected_child() == self.root
-        )
-
-        if is_focused != self.focused:
-            self.focused = is_focused
-            if self.focused:
-                bui.textwidget(self.hint_widget, color=(0.55, 0.55, 0.55, 0.0))
-                self.update_blinker_pos()
-                self.reset_blink()
-            else:
-                self.stop_blink()
-                bui.textwidget(
-                    self.hint_widget,
-                    color=(0.55, 0.55, 0.55, 0.0 if self.text else 0.5)
-                )
+        if (
+            self.focused
+            and hasattr(self.parent, 'get_selected_child')
+            and self.parent.get_selected_child() != self.root
+        ):
+            self.unfocus()
 
         current = bui.textwidget(query=self.engine)
         if current != self.text:
@@ -3609,6 +3614,981 @@ class TextBox(Widget):
                 self.stop_blink()
             if self.on_text_change:
                 self.on_text_change(self.text)
+
+class DynamicIsland(Widget):
+    """
+    An expanding top activity capsule with auto timeout
+
+    parent: The current container
+    title: Expanded title
+    subtitle: Expanded subtitle
+    action_label: Action button label
+    duration: Auto dismiss timeout
+    color: Capsule color
+    accent_color: Accent color
+    on_action_call: Action button call
+    """
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        title: str = 'Activity',
+        subtitle: str = 'Running Task',
+        action_label: str = 'Dismiss',
+        duration: float = 3.5,
+        color: tuple[float, float, float] = (0.05, 0.05, 0.05),
+        accent_color: tuple[float, float, float] = (0.0, 0.78, 0.35),
+        on_action_call: 'Callable | None' = None
+    ):
+        super().__init__()
+        self.parent = parent
+        self.title = title
+        self.subtitle = subtitle
+        self.action_label = action_label
+        self.duration = duration
+        self.color = color
+        self.accent_color = accent_color
+        self.on_action_call = on_action_call
+
+        self.expanded = False
+        self.transitioning_out = False
+        self.expanded_btn = None
+
+        self.slide_t = 0.0
+        self.slide_start = 0.0
+        self.slide_target = 1.0
+        self.slide_idx = 0
+        self.slide_duration = 16
+
+        self.expand_t = 0.0
+        self.expand_start = 0.0
+        self.expand_target = 0.0
+        self.expand_idx = 0
+        self.expand_duration = 14
+
+        self.wave_idx = 0
+        self.anim_timer = None
+        self.auto_timer = None
+        self.wave_timer = None
+
+        cent = parent.get_screen_space_center()
+        virt = bui.get_virtual_screen_size()
+        # hack
+        that = (hack := bui.textwidget(parent=parent, size=(0, 0))).get_screen_space_center()
+        hack.delete()
+        pize = ((cent[0] - that[0]) * 2.0, (cent[1] - that[1]) * 2.0)
+
+        base_x = -virt[0] / 2.0 + pize[0] / 2.0 - cent[0]
+        base_y = -virt[1] / 2.0 + pize[1] / 2.0 - cent[1]
+
+        self.screen_cx = base_x + virt[0] / 2.0
+        self.screen_top = base_y + virt[1]
+        self.hidden_top = self.screen_top + 80.0
+        self.visible_top = self.screen_top - 12.0
+
+        self.w_min = 180.0
+        self.h_min = 36.0
+        self.cr_min = 18.0
+
+        self.w_max = 380.0
+        self.h_max = 140.0
+        self.cr_max = 28.0
+
+        title_w = self.w_max - 70.0
+        title_scale = 0.9
+        self.title_w = title_w
+        self.title_scale = title_scale
+        self.title_x = 50.0 + (title_scale - 1.0) * (title_w / 2.0)
+
+        desc_w = self.w_max - 70.0
+        desc_scale = 0.7
+        self.desc_w = desc_w
+        self.desc_scale = desc_scale
+        self.desc_x = 50.0 + (desc_scale - 1.0) * (desc_w / 2.0)
+
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=(self.w_min, self.h_min),
+            position=(self.screen_cx - self.w_min / 2.0, self.hidden_top - self.h_min),
+            background=False
+        )
+        # tl
+        self.c_tl = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, self.h_min - self.cr_min * 2.0),
+            size=(self.cr_min * 2.0, self.cr_min * 2.0),
+            color=self.color
+        )
+        # tr
+        self.c_tr = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.w_min - self.cr_min * 2.0, self.h_min - self.cr_min * 2.0),
+            size=(self.cr_min * 2.0, self.cr_min * 2.0),
+            color=self.color
+        )
+        # bl
+        self.c_bl = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, 0),
+            size=(self.cr_min * 2.0, self.cr_min * 2.0),
+            color=self.color
+        )
+        # br
+        self.c_br = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.w_min - self.cr_min * 2.0, 0),
+            size=(self.cr_min * 2.0, self.cr_min * 2.0),
+            color=self.color
+        )
+        # midh
+        self.r_h = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(self.cr_min, 0),
+            size=(self.w_min - self.cr_min * 2.0, self.h_min),
+            color=self.color
+        )
+        # midl
+        self.r_l = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(0, self.cr_min),
+            size=(self.cr_min, max(0.0, self.h_min - self.cr_min * 2.0)),
+            color=self.color
+        )
+        # midr
+        self.r_r = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(self.w_min - self.cr_min, self.cr_min),
+            size=(self.cr_min, max(0.0, self.h_min - self.cr_min * 2.0)),
+            color=self.color
+        )
+
+        # cicon
+        self.compact_icon = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(14.0, self.h_min / 2.0 - 5.0),
+            size=(10.0, 10.0),
+            color=self.accent_color
+        )
+        # ctext
+        self.compact_text = bui.textwidget(
+            parent=self.root,
+            position=(32.0, 0),
+            size=(self.w_min - 60.0, self.h_min),
+            text=self.title,
+            scale=0.72,
+            v_align='center',
+            h_align='left',
+            color=(0.95, 0.95, 0.95),
+            maxwidth=self.w_min - 60.0
+        )
+        # cwave
+        self.compact_wave = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.w_min - 22.0, self.h_min / 2.0 - 4.0),
+            size=(8.0, 8.0),
+            color=self.accent_color
+        )
+        # csensor
+        self.compact_sensor = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('empty'),
+            enable_sound=False,
+            label='',
+            size=(self.w_min, self.h_min),
+            position=(0, 0),
+            on_activate_call=self.expand,
+            on_select_call=self.reset_timer
+        )
+
+        # eicon
+        self.expanded_icon = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(20.0, self.h_max - 44.0),
+            size=(22.0, 22.0),
+            color=self.accent_color,
+            opacity=0.0
+        )
+        # etitle
+        self.expanded_title = bui.textwidget(
+            parent=self.root,
+            position=(self.title_x, self.h_max - 38.0),
+            size=(self.title_w, 20.0),
+            text=self.title,
+            scale=self.title_scale,
+            v_align='center',
+            h_align='left',
+            color=(1.0, 1.0, 1.0, 0.0),
+            maxwidth=self.title_w
+        )
+        # edesc
+        self.expanded_desc = bui.textwidget(
+            parent=self.root,
+            position=(self.desc_x, self.h_max - 56.0),
+            size=(self.desc_w, 16.0),
+            text=self.subtitle,
+            scale=self.desc_scale,
+            v_align='center',
+            h_align='left',
+            color=(0.65, 0.65, 0.68, 0.0),
+            maxwidth=self.desc_w
+        )
+        # ptrk
+        self.prog_track = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(45.0, 52.0),
+            size=(0.0, 3.5),
+            color=(0.22, 0.22, 0.24),
+            opacity=0.0
+        )
+        # pfill
+        self.prog_fill = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(45.0, 52.0),
+            size=(0.0, 3.5),
+            color=self.accent_color,
+            opacity=0.0
+        )
+        # ecollapse
+        self.title_sensor = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('empty'),
+            enable_sound=False,
+            label='',
+            size=(self.w_max, 46.0),
+            position=(0, self.h_max - 46.0),
+            on_activate_call=self.press_collapse,
+            on_select_call=self.reset_timer
+        )
+
+        self.reset_timer()
+        self.animate_to(slide_target=1.0)
+        self.poll_timer = bui.AppTimer(1 / 30, self.poll, repeat=True)
+
+    def create_action_btn(self):
+        if self.expanded_btn:
+            return
+        w = self.lerp(self.w_min, self.w_max, self.expand_t)
+        # eaction
+        self.expanded_btn = bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            color=(0.18, 0.18, 0.20),
+            textcolor=(1.0, 1.0, 1.0, 0.0),
+            enable_sound=False,
+            size=(max(0.0, w - 90.0), 30.0),
+            position=(45.0, 14.0),
+            label=self.action_label,
+            on_activate_call=self.press_action,
+            on_select_call=self.reset_timer,
+            opacity=0.0
+        )
+
+    def destroy_action_btn(self):
+        if self.expanded_btn:
+            if self.expanded_btn.exists():
+                self.expanded_btn.delete()
+            self.expanded_btn = None
+
+    def reset_timer(self):
+        if self.transitioning_out:
+            return
+        self.auto_timer = bui.AppTimer(self.duration, self.dismiss)
+
+    def expand(self):
+        if self.expanded or self.transitioning_out:
+            return
+        bui.getsound('deek').play()
+        self.expanded = True
+        self.reset_timer()
+        self.create_action_btn()
+        if not self.wave_timer:
+            self.wave_timer = bui.AppTimer(1 / 60, self.wave_step, repeat=True)
+        self.animate_to(expand_target=1.0)
+
+    def press_collapse(self):
+        bui.getsound('deek').play()
+        self.collapse()
+
+    def collapse(self):
+        if not self.expanded or self.transitioning_out:
+            return
+        self.expanded = False
+        self.reset_timer()
+        self.destroy_action_btn()
+        self.animate_to(expand_target=0.0)
+
+    def press_action(self):
+        bui.getsound('deek').play()
+        if self.on_action_call:
+            self.on_action_call()
+        self.dismiss()
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
+        self.transitioning_out = True
+        self.auto_timer = None
+        self.wave_timer = None
+        self.destroy_action_btn()
+        self.animate_to(slide_target=0.0, expand_target=0.0)
+
+    def animate_to(self, slide_target: float | None = None, expand_target: float | None = None):
+        if slide_target is not None:
+            self.slide_start = self.slide_t
+            self.slide_target = slide_target
+            self.slide_idx = 0
+        if expand_target is not None:
+            self.expand_start = self.expand_t
+            self.expand_target = expand_target
+            self.expand_idx = 0
+
+        if not self.anim_timer:
+            self.anim_timer = bui.AppTimer(1 / 60, self.anim_step, repeat=True)
+
+    def wave_step(self):
+        if not self.root.exists() or not self.expanded:
+            self.wave_timer = None
+            return
+        self.wave_idx += 1
+        self.update_progress_bar()
+
+    def update_progress_bar(self):
+        w = self.lerp(self.w_min, self.w_max, self.expand_t)
+        cur_track_w = max(0.0, w - 90.0)
+        e_alpha = max(0.0, (self.expand_t - 0.35) / 0.65)
+
+        loop = 80
+        t = (self.wave_idx % loop) / float(loop)
+        head_t = self.ease_out(min(1.0, t * 1.5))
+        tail_t = self.ease_out(max(0.0, (t - 0.25) * 1.33))
+
+        head = self.lerp(0.0, 1.0, head_t)
+        tail = self.lerp(0.0, 1.0, tail_t)
+
+        fill_x = 45.0 + cur_track_w * tail
+        fill_w = max(0.0, cur_track_w * (head - tail))
+
+        bui.imagewidget(
+            self.prog_track,
+            position=(45.0, 52.0),
+            size=(cur_track_w, 3.5),
+            opacity=e_alpha * 0.45
+        )
+        bui.imagewidget(
+            self.prog_fill,
+            position=(fill_x, 52.0),
+            size=(fill_w, 3.5),
+            opacity=e_alpha
+        )
+
+    def anim_step(self):
+        if not self.root.exists() or getattr(self.parent, 'transitioning_out', False):
+            self.anim_timer = None
+            return
+
+        moving_slide = self.slide_t != self.slide_target
+        moving_expand = self.expand_t != self.expand_target
+
+        if moving_slide:
+            self.slide_idx += 1
+            st = min(1.0, self.slide_idx / self.slide_duration)
+            eased_st = self.ease_out(st)
+            self.slide_t = self.lerp(self.slide_start, self.slide_target, eased_st)
+
+        if moving_expand:
+            self.expand_idx += 1
+            et = min(1.0, self.expand_idx / self.expand_duration)
+            eased_et = self.ease_out(et)
+            self.expand_t = self.lerp(self.expand_start, self.expand_target, eased_et)
+
+        self.anim_apply()
+
+        if not moving_slide and not moving_expand:
+            self.anim_timer = None
+            if self.slide_t <= 0.0 and self.transitioning_out:
+                self.delete()
+
+    def anim_apply(self):
+        w = self.lerp(self.w_min, self.w_max, self.expand_t)
+        h = self.lerp(self.h_min, self.h_max, self.expand_t)
+        cr = self.lerp(self.cr_min, self.cr_max, self.expand_t)
+
+        anchor_top = self.lerp(self.hidden_top, self.visible_top, self.slide_t)
+        x = self.screen_cx - w / 2.0
+        y = anchor_top - h
+
+        bui.containerwidget(self.root, position=(x, y), size=(w, h))
+
+        bui.imagewidget(self.c_tl, position=(0, h - cr * 2.0), size=(cr * 2.0, cr * 2.0))
+        bui.imagewidget(self.c_tr, position=(w - cr * 2.0, h - cr * 2.0), size=(cr * 2.0, cr * 2.0))
+        bui.imagewidget(self.c_bl, position=(0, 0), size=(cr * 2.0, cr * 2.0))
+        bui.imagewidget(self.c_br, position=(w - cr * 2.0, 0), size=(cr * 2.0, cr * 2.0))
+        bui.imagewidget(self.r_h, position=(cr, 0), size=(max(0.0, w - cr * 2.0), h))
+        bui.imagewidget(self.r_l, position=(0, cr), size=(cr, max(0.0, h - cr * 2.0)))
+        bui.imagewidget(self.r_r, position=(w - cr, cr), size=(cr, max(0.0, h - cr * 2.0)))
+
+        c_alpha = max(0.0, 1.0 - self.expand_t * 2.5)
+        bui.imagewidget(self.compact_icon, opacity=c_alpha)
+        bui.imagewidget(self.compact_wave, opacity=c_alpha)
+        bui.textwidget(self.compact_text, color=(0.95, 0.95, 0.95, c_alpha))
+        bui.buttonwidget(
+            self.compact_sensor,
+            size=(w if not self.expanded else 0.0, h if not self.expanded else 0.0)
+        )
+
+        e_alpha = max(0.0, (self.expand_t - 0.35) / 0.65)
+        bui.imagewidget(self.expanded_icon, position=(20.0, h - 44.0), opacity=e_alpha)
+        bui.textwidget(self.expanded_title, position=(self.title_x, h - 38.0), color=(1.0, 1.0, 1.0, e_alpha))
+        bui.textwidget(self.expanded_desc, position=(self.desc_x, h - 56.0), color=(0.65, 0.65, 0.68, e_alpha))
+        bui.buttonwidget(
+            self.title_sensor,
+            position=(0, h - 46.0),
+            size=(w if self.expanded else 0.0, 46.0 if self.expanded else 0.0)
+        )
+
+        self.update_progress_bar()
+
+        if self.expanded_btn:
+            bui.buttonwidget(
+                self.expanded_btn,
+                position=(45.0, 14.0),
+                size=(max(0.0, w - 90.0), 30.0),
+                opacity=e_alpha,
+                textcolor=(1.0, 1.0, 1.0, e_alpha)
+            )
+
+    def poll(self):
+        if not self.root.exists() or getattr(self.parent, 'transitioning_out', False):
+            self.poll_timer = None
+            return
+
+        if self.expanded and hasattr(self.parent, 'get_selected_child'):
+            if self.parent.get_selected_child() != self.root:
+                self.collapse()
+
+    def delete(self):
+        self.anim_timer = None
+        self.auto_timer = None
+        self.wave_timer = None
+        self.poll_timer = None
+        self.destroy_action_btn()
+        self.root.delete()
+
+class ActionSheet(Widget):
+    """
+    A bottom action menu with a detached cancel card
+
+    parent: The current container
+    items: List of tuples (label, callback, is_destructive)
+    title: Optional header title
+    text: Optional header message
+    cancel_label: Cancel button label
+    cancel_callback: Cancel callback
+    """
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        items: list[tuple[str, 'Callable | None', bool]],
+        title: str | None = None,
+        text: str | None = None,
+        cancel_label: str = 'Cancel',
+        cancel_callback: 'Callable | None' = None
+    ):
+        super().__init__()
+        self.parent = parent
+        self.items = items
+        self.cancel_callback = cancel_callback
+
+        cent = parent.get_screen_space_center()
+        virt = bui.get_virtual_screen_size()
+        # hack
+        that = (hack := bui.textwidget(parent=parent, size=(0, 0))).get_screen_space_center()
+        hack.delete()
+        pize = ((cent[0] - that[0]) * 2.0, (cent[1] - that[1]) * 2.0)
+
+        sheet_w = min(420.0, virt[0] * 0.9)
+        self.sheet_w = sheet_w
+        row_h = 48.0
+        cancel_h = 48.0
+        gap = 10.0
+        cr = 14.0
+
+        header_h = 0.0
+        if title or text:
+            header_h = 46.0 if (title and text) else 36.0
+
+        card_h = header_h + len(items) * row_h
+        total_h = card_h + gap + cancel_h + 16.0
+        self.total_h = total_h
+
+        base_x = -virt[0] / 2.0 + pize[0] / 2.0 - cent[0]
+        base_y = -virt[1] / 2.0 + pize[1] / 2.0 - cent[1]
+        self.root_x = base_x + (virt[0] - sheet_w) / 2.0
+        self.start_y = base_y - total_h - 20.0
+        self.target_y = base_y + 16.0
+        self.cur_y = self.start_y
+
+        dimmer_w = virt[0] * 2.5
+        dimmer_h = virt[1] * 2.5
+        dim_x = (sheet_w - dimmer_w) / 2.0
+        dim_y = -dimmer_h / 2.0
+
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=(sheet_w, total_h),
+            position=(self.root_x, self.start_y),
+            background=False
+        )
+        # dimmer
+        self.dimmer = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            size=(dimmer_w, dimmer_h),
+            position=(dim_x, dim_y),
+            color=(0.0, 0.0, 0.0),
+            opacity=0.0
+        )
+        # backdrop
+        bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('empty'),
+            enable_sound=False,
+            label='',
+            size=(dimmer_w, dimmer_h),
+            position=(dim_x, dim_y),
+            on_activate_call=self.dismiss
+        )
+
+        card_y = cancel_h + gap
+        card_col = (0.95, 0.95, 0.96)
+        # topleft
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, card_y + card_h - cr * 2.0),
+            size=(cr * 2.0, cr * 2.0),
+            color=card_col
+        )
+        # topright
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(sheet_w - cr * 2.0, card_y + card_h - cr * 2.0),
+            size=(cr * 2.0, cr * 2.0),
+            color=card_col
+        )
+        # botleft
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, card_y),
+            size=(cr * 2.0, cr * 2.0),
+            color=card_col
+        )
+        # botright
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(sheet_w - cr * 2.0, card_y),
+            size=(cr * 2.0, cr * 2.0),
+            color=card_col
+        )
+        # cardh
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(cr, card_y),
+            size=(sheet_w - cr * 2.0, card_h),
+            color=card_col
+        )
+        # cardv
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(0, card_y + cr),
+            size=(sheet_w, card_h - cr * 2.0),
+            color=card_col
+        )
+
+        curr_y = card_y + card_h
+        if title or text:
+            if title:
+                curr_y -= 22.0
+                # title
+                bui.textwidget(
+                    parent=self.root,
+                    position=(0, curr_y),
+                    size=(sheet_w, 20.0),
+                    text=title,
+                    scale=0.75,
+                    v_align='center',
+                    h_align='center',
+                    color=(0.35, 0.35, 0.38),
+                    maxwidth=sheet_w - 30.0
+                )
+            if text:
+                curr_y -= 18.0
+                # desc
+                bui.textwidget(
+                    parent=self.root,
+                    position=(0, curr_y),
+                    size=(sheet_w, 18.0),
+                    text=text,
+                    scale=0.65,
+                    v_align='center',
+                    h_align='center',
+                    color=(0.55, 0.55, 0.58),
+                    maxwidth=sheet_w - 30.0
+                )
+            curr_y -= 6.0
+
+        for i, (label, callback, is_destructive) in enumerate(self.items):
+            curr_y -= row_h
+            # divider
+            bui.imagewidget(
+                parent=self.root,
+                texture=bui.gettexture('white'),
+                size=(sheet_w, 0.8),
+                position=(0, curr_y + row_h),
+                color=(0.82, 0.82, 0.84)
+            )
+            col = (0.92, 0.20, 0.18) if is_destructive else (0.0, 0.47, 0.95)
+            # action
+            bui.buttonwidget(
+                parent=self.root,
+                texture=bui.gettexture('empty'),
+                color=(1.0, 1.0, 1.0),
+                textcolor=col,
+                enable_sound=False,
+                size=(sheet_w, row_h),
+                position=(0, curr_y),
+                label=label,
+                on_activate_call=bui.CallPartial(self.press, callback)
+            )
+
+        cancel_col = (1.0, 1.0, 1.0)
+        # cancell
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, 0),
+            size=(cancel_h, cancel_h),
+            color=cancel_col
+        )
+        # cancelr
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(sheet_w - cancel_h, 0),
+            size=(cancel_h, cancel_h),
+            color=cancel_col
+        )
+        # cancelm
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(cancel_h / 2.0, 0),
+            size=(sheet_w - cancel_h, cancel_h),
+            color=cancel_col
+        )
+        # cancel
+        bui.buttonwidget(
+            parent=self.root,
+            texture=bui.gettexture('empty'),
+            textcolor=(0.0, 0.47, 0.95),
+            enable_sound=False,
+            size=(sheet_w, cancel_h),
+            position=(0, 0),
+            label=cancel_label,
+            on_activate_call=bui.CallPartial(self.press, self.cancel_callback)
+        )
+
+        self.anim_finish = None
+        self.anim_in()
+
+    def press(self, callback: 'Callable | None'):
+        bui.getsound('deek').play()
+        if callback:
+            callback()
+        self.dismiss()
+
+    def anim_in(self):
+        self.anim_start = self.start_y
+        self.anim_end = self.target_y
+        self.anim_fire()
+
+    def anim_out(self):
+        self.anim_start = self.cur_y
+        self.anim_end = self.start_y
+        self.anim_fire()
+
+    def anim_fire(self):
+        self.anim_duration = 14
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(1 / 60, self.anim_step, repeat=True)
+
+    def anim_step(self):
+        if not self.root.exists():
+            self.anim_timer = None
+            return
+
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.cur_y = self.anim_end
+            self.anim_apply()
+            if self.anim_finish:
+                self.anim_finish()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        self.cur_y = self.lerp(self.anim_start, self.anim_end, eased_t)
+        self.anim_apply()
+
+    def anim_apply(self):
+        bui.containerwidget(self.root, position=(self.root_x, self.cur_y))
+        span = self.target_y - self.start_y
+        ratio = (self.cur_y - self.start_y) / span if span else 1.0
+        bui.imagewidget(self.dimmer, opacity=max(0.0, min(0.4, ratio * 0.4)))
+
+    def dismiss(self):
+        if self.transitioning_out:
+            return
+        bui.getsound('deek').play()
+        self.transitioning_out = True
+        self.anim_finish = self.delete
+        self.anim_out()
+
+    def delete(self):
+        self.anim_timer = None
+        self.root.delete()
+
+class SegmentedControl(Widget):
+    """
+    A sliding capsule tab selector
+
+    parent: The current container
+    segments: List of segment labels
+    selected_index: Starting segment index
+    position: Where it sits
+    size: Selector size
+    color: Track background color
+    thumb_color: Active pill color
+    on_value_change: Change callback
+    """
+
+    def __init__(
+        self,
+        parent: bui.Widget,
+        segments: list[str],
+        selected_index: int = 0,
+        position: tuple[float, float] = (0, 0),
+        size: tuple[float, float] = (300, 36),
+        color: tuple[float, float, float] = (0.88, 0.88, 0.90),
+        thumb_color: tuple[float, float, float] = (1.0, 1.0, 1.0),
+        on_value_change: 'Callable[[int, str], None] | None' = None
+    ):
+        super().__init__()
+        self.parent = parent
+        self.segments = segments or ['']
+        self.selected_index = max(0, min(selected_index, len(self.segments) - 1))
+        self.size = size
+        self.color = color
+        self.thumb_color = thumb_color
+        self.on_value_change = on_value_change
+
+        self.border_thick = 1.2
+        self.inset = 3.0
+        self.pill_h = size[1] - self.inset * 2.0
+        self.seg_w = (size[0] - self.inset * 2.0) / len(self.segments)
+
+        self.cur_x = self.inset + self.selected_index * self.seg_w
+        self.src_x = self.cur_x
+        self.tar_x = self.cur_x
+        self.anim_timer = None
+
+        inner_h = size[1] - self.border_thick * 2.0
+        inner_w = size[0] - self.border_thick * 2.0
+        t_h = inner_h - 0.6
+
+        border_col = (0.0, 0.0, 0.0)
+
+        # root
+        self.root = bui.containerwidget(
+            parent=parent,
+            size=size,
+            background=False,
+            position=position
+        )
+        # borderl
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(0, 0),
+            size=(size[1], size[1]),
+            color=border_col
+        )
+        # borderr
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(size[0] - size[1], 0),
+            size=(size[1], size[1]),
+            color=border_col
+        )
+        # borderm
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(size[1] / 2.0, 0),
+            size=(size[0] - size[1], size[1]),
+            color=border_col
+        )
+        # trackl
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.border_thick, self.border_thick),
+            size=(inner_h, inner_h),
+            color=self.color
+        )
+        # trackr
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(size[0] - self.border_thick - inner_h, self.border_thick),
+            size=(inner_h, inner_h),
+            color=self.color
+        )
+        # trackm
+        bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(self.border_thick + inner_h / 2.0, self.border_thick),
+            size=(inner_w - inner_h, t_h),
+            color=self.color
+        )
+        # thumbl
+        self.thumb_l = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.cur_x, self.inset),
+            size=(self.pill_h, self.pill_h),
+            color=self.thumb_color
+        )
+        # thumbr
+        self.thumb_r = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('circle'),
+            position=(self.cur_x + self.seg_w - self.pill_h, self.inset),
+            size=(self.pill_h, self.pill_h),
+            color=self.thumb_color
+        )
+        # thumbm
+        self.thumb_m = bui.imagewidget(
+            parent=self.root,
+            texture=bui.gettexture('white'),
+            position=(self.cur_x + self.pill_h / 2.0, self.inset),
+            size=(self.seg_w - self.pill_h, self.pill_h),
+            color=self.thumb_color
+        )
+
+        self.labels = []
+        for i, text in enumerate(self.segments):
+            seg_x = self.inset + i * self.seg_w
+            col = (0.08, 0.08, 0.08) if i == self.selected_index else (0.45, 0.45, 0.48)
+            # label
+            lbl = bui.textwidget(
+                parent=self.root,
+                position=(seg_x, 0),
+                size=(self.seg_w, size[1]),
+                text=text,
+                scale=0.82,
+                v_align='center',
+                h_align='center',
+                color=col,
+                maxwidth=self.seg_w - 6.0
+            )
+            self.labels.append(lbl)
+            # sensor
+            bui.buttonwidget(
+                parent=self.root,
+                texture=bui.gettexture('empty'),
+                enable_sound=False,
+                label='',
+                size=(self.seg_w, size[1]),
+                position=(seg_x, 0),
+                on_activate_call=bui.CallPartial(self.select, i)
+            )
+
+    def select(self, index: int):
+        if index == self.selected_index:
+            return
+        bui.getsound('deek').play()
+        self.selected_index = index
+        self.src_x = self.cur_x
+        self.tar_x = self.inset + index * self.seg_w
+
+        for i, lbl in enumerate(self.labels):
+            col = (0.08, 0.08, 0.08) if i == index else (0.45, 0.45, 0.48)
+            bui.textwidget(lbl, color=col)
+
+        self.anim_fire()
+        if self.on_value_change:
+            self.on_value_change(index, self.segments[index])
+
+    def anim_fire(self):
+        self.anim_duration = 12
+        self.anim_indx = 0
+        self.anim_timer = bui.AppTimer(1 / 60, self.anim_step, repeat=True)
+
+    def anim_step(self):
+        if not self.root.exists() or getattr(self.parent, 'transitioning_out', False):
+            self.anim_timer = None
+            return
+
+        self.anim_indx += 1
+        if self.anim_indx > self.anim_duration:
+            self.anim_timer = None
+            self.cur_x = self.tar_x
+            self.anim_apply()
+            return
+
+        t = self.anim_indx / self.anim_duration
+        eased_t = self.ease_out(t)
+        self.cur_x = self.lerp(self.src_x, self.tar_x, eased_t)
+        self.anim_apply()
+
+    def anim_apply(self):
+        bui.imagewidget(self.thumb_l, position=(self.cur_x, self.inset))
+        bui.imagewidget(
+            self.thumb_r,
+            position=(self.cur_x + self.seg_w - self.pill_h, self.inset)
+        )
+        bui.imagewidget(
+            self.thumb_m,
+            position=(self.cur_x + self.pill_h / 2.0, self.inset)
+        )
+
+    def delete(self):
+        self.anim_timer = None
+        self.root.delete()
 
 class DemoWindow:
     """
@@ -3698,7 +4678,7 @@ class DemoWindow:
             parent=self.root,
             position=(50,y),
             size=(500,50),
-            label='IOS',
+            label='iOS',
             color=(1,1,1),
             textcolor=(0,0,0),
             on_activate_call=self.ios_demo
@@ -4295,12 +5275,75 @@ class DemoWindow:
             parent=self.root,
             position=(50,y-75),
             size=(500,50),
-            text='IOS',
+            text='iOS',
             h_align='center',
             v_align='center',
             scale=2,
             flatness=-2,
             color=(0,0,0)
+        )
+        # island
+        y -= 150
+        bui.buttonwidget(
+            parent=self.root,
+            position=(50, y),
+            size=(500, 50),
+            label='DynamicIsland',
+            color=(1, 1, 1),
+            textcolor=(0, 0, 0),
+            enable_sound=False,
+            on_activate_call=self.show_island
+        )
+        # actionsheet
+        y -= 60
+        bui.buttonwidget(
+            parent=self.root,
+            position=(50, y),
+            size=(500, 50),
+            label='ActionSheet',
+            color=(1, 1, 1),
+            textcolor=(0, 0, 0),
+            enable_sound=False,
+            on_activate_call=self.show_actionsheet
+        )
+        # segment
+        y -= 60
+        self.segment_widget = SegmentedControl(
+            parent=self.root,
+            position=(50, y),
+            size=(500, 42),
+            segments=['Respect','Power','Banana'],
+            selected_index=1
+        )
+
+    def show_island(self):
+        bui.getsound('deek').play()
+        island = getattr(self, 'island', None)
+        if island and island.exists() and not island.transitioning_out:
+            if island.expanded:
+                island.collapse()
+            else:
+                island.dismiss()
+            return
+        self.island = DynamicIsland(
+            parent=self.root,
+            title='Now Playing',
+            subtitle='Rick Astley - Never Gonna Give You Up',
+            action_label='Dismiss'
+        )
+
+    def show_actionsheet(self):
+        bui.getsound('deek').play()
+        ActionSheet(
+            parent=self.root,
+            title='Spaz Management',
+            text='Select what happens to the poor spaz',
+            items=[
+                ('Give Ice Bombs', lambda:bui.getsound('powerup01').play(), False),
+                ('Provide Gloves', lambda:bui.getsound('powerup01').play(), False),
+                ('Kill Spaz', lambda:bui.getsound('spazDeath01').play(), True),
+            ],
+            cancel_label='Cancel'
         )
 
 # ba_meta require api 9
