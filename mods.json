@@ -176,14 +176,6 @@
         "mod_filename_base": "ueye"
     },
     {
-        "mod_name": "bauiv1x",
-        "mod_fancy_name": "Ballistica UI Extended",
-        "mod_version": "1.0",
-        "mod_description": "A widget library that extends bauiv1 with the stuff it doesn't ship\nwith: toasts, snackbars, dialogs, seekbars, pickers, and a batch of\nplatform-styled extras (Android, Windows, iOS) modeled after their\nnative widgets.",
-        "api_version": 9,
-        "mod_filename_base": "bauiv1x"
-    },
-    {
         "mod_name": "BitBox",
         "mod_fancy_name": "Bored me brings bits to the game",
         "mod_version": "1.0",

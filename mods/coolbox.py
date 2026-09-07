@@ -6535,7 +6535,7 @@ class Mapper2D:
         with bs.get_foreground_host_activity().context:
             bs.timer(0.1, lambda: s.overlay.release(3))
             bui.getsound('gunCocking').play()
-            bs.timer(0.2, bs.animate(s.node,'scale',{0:(50,50),0.1:(30,30),0.2:(50,50)}).delete)
+            bs.animate_array(s.node,'scale',2,{0:(50,50),0.1:(30,30),0.2:(50,50)})
 
         s.pipe((p[0], p[1], 0.0))
 
@@ -6548,7 +6548,7 @@ class Mapper2D:
         with bs.get_foreground_host_activity().context:
             if p:
                 bui.getsound('powerup01').play()
-                bs.animate(s.node,'scale',{0:(50,50),0.1:(0,0)})
+                bs.animate_array(s.node,'scale',2,{0:(50,50),0.1:(0,0)})
                 bs.timer(0.1, s.node.delete)
             else:
                 s.node.delete()
