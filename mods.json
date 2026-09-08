@@ -104,9 +104,9 @@
         "mod_filename_base": "kys"
     },
     {
-        "mod_name": "Movi",
-        "mod_fancy_name": "Movie Maker",
-        "mod_version": "1.0",
+        "mod_name": "Movi v1.0.0 - Movie Maker",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
         "mod_description": "A simple movie maker with native BRP replay export.\nIncludes timeline sequencing, node manipulation,\ncustom cameras, code injection, VFX presets, and more.",
         "api_version": 9,
         "mod_filename_base": "movi"

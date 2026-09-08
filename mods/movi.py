@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Movi v1.0 - Movie Maker
+Movi v1.0.0 - Movie Maker
 
 A simple movie maker with native BRP replay export.
 Includes timeline sequencing, node manipulation,
@@ -36,7 +36,7 @@ from zlib import decompress, compress
 from ctypes import pythonapi, c_long, py_object
 from contextlib import redirect_stdout, redirect_stderr
 
-__version__ = '1.0'
+__version__ = '1.0.0'
 
 plugman = dict(
     plugin_name="movi",
@@ -59,6 +59,7 @@ plugman = dict(
 class Tracker:
     def __init__(self):
         self.active = {}
+        self.active_actors = {}
         self.active_sounds = {}
         self.active_timers = {}
         self.active_codes = defaultdict(dict)
@@ -108,6 +109,7 @@ class Editor:
         s.timeline = []
         s.timeline_index = 0
         s.active = {}
+        s.active_actors = {}
         s.active_sounds = {}
         s.active_timers = {}
         s.active_key_schedule = {}
@@ -1916,11 +1918,16 @@ class Editor:
                     Eval.SOUND(Const.BAD_SOUND).play()
                     return
                 s.forgive_prev_off = True
+                node_mem = s.memory[id(s.sl)]
+                is_spaz = node_mem.get('data', {}).get('type') == 'spaz'
+                placeholder = (
+                    Strings.SPAZ_CODE_PLACEHOLDER if is_spaz else None
+                )
                 s.event_window(
                     6,
                     force_title=Strings.CODE_EDITOR,
                     on_done=lambda final: add_key(final,n,offset_val,mem),
-                    initial_code=data.get('code')
+                    initial_code=data.get('code') or placeholder
                 )
             def add_key(final,n,off,mem):
                 actual_time = mem['start'] + off
@@ -8023,6 +8030,7 @@ class Editor:
                         for k, v in attrs.items():
                             setattr(actor.node, k, v)
                         tracker.active[key] = n = actor.node
+                        tracker.active_actors[key] = actor
                         if position is not None:
                             activity = bs.get_foreground_host_activity()
                             def call(activity=activity,position=position,actor=actor):
@@ -8040,6 +8048,13 @@ class Editor:
             else:
                 if key in tracker.active:
                     tracker.active.pop(key).delete()
+                tracker.active_actors.pop(key, None)
+                if key in tracker.active_codes:
+                    codes = tracker.active_codes.pop(key)
+                    if 'main' in codes:
+                        codes['main'].on_end()
+                    for child in codes.get('children', []):
+                        child.on_end()
 
         if what == 1:
             if start:
@@ -8198,6 +8213,7 @@ class Editor:
                         for _ in t.active.values():
                             if _.exists(): _.delete()
                         t.active.clear()
+                        t.active_actors.clear()
                         for _ in t.active_sounds:
                             if _.exists(): _.delete()
                         t.active_sounds.clear()
@@ -8252,7 +8268,7 @@ class Editor:
                         Eval.SOUND(Const.BAD_SOUND).play()
 
         elif action == 1:
-            if btn_id in tracker.active_codes:
+            if btn_id in tracker.active_codes and 'main' in tracker.active_codes[btn_id]:
                 parent_runner = tracker.active_codes[btn_id]['main']
                 child_runner = CodeRunner(
                     on_error=lambda e: s.toast(Format.ERROR(e)),
@@ -8260,6 +8276,14 @@ class Editor:
                 )
                 child_runner.on_start(key_data['data']['code'])
                 tracker.active_codes[btn_id]['children'].append(child_runner)
+            else:
+                bot = tracker.active_actors.get(btn_id)
+                runner = CodeRunner(
+                    on_error=lambda e: s.toast(Format.ERROR(e)),
+                    extra_namespace={'bot': bot} if bot is not None else None
+                )
+                runner.on_start(key_data['data']['code'])
+                tracker.active_codes[btn_id].setdefault('children', []).append(runner)
 
         elif action == 2:
             da = key_data['data']
@@ -10015,6 +10039,19 @@ class _StringsEN:
     SAVED_AS_HELP = 'Full path: {}'
     CODE = 'Code'
     CODE_HELP = "Keyframes continue from the\nevent's code. All variables and\nstate are shared."
+    SPAZ_CODE_PLACEHOLDER = '\n'.join((
+        '# This keyframe runs on the spaz\'s "bot" object',
+        '# bot is the Spaz actor - full API exposed',
+        '#',
+        '# Example: make it walk forward for a bit',
+        '# bot.node.move_up_down = 1.0',
+        '# bs.timer(1.0, lambda: bot.node.exists() and setattr(bot.node, "move_up_down", 0.0))',
+        '#',
+        '# Other things you can do:',
+        '# bot.node.punch_pressed = True',
+        '# bot.handlemessage(bs.StandMessage((0, 1, 0), 0))',
+        '# bot.node.handlemessage(bs.CelebrateMessage(duration=2.0))',
+    ))
     EXTEND_CODE = 'Parallel Code'
     CODE_EDITOR = 'Code Editor'
     COPY = 'Copy'
@@ -10949,7 +10986,7 @@ class Const:
         'PLAY_STATION_CROSS_BUTTON'
     )
     EVENT_KEYS = {
-        0: (0,3),
+        0: (0,1,3),
         2: (2,),
         6: (1,)
     }
@@ -11614,9 +11651,10 @@ def _make_tracked_spaz(OriginalSpaz, runner):
 class CodeRunner:
     _SHARED = {}
 
-    def __init__(self, on_error=None, parent_runner=None):
+    def __init__(self, on_error=None, parent_runner=None, extra_namespace=None):
         self.on_error = on_error
         self.parent_runner = parent_runner
+        self.extra_namespace = extra_namespace
 
         if parent_runner:
             self.namespace = parent_runner.namespace
@@ -11689,6 +11727,8 @@ class CodeRunner:
             'Bubble': Bubble,
             '_SHARED': CodeRunner._SHARED
         })
+        if self.extra_namespace:
+            self.namespace.update(self.extra_namespace)
 
         try:
             with bs.get_foreground_host_activity().context:
@@ -13923,5 +13963,3 @@ def get_presets():
 
 
     return presets
-
-
