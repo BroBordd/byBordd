@@ -9,6 +9,7 @@ Experimental.
 """
 
 import bauiv1 as bui
+import bauiv1x as xui
 import bascenev1 as bs
 
 from babase import AppSubsystem
@@ -25,6 +26,7 @@ class Strings:
     ENTER_SOMETHING = 'Enter something'
     FILE_DOES_NOT_EXIST = 'File does not exist'
     FILE_IS_NOT_A_REPLAY = 'File is not a replay'
+    FILE = 'File'
 
 class Const:
     ID_PREFIX = 'brp_studio'
@@ -33,6 +35,8 @@ class Color:
     WATCH_BUTTON = (0.6, 0.53, 0.63)
     WATCH_BUTTON_TEXT = (0.75, 0.7, 0.8)
     ALERT = (0.8, 0.8, 0)
+    TEXT = (0,0,0)
+    BACKGROUND = (1,1,1)
 
 class Extra:
     BY_SCALE = lambda a,b,c: (
@@ -56,6 +60,8 @@ class Studio:
         bs.new_replay_session(path)
         # math
         real = bui.get_virtual_screen_size()
+        rx, ry = real
+        bx,by = rx * 0.08, ry * 0.05
         # parent
         self.parent = bui.get_special_widget(
             'overlay_stack'
@@ -66,11 +72,17 @@ class Studio:
             size=real,
             background=False
         )
-        # bg
-        self.background = bui.imagewidget(
+        import bauiv1x as xui
+        # file
+        xui.Button(
             parent=self.root,
-            size=real,
-            texture=bui.gettexture('white')
+            size=(bx,by),
+            label=Strings.FILE,
+            position=(
+                0, ry - by
+            ),
+            color=Color.BACKGROUND,
+            textcolor=Color.TEXT
         )
 
 # ba_meta require api 9
