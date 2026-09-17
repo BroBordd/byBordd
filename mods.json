@@ -192,6 +192,14 @@
         "mod_filename_base": "blud"
     },
     {
+        "mod_name": "BRP Studio",
+        "mod_fancy_name": "Simple Replay Editor",
+        "mod_version": "1.0",
+        "mod_description": "Experimental.",
+        "api_version": 9,
+        "mod_filename_base": "brp_studio"
+    },
+    {
         "mod_name": "BSV",
         "mod_fancy_name": "The BombSquad Video",
         "mod_version": "1.0",
