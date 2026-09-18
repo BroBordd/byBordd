@@ -352,6 +352,14 @@
         "mod_filename_base": "lights_out"
     },
     {
+        "mod_name": "Lottie",
+        "mod_fancy_name": "Lottie Player",
+        "mod_version": "1.0",
+        "mod_description": "Experimental.",
+        "api_version": 9,
+        "mod_filename_base": "lottie"
+    },
+    {
         "mod_name": "Modcast",
         "mod_fancy_name": "Test it there",
         "mod_version": "1.0",
