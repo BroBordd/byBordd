@@ -240,6 +240,14 @@
         "mod_filename_base": "chatools"
     },
     {
+        "mod_name": "Checkboom",
+        "mod_fancy_name": "Get SpazMated",
+        "mod_version": "1.0",
+        "mod_description": "Simple turn based game I made because bored.\nExperimental. Adds a Team game.",
+        "api_version": 9,
+        "mod_filename_base": "checkboom"
+    },
+    {
         "mod_name": "ChestEye",
         "mod_fancy_name": "Auto claim/open chests",
         "mod_version": "1.0",
