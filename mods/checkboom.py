@@ -9,11 +9,15 @@ Simple turn based game I made because bored.
 Experimental. Adds a Team game.
 """
 
+import weakref
 import bauiv1 as bui
 import bascenev1 as bs
 from collections import defaultdict, deque
 from bascenev1lib.gameutils import SharedObjects
 from bascenev1lib.actor.spaz import Spaz
+
+# debug
+DEBUG = True
 
 class Checkboard(bs.Map):
     name = 'Checkboard'
@@ -94,35 +98,47 @@ class Checkboard(bs.Map):
 class Piece(Spaz):
     def __init__(self, *args, game=None, team_id=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.game = game
+        self._game = weakref.ref(game) if game else None
+        self._src_plr = None
         self.team_id = team_id
         self.can_take_damage = False
         self.claimed_by = None
-        self.source_player = None
+
+    @property
+    def game(self):
+        return self._game() if self._game else None
+
+    @property
+    def source_player(self):
+        return self._src_plr() if self._src_plr else None
+
+    @source_player.setter
+    def source_player(self, val):
+        self._src_plr = weakref.ref(val) if val else None
 
     def handlemessage(self, msg):
-        if isinstance(
-            msg, bs.HitMessage
-        ):
+        if isinstance(msg, bs.HitMessage):
             puncher = msg.get_source_player(bs.Player)
             if (
                 msg.hit_type == 'punch'
                 and puncher is not None
                 and puncher.team.id == self.team_id
+                and self.game
             ):
                 self.game.claim_spaz(puncher, self)
             if not self.can_take_damage:
                 return
         # drop
         elif isinstance(msg, bs.PickedUpMessage):
-            if msg.node and any(p.actor and p.actor.node == msg.node and p.team.id != self.team_id for p in self.game.memory['players'].values()):
+            if msg.node and self.game and any(p.actor and p.actor.node == msg.node and p.team.id != self.team_id for p in self.game.memory['players'].values()):
                 msg.node.hold_node = None
         # die
         elif isinstance(msg, bs.DieMessage):
-            self.game.stop_run(self)
-            if not msg.immediate:
-                self.game.respawn_spaz(self)
-                return
+            if self.game:
+                self.game.stop_run(self)
+                if not msg.immediate:
+                    self.game.respawn_spaz(self)
+                    return
         super().handlemessage(msg)
 
 # ba_meta export bascenev1.GameActivity
@@ -158,6 +174,8 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         super().__init__(settings)
         self.default_music = bs.MusicType.GRAND_ROMP
         self.memory = defaultdict(dict)
+        self.memory['players'] = weakref.WeakValueDictionary()
+        self.memory['control'] = weakref.WeakValueDictionary()
         self.playing = False
         # subtext
         self.subtext = bs.newnode(
@@ -206,34 +224,40 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         super().on_begin()
         bs.getsession().max_players = 2
         # bounds
-        self.memory['timers']['bounds'] = bs.Timer(0.1, self.bounds_tick, repeat=True)
+        _s = weakref.ref(self)
+        self.memory['timers']['bounds'] = bs.Timer(0.1, lambda: _s() and _s().bounds_tick(), repeat=True)
         self.sanity_tick()
 
     def alert(self, text, color=(1,1,1)):
         self.subtext.text = text
         self.subtext.color = color
 
+    def playsnd(self, name, vol=1.0):
+        return bs.newnode('sound', attrs={'sound': bs.getsound(name), 'volume': vol})
+
     def start_run(self, piece):
         if not piece or not piece.node:
             return
         pid = id(piece)
+        _s, _b = weakref.ref(self), weakref.ref(piece)
         def run_tick():
-            if not piece.node or not piece.is_alive() or piece.claimed_by is not None:
-                self.stop_run(piece)
+            s, b = _s(), _b()
+            if not s or not b or not b.node or not b.is_alive() or b.claimed_by is not None:
+                if s and b: s.stop_run(b)
                 return
 
-            # Stop running if close to square (within 2 squares' width worth)
-            sq = self.memory['squares'].get(piece)
+            # walk
+            sq = s.memory['squares'].get(b)
             if sq:
-                px, _, pz = piece.node.position
+                px, _, pz = b.node.position
                 dist = ((sq[0] - px) ** 2 + (sq[1] - pz) ** 2) ** 0.5
                 if dist <= 2.0:
-                    piece.on_run(0)
+                    b.on_run(0)
                     return
 
-            piece.on_run(0)
-            self.memory['timers'][f'run_pulse_{pid}'] = bs.Timer(
-                0.01, lambda: piece.node and piece.on_run(1)
+            b.on_run(0)
+            s.memory['timers'][f'run_pulse_{pid}'] = bs.Timer(
+                0.01, lambda: b.node and b.on_run(1)
             )
 
         run_tick()
@@ -247,12 +271,6 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.memory['timers'][f'run_pulse_{pid}'] = None
         if piece.node:
             piece.on_run(0)
-
-    def on_bomb_press(self, player):
-        if self.memory.get('can_start') and not self.memory.get('started'):
-            self.memory['started'] = True
-            self.alert('')
-            bs.getsound('activateBeep').play()
 
     def assign_controls(self, player, target):
         player.resetinput()
@@ -269,11 +287,12 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         ):
             player.assigninput(getattr(bs.InputType, name), handler)
 
+        _s, _p, _t = weakref.ref(self), weakref.ref(player), weakref.ref(target)
         if isinstance(target, Piece):
-            player.assigninput(bs.InputType.BOMB_PRESS, bs.CallPartial(self.release_control, player, target))
+            player.assigninput(bs.InputType.BOMB_PRESS, lambda: (_s() and _p() and _t()) and _s().release_control(_p(), _t()))
             player.assigninput(bs.InputType.BOMB_RELEASE, lambda: None)
         else:
-            player.assigninput(bs.InputType.BOMB_PRESS, bs.CallPartial(self.on_bomb_press, player))
+            player.assigninput(bs.InputType.BOMB_PRESS, lambda: None)
             player.assigninput(bs.InputType.BOMB_RELEASE, lambda: None)
 
     def on_player_join(self, player):
@@ -281,20 +300,24 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         actor = player.actor
         actor.orig_pos = self.map.defs.points[f'spawn{player.team.id+1}'][:3]
         actor.orig_rot = 0 if player.team.id else 180
-        actor.handlemessage = lambda msg, _actor=actor: self.handlemessage(_actor, msg)
+        _s, _a = weakref.ref(self), weakref.ref(actor)
+        actor.handlemessage = lambda msg: _s() and _a() and _s().handlemessage(_a(), msg)
         # color
         self.memory['team_colors'][player.team.id] = getattr(player.team, 'color', actor.node.color)
         # pickup
         old_pick = actor.on_pickup_press
+        _p = weakref.ref(player)
         def safe_pick():
             old_pick()
             def chk():
-                if actor.node and actor.node.hold_node:
-                    for tid, bots in self.memory['spazzes'].items():
-                        if tid != player.team.id and any(b and b.node == actor.node.hold_node for b in bots):
-                            actor.node.hold_node = None
-            self.memory['timers'][f'pick1_{id(actor)}'] = bs.Timer(0.01, chk)
-            self.memory['timers'][f'pick2_{id(actor)}'] = bs.Timer(0.05, chk)
+                s, a, p = _s(), _a(), _p()
+                if not s or not a or not p or not a.node or not a.node.hold_node: return
+                for tid, bots in s.memory['spazzes'].items():
+                    if tid != p.team.id and any(b and b.node == a.node.hold_node for b in bots):
+                        a.node.hold_node = None
+            if s := _s():
+                s.memory['timers'][f'pick1_{id(actor)}'] = bs.Timer(0.01, chk)
+                s.memory['timers'][f'pick2_{id(actor)}'] = bs.Timer(0.05, chk)
         actor.on_pickup_press = safe_pick
         actor.handlemessage(
             bs.StandMessage(
@@ -330,9 +353,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         return type(actor).handlemessage(actor, msg)
 
     def sanity_tick(self):
-#        if len(self.players) == 2:
-        if len(self.players) > 0: # XXX DEBUG
-            self.alert('Get ready')
+        if len(self.players) >= (1 if DEBUG else 2):
             if not self.playing:
                 self.start_game()
         else:
@@ -342,9 +363,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 
     def start_game(self):
         self.playing = True
-        self.memory['timers']['swarm'] = bs.Timer(
-            3, self.spawn
-        )
+        self.spawn()
 
     def spawn(self):
         self.alert('Place your pieces')
@@ -358,7 +377,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         spacing = (deck_x_max - deck_x_min) / (len(characters) - 1)
 
         self.memory['kings'] = {}
-        for team_id, player in self.memory['players'].items():
+        for team_id, player in list(self.memory['players'].items()):
             spawn_z = self.map.defs.points[f'spawn{team_id+1}'][2]
             side = 1 if spawn_z > 0 else -1
             spawn_offset = spawn_z - side * board_edge
@@ -464,7 +483,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         if self.memory['control'].get(player.team.id) is not target:
             return
 
-        self.memory['control'][player.team.id] = None
+        self.memory['control'].pop(player.team.id, None)
         self.memory['timers'][f'knock{player.team.id}'] = None
         target.claimed_by = None
         target.source_player = None
@@ -541,7 +560,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         if (sc, sr) == (ec, er):
             return sq
 
-        # Blocks: only avoid occupied squares (assigned squares of other pieces + kings)
+        # homo
         blocked = set()
         for p, s in self.memory['squares'].items():
             if p is not piece and p.is_alive():
@@ -595,21 +614,24 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             nxt = trace[-1]
             return sq if nxt == (ec, er) else (nxt[0] - 3.5, nxt[1] - 3.5)
 
-        # 1. Try path strictly inside grid
         res = bfs(allow_outside=False)
         if res is not None:
             return res
 
-        # 2. Last resort fallback: whitelist pathing outside grid
         return bfs(allow_outside=True)
 
     def check_kings(self):
+        # check
+        if not self.playing or len(self.players) < (1 if DEBUG else 2) or not self.memory.get('spazzes'):
+            return
+
         # ready
-        teams_ready = {}
+        both_ready = len(self.memory['players']) >= (1 if DEBUG else 2) and all(
+            len(bots) > 0 and all(b in self.memory['squares'] for b in bots)
+            for bots in self.memory['spazzes'].values()
+        )
         both_in = True
         for tid, ksq in self.memory['kings'].items():
-            bots = self.memory['spazzes'].get(tid, [])
-            teams_ready[tid] = len(bots) > 0 and all(b in self.memory['squares'] for b in bots)
             player = self.memory['players'].get(tid)
             p_in = False
             if player and player.actor and player.actor.node:
@@ -619,7 +641,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                 both_in = False
 
             # state
-            st = 'in' if p_in else 'fade'
+            st = 'fade' if (both_ready and not p_in) else 'in'
             if st != self.memory['glow'].get(tid):
                 self.memory['glow'][tid] = st
                 if node := self.map.fills.get((round(ksq[0], 1), round(ksq[1], 1))):
@@ -633,110 +655,207 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             return
 
         # alert
-        req = 2 if len(self.players) >= 2 else 1
-        both_ready = len(self.memory['players']) >= req and all(teams_ready.get(tid, False) for tid in self.memory['players'])
         if not both_ready:
+            self.stop_countdown()
             self.alert('Place your pieces')
-            self.memory['can_start'] = False
             return
 
+        # countdown
         if both_in:
-            self.alert(f'Press {bui.charstr(bui.SpecialChar.RIGHT_BUTTON)}BOMB to start')
-            self.memory['can_start'] = True
+            if not self.memory['timers'].get('countdown'):
+                self.start_countdown()
         else:
+            self.stop_countdown()
             self.alert('Stand in position')
-            self.memory['can_start'] = False
+
+    def start_countdown(self):
+        self.memory['count'] = 5
+        _s = weakref.ref(self)
+        def step():
+            s = _s()
+            if not s or s.memory.get('started'): return
+            cnt = s.memory.get('count', 0)
+            if cnt > 0:
+                s.alert(f'Starting in {cnt}', (1, 1, 0))
+                bs.getsound('tick').play()
+                s.memory['count'] -= 1
+            else:
+                s.stop_countdown()
+                s.start_match()
+        step()
+        self.memory['timers']['countdown'] = bs.Timer(1.0, step, repeat=True)
+
+    def stop_countdown(self):
+        self.memory['timers']['countdown'] = None
+        self.memory.pop('count', None)
+
+    def start_match(self):
+        self.memory['started'] = True
+        self.alert('')
+
+        # reset
+        for p in self.players:
+            p.resetinput()
+
+        # retain
+        for team in self.memory['spazzes'].values():
+            for b in team:
+                self.memory['timers'][f'retain_{id(b)}'] = None
+                self.stop_run(b)
+                if b and b.node:
+                    b.on_move_left_right(0)
+                    b.on_move_up_down(0)
+
+        # align
+        for tid, p in self.memory['players'].items():
+            rot = 0 if tid else 180
+            if p.actor and p.actor.node and (ksq := self.memory['kings'].get(tid)):
+                p.actor.handlemessage(bs.StandMessage((ksq[0], 0, ksq[1]), rot))
+            for b in self.memory['spazzes'].get(tid, []):
+                if b and b.node and (sq := self.memory['squares'].get(b)):
+                    b.handlemessage(bs.StandMessage((sq[0], 0, sq[1]), rot))
+
+        # title
+        snd = self.playsnd('cashRegister2')
+        t1 = bs.newnode(
+            'text',
+            attrs={
+                'text': 'CHECK',
+                'big': True,
+                'v_attach': 'center',
+                'h_attach': 'center',
+                'h_align': 'right',
+                'v_align': 'center',
+                'position': (-10, 100),
+                'color': (1, 1, 1),
+                'opacity': 0.0,
+            }
+        )
+        bs.animate(t1, 'opacity', {0: 0, 0.1: 1, 1.8: 1, 2.2: 0})
+        bs.Timer(2.2, t1.delete)
+
+        _s = weakref.ref(self)
+        def on_boom():
+            s = _s()
+            if snd:
+                snd.delete()
+            if not s:
+                return
+            bs.getsound('dingSmall').play()
+            t2 = bs.newnode(
+                'text',
+                attrs={
+                    'text': 'BOOM',
+                    'big': True,
+                    'v_attach': 'center',
+                    'h_attach': 'center',
+                    'h_align': 'left',
+                    'v_align': 'center',
+                    'position': (10, 100),
+                    'color': (0.7, 0.7, 0.7),
+                    'opacity': 0.0,
+                }
+            )
+            bs.animate(t2, 'opacity', {0: 0, 0.1: 1, 1.4: 1, 1.8: 0})
+            bs.Timer(1.8, t2.delete)
+
+        self.memory['timers']['title'] = bs.Timer(0.4, on_boom)
 
     def retain(self, piece):
         cnt = [0]
+        _s, _b = weakref.ref(self), weakref.ref(piece)
         def tick():
             cnt[0] += 1
+            s, b = _s(), _b()
+            if not s or not b: return
             # dead
-            if not piece.node or not piece.is_alive():
-                self.memory['timers'][f'retain_{id(piece)}'] = None
-                if old_sq := self.memory['squares'].pop(piece, None):
-                    self.highlight_tile(old_sq, active=False)
+            if not b.node or not b.is_alive():
+                s.memory['timers'][f'retain_{id(b)}'] = None
+                if old_sq := s.memory['squares'].pop(b, None):
+                    s.highlight_tile(old_sq, active=False)
                 return
             # controlled
-            if piece.claimed_by is not None or not self.playing:
-                self.memory['timers'][f'retain_{id(piece)}'] = None
+            if b.claimed_by is not None or not s.playing or s.memory.get('started'):
+                s.memory['timers'][f'retain_{id(b)}'] = None
                 return
             # drop
-            for p in self.memory['players'].values():
-                if p.actor and p.actor.node and p.actor.node.hold_node == piece.node and p.team.id != piece.team_id:
+            for p in s.memory['players'].values():
+                if p.actor and p.actor.node and p.actor.node.hold_node == b.node and p.team.id != b.team_id:
                     p.actor.node.hold_node = None
             # held
             holders = [
-                p.actor for p in self.memory['players'].values() if p.actor and p.actor.node
+                p.actor for p in s.memory['players'].values() if p.actor and p.actor.node
             ] + [
-                b for team in self.memory['spazzes'].values() for b in team if b and b.node
+                bot for team in s.memory['spazzes'].values() for bot in team if bot and bot.node
             ]
-            if any(getattr(h.node, 'hold_node', None) == piece.node for h in holders):
+            if any(getattr(h.node, 'hold_node', None) == b.node for h in holders):
                 # jump
                 if cnt[0] % 5 == 0:
-                    piece.on_jump_press()
-                    piece.on_jump_release()
-                piece.on_move_up_down(0)
-                piece.on_move_left_right(0)
+                    b.on_jump_press()
+                    b.on_jump_release()
+                b.on_move_up_down(0)
+                b.on_move_left_right(0)
                 return
 
-            px, _, pz = piece.node.position
-            side = 1 if self.map.defs.points[f'spawn{piece.team_id+1}'][2] > 0 else -1
+            px, _, pz = b.node.position
+            side = 1 if s.map.defs.points[f'spawn{b.team_id+1}'][2] > 0 else -1
 
             # walk
-            sq = self.memory['squares'].get(piece)
+            sq = s.memory['squares'].get(b)
             if sq:
-                tgt = self.path(piece, (px, pz), sq)
+                tgt = s.path(b, (px, pz), sq)
                 if tgt is None:
-                    piece.on_move_left_right(0)
-                    piece.on_move_up_down(0)
+                    b.on_move_left_right(0)
+                    b.on_move_up_down(0)
                     return
 
                 # walk
                 dx, dz = tgt[0] - px, tgt[1] - pz
                 dist = (dx * dx + dz * dz) ** 0.5
                 if tgt != sq or dist > 0.08:
-                    piece.on_move_left_right(max(-1.0, min(1.0, dx * 3)))
-                    piece.on_move_up_down(max(-1.0, min(1.0, -dz * 3)))
+                    b.on_move_left_right(max(-1.0, min(1.0, dx * 3)))
+                    b.on_move_up_down(max(-1.0, min(1.0, -dz * 3)))
                 else:
                     # look
-                    if cnt[0] % 30 == 0 and (plr := self.memory['players'].get(piece.team_id)) and plr.actor and plr.actor.node:
+                    if not s.memory.get('started') and cnt[0] % 30 == 0 and (plr := s.memory['players'].get(b.team_id)) and plr.actor and plr.actor.node:
                         mx, _, mz = plr.actor.node.position
                         vx, vz = mx - px, mz - pz
                         l = (vx * vx + vz * vz) ** 0.5 or 1
-                        piece.on_move_left_right((vx / l) * 0.05)
-                        piece.on_move_up_down((-vz / l) * 0.05)
+                        b.on_move_left_right((vx / l) * 0.05)
+                        b.on_move_up_down((-vz / l) * 0.05)
                     else:
                         # stop
-                        piece.on_move_left_right(0)
-                        piece.on_move_up_down(0)
+                        b.on_move_left_right(0)
+                        b.on_move_up_down(0)
             else:
                 # enemy
                 if side * pz < 0:
                     dz = side * 1.5 - pz
-                    piece.on_move_left_right(max(-1.0, min(1.0, -px * 2)))
-                    piece.on_move_up_down(max(-1.0, min(1.0, -dz * 3)))
+                    b.on_move_left_right(max(-1.0, min(1.0, -px * 2)))
+                    b.on_move_up_down(max(-1.0, min(1.0, -dz * 3)))
                 else:
                     # stop
-                    piece.on_move_left_right(0)
-                    piece.on_move_up_down(0)
+                    b.on_move_left_right(0)
+                    b.on_move_up_down(0)
 
         self.memory['timers'][f'retain_{id(piece)}'] = bs.Timer(0.1, tick, repeat=True)
 
     def knockdown(self, team_id, origin):
+        _s, _o = weakref.ref(self), weakref.ref(origin)
         def tick():
-            if (target := self.memory['control'].get(team_id)) is None or not origin.node:
-                self.memory['timers'][f'knock{team_id}'] = None
+            s, o = _s(), _o()
+            if not s or not o or (target := s.memory['control'].get(team_id)) is None or not o.node:
+                if s: s.memory['timers'][f'knock{team_id}'] = None
                 return
-            origin.node.handlemessage('knockout', 100)
+            o.node.handlemessage('knockout', 100)
             # bounds
             if target.node:
                 tx, _, tz = target.node.position
                 if not (-4.0 <= tx <= 4.0 and -4.0 <= tz <= 4.0):
-                    if target in self.memory['squares']:
-                        old_sq = self.memory['squares'].pop(target, None)
-                        self.highlight_tile(old_sq, active=False)
-                        self.recolor(target, occupied=False)
+                    if target in s.memory['squares']:
+                        old_sq = s.memory['squares'].pop(target, None)
+                        s.highlight_tile(old_sq, active=False)
+                        s.recolor(target, occupied=False)
 
         self.memory['timers'][f'knock{team_id}'] = bs.Timer(0.09, tick, repeat=True)
 
@@ -773,7 +892,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         # piece
         if isinstance(spaz, Piece):
             self.start_run(spaz)
-            if old_sq := self.memory['squares'].pop(piece := spaz, None):
+            if old_sq := self.memory['squares'].pop(spaz, None):
                 self.highlight_tile(old_sq, active=False)
             self.recolor(spaz, occupied=False)
             # release
@@ -824,6 +943,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 
     def stop_game(self):
         self.playing = False
+        self.stop_countdown()
         # clear
         for fill in self.map.fills.values():
             if fill:
@@ -834,8 +954,9 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                     self.memory['timers'][f'retain_{id(b)}'] = None
                     self.stop_run(b)
                     b.handlemessage(bs.DieMessage(immediate=True))
-        for k in ['timers', 'squares', 'control', 'swap', 'spazzes', 'kings', 'glow', 'can_start', 'started', 'team_colors']:
+        for k in ['timers', 'squares', 'swap', 'spazzes', 'kings', 'glow', 'team_colors']:
             self.memory[k] = {}
+        self.memory['control'] = weakref.WeakValueDictionary()
 
 # ba_meta require api 9
 # ba_meta export babase.Plugin
