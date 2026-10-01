@@ -6070,8 +6070,7 @@ class DemoWindow:
             scale_origin_stack_offset=(
                 self.ios_btn.get_screen_space_center()
             ),
-            color=(1.2,1.2,1.2),
-            scale=5
+            color=(1.2,1.2,1.2)
         )
         # close
         bui.containerwidget(
@@ -6209,4 +6208,3 @@ class Demo(bui.Plugin):
         return True
     def show_settings_ui(self, src):
         DemoWindow(src)
-    def __init__(self): bui.apptimer(2,DemoWindow)
