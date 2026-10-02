@@ -20,8 +20,7 @@ from bascenev1lib.gameutils import SharedObjects
 from random import choice, choices, random, uniform
 from bascenev1lib.actor.powerupbox import PowerupBox, PowerupBoxFactory
 
-# debug
-DEBUG = True
+DEBUG = False
 
 class Strings:
     CHECKBOOM = 'Checkboom'
@@ -87,6 +86,8 @@ class Strings:
     SPECIAL_POWER = 'Special'
     TEAM_TURN = "${TEAM}'s turn"
     TEAM_WINS = '${TEAM} wins!'
+    CONTINUE = 'Press ${B}PUNCH to continue'
+    PROCEEDING = 'Proceeding...'
 
 class Checkboard(bs.Map):
     name = 'Checkboard'
@@ -176,6 +177,36 @@ class Checkboard(bs.Map):
                 )
                 self.inner_fills[(round(x, 1), round(z, 1))] = inner_fill
 
+def loop_array(node, attr, size, keys):
+    """Looping array animation that returns its nodes so it can be killed.
+    bs.animate_array returns None, so a looping one can never be stopped; on
+    remote clients the orphaned curve keeps overwriting the attribute."""
+    combine = bs.newnode('combine', owner=node, attrs={'size': size})
+    items = sorted(keys.items())
+    gnode = bs.getactivity().globalsnode
+    out = [combine]
+    for i in range(size):
+        curve = bs.newnode('animcurve', owner=node)
+        gnode.connectattr('time', curve, 'in')
+        curve.times = [int(1000 * t) for t, _ in items]
+        curve.values = [v[i] for _, v in items]
+        curve.offset = int(bs.time() * 1000.0)
+        curve.loop = True
+        curve.connectattr('out', combine, 'input' + str(i))
+        out.append(curve)
+    combine.connectattr('output', node, attr)
+    return out
+
+
+def kill_anims(nodes):
+    """Delete animation nodes (list of nodes, or None) so clients drop them."""
+    for n in nodes or ():
+        try:
+            n and n.exists() and n.delete()
+        except Exception:
+            pass
+
+
 def pfx(a, dmg, d, dead=False):
     pos = a.node.position
     d = d or (0.0, 1.0, 0.0)
@@ -214,6 +245,19 @@ def glv(a, msg):
     a._flash_billboard(PowerupBoxFactory.get().tex_punch)
     if msg.sourcenode:
         msg.sourcenode.handlemessage(bs.PowerupAcceptMessage())
+
+
+def cap_players(session):
+    # backup
+    if not hasattr(session, '_cb_mp'):
+        session._cb_mp = session.max_players
+    session.max_players = 2
+
+
+def uncap_players(session):
+    if hasattr(session, '_cb_mp'):
+        session.max_players = session._cb_mp
+        del session._cb_mp
 
 
 class Piece(Spaz):
@@ -291,7 +335,7 @@ class Floater(bs.Actor):
         s = self.s = uniform(0.2, 0.5)
         mx = max(col) or 1.0
         nc = [(x / mx) ** 2.5 for x in col]
-        gain = 1.5 * 11 ** random()  # 1.5 to 16.5, log spread
+        gain = 1.5 * 11 ** random()  # logarithmic
         rs = [x * gain for x in nc]
         self.life = uniform(20, 40)
         self.t0 = bs.time()
@@ -315,9 +359,10 @@ class Floater(bs.Actor):
             bs.animate(self.node, 'mesh_scale', {0: 0, 0.4: s})
             bs.animate(self.light, 'intensity', {0: 0, 0.4: self.li})
         _s = ref(self)
+        rot = game.rotating
         self.timers = [
             bs.Timer(uniform(4, 8), lambda: _s() and _s().gtick(), repeat=True),
-            bs.Timer(uniform(3, 6), lambda: _s() and _s().push(), repeat=True),
+            bs.Timer(uniform(1.0, 2.5) if rot else uniform(3, 6), lambda: _s() and _s().push(), repeat=True),
             bs.Timer(0.25, lambda: _s() and _s().chk(), repeat=True),
             bs.Timer(self.life, lambda: _s() and _s().fade())
         ]
@@ -336,23 +381,29 @@ class Floater(bs.Actor):
 
     def push(self):
         if not self.node: return
+        g = self.gm()
+        rot = g and g.rotating
         p = self.node.position
         a = uniform(0, 6.2832)
         d = [cos(a), uniform(-0.3, 0.3), sin(a)]
         # shy
         if abs(p[0]) < 5.0 and abs(p[2]) < 5.0:
             d[0] += p[0] * 0.03; d[2] += p[2] * 0.03
-        # camera wedge: steer out of it
-        if p[2] > 0 and abs(p[0]) < 0.81 * p[2] + 1.0:
+        # steer
+        if not rot and p[2] > 0 and abs(p[0]) < 0.81 * p[2] + 1.0:
             d[2] -= 1
             d[0] += 0.5 if p[0] >= 0 else -0.5
         n = (d[0] ** 2 + d[1] ** 2 + d[2] ** 2) ** 0.5 or 1.0
-        m = uniform(20, 50) * (self.s / 0.35) ** 3
+        m = uniform(20, 50) * (self.s / 0.35) ** 3 * (2.2 if rot else 1.0)
         self.node.handlemessage('impulse', p[0], p[1], p[2], 0, 0, 0, m, 0, 0, 0, d[0] / n, d[1] / n, d[2] / n)
 
     def chk(self):
         if not self.node: return
         x, y, z = self.node.position
+        g = self.gm()
+        if g and g.rotating:
+            if y < -1.0 or y > 16.0 or abs(x) > 33.0 or abs(z) > 33.0 or (abs(x) < 3.95 and abs(z) < 3.95): self.fade()
+            return
         if y < -1.0 or y > 14.0 or abs(x) > 21.0 or z < -25.0 or (abs(x) < 3.95 and abs(z) < 3.95) or z > 25.0 or (z > 0 and abs(x) < 0.81 * z - 0.5): self.fade()
 
     def fade(self):
@@ -448,6 +499,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.current_turn_team_id = None
         self.turn_active = False
         self.game_over = False
+        self.rotating = False
         self.move_state = {'x_held': 0, 'z_held': 0}
         self.pending_action = None
 
@@ -457,6 +509,8 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.move_highlighted_tiles = []
         self.attack_highlighted_tiles = []
         self.glows = []
+        self.attack_anims = []
+        self.king_anims = {}
         self.char_overlay_nodes = []
 
         self.subtext = bs.newnode(
@@ -468,6 +522,8 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             }
         )
         self.legend = []
+        self.rel = []
+        self.rel_op = 0.0
         for i, (tex, c, t) in enumerate((
             ('buttonPunch', (1, 1, 0.4), Strings.CONTROL),
             ('buttonBomb', (1, 0, 0), Strings.RELEASE),
@@ -497,6 +553,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                     'opacity': 0
                 }
             ))
+            i and self.rel.extend(self.legend[-2:])
 
     def on_transition_in(self):
         super().on_transition_in()
@@ -512,14 +569,15 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 
     def on_transition_out(self):
         super().on_transition_out()
-        # next screen's Background fades in linearly over 0.5s from this moment and we expire after 0.5s; fade our 2d nodes the same
+        uncap_players(self.session)
+        # fade
         for n in self.memory['win_2d']:
             if n and n.exists():
                 bs.animate(n, 'opacity', {0.0: n.opacity, 0.5: 0.0})
 
     def on_begin(self):
         super().on_begin()
-        bs.getsession().max_players = 2
+        cap_players(bs.getsession())
         _s = ref(self)
         self.memory['timers']['bounds'] = bs.Timer(0.1, lambda: _s() and _s().bounds_tick(), repeat=True)
         self.memory['timers']['floaters'] = bs.Timer(0.3, lambda: _s() and _s().floaters_tick(), repeat=True)
@@ -847,7 +905,8 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.stop_all_move_repeats(); self.clear_selection()
         [self.hide_team_selector(t) for t in list(self.team_selectors)]
         [(p := self.memory['players'].get(t)) and (c := self.memory['control'].get(t)) and self.release_control(p, c) for t in (wt, lt)]
-        [self.memory['timers'].__setitem__(k, None) for k in list(self.memory['timers']) if not str(k).startswith('dead_knock_')]
+        [self.memory['timers'].__setitem__(k, None) for k in list(self.memory['timers']) if not str(k).startswith('dead_knock_') and k != 'floaters']
+        self.hide_legend(0.5)
         [p.resetinput() for p in self.players]
         for a in self.actors(): a.node.hold_node = None; a.on_move_left_right(0); a.on_move_up_down(0); a.on_run(0)
         # loser
@@ -881,9 +940,8 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                 return
             bs.setmusic(s.default_music)
             cel(); s.memory['timers']['celebrate'] = bs.Timer(0.8, cel, repeat=True)
-            # celebrate, then analysis, then end
+            # sequence
             s.memory['timers']['analysis'] = bs.Timer(2.0, lambda: (s2 := _s()) and s2.show_analysis(wt))
-            s.memory['timers']['round_end'] = bs.Timer(2.0 + 0.6 + 0.4 * 9 + 0.5 + 4.0, lambda: (s2 := _s()) and s2.fin(wt))
 
         def stt():
             s = _s()
@@ -891,12 +949,10 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                 s.ttl(wtext, s.get_team_color(wt), total, on_sub=on_wins, hold=True)
 
         t = self.memory['timers']
-        # dim layer, created before the texts so they draw above it
+        # overlay
         self.memory['win_overlay'] = ov = bs.newnode('image', attrs={'texture': bs.gettexture('white'), 'absolute_scale': True, 'attach': 'center', 'scale': (4000, 3000), 'color': (0, 0, 0), 'opacity': 0.0})
         self.memory['win_2d'].append(ov)
         t['wtt'] = bs.Timer(1.0, stt)
-        # failsafe end, normal end is scheduled after the celebration
-        t['round_end'] = bs.Timer(60.0, lambda: (s := _s()) and s.fin(wt))
 
     def new_st(self):
         return {t: {'time': 0.0, 'turns': 0, 'longest': 0.0, 'caps': {}, 'lost': 0, 'mov': 0, 'atk': 0, 'spc': 0} for t in (0, 1)}
@@ -910,6 +966,12 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
     def show_analysis(self, wt):
         if not self.game_over: return
         self.globalsnode.camera_mode = 'rotate'
+        # burst
+        self.rotating = True
+        for f in self.memory['floaters']:
+            f.node and f.push()
+        for _ in range(91):
+            self.mkfloater()
         ov = self.memory.get('win_overlay')
         ov and ov.exists() and bs.animate(ov, 'opacity', {0: 0.0, 0.8: 0.3})
 
@@ -918,7 +980,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         def cp(c): return f"{sum(c.values())}" + (' (' + ' '.join(f'{c[k]}{l}' for k, l in order if c.get(k)) + ')' if c else '')
         def left(t): return sum(1 for a in self.memory['spazzes'].get(t, []) if a and not getattr(a, 'is_dead', False))
         S = self.st
-        # label, display values, compare values, better = high/low/None
+        # rows
         rows = (
             ('Time used', [tm(S[t]['time']) for t in (0, 1)], [S[t]['time'] for t in (0, 1)], 'low'),
             ('Turns', [str(S[t]['turns']) for t in (0, 1)], None, None),
@@ -933,10 +995,15 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         gold, grey = (1.0, 0.9, 0.5, 1.0), (0.7, 0.7, 0.8, 1.0)
         xs = (-190, 190)
 
-        def tx(txt, x, y, col, sc, d, mw=None):
-            t = Text(txt, position=(x, y), h_align=Text.HAlign.CENTER, v_align=Text.VAlign.CENTER, color=col, scale=sc, maxwidth=mw, transition=Text.Transition.FADE_IN, transition_delay=d)
-            t.autoretain()
-            self.memory['win_2d'].append(t.node)
+        def tx(txt, x, y, col, sc, d, mw=None, pop=False):
+            def mk():
+                if pop and not self.game_over:
+                    return
+                t = Text(txt, position=(x, y), h_align=Text.HAlign.CENTER, v_align=Text.VAlign.CENTER, color=col, scale=sc, maxwidth=mw, transition=None if pop else Text.Transition.FADE_IN, transition_delay=0.0 if pop else d)
+                t.autoretain()
+                self.memory['win_2d'].append(t.node)
+            # instant
+            bs.timer(d, mk) if pop else mk()
 
         d0 = 0.6
         for t in (0, 1):
@@ -948,12 +1015,42 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             win = [False, False]
             if cmpv and cmpv[0] != cmpv[1]:
                 win[0 if (cmpv[0] > cmpv[1]) == (better == 'high') else 1] = True
-            tx(lab, 0, y, (0.5, 0.5, 0.6, 1.0), 0.7, d, 220)
+            tx(lab, 0, y, (0.5, 0.5, 0.6, 1.0), 0.7, d + 0.1 if last else d, 220, pop=last)
             for t in (0, 1):
-                tx(vals[t], xs[t], y, gold if win[t] else grey, 1.2 if last else 0.9, d + 0.1, 260)
+                tx(vals[t], xs[t], y, gold if win[t] else grey, 1.2 if last else 0.9, d + 0.1, 260, pop=last)
             if last:
-                bs.timer(d, bs.getsound('dingSmallHigh').play)
-                bs.timer(d + 0.1, bs.getsound('dingSmallHigh').play)
+                bs.timer(d + 0.1, bs.getsound('cashRegister').play)
+
+        # prompt
+        _s, _wt = ref(self), wt
+        def ask():
+            s = _s()
+            if not s or not s.game_over:
+                return
+            n = bs.newnode('text', attrs={
+                'text': bui.Lstr(value=Strings.CONTINUE, subs=[('${B}', bui.charstr(bui.SpecialChar.LEFT_BUTTON))]),
+                'scale': 1.0, 'v_attach': 'bottom', 'h_attach': 'center', 'h_align': 'center', 'v_align': 'center',
+                'position': (0, 50), 'color': (1, 1, 1), 'opacity': 0.0
+            })
+            s.memory['win_2d'].append(n)
+            fl(n, (1, 1, 1), 1.0, 0.6)
+            bs.animate(n, 'opacity', {0: 0, 0.4: 1})
+            def go():
+                s2 = _s()
+                if not s2 or not s2.game_over:
+                    return
+                for q in s2.players: q.resetinput()
+                bs.getsound('punch01').play()
+                n.exists() and n.delete()
+                s2.memory['win_2d'].append(bs.newnode('text', attrs={
+                    'text': Strings.PROCEEDING,
+                    'scale': 1.0, 'v_attach': 'bottom', 'h_attach': 'center', 'h_align': 'center', 'v_align': 'center',
+                    'position': (0, 50), 'color': (1, 1, 0), 'opacity': 1.0
+                }))
+                s2.fin(_wt)
+            for q in s.players:
+                q.assigninput(bs.InputType.PUNCH_PRESS, go)
+        self.memory['timers']['cont'] = bs.Timer(d + 0.9, ask)
 
     def fin(self, wt):
         if not self.game_over: return
@@ -1096,7 +1193,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 
         self.memory['timers']['legend'] = arr = []
         for n in self.legend:
-             arr.append(bs.Timer(1, bs.animate(n, 'opacity', {0: 0, 0.6: 0.7}).delete))
+             n in self.rel or arr.append(bs.Timer(1, bs.animate(n, 'opacity', {0: 0, 0.6: 0.7}).delete))
 
     def claim_spaz(self, player, target):
         if target.claimed_by is not None:
@@ -1349,13 +1446,14 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             if st != self.memory['glow'].get(tid):
                 self.memory['glow'][tid] = st
                 c = self.get_team_color(tid)
+                kill_anims(self.king_anims.pop(tid, None))
                 if node := self.map.fills.get((round(ksq[0], 1), round(ksq[1], 1))):
                     node.shape = 'circleOutline'
                     node.size = (0.63,)
                     if st == 'in':
                         bs.animate_array(node, 'color', 3, {0.0: node.color, 0.2: self.neon(*c)})
                     else:
-                        bs.animate_array(node, 'color', 3, {0.0: c, 0.8: c, 1.1: self.neon(*c), 1.4: c}, loop=True)
+                        self.king_anims.setdefault(tid, []).extend(loop_array(node, 'color', 3, {0.0: c, 0.8: c, 1.1: self.neon(*c), 1.4: c}))
                 if inner := self.map.inner_fills.get((round(ksq[0], 1), round(ksq[1], 1))):
                     inner.shape = 'circleOutline'
                     inner.size = (0.57,)
@@ -1363,7 +1461,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                     if st == 'in':
                         bs.animate_array(inner, 'color', 3, {0.0: inner.color, 0.2: self.neon(*c)})
                     else:
-                        bs.animate_array(inner, 'color', 3, {0.0: c, 0.8: c, 1.1: self.neon(*c), 1.4: c}, loop=True)
+                        self.king_anims.setdefault(tid, []).extend(loop_array(inner, 'color', 3, {0.0: c, 0.8: c, 1.1: self.neon(*c), 1.4: c}))
 
         if self.memory.get('started'):
             return
@@ -1458,6 +1556,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
     def start_match(self):
         self.memory['started'] = True
         self.alert('')
+        self.hide_legend()
 
         for p in self.players:
             p.resetinput()
@@ -1778,6 +1877,9 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.hide_team_selector(tid)
         n = self.team_selectors[tid] = bs.newnode('locator', attrs={'shape': 'box', 'position': (pos[0], 0.6, pos[1]), 'size': (1.0, 1.2, 1.0), 'color': self.neon(*self.get_team_color(tid)), 'opacity': 0.0, 'draw_beauty': True})
         self.team_selector_blink[tid] = bs.animate(n, 'opacity', {0.0: 0.0, 0.25: 0.85, 0.5: 0.0}, loop=True)
+
+    def hide_legend(self, t=0.3):
+        [n.exists() and bs.animate(n, 'opacity', {0.0: n.opacity, t: 0.0}) for n in self.legend if n]
 
     def hide_selector(self):
         if self.current_turn_team_id is not None:
@@ -2304,17 +2406,12 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                 c_ours = self.get_team_color(my_team_id)
                 c_enemy = self.get_team_color(getattr(enemy, 'team_id', None))
                 getattr(enemy, 'is_master', False) and self.glows.append(node := bs.newnode('locator', attrs={'shape': 'circle', 'position': (sq[0], 0.007, sq[1]), 'size': (0.9,), 'color': c_ours, 'opacity': 0.0, 'additive': True, 'draw_beauty': True}))
-                bs.animate_array(
-                    node,
-                    'color',
-                    3,
-                    {0.0: c_ours, 0.3: c_enemy, 0.6: c_ours},
-                    loop=True
-                )
-                bs.animate(node, 'opacity', {0.0: 0.0, 0.125: 0.8, 0.25: 0.0}, loop=True)
+                self.attack_anims += loop_array(node, 'color', 3, {0.0: c_ours, 0.3: c_enemy, 0.6: c_ours})
+                self.attack_anims.append(bs.animate(node, 'opacity', {0.0: 0.0, 0.125: 0.8, 0.25: 0.0}, loop=True))
                 self.attack_highlighted_tiles.append(sq)
 
     def clear_move_highlights(self):
+        kill_anims(self.attack_anims); self.attack_anims.clear()
         for sq in self.move_highlighted_tiles:
             pt = (round(sq[0], 1), round(sq[1], 1))
             if node := self.map.fills.get(pt):
@@ -2505,6 +2602,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             self.turn_active = False
             self.stop_all_move_repeats()
             self.hide_team_selector(active_team_id)
+            self.hide_legend()
 
             bs.getsound('gunCocking').play(position=spaz.node.position if spaz.node else None)
             if spaz and spaz.node and getattr(spaz.node, 'jump_sounds', None):
@@ -2554,6 +2652,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
             self.turn_active = False
             self.stop_all_move_repeats()
             self.hide_team_selector(active_team_id)
+            self.hide_legend()
             self.memory['lm'][getattr(spaz, 'team_id', 0)] = ref(spaz)
             self.pending_action = {
                 'type': 'move',
@@ -2653,6 +2752,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.turn_active = False
         self.stop_all_move_repeats()
         self.hide_team_selector(self.current_turn_team_id)
+        self.hide_legend()
 
         bs.getsound('gunCocking').play(position=spaz.node.position if spaz.node else None)
         if spaz and spaz.node and getattr(spaz.node, 'jump_sounds', None):
@@ -3632,7 +3732,19 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 
         self.memory['timers'][f'knock{team_id}'] = bs.Timer(0.09, tick, repeat=True)
 
+    def sync_legend(self):
+        # release
+        if self.memory.get('started') or not self.rel:
+            return
+        want = 0.7 if self.memory['control'] else 0.0
+        if want == self.rel_op:
+            return
+        self.rel_op = want
+        for n in self.rel:
+            n.exists() and bs.animate(n, 'opacity', {0.0: n.opacity, 0.25: want})
+
     def bounds_tick(self):
+        self.sync_legend()
         for p in self.memory['players'].values():
             if p.actor and p.actor.node and not getattr(p.actor, 'is_dead', False):
                 self.shove(p.actor)
@@ -3648,7 +3760,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
     def shove(self, a):
         x, y, z = a.node.position
         if y < -1.0: return self.respawn_spaz(a)
-        # aoi * 2
+        # bounds
         A = self.map.defs.boxes['area_of_interest_bounds']
         over = max(abs(x) - A[6], abs(z) - A[8])
         if over <= 0: return
@@ -3687,25 +3799,30 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         # prune
         t = bs.time()
         for f in self.memory['floaters']:
-            # hard cap
+            # cap
             if f.node and t - f.t0 > f.life + 2: f.node.delete()
         fl = self.memory['floaters'] = [f for f in self.memory['floaters'] if f.node]
-        for _ in range(140 - len(fl) if initial else min(10, 140 - len(fl))):
+        cap = 247 if self.rotating else 140
+        for _ in range(cap - len(fl) if initial else min(26 if self.rotating else 10, cap - len(fl))):
             self.mkfloater(initial)
 
     def mkfloater(self, instant=False):
-        for _ in range(80):
-            x, z = uniform(-17.0, 17.0), uniform(-21.0, 17.0)
-            if (abs(x) > 4.05 or abs(z) > 4.05) and not (z > 0 and abs(x) < 0.81 * z) and random() < exp(-(max(abs(x), abs(z)) - 4.0) / 5.0): break
-        else: return
-        # team a, team b, or a mix
+        if self.rotating:
+            a, r = uniform(0, 6.2832), uniform(4.5 ** 2, 30.0 ** 2) ** 0.5
+            x, z = r * cos(a), r * sin(a)
+        else:
+            for _ in range(80):
+                x, z = uniform(-17.0, 17.0), uniform(-21.0, 17.0)
+                if (abs(x) > 4.05 or abs(z) > 4.05) and not (z > 0 and abs(x) < 0.81 * z) and random() < exp(-(max(abs(x), abs(z)) - 4.0) / 5.0): break
+            else: return
+        # colors
         c0, c1, r = self.get_team_color(0), self.get_team_color(1), random()
         if r < 0.3: col = c0
         elif r < 0.6: col = c1
         else:
             k = uniform(0.15, 0.85)
             col = tuple(a * (1 - k) + b * k for a, b in zip(c0, c1))
-        self.memory['floaters'].append(Floater(self, (x, uniform(0.5, 7), z), col, instant))
+        self.memory['floaters'].append(Floater(self, (x, uniform(0.5, 12 if self.rotating else 7), z), col, instant))
 
     def neon(self,a,b,c,z=4):
         return (
@@ -3771,6 +3888,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.pending_action = None
         self.turn_active = False
         self.game_over = False
+        self.rotating = False
         self.current_turn_team_id = None
         self.st = self.new_st()
         self.turn_t0 = None
@@ -3817,6 +3935,13 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
 class byBordd(bs.Plugin):
     def __init__(self):
         bs.app.classic.maps['Checkboard'] = Checkboard
+        if not getattr(bs.JoinActivity.on_transition_in, '_cb', False):
+            old_jti = bs.JoinActivity.on_transition_in
+            def jti(self):
+                old_jti(self)
+                getattr(self.session, '_next_game', None) is Checkboom and cap_players(self.session)
+            jti._cb = True
+            bs.JoinActivity.on_transition_in = jti
         old_gt = bui.gettexture
         def new_gt(tex):
             if tex == 'checkboom':
