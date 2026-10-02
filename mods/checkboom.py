@@ -215,7 +215,7 @@ def pfx(a, dmg, d, dead=False):
     if dmg >= 400:
         bs.getsound('superPunch').play(1.0, position=pos)
     if dmg >= 350:
-        bs.show_damage_count('-' + str(int(dmg / 10)) + '%', pos, d, dead)
+        bs.show_damage_count('-' + str(int(dmg / 10)) + '%', pos, d)
     bs.emitfx(position=pos, velocity=(d[0] * 0.5, d[1] * 0.5, d[2] * 0.5), count=min(20, 3 + int(dmg * 0.01)), scale=0.4, spread=0.05)
     bs.emitfx(position=pos, chunk_type='sweat', velocity=(d[0] * 1.3, d[1] * 1.3 + 5.0, d[2] * 1.3), count=min(40, 3 + int(dmg * 0.06)), scale=1.0, spread=0.3)
     if dmg >= 250:
@@ -238,7 +238,7 @@ def fl(n, c, hi=2.0, lo=1.0):
 
 
 def readable(c, lo=0.45):
-    # lighten a color toward white until it is readable on a black bg
+    # lighten
     c = tuple(max(0.0, min(1.0, float(v))) for v in c[:3])
     lum = lambda x: 0.2126 * x[0] + 0.7152 * x[1] + 0.0722 * x[2]
     if lum(c) >= lo: return c
@@ -813,10 +813,10 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         super().on_player_leave(player)
         self.memory['players'].pop(player.team.id, None)
         if self.memory.get('started'):
-            # match in progress: leaver forfeits, the other side wins
+            # forfeit
             lt = player.team.id
             self.game_over or self.mdead(None, lt=lt)
-            self.remove_team(lt)  # delete the leaver's spazzes
+            self.remove_team(lt)  # cleanup
             return
         self.stop_countdown()
         self.remove_team(player.team.id)
@@ -926,7 +926,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         (d and not getattr(v, 'is_master', False)) and self.stats.player_was_killed(d, killed=True, killer=k)
 
     def mdead(self, m, lt=None):
-        # m: the dead master (None on forfeit); lt: losing team id (forfeit only)
+        # result
         if self.game_over: return
         self.game_over = True
         lt = getattr(m, 'team_id', 0) if lt is None else lt
@@ -1104,7 +1104,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
     def sanity_tick(self):
         need = 1 if DEBUG else 2
         n = len(self.players)
-        # every present player gets pieces immediately, even while waiting
+        # pieces
         for tid in ([0, 1] if (DEBUG and n) else [p.team.id for p in self.players]):
             if not self.team_spawned(tid):
                 self.spawn_team(tid)
@@ -1261,7 +1261,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
         self.memory['swap'].pop(team_id, None)
         self.memory['team_colors'].pop(team_id, None)
         self.team_selector_pos.pop(team_id, None)
-        # first two ranks back to white
+        # ranks
         side = 1 if self.map.defs.points[f'spawn{team_id + 1}'][2] > 0 else -1
         for r in (3.5, 2.5):
             for c in range(8):
@@ -3147,7 +3147,6 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                                         b.on_move_up_down(0)
                                         b.on_move_left_right(0)
                                         b.node.hold_node = None
-                                    bs.getsound('throw').play(position=b.node.position if b and b.node else None)
 
                                     if victim and victim.node and victim.is_alive():
                                         victim.node.handlemessage(
@@ -4027,8 +4026,7 @@ class Checkboom(bs.TeamGameActivity[bs.Player,bs.Team]):
                     self.memory['timers'][f'retain_{id(b)}'] = None
                     self.stop_run(b)
                     b.handlemessage(bs.DieMessage(immediate=True))
-        # keep the bounds/floaters timers: bounds_tick drives check_kings, so
-        # wiping them left the game stuck on "place your pieces" forever.
+        # timers
         self.memory['timers'] = {k: v for k, v in self.memory['timers'].items() if k in ('bounds', 'floaters')}
         for k in ['squares', 'swap', 'spazzes', 'kings', 'glow', 'team_colors', 'graveyard', 'cooldowns', 'lm', 'boxes', 'bage']:
             self.memory[k] = {}
