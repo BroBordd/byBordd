@@ -249,7 +249,7 @@
     },
     {
         "mod_name": "Checkboom",
-        "mod_fancy_name": "Get SpazMated",
+        "mod_fancy_name": "Boom goes the king",
         "mod_version": "1.0",
         "mod_description": "Simple turn based game I made because bored.\nExperimental. Adds a Team game.",
         "api_version": 9,
