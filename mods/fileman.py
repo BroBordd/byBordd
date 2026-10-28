@@ -2382,11 +2382,18 @@ class byBordd(Plugin):
         o = getattr(m,i)
         def hook(z,*a,**k):
             o(z,*a,**k)
-            if type(z.controller).__name__ == 'AllSettingsController': s.mk(z)
+            if type(z.controller).__name__ == 'AllSettingsController':
+                try: s.mk(z)
+                except Exception:
+                    import traceback; traceback.print_exc()
         setattr(m,i,hook)
     def mk(s,z):
+        from bauiv1 import widget as _w
+        # centered under the settings button row; clamp inside the visible area
+        cx,cy = z._frame.vis_center
+        y = max(z._vis_top-z._vis_height+10,cy-176)
         s.b = obw(
-            position=(z._vis_left+z._vis_width-130,z._vis_top-z._vis_height+25),
+            position=(cx-50,y),
             parent=z._root_widget,
             icon=gt('folder'),
             size=(100,30),
@@ -2398,5 +2405,7 @@ class byBordd(Plugin):
             on_activate_call=lambda:s.run(z),
             id='FileMan'+str(id(z))
         )
+        # page content can draw over later widgets unless depth-ranged
+        _w(edit=s.b,depth_range=(0.9,1.0))
     def run(s,z):
         z.main_window_replace(lambda:FileMan(s.b))
