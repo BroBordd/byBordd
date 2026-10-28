@@ -40,7 +40,6 @@ from bauiv1 import (
     textwidget as tw,
     apptimer as teck,
     AppTimer as tuck,
-    charstr as cs,
     MainWindow,
     open_url,
     CallPartial,
@@ -56,6 +55,7 @@ from threading import Thread
 from pathlib import Path
 import os, re, shutil
 from bauiv1 import _commonassets as _CMA, _uiv1assets as _UIA, _classicassets as _CLA
+cs = lambda c: c.value  # 1.8: SpecialChar values are the characters; charstr() is deprecated
 
 class FileMan(MainWindow):
     main_window_should_preserve_selection = lambda s: False
@@ -2405,7 +2405,7 @@ class byBordd(Plugin):
                     action=dui2.Local(immediate_local_action=ACT),
                     decorations=[
                         replace(icon,texture=cla.textures.folder),
-                        replace(label,text=LangStrSpecValue.literal('FileMan'))
+                        replace(label,text=LangStrSpecValue.literal('File Manager'))
                     ]
                 ))
                 return resp
