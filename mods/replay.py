@@ -343,7 +343,7 @@ class Player:
         width, height = bui.get_virtual_screen_size()
         self.parent = bui.containerwidget(
             parent=get_overlay_stack(),
-            size=(width, self.bar_height),
+            size=(width, height),
             position=(0, 0),
             background=False
         )
@@ -594,7 +594,7 @@ class Player:
             ))
             widgets(bui.textwidget(
                 parent=parent,
-                text=bui.charstr(getattr(bui.SpecialChar, arrow)),
+                text=getattr(bui.SpecialChar, arrow).value,
                 color=self.COL3,
                 position=(pos[0] - 2, pos[1] + 13),
                 h_align='center',
@@ -617,7 +617,7 @@ class Player:
             ))
             widgets(bui.textwidget(
                 parent=parent,
-                text=bui.charstr(getattr(bui.SpecialChar, arrow)),
+                text=getattr(bui.SpecialChar, arrow).value,
                 color=self.COL5,
                 position=(pos[0] - 1, pos[1] + 12),
                 h_align='center',
@@ -1123,7 +1123,7 @@ class Player:
         self.cinema_busy = True
         if self.cinema_mode:
             self.animate_cinema(204, 14, -1)
-            bui.buttonwidget(self.cinema_button, label=bui.charstr(bui.SpecialChar.UP_ARROW))
+            bui.buttonwidget(self.cinema_button, label=bui.SpecialChar.UP_ARROW.value)
             self.destroy_cinema_ui()
         else:
             bui.buttonwidget(self.cinema_button, texture=bui.gettexture('white'))
@@ -1290,7 +1290,7 @@ class Player:
     def toggle_pause(self, dry=False, silent=False):
         if not dry:
             self.paused = not self.paused
-        icon = bui.charstr(getattr(bui.SpecialChar, ['PAUSE', 'PLAY'][self.paused] + '_BUTTON'))
+        icon = getattr(bui.SpecialChar, ['PAUSE', 'PLAY'][self.paused] + '_BUTTON').value
         bui.textwidget(self.pause_text, text=icon)
         if not dry:
             if not silent:
