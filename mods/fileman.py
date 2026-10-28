@@ -11,8 +11,7 @@ A comprehensive suite for in-game file management, including:
 - Download: Fetch files from HTTP(S) URLs, plain domains (auto-adds https://), data URIs (with base64 support for images/files), handles redirects, empty responses, and auto-generates filenames from MIME types or domains.
 - Navigation & Utilities: Editable Path Bar, Go Up, Refresh, Sort, Filter, and Bookmark (Star) favorite directories.
 - Text & Code Handling: View, Paginate, and Edit text/code files, featuring basic Python syntax highlighting.
-- Asset Loading: Load/Copy custom Meshes (.bob), Textures (.ktx), and Audio (.ogg) directly to the game folders/directories.
-- Media Previews: Display/Preview recognized Textures (.ktx), Preview Replays, and Play/Pause Audio (.ogg) files.
+- Media Previews: Display/Preview built-in Textures (by asset name), Preview Replays, and Play/Pause Audio (.ogg) files.
 - 3D Mesh Visualization: Render Basic 3D Mesh Illustrations (.bob) with rotation and zoom controls.
 - Customization: Full UI Color Editor with RGB control and Reset to Default options.
 - Accessibility: Adds an access button to the main Settings Menu.
@@ -39,10 +38,8 @@ from bauiv1 import (
     SpecialChar as sc,
     imagewidget as iw,
     textwidget as tw,
-    gettexture as gt,
     apptimer as teck,
     AppTimer as tuck,
-    getsound as gs,
     charstr as cs,
     MainWindow,
     open_url,
@@ -57,7 +54,8 @@ from mimetypes import guess_type
 from random import uniform as UF
 from threading import Thread
 from pathlib import Path
-import os, shutil
+import os, re, shutil
+from bauiv1 import _commonassets as _CMA, _uiv1assets as _UIA, _classicassets as _CLA
 
 class FileMan(MainWindow):
     main_window_should_preserve_selection = lambda s: False
@@ -849,7 +847,7 @@ class FileMan(MainWindow):
                             repeat=True
                         )
                         s.oops = 0
-                        msh = bn in MESH()
+                        msh = bn.lower().endswith('.bob')
                         try:
                             with open(h,'r') as f:
                                 da = f.read()
@@ -898,7 +896,7 @@ class FileMan(MainWindow):
                                     size=(150,40)
                                 )
                             elif ty == 'Texture':
-                                if bn in TEX():
+                                if HAST(bn):
                                     wd = min(xs-80,ys-150)
                                     tex = gt(os.path.splitext(bn)[0])
                                     iw(
@@ -911,18 +909,11 @@ class FileMan(MainWindow):
                                     tw(
                                         parent=p,
                                         position=(xs/2-20,ys-150),
-                                        text='KTX Texture\nPress to load to game\nFile will be copied to textures folder',
+                                        text='KTX Texture\nNot a built-in asset.\nLoose files cannot be loaded in 1.8;\nassets now come from asset packages.',
                                         h_align='center'
                                     )
-                                    bw(
-                                        parent=p,
-                                        label='Load',
-                                        position=(xs/2-50,ys/2-135),
-                                        size=(100,40),
-                                        oac=CallPartial(s.loadt,h,gay=gay)
-                                    )
                             elif ty == 'Audio':
-                                if bn in AUDIO():
+                                if HASA(bn):
                                     tw(
                                         parent=p,
                                         position=(xs/2-20,ys-150),
@@ -949,36 +940,14 @@ class FileMan(MainWindow):
                                         parent=p,
                                         position=(xs/2-20,ys-150),
                                         h_align='center',
-                                        text='OGG Audio\nPress to load to game\nFile will be copied to audio folder',
+                                        text='OGG Audio\nNot a built-in asset.\nLoose files cannot be loaded in 1.8;\nassets now come from asset packages.',
                                         maxwidth=xs-60
                                     )
-                                    bw(
-                                        parent=p,
-                                        label='Load',
-                                        position=(xs/2-50,ys/2-135),
-                                        size=(100,40),
-                                        oac=CallPartial(s.loada,h,gay=gay)
-                                    )
-                            elif ty == 'Mesh' and not msh:
-                                tw(
-                                    parent=p,
-                                    position=(xs/2-20,ys-150),
-                                    h_align='center',
-                                    text='BOB Mesh\nPress to load to game\nFile will be copied to meshes folder',
-                                    maxwidth=xs-60
-                                )
-                                bw(
-                                    parent=p,
-                                    label='Load',
-                                    position=(xs/2-50,ys/2-135),
-                                    size=(100,40),
-                                    oac=CallPartial(s.loadm,h,gay=gay)
-                                )
                             else:
                                 if msh:
                                     s.msh = True
                                     render(h,p,xs-40,ys-110,s.rnd_r,s.rnd_x,s.rnd_y)
-                                    kek = 'BOB Mesh\nRecognized by filename, not data.\nLoaded in meshes folder!'
+                                    kek = 'BOB Mesh\nRendered from file data.'
                                     tw(
                                         parent=p,
                                         text=kek,
@@ -1381,36 +1350,6 @@ class FileMan(MainWindow):
             parent=p5
         )
         cw(p5,visible_child=tl)
-    def loadt(s,h,gay):
-        mem = os.path.join(BASE(),'textures')
-        nam = os.path.basename(h)
-        if nam in TEX():
-            s.btw("A texture with that name already exists! Try renaming.")
-            return
-        shutil.copy(h,os.path.join(mem,nam))
-        [_.delete() for _ in s.killme]
-        s.killme.clear()
-        s.act(0,5,zap=True,gay=gay)
-    def loada(s,h,gay):
-        mem = os.path.join(BASE(),'audio')
-        nam = os.path.basename(h)
-        if nam in AUDIO():
-            s.btw("An audio with that name already exists! Try renaming.")
-            return
-        shutil.copy(h,os.path.join(mem,nam))
-        [_.delete() for _ in s.killme]
-        s.killme.clear()
-        s.act(0,5,zap=True,gay=gay)
-    def loadm(s,h,gay):
-        mem = os.path.join(BASE(),'meshes')
-        nam = os.path.basename(h)
-        if nam in MESH():
-            s.btw("A mesh with that name already exists! Try renaming.")
-            return
-        shutil.copy(h,os.path.join(mem,nam))
-        [_.delete() for _ in s.killme]
-        s.killme.clear()
-        s.act(0,5,zap=True,gay=gay)
     def surt(s,_,p):
         if _ == s.sorti:
             s.btw('Already sorted by '+SRT()[_]+'!')
@@ -2050,10 +1989,7 @@ class FileMan(MainWindow):
             (g+'Config',e.config_directory),
             (g+'Cache',c),
             (g+'Files',f),
-            (g+'Python',os.path.join(f,'python')),
-            (g+'Meshes',os.path.join(f,'meshes')),
-            (g+'Audio',os.path.join(f,'audio')),
-            (g+'Textures',os.path.join(f,'textures'))
+            (g+'Python',os.path.join(f,'python'))
         ]
     def rf(s):
         s.snd('ding')
@@ -2367,29 +2303,25 @@ FMT = lambda size: (
     f"{size / 1024:.1f} KB" if size >= 1024 else f"{size} B"))
 )
 GUN = lambda: gs('gunCocking').play()
-_INIT_CWD = os.getcwd()
-def BASE():
-    app_py_dir = getattr(app.env, "python_directory_app", None)
-    if app_py_dir:
-        base_from_app = os.path.join(
-            os.path.os.path.dirname(os.path.dirname(os.path.abspath(app_py_dir))),
-            "ba_data"
-        )
-        if os.path.exists(base_from_app):
-            return base_from_app
-
-    base_from_cwd = os.path.join(_INIT_CWD, "ba_data")
-    if os.path.exists(base_from_cwd):
-        return base_from_cwd
-
-    return os.path.join(
-        os.path.dirname(app.env.cache_directory),
-        "ballistica_files",
-        "ba_data"
-    )
-AUDIO = lambda: os.listdir(os.path.join(BASE(),'audio'))
-TEX = lambda: os.listdir(os.path.join(BASE(),'textures'))
-MESH = lambda: os.listdir(os.path.join(BASE(),'meshes'))
+def _snake(n):
+    return re.sub(r'(?<=[a-z0-9])(?=[A-Z])','_',n).lower()
+def _find(kind,name):
+    # 1.8: assets are reached through asset-package wrapper modules, not by legacy name
+    n = _snake(os.path.splitext(name)[0])
+    for w in (_CMA,_UIA,_CLA):
+        grp = getattr(w,kind,None)
+        h = getattr(grp,n,None) if grp is not None else None
+        if h is not None and callable(getattr(h,'get',None)): return h
+def gt(n):
+    h = _find('textures',n)
+    if h is None: raise KeyError(f'No texture asset named {n!r}')
+    return h.get()
+def gs(n):
+    h = _find('audio',n)
+    if h is None: raise KeyError(f'No sound asset named {n!r}')
+    return h.get()
+HAST = lambda bn: _find('textures',bn) is not None
+HASA = lambda bn: _find('audio',bn) is not None
 SRT = lambda: ['Name','Type','Date Modifed','Size']
 INV = lambda c: ((1-c[0])*2,(1-c[1])*2,(1-c[2])*2)
 COL = lambda: [
