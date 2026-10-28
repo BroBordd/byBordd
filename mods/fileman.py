@@ -2376,15 +2376,17 @@ class byBordd(Plugin):
             _.sweep()
             _.bye()
     def kang(s):
-        # entry
+        # entry (1.8: settings is a doc-ui window, AllSettingsWindow is gone)
         i = '__init__'
-        from bauiv1lib.settings.allsettings import AllSettingsWindow as m
+        from bauiv1lib.docui import DocUIWindow as m
         o = getattr(m,i)
-        setattr(m,i,lambda z,*a,**k:(o(z,*a,**k),s.mk(z))[0])
+        def hook(z,*a,**k):
+            o(z,*a,**k)
+            if type(z.controller).__name__ == 'AllSettingsController': s.mk(z)
+        setattr(m,i,hook)
     def mk(s,z):
-        x,y = SCL((1000,800),(900,450))
         s.b = obw(
-            position=(x*0.7,y*SCL(0.5,0.9)),
+            position=(z._vis_left+z._vis_width-130,z._vis_top-z._vis_height+25),
             parent=z._root_widget,
             icon=gt('folder'),
             size=(100,30),
