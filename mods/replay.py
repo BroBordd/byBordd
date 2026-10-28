@@ -332,11 +332,17 @@ class Player:
         
         width, height = bui.get_virtual_screen_size()
         self.bar_height = 80
+        # Same mechanism as BRP Studio: hang the UI off the overlay stack
+        # (bottom-left origin) so it draws over the replay session's scene.
         self.parent = bui.containerwidget(
+            parent=get_overlay_stack(),
             size=(width, self.bar_height),
-            stack_offset=(0, -height / 2 + self.bar_height / 2),
+            position=(0, 0),
             background=False
         )
+        self.seen = False
+        self.waited = 0.0
+        self.watch_timer = bui.AppTimer(0.1, self.watch, repeat=True)
         self.background = bui.imagewidget(
             parent=self.parent,
             texture=bui.gettexture('black'),
@@ -356,6 +362,31 @@ class Player:
             self.scan_cycle = 0  # For alternating display
             Thread(target=self.calculate_duration).start()
             self.scan_timer = bui.AppTimer(0.1, self.update_scan_progress, repeat=True)
+
+    def watch(self):
+        """Tear our overlay down when the replay session ends (it outlives scenes)."""
+        running = bs.is_in_replay()
+        if not self.seen:
+            if running:
+                self.seen = True
+            else:
+                self.waited += 0.1
+                if self.waited > 30:
+                    self.teardown()
+            return
+        if not running:
+            self.teardown()
+
+    def teardown(self):
+        self.watch_timer = None
+        self.scan_timer = None
+        self.exit_timer = None
+        self.info_timer = None
+        self.stop()
+        self.stop_focus()
+        _ba.set_camera_manual(False)
+        if self.parent.exists():
+            self.parent.delete()
 
     def calculate_duration(self):
         """Calculate duration in background thread with reduced load"""
