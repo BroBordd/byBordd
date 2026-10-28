@@ -2376,36 +2376,49 @@ class byBordd(Plugin):
             _.sweep()
             _.bye()
     def kang(s):
-        # entry (1.8: settings is a doc-ui window, AllSettingsWindow is gone)
-        i = '__init__'
-        from bauiv1lib.docui import DocUIWindow as m
-        o = getattr(m,i)
-        def hook(z,*a,**k):
-            o(z,*a,**k)
-            if type(z.controller).__name__ == 'AllSettingsController':
-                try: s.mk(z)
-                except Exception:
-                    import traceback; traceback.print_exc()
-        setattr(m,i,hook)
-    def mk(s,z):
-        from bauiv1 import widget as _w
-        # centered under the settings button row; clamp inside the visible area
-        cx,cy = z._frame.vis_center
-        y = max(z._vis_top-z._vis_height+10,cy-176)
-        s.b = obw(
-            position=(cx-50,y),
-            parent=z._root_widget,
-            icon=gt('folder'),
-            size=(100,30),
-            button_type='square',
-            label='Man',
-            enable_sound=False,
-            color=FileMan.COL1,
-            textcolor=FileMan.COL2,
-            on_activate_call=lambda:s.run(z),
-            id='FileMan'+str(id(z))
-        )
-        # page content can draw over later widgets unless depth-ranged
-        _w(edit=s.b,depth_range=(0.9,1.0))
-    def run(s,z):
-        z.main_window_replace(lambda:FileMan(s.b))
+        # entry (1.8: settings is a doc-ui page; append a 5th button to its row,
+        # same approach as the community plugin-manager)
+        from dataclasses import replace
+        from typing import override
+        import bauiv1lib.settings.allsettingsdocui as sd
+        import bacommon.docui.v2 as dui2
+        from bacommon.docui.routes import PressSound
+        from bacommon.langstr import LangStrSpecValue
+        from bauiv1 import _classicassets as cla
+        from babase import UIScale
+        ACT = 'fileman'
+        # subclass whatever is installed now so other plugins' buttons chain
+        Base = sd.AllSettingsController
+        class FileManSettingsController(Base):
+            @override
+            def fulfill_route(self,route):
+                resp = super().fulfill_route(route)
+                row = resp.page.rows[0]
+                if app.ui_v1.uiscale is not UIScale.SMALL:
+                    row.layout = dui2.ButtonRowLayout.FIXED
+                t = row.buttons[-1]
+                icon,label = t.decorations
+                row.buttons.append(replace(
+                    t,
+                    widget_id=ACT,
+                    selected=False,
+                    action=dui2.Local(immediate_local_action=ACT),
+                    decorations=[
+                        replace(icon,texture=cla.textures.folder),
+                        replace(label,text=LangStrSpecValue.literal('FileMan'))
+                    ]
+                ))
+                return resp
+            @override
+            def get_local_action_press_sound(self,name):
+                if name == ACT: return PressSound.SWISH
+                return super().get_local_action_press_sound(name)
+            @override
+            def local_action(self,action):
+                if action.name != ACT: return super().local_action(action)
+                w = action.window
+                if not w.main_window_has_control(): return
+                w.main_window_replace(lambda:FileMan(action.widget))
+        # the game looks the controller up by name when settings opens
+        sd.AllSettingsController = FileManSettingsController
+
