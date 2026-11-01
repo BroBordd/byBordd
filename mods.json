@@ -64,10 +64,10 @@
         "mod_filename_base": "console"
     },
     {
-        "mod_name": "Coolbox",
-        "mod_fancy_name": "Own the scene.",
-        "mod_version": "1.0",
-        "mod_description": "Experimental - Feedback is appreciated.\nCoolbox is an advanced menu that can do almost everything!\nAccess the menu from pause menu.\nThis is a clean refactored version of Sandbox. Written from scratch.\nThe code itself acts like a closed environment.\nCoolbox uses a lot of scene features for the sake of appearance.",
+        "mod_name": "Coolbox v1.0.0 - Own the scene.",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "Experimental.\nCoolbox is an advanced menu that can do almost everything!\nAccess the menu from pause menu.\nThis is a clean refactored version of Sandbox. Written from scratch.\nThe code itself acts like a closed environment.\nCoolbox uses a lot of scene features for the sake of appearance.",
         "api_version": 9,
         "mod_filename_base": "coolbox"
     },
@@ -83,7 +83,7 @@
         "mod_name": "FileMan",
         "mod_fancy_name": "Advanced File Manager Plugin",
         "mod_version": "1.4",
-        "mod_description": "A comprehensive suite for in-game file management, including:\n- Core Operations: Copy, Move, Delete (with confirmation), Rename.\n- File Creation: Create New Files and Folders.\n- Download: Fetch files from HTTP(S) URLs, plain domains (auto-adds https://), data URIs (with base64 support for images/files), handles redirects, empty responses, and auto-generates filenames from MIME types or domains.\n- Navigation & Utilities: Editable Path Bar, Go Up, Refresh, Sort, Filter, and Bookmark (Star) favorite directories.\n- Text & Code Handling: View, Paginate, and Edit text/code files, featuring basic Python syntax highlighting.\n- Asset Loading: Load/Copy custom Meshes (.bob), Textures (.ktx), and Audio (.ogg) directly to the game folders/directories.\n- Media Previews: Display/Preview recognized Textures (.ktx), Preview Replays, and Play/Pause Audio (.ogg) files.\n- 3D Mesh Visualization: Render Basic 3D Mesh Illustrations (.bob) with rotation and zoom controls.\n- Customization: Full UI Color Editor with RGB control and Reset to Default options.\n- Accessibility: Adds an access button to the main Settings Menu.",
+        "mod_description": "A comprehensive suite for in-game file management, including:\n- Core Operations: Copy, Move, Delete (with confirmation), Rename.\n- File Creation: Create New Files and Folders.\n- Download: Fetch files from HTTP(S) URLs, plain domains (auto-adds https://), data URIs (with base64 support for images/files), handles redirects, empty responses, and auto-generates filenames from MIME types or domains.\n- Navigation & Utilities: Editable Path Bar, Go Up, Refresh, Sort, Filter, and Bookmark (Star) favorite directories.\n- Text & Code Handling: View, Paginate, and Edit text/code files, featuring basic Python syntax highlighting.\n- Media Previews: Display/Preview built-in Textures (by asset name), Preview Replays, and Play/Pause Audio (.ogg) files.\n- 3D Mesh Visualization: Render Basic 3D Mesh Illustrations (.bob) with rotation and zoom controls.\n- Customization: Full UI Color Editor with RGB control and Reset to Default options.\n- Accessibility: Adds an access button to the main Settings Menu.",
         "api_version": 9,
         "mod_filename_base": "fileman"
     },
