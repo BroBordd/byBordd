@@ -23,6 +23,7 @@ CONSOLES = [(-7, 3, 0), (2, 3, 0)]   # beam world positions (one console each)
 SIZE = (450, 350)                    # console size (abstract units)
 DROP_Y = 9                           # drop height
 GROUND_Y = 0.1                       # height of the ground aim ring
+CURSOR_SPEED = 0.45                  # cursor speed while aiming a drop (1 = normal)
 COOLDOWN = 0.2                       # min seconds between drops per console
 COLS, ROWS = 2, 5                    # menu grid
 
@@ -300,7 +301,7 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
                 logging.exception('dropper: drop failed')
 
         # --- console ---
-        c = Container(size=SIZE, pipe=eye)
+        c = Container(size=SIZE, pipe=eye, speed=CURSOR_SPEED)
         # beam first: it zeroes container opacity, kids made after inherit it
         b = Beam(
             position=pos,
@@ -449,36 +450,41 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
         refresh()
 
         # --- live aim: red beam + ground ring where the drop will land ---
-        line = bs.newnode('locator', attrs={
-            'shape': 'box',
-            'position': (0, DROP_Y / 2, 0),
-            'size': [0.06, DROP_Y, 0.06],
-            'color': (1, 0, 0),
-            'opacity': 0,
-            'draw_beauty': True,
-            'additive': True,
-        })
-        ring = bs.newnode('locator', attrs={
-            'shape': 'circle',
-            'position': (0, GROUND_Y, 0),
-            'size': [1.6],
-            'color': (1, 0.15, 0.1),
-            'opacity': 0,
-            'draw_beauty': True,
-            'additive': True,
-        })
+        locs = []  # [line, ring] only exist while aiming, so nothing stale
+
+        def make_locs():
+            locs.append(bs.newnode('locator', attrs={
+                'shape': 'box',
+                'position': (0, DROP_Y / 2, 0),
+                'size': [0.06, DROP_Y, 0.06],
+                'color': (1, 0, 0),
+                'opacity': 1,
+                'draw_beauty': True,
+                'additive': True,
+            }))
+            locs.append(bs.newnode('locator', attrs={
+                'shape': 'circle',
+                'position': (0, GROUND_Y, 0),
+                'size': [1.6],
+                'color': (1, 0.15, 0.1),
+                'opacity': 0.7,
+                'draw_beauty': True,
+                'additive': True,
+            }))
 
         def aim():
             if c.captives and not st['menu'] and not c.on[0]:
                 ox, oy = c.cursor_off
                 wx, _, wz = screen_to_world(ox / c.sc, oy / c.sc)
-                line.position = (wx, DROP_Y / 2, wz)
-                ring.position = (wx, GROUND_Y, wz)
-                line.opacity = 1
-                ring.opacity = 0.7
-            else:
-                line.opacity = 0
-                ring.opacity = 0
+                if not locs:
+                    make_locs()
+                locs[0].position = (wx, DROP_Y / 2, wz)
+                locs[1].position = (wx, GROUND_Y, wz)
+            elif locs:
+                for n in locs:
+                    if n.exists():
+                        n.delete()
+                locs.clear()
 
         # --- player markers (only while someone is looking) ---
         trash = []

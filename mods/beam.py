@@ -225,9 +225,11 @@ class Container:
         resw = 19.0,
         scale = 1,
         opacity = 1,
-        pipe = None
+        pipe = None,
+        speed = 1
     ):
         s.pipe = pipe
+        s.speed = speed # cursor speed multiplier
         s.position = p = position
         s.owner_beam = None
         s.node = TEX(None,text='')
@@ -274,7 +276,7 @@ class Container:
         
         # No need to check for [0,0] if the player isn't active
         x, y = s.ho
-        sc6 = s.sc * 6
+        sc6 = s.sc * 6 * s.speed
         px, py, pz = s.node.position
         zx, zy = s.size
         h32sc = 32 * s.sc
