@@ -21,11 +21,9 @@ from babase import InputType as IT
 # --- tunables ---------------------------------------------------------------
 CONSOLES = [(-7, 3, 0), (2, 3, 0)]   # beam world positions (one console each)
 SIZE = (450, 350)                    # console size (abstract units)
-MENU_SIZE = (1100, 640)              # full-screen menu size (abstract units)
-MENU_POS = (-5.5, 0.3, 3)            # full-screen menu world position
 DROP_Y = 9                           # drop height
 COOLDOWN = 0.2                       # min seconds between drops per console
-COLS, ROWS = 4, 6                    # menu grid
+COLS, ROWS = 2, 5                    # menu grid
 
 # --- bright palette (beam bg is black, nothing dark allowed) ----------------
 CYAN = (0.4, 1.0, 1.0)
@@ -35,12 +33,11 @@ FILL = (0.12, 0.22, 0.34)
 SEL = (0.55, 0.38, 0.05)
 EMPTY = (0.03, 0.03, 0.03)
 TAB = (0.20, 0.12, 0.34)
-TABSEL = (0.45, 0.25, 0.70)
 
 Item = namedtuple('Item', 'cat label fn rand')
 
 CATS = [
-    ('all', 'All'),
+    ('all', 'Everything'),
     ('bombs', 'Bombs'),
     ('power', 'Powerups'),
     ('spaz', 'Spazzes'),
@@ -233,6 +230,7 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
             return e.value if e else fallback
 
         UP, DOWN = ch('UP_ARROW', '^'), ch('DOWN_ARROW', 'v')
+        LEFT, RIGHT = ch('LEFT_ARROW', '<'), ch('RIGHT_ARROW', '>')
 
         st = {
             'item': None,
@@ -310,7 +308,8 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
             title=sc.OUYA_BUTTON_Y.value + ' Drop Console',
             message=sc.LEFT_BUTTON.value + ' Punch this for power.'
         )
-        T(c, 'Drop Console', 150, 300, 0.9, h_align='center', color=CYAN)
+        T(c, 'Drop Console', 150, 328, 0.9, h_align='center', v_align='center',
+          color=CYAN)
         Button(
             parent=c,
             position=(15, 280),
@@ -335,71 +334,49 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
         def sel_label():
             setlabel(sel, st['item'].label + ' ' + DOWN)
 
-        # --- full-screen menu ---
-        m = Container(size=MENU_SIZE, position=MENU_POS, opacity=0)
-        mw, mh = MENU_SIZE
-        T(m, 'Pick what to drop', mw / 2, 590, 1.3, h_align='center', color=CYAN)
-        now_t = T(m, '', mw / 2, 545, 0.8, h_align='center', color=YELLOW)
-        foot = T(m, '', 200, 40, 0.8, color=WHITE)
-
+        # --- full-screen menu (same size and spot as the console) ---
+        m = Container(size=SIZE, opacity=0)
+        cat_t = T(m, '', 225, 328, 0.9, h_align='center', v_align='center',
+                  color=CYAN)
+        info = T(m, '', 225, 30, 0.6, h_align='center', v_align='center',
+                 color=YELLOW)
         pool = []
         for r in range(ROWS):
             for q in range(COLS):
                 pool.append(Button(
                     parent=m,
-                    position=(200 + 200 * q, 400 - 72 * r),
-                    size=(190, 64),
+                    position=(15 + 177 * q, 232 - 48 * r),
+                    size=(171, 35),
                     label='',
                     color=FILL,
                     textcolor=WHITE,
                 ))
-        tabs = {}
-        for i, (k, label) in enumerate(CATS):
-            tabs[k] = Button(
-                parent=m,
-                position=(20, 400 - 72 * i),
-                size=(152, 64),
-                label=label,
-                color=TAB,
-                textcolor=WHITE,
-            )
-        for k, _ in CATS:
-            tabs[k].call = bs.CallPartial(lambda kk: set_cat(kk), k)
-
+        BACKC, BACKT = (0.6, 0.2, 0.1), (1.0, 0.65, 0.5)
         Button(
-            parent=m,
-            position=(20, 556),
-            size=(114, 64),
-            label=sc.BACK.value,
-            color=(0.6, 0.2, 0.1),
-            textcolor=(1.0, 0.65, 0.5),
+            parent=m, position=(15, 280), size=(57, 35), label=sc.BACK.value,
+            color=BACKC, textcolor=BACKT,
             call=lambda: [from_menu(p) for p in list(m.captives)]
         )
         Button(
-            parent=m,
-            position=(1010, 400),
-            size=(76, 64),
-            label=UP,
-            color=TAB,
-            textcolor=WHITE,
-            call=lambda: scroll(-1)
+            parent=m, position=(85, 280), size=(38, 35), label=LEFT,
+            color=TAB, textcolor=WHITE, call=lambda: cycle(-1)
         )
         Button(
-            parent=m,
-            position=(1010, 40),
-            size=(76, 64),
-            label=DOWN,
-            color=TAB,
-            textcolor=WHITE,
-            call=lambda: scroll(1)
+            parent=m, position=(327, 280), size=(38, 35), label=RIGHT,
+            color=TAB, textcolor=WHITE, call=lambda: cycle(1)
         )
-
-        def visible():
-            cat = st['cat']
-            return [i for i in s.items if cat == 'all' or i.cat == cat]
+        for y, label, d in [
+            (232, UP + UP, -ROWS), (184, UP, -1),
+            (88, DOWN, 1), (40, DOWN + DOWN, ROWS)
+        ]:
+            Button(
+                parent=m, position=(378, y), size=(57, 35), label=label,
+                color=TAB, textcolor=WHITE, call=lambda d=d: scroll(d)
+            )
 
         def refresh():
-            items = visible()
+            cat = st['cat']
+            items = [i for i in s.items if cat == 'all' or i.cat == cat]
             rows = ceil(len(items) / COLS)
             st['off'] = off = max(0, min(st['off'], max(0, rows - ROWS)))
             for k, bt in enumerate(pool):
@@ -413,15 +390,16 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
                     setlabel(bt, '')
                     bt.call = None
                     paint(bt, EMPTY, EMPTY)
-            for k, bt in tabs.items():
-                paint(bt, TABSEL if k == st['cat'] else TAB, WHITE)
             first = off * COLS + 1 if items else 0
             last = min(len(items), (off + ROWS) * COLS)
-            settext(foot, f'{first}-{last} of {len(items)}')
-            settext(now_t, 'Dropping: ' + st['item'].label)
+            name = dict(CATS)[cat]
+            settext(cat_t, f'{name} ({len(items)})')
+            settext(info, f"Dropping: {st['item'].label}   |   "
+                          f"{first}-{last} of {len(items)}")
 
-        def set_cat(k):
-            st['cat'] = k
+        def cycle(d):
+            keys = [k for k, _ in CATS]
+            st['cat'] = keys[(keys.index(st['cat']) + d) % len(keys)]
             st['off'] = 0
             refresh()
 
@@ -439,6 +417,7 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
             if not players:
                 return
             st['menu'] = True
+            m.position = tuple(c.node.position)  # right where the console is
             c.opacity = 0
             m.opacity = 1
             refresh()
@@ -460,22 +439,10 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
             m.opacity = 0
             c.opacity = 1
 
-        def edge():
-            # watchdog: everyone left the menu some other way (died etc.)
+        def watchdog():
+            # everyone left the menu some other way (died etc.)
             if st['menu'] and not m.captives:
                 close_menu()
-            if not m.captives:
-                return
-            # push the cursor against the grid's top/bottom edge to scroll
-            ox, oy = m.cursor_off
-            x, y = ox / m.sc, oy / m.sc
-            if not 190 < x < 1000:
-                return
-            v = m.ho[0]
-            if v > 0.6 and y > 430:
-                scroll(-1)
-            elif v < -0.6 and y < 80:
-                scroll(1)
 
         sel_label()
         refresh()
@@ -515,5 +482,5 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
 
         return [
             bs.Timer(0.01, spy, repeat=True),
-            bs.Timer(0.12, edge, repeat=True),
+            bs.Timer(0.25, watchdog, repeat=True),
         ]
