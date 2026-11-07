@@ -37,9 +37,7 @@ from bauiv1 import (
     get_string_width as sw,
     SpecialChar as sc,
     apptimer as teck,
-    AppTimer as tuck,
-    CallPartial,
-    getsound as gs
+    CallPartial
 )
 
 class Power(TAB):
@@ -724,8 +722,8 @@ class Power(TAB):
                 label_scale=0.9
             )
             B(
-                'Spam',
-                call=s.haha,
+                'gg',
+                call=CallPartial(chat,'gg'),
                 pos=(x + 1469 * sf, s.height-62),
                 size=(130 * sf, 27)
             )
@@ -734,16 +732,6 @@ class Power(TAB):
                 call=CallPartial(push,'Power v2.5 MinUI\nExpand dev console to switch to FullUI. thanks.'),
                 pos=(x + 1469 * sf, s.height-90),
                 size=(130 * sf, 27)
-            )
-    def haha(s):
-        gs('deek').play()
-        if getattr(s,'haha_timer',None):
-            s.haha_timer = None
-        else:
-            s.haha_timer = tuck(
-                0.2, CallPartial(
-                    chat, f"nice try {'ha'*16} you can't kick me the server is not yours"
-                ), repeat=True
             )
     def log(s,t):
         s.ls.append((t,NOW()))
