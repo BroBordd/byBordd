@@ -72,6 +72,14 @@
         "mod_filename_base": "coolbox"
     },
     {
+        "mod_name": "Dropper",
+        "mod_fancy_name": "Drop literally everything",
+        "mod_version": "2.0",
+        "mod_description": "Two drop consoles, pick anything, rain it on anyone.\nBombs, powerups, spazzes, bots, mines, TNT and more.\nRequires my Beam plugin to be installed.",
+        "api_version": 9,
+        "mod_filename_base": "dropper"
+    },
+    {
         "mod_name": "Ender",
         "mod_fancy_name": "Tryhard AI Bot",
         "mod_version": "1.0",
@@ -110,14 +118,6 @@
         "mod_description": "A simple movie maker with native BRP replay export.\nIncludes timeline sequencing, node manipulation,\ncustom cameras, code injection, VFX presets, and more.",
         "api_version": 9,
         "mod_filename_base": "movi"
-    },
-    {
-        "mod_name": "Nuke",
-        "mod_fancy_name": "Stupid minigame",
-        "mod_version": "1.0",
-        "mod_description": "Use the nuke console to bomb anyone.\nMy first game, don't mind me lol.\nRequires my Beam plugin to be installed.",
-        "api_version": 9,
-        "mod_filename_base": "nuke"
     },
     {
         "mod_name": "PlugTools",
