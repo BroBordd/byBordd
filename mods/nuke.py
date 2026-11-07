@@ -18,9 +18,9 @@ import bascenev1 as bs
 class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
     name = 'Nuke'
     description = "Nukes coming from above."
-    get_availabe_settings = lambda c,_:[]
-    supports_session_type = lambda c,_:True
-    get_supported_maps = lambda c,_:['Football Stadium']
+    get_available_settings = classmethod(lambda c,_:[])
+    supports_session_type = classmethod(lambda c,_:True)
+    get_supported_maps = classmethod(lambda c,_:['Football Stadium'])
     get_instance_description = lambda s: "You're very dead"
     get_instance_description_short = lambda s: "You're dead"
 
@@ -45,10 +45,7 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
             Beam,
             Text
         )
-        from bauiv1 import (
-            SpecialChar as sc,
-            charstr as cs
-        )
+        from bauiv1 import SpecialChar as sc
         from bascenev1lib.actor.bomb import Bomb
 
         # Get map bounds and container size
@@ -136,8 +133,8 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
         b = Beam(
             position=(0,3,0),
             container=c,
-            title=cs(sc.OUYA_BUTTON_Y)+' Nuke Console',
-            message=cs(sc.LEFT_BUTTON)+' Punch this for power.'
+            title=sc.OUYA_BUTTON_Y.value+' Nuke Console',
+            message=sc.LEFT_BUTTON.value+' Punch this for power.'
         )
         Text(
             parent=c,
@@ -150,7 +147,7 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
             parent=c,
             position=(25,275),
             size=(50,35),
-            label=cs(sc.BACK),
+            label=sc.BACK.value,
             color=(0.6,0.2,0.1),
             textcolor=(0.9,0.3,0.2),
             call=b.back
@@ -183,7 +180,7 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
 
                 trash.append(Text(
                     parent=c,
-                    text=cs(sc.OUYA_BUTTON_Y)+' Console',
+                    text=sc.OUYA_BUTTON_Y.value+' Console',
                     color=(1,1,0),
                     h_align='center',
                     scale=MARKER_SCALE, # <-- Corrected scale
@@ -207,7 +204,7 @@ class byBordd(bs.TeamGameActivity[bs.Player,bs.Team]):
                 
                 trash.append(Text(
                     parent=c,
-                    text=cs(sc.DPAD_CENTER_BUTTON)+' '+n.name,
+                    text=sc.DPAD_CENTER_BUTTON.value+' '+n.name,
                     color=n.color,
                     h_align='center',
                     scale=MARKER_SCALE, # Consistent scale
