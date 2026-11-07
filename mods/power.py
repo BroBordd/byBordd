@@ -38,7 +38,6 @@ from bauiv1 import (
     SpecialChar as sc,
     apptimer as teck,
     AppTimer as tuck,
-    charstr as cs,
     CallPartial,
     getsound as gs
 )
@@ -100,14 +99,14 @@ class Power(TAB):
             push('Job time cannot be less than rejoin time\nwhen job is JRejoin. Updated job time to '+str(s.ji),color=(1,1,0))
         if s.height > 100:
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x + 10 * sf, 606*zf),
                 size=(280*sf,35*zf),
                 disabled=s.eri <= 0,
                 call=CallPartial(s.mv,'eri',-1)
             )
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x + 10 * sf, 290*zf),
                 size=(280*sf,35*zf),
                 disabled=s.eri >= len(s.r)-7,
@@ -297,14 +296,14 @@ class Power(TAB):
                 scale=1 if w<(380*sf) else (380*sf)/w
             )
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x + 311 * sf, 8*zf),
                 size=(398*sf, 35*zf),
                 disabled=s.eii >= len(s.hi)-9,
                 call=CallPartial(s.mv,'eii',1)
             )
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x + 311 * sf, 400*zf),
                 size=(400*sf, 35*zf),
                 disabled=s.eii <= 0,
@@ -416,28 +415,28 @@ class Power(TAB):
                     style='yellow_bright'
                 )
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x+1042*sf,8*zf),
                 size=(555*sf,35*zf),
                 call=CallPartial(s.mv,'ci',-1),
                 disabled=s.ci <= 0 or not s.cm
             )
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x+1042*sf,606*zf),
                 size=(555*sf,35*zf),
                 call=CallPartial(s.mv,'ci',1),
                 disabled=(s.ci >= len(s.cm)-15) or not s.cm
             )
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x+727*sf,8*zf),
                 size=(300*sf,35*zf),
                 disabled=(s.li >= len(s.ls)-16) or not s.ls,
                 call=CallPartial(s.mv,'li',1)
             )
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x+727*sf,400*zf),
                 size=(300*sf,35*zf),
                 disabled=s.li<=0,
@@ -469,14 +468,14 @@ class Power(TAB):
                 )
         else:
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x + 10 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=(s.ri >= len(s.r)-3) or not s.r,
                 call=CallPartial(s.mv,'ri',1)
             )
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x + 250 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=(s.ri <= 0) or not s.r,
@@ -704,14 +703,14 @@ class Power(TAB):
                 scale=1 if w<(280*sf) else (280*sf)/w
             )
             B(
-                cs(sc.DOWN_ARROW),
+                sc.DOWN_ARROW.value,
                 pos=(x + 1102 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=s.ii >= len(s.hi)-3,
                 call=CallPartial(s.mv,'ii',1)
             )
             B(
-                cs(sc.UP_ARROW),
+                sc.UP_ARROW.value,
                 pos=(x + 1436 * sf, 10),
                 size=(30 * sf, s.height-17),
                 disabled=s.ii <= 0,
