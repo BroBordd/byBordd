@@ -14,10 +14,7 @@ from babase import (
     InputType as IT,
     get_string_width as gsw
 )
-from bauiv1 import (
-    charstr as cs,
-    SpecialChar as sc
-)
+from bauiv1 import SpecialChar as sc
 import bascenev1 as bs
 from math import dist
 from uuid import uuid4
@@ -84,8 +81,8 @@ class Beam:
         s.next.owner_beam = s
         s.next.iopacity = 0
         id = s.id = id or str(uuid4())[:4]
-        title = title or cs(sc.OUYA_BUTTON_O)+f' Beam #{id}'
-        message = message or cs(sc.LEFT_BUTTON)+' Punch this to engage'
+        title = title or sc.OUYA_BUTTON_O.value+f' Beam #{id}'
+        message = message or sc.LEFT_BUTTON.value+' Punch this to engage'
         Text(
             parent=c,
             text=title,
@@ -111,7 +108,7 @@ class Beam:
             parent=s.tip,
             position=(140,45),
             h_align='center',
-            text=cs(sc.RIGHT_BUTTON)+' Press bomb to exit',
+            text=sc.RIGHT_BUTTON.value+' Press bomb to exit',
             color=(0.7,0.7,0.1)
         )
         m = MAT(s.node,0.2,-45*s.tip.sc)
@@ -223,7 +220,7 @@ class Container:
         size = (500,450),
         color = (0,0,0),
         cursor_color = (0,1,1),
-        cursor_res = cs(sc.DPAD_CENTER_BUTTON),
+        cursor_res = sc.DPAD_CENTER_BUTTON.value,
         res = '\u2588',
         resw = 19.0,
         scale = 1,
