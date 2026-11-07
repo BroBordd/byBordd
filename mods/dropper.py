@@ -66,8 +66,9 @@ def scatter(p, r, up=4.0):
     )
 
 
-def build_catalog(act):
-    """Everything that can be dropped. Imports are lazy on purpose."""
+def build_catalog():
+    """Everything that can be dropped. Imports are lazy on purpose.
+    Holds no reference to the activity (it only lives in closures)."""
     from bascenev1lib.actor.bomb import Bomb, Blast
     from bascenev1lib.actor.powerupbox import PowerupBox
     from bascenev1lib.actor.spaz import Spaz
@@ -131,10 +132,12 @@ def build_catalog(act):
         add('spaz', ch, spaz(ch))
 
     # bots (need a BotSet so they actually hunt players)
+    bots = []  # lazily made BotSet, owned by the catalog, not the activity
+
     def botset():
-        if act.botset is None:
-            act.botset = spazbot.BotSet()
-        return act.botset
+        if not bots:
+            bots.append(spazbot.BotSet())
+        return bots[0]
 
     def bot(cls):
         return lambda p: botset().spawn_bot(cls, p, spawn_time=0.5)
@@ -193,6 +196,311 @@ def build_catalog(act):
     return items
 
 
+def make_console(idx, pos, items):
+    from beam import Container, Button, Beam, Text, GSW
+    from bauiv1 import SpecialChar as sc
+
+    def ch(name, fallback):
+        e = getattr(sc, name, None)
+        return e.value if e else fallback
+
+    UP, DOWN = ch('UP_ARROW', '^'), ch('DOWN_ARROW', 'v')
+    LEFT, RIGHT = ch('LEFT_ARROW', '<'), ch('RIGHT_ARROW', '>')
+
+    st = {
+        'item': None,
+        'cat': 'all',
+        'off': 0,
+        'menu': False,
+        't': -9.0,
+    }
+    st['item'] = next((i for i in items if i.label == 'Nuke'), items[0])
+
+    # --- helpers (Text/Button positions are multiplied by their own scale,
+    # so divide it back out to place things in container units) ---
+    def T(parent, text, x, y, scale=1, **k):
+        return Text(
+            parent=parent, text=text, position=(x / scale, y / scale),
+            scale=scale, **k)
+
+    def settext(t, v):
+        t.text = v
+        t.line.text = v
+
+    def setlabel(bt, label):
+        bt.label = label
+        w = GSW(label) if label else 0
+        x = bt.size[0] * 0.85
+        bt.text.scale = bt.sc if w < x else (x / w) * bt.sc
+
+    def paint(bt, color, textcolor):
+        # highlight adds 0.4 to both; keep that offset while highlighted
+        k = 0.4 if bt.up else 0
+        bt.color = tuple(v + k for v in color)
+        bt.textcolor = tuple(v + k for v in textcolor)
+
+    # --- map bounds / coordinate conversion ---
+    x0, y0, z0, x1, y1, z1 = bs.getactivity().globalsnode.area_of_interest_bounds
+    w0, h0 = SIZE
+    mx, my = w0 * 0.1, h0 * 0.1
+    ww, hh = w0 - mx * 2, h0 - my * 2
+    dx = (x1 - x0) if abs(x1 - x0) > 1e-6 else 1.0
+    dz = abs(z1 - z0) if abs(z1 - z0) > 1e-6 else 1.0
+
+    def world_to_screen(wx, wz):
+        u = (wx - x0) / dx
+        v = (z1 - wz) / dz
+        return (
+            max(0.0, min(w0, mx + u * ww)),
+            max(0.0, min(h0, my + v * hh)),
+        )
+
+    def screen_to_world(px, py):
+        u = (px - mx) / ww
+        v = (py - my) / hh
+        return (x0 + u * dx, DROP_Y, z1 - v * dz)
+
+    # --- drop ---
+    def eye(px, py):
+        if c.on[0]:  # cursor is on a button, not on the map
+            return
+        now = bs.time()
+        if now - st['t'] < COOLDOWN:
+            return
+        st['t'] = now
+        try:
+            st['item'].fn(screen_to_world(px, py))
+        except Exception:
+            logging.exception('dropper: drop failed')
+
+    # --- console ---
+    c = Container(size=SIZE, pipe=eye, speed=CURSOR_SPEED)
+    # beam first: it zeroes container opacity, kids made after inherit it
+    b = Beam(
+        position=pos,
+        container=c,
+        id=f'drop{idx + 1}',
+        title=sc.OUYA_BUTTON_Y.value + ' Drop Console',
+        message=sc.LEFT_BUTTON.value + ' Punch this for power.'
+    )
+    T(c, 'Drop Console', 150, 328, 0.9, h_align='center', v_align='center',
+      color=CYAN)
+    Button(
+        parent=c,
+        position=(15, 280),
+        size=(57, 35),
+        label=sc.BACK.value,
+        color=(0.6, 0.2, 0.1),
+        textcolor=(1.0, 0.65, 0.5),
+        call=b.back
+    )
+    sel = Button(
+        parent=c,
+        position=(250, 280),
+        size=(190, 35),
+        label='',
+        color=(0.10, 0.30, 0.45),
+        textcolor=WHITE,
+        call=lambda: to_menu(list(c.captives))
+    )
+    T(c, 'Punch to drop where the cursor is', 225, 50, 0.6,
+      h_align='center', v_align='center', color=WHITE)
+
+    def sel_label():
+        setlabel(sel, st['item'].label + ' ' + DOWN)
+
+    # --- full-screen menu (same size and spot as the console) ---
+    m = Container(size=SIZE, opacity=0)
+    cat_t = T(m, '', 225, 328, 0.9, h_align='center', v_align='center',
+              color=CYAN)
+    info = T(m, '', 225, 50, 0.6, h_align='center', v_align='center',
+             color=YELLOW)
+    pool = []
+    for r in range(ROWS):
+        for q in range(COLS):
+            pool.append(Button(
+                parent=m,
+                position=(15 + 177 * q, 232 - 48 * r),
+                size=(171, 35),
+                label='',
+                color=FILL,
+                textcolor=WHITE,
+            ))
+    BACKC, BACKT = (0.6, 0.2, 0.1), (1.0, 0.65, 0.5)
+    Button(
+        parent=m, position=(15, 280), size=(57, 35), label=sc.BACK.value,
+        color=BACKC, textcolor=BACKT,
+        call=lambda: [from_menu(p) for p in list(m.captives)]
+    )
+    Button(
+        parent=m, position=(85, 280), size=(38, 35), label=LEFT,
+        color=TAB, textcolor=WHITE, call=lambda: cycle(-1)
+    )
+    Button(
+        parent=m, position=(327, 280), size=(38, 35), label=RIGHT,
+        color=TAB, textcolor=WHITE, call=lambda: cycle(1)
+    )
+    for y, label, d in [
+        (232, UP + UP, -ROWS), (184, UP, -1),
+        (88, DOWN, 1), (40, DOWN + DOWN, ROWS)
+    ]:
+        Button(
+            parent=m, position=(378, y), size=(57, 35), label=label,
+            color=TAB, textcolor=WHITE, call=lambda d=d: scroll(d)
+        )
+
+    def refresh():
+        cat = st['cat']
+        shown = [i for i in items if cat == 'all' or i.cat == cat]
+        rows = ceil(len(shown) / COLS)
+        st['off'] = off = max(0, min(st['off'], max(0, rows - ROWS)))
+        for k, bt in enumerate(pool):
+            i = (off + k // COLS) * COLS + k % COLS
+            if i < len(shown):
+                it = shown[i]
+                setlabel(bt, it.label)
+                bt.call = bs.CallPartial(pick, it)
+                paint(bt, SEL if it is st['item'] else FILL, WHITE)
+            else:
+                setlabel(bt, '')
+                bt.call = None
+                paint(bt, EMPTY, EMPTY)
+        first = off * COLS + 1 if shown else 0
+        last = min(len(shown), (off + ROWS) * COLS)
+        name = dict(CATS)[cat]
+        settext(cat_t, f'{name} ({len(shown)})')
+        settext(info, f"Dropping: {st['item'].label}   |   "
+                      f"{first}-{last} of {len(shown)}")
+
+    def cycle(d):
+        keys = [k for k, _ in CATS]
+        st['cat'] = keys[(keys.index(st['cat']) + d) % len(keys)]
+        st['off'] = 0
+        refresh()
+
+    def scroll(d):
+        st['off'] += d
+        refresh()
+
+    def pick(it):
+        st['item'] = it
+        sel_label()
+        for p in list(m.captives):
+            from_menu(p)
+
+    def to_menu(players):
+        if not players:
+            return
+        st['menu'] = True
+        m.position = tuple(c.node.position)  # right where the console is
+        c.opacity = 0
+        m.opacity = 1
+        refresh()
+        for p in players:
+            c.release_one(p)
+            m.capture(p.actor.node)
+            p.assigninput(IT.BOMB_PRESS, bs.CallPartial(from_menu, p))
+
+    def from_menu(p):
+        if p in m.captives:
+            m.release_one(p)
+        if p and p.actor and p.actor.node.exists():
+            c.capture(p.actor.node)
+        if not m.captives:
+            close_menu()
+
+    def close_menu():
+        st['menu'] = False
+        m.opacity = 0
+        c.opacity = 1
+
+    def watchdog():
+        # everyone left the menu some other way (died etc.)
+        if st['menu'] and not m.captives:
+            close_menu()
+
+    sel_label()
+    refresh()
+
+    # --- live aim: red beam + ground ring where the drop will land ---
+    locs = []  # [line, ring] only exist while aiming, so nothing stale
+
+    def make_locs():
+        locs.append(bs.newnode('locator', attrs={
+            'shape': 'box',
+            'position': (0, DROP_Y / 2, 0),
+            'size': [0.06, DROP_Y, 0.06],
+            'color': (1, 0, 0),
+            'opacity': 1,
+            'draw_beauty': True,
+            'draw_shadow': False,
+            'additive': True,
+        }))
+        locs.append(bs.newnode('locator', attrs={
+            'shape': 'circle',
+            'position': (0, GROUND_Y, 0),
+            'size': [1.6],
+            'color': (1, 0.15, 0.1),
+            'opacity': 0.7,
+            'draw_beauty': True,
+            'draw_shadow': False,
+            'additive': True,
+        }))
+
+    def aim():
+        if c.captives and not st['menu'] and not c.on[0]:
+            ox, oy = c.cursor_off
+            wx, _, wz = screen_to_world(ox / c.sc, oy / c.sc)
+            if not locs:
+                make_locs()
+            locs[0].position = (wx, DROP_Y / 2, wz)
+            locs[1].position = (wx, GROUND_Y, wz)
+        elif locs:
+            for n in locs:
+                if n.exists():
+                    n.delete()
+            locs.clear()
+
+    # --- player markers (only while someone is looking) ---
+    trash = []
+    MS = 0.6  # marker scale
+    ox, oy = 0, -8
+
+    def mark(text, wx, wz, color):
+        px, py = world_to_screen(wx, wz)
+        trash.append(Text(
+            parent=c,
+            text=text,
+            color=color,
+            h_align='center',
+            scale=MS,
+            position=((px + ox) / MS, (py + oy) / MS)
+        ))
+
+    def spy():
+        for _ in trash:
+            if _:
+                _.delete()
+        trash.clear()
+        if not b.active or st['menu']:
+            return
+        if b.node:
+            bx, by, bz = b.node.position
+            mark(sc.OUYA_BUTTON_Y.value + ' Console', bx, bz, YELLOW)
+        for n in bs.getnodes():
+            if not n or n.getnodetype() != 'spaz':
+                continue
+            p = n.position
+            mark(sc.DPAD_CENTER_BUTTON.value + ' ' + (n.name or 'bot'),
+                 p[0], p[2], bright(n.color))
+
+    return [
+        bs.Timer(0.01, spy, repeat=True),
+        bs.Timer(0.25, watchdog, repeat=True),
+        bs.Timer(0.02, aim, repeat=True),
+    ]
+
+
 # brobord collide grass
 # ba_meta require api 9
 # ba_meta export bascenev1.GameActivity
@@ -210,317 +518,13 @@ class byBordd(bs.TeamGameActivity[bs.Player, bs.Team]):
         s.default_music = bs.MusicType.GRAND_ROMP
         # custom
         s.keep = []
-        s.items = []
-        s.botset = None
 
     def on_begin(s) -> None:
         super().on_begin()
-        s.items = build_catalog(s)
+        items = build_catalog()
         for i, pos in enumerate(CONSOLES):
-            s.keep += s.make_console(i, pos)
+            s.keep += make_console(i, pos, items)
 
     def handlemessage(s, m):
         if isinstance(m, bs.PlayerDiedMessage):
             s.respawn_player(m.getplayer(bs.Player))
-
-    def make_console(s, idx, pos):
-        from beam import Container, Button, Beam, Text, GSW
-        from bauiv1 import SpecialChar as sc
-
-        def ch(name, fallback):
-            e = getattr(sc, name, None)
-            return e.value if e else fallback
-
-        UP, DOWN = ch('UP_ARROW', '^'), ch('DOWN_ARROW', 'v')
-        LEFT, RIGHT = ch('LEFT_ARROW', '<'), ch('RIGHT_ARROW', '>')
-
-        st = {
-            'item': None,
-            'cat': 'all',
-            'off': 0,
-            'menu': False,
-            't': -9.0,
-        }
-        st['item'] = next((i for i in s.items if i.label == 'Nuke'), s.items[0])
-
-        # --- helpers (Text/Button positions are multiplied by their own scale,
-        # so divide it back out to place things in container units) ---
-        def T(parent, text, x, y, scale=1, **k):
-            return Text(
-                parent=parent, text=text, position=(x / scale, y / scale),
-                scale=scale, **k)
-
-        def settext(t, v):
-            t.text = v
-            t.line.text = v
-
-        def setlabel(bt, label):
-            bt.label = label
-            w = GSW(label) if label else 0
-            x = bt.size[0] * 0.85
-            bt.text.scale = bt.sc if w < x else (x / w) * bt.sc
-
-        def paint(bt, color, textcolor):
-            # highlight adds 0.4 to both; keep that offset while highlighted
-            k = 0.4 if bt.up else 0
-            bt.color = tuple(v + k for v in color)
-            bt.textcolor = tuple(v + k for v in textcolor)
-
-        # --- map bounds / coordinate conversion ---
-        x0, y0, z0, x1, y1, z1 = bs.getactivity().globalsnode.area_of_interest_bounds
-        w0, h0 = SIZE
-        mx, my = w0 * 0.1, h0 * 0.1
-        ww, hh = w0 - mx * 2, h0 - my * 2
-        dx = (x1 - x0) if abs(x1 - x0) > 1e-6 else 1.0
-        dz = abs(z1 - z0) if abs(z1 - z0) > 1e-6 else 1.0
-
-        def world_to_screen(wx, wz):
-            u = (wx - x0) / dx
-            v = (z1 - wz) / dz
-            return (
-                max(0.0, min(w0, mx + u * ww)),
-                max(0.0, min(h0, my + v * hh)),
-            )
-
-        def screen_to_world(px, py):
-            u = (px - mx) / ww
-            v = (py - my) / hh
-            return (x0 + u * dx, DROP_Y, z1 - v * dz)
-
-        # --- drop ---
-        def eye(px, py):
-            if c.on[0]:  # cursor is on a button, not on the map
-                return
-            now = bs.time()
-            if now - st['t'] < COOLDOWN:
-                return
-            st['t'] = now
-            try:
-                st['item'].fn(screen_to_world(px, py))
-            except Exception:
-                logging.exception('dropper: drop failed')
-
-        # --- console ---
-        c = Container(size=SIZE, pipe=eye, speed=CURSOR_SPEED)
-        # beam first: it zeroes container opacity, kids made after inherit it
-        b = Beam(
-            position=pos,
-            container=c,
-            id=f'drop{idx + 1}',
-            title=sc.OUYA_BUTTON_Y.value + ' Drop Console',
-            message=sc.LEFT_BUTTON.value + ' Punch this for power.'
-        )
-        T(c, 'Drop Console', 150, 328, 0.9, h_align='center', v_align='center',
-          color=CYAN)
-        Button(
-            parent=c,
-            position=(15, 280),
-            size=(57, 35),
-            label=sc.BACK.value,
-            color=(0.6, 0.2, 0.1),
-            textcolor=(1.0, 0.65, 0.5),
-            call=b.back
-        )
-        sel = Button(
-            parent=c,
-            position=(250, 280),
-            size=(190, 35),
-            label='',
-            color=(0.10, 0.30, 0.45),
-            textcolor=WHITE,
-            call=lambda: to_menu(list(c.captives))
-        )
-        T(c, 'Punch to drop where the cursor is', 225, 50, 0.6,
-          h_align='center', v_align='center', color=WHITE)
-
-        def sel_label():
-            setlabel(sel, st['item'].label + ' ' + DOWN)
-
-        # --- full-screen menu (same size and spot as the console) ---
-        m = Container(size=SIZE, opacity=0)
-        cat_t = T(m, '', 225, 328, 0.9, h_align='center', v_align='center',
-                  color=CYAN)
-        info = T(m, '', 225, 50, 0.6, h_align='center', v_align='center',
-                 color=YELLOW)
-        pool = []
-        for r in range(ROWS):
-            for q in range(COLS):
-                pool.append(Button(
-                    parent=m,
-                    position=(15 + 177 * q, 232 - 48 * r),
-                    size=(171, 35),
-                    label='',
-                    color=FILL,
-                    textcolor=WHITE,
-                ))
-        BACKC, BACKT = (0.6, 0.2, 0.1), (1.0, 0.65, 0.5)
-        Button(
-            parent=m, position=(15, 280), size=(57, 35), label=sc.BACK.value,
-            color=BACKC, textcolor=BACKT,
-            call=lambda: [from_menu(p) for p in list(m.captives)]
-        )
-        Button(
-            parent=m, position=(85, 280), size=(38, 35), label=LEFT,
-            color=TAB, textcolor=WHITE, call=lambda: cycle(-1)
-        )
-        Button(
-            parent=m, position=(327, 280), size=(38, 35), label=RIGHT,
-            color=TAB, textcolor=WHITE, call=lambda: cycle(1)
-        )
-        for y, label, d in [
-            (232, UP + UP, -ROWS), (184, UP, -1),
-            (88, DOWN, 1), (40, DOWN + DOWN, ROWS)
-        ]:
-            Button(
-                parent=m, position=(378, y), size=(57, 35), label=label,
-                color=TAB, textcolor=WHITE, call=lambda d=d: scroll(d)
-            )
-
-        def refresh():
-            cat = st['cat']
-            items = [i for i in s.items if cat == 'all' or i.cat == cat]
-            rows = ceil(len(items) / COLS)
-            st['off'] = off = max(0, min(st['off'], max(0, rows - ROWS)))
-            for k, bt in enumerate(pool):
-                i = (off + k // COLS) * COLS + k % COLS
-                if i < len(items):
-                    it = items[i]
-                    setlabel(bt, it.label)
-                    bt.call = bs.CallPartial(pick, it)
-                    paint(bt, SEL if it is st['item'] else FILL, WHITE)
-                else:
-                    setlabel(bt, '')
-                    bt.call = None
-                    paint(bt, EMPTY, EMPTY)
-            first = off * COLS + 1 if items else 0
-            last = min(len(items), (off + ROWS) * COLS)
-            name = dict(CATS)[cat]
-            settext(cat_t, f'{name} ({len(items)})')
-            settext(info, f"Dropping: {st['item'].label}   |   "
-                          f"{first}-{last} of {len(items)}")
-
-        def cycle(d):
-            keys = [k for k, _ in CATS]
-            st['cat'] = keys[(keys.index(st['cat']) + d) % len(keys)]
-            st['off'] = 0
-            refresh()
-
-        def scroll(d):
-            st['off'] += d
-            refresh()
-
-        def pick(it):
-            st['item'] = it
-            sel_label()
-            for p in list(m.captives):
-                from_menu(p)
-
-        def to_menu(players):
-            if not players:
-                return
-            st['menu'] = True
-            m.position = tuple(c.node.position)  # right where the console is
-            c.opacity = 0
-            m.opacity = 1
-            refresh()
-            for p in players:
-                c.release_one(p)
-                m.capture(p.actor.node)
-                p.assigninput(IT.BOMB_PRESS, bs.CallPartial(from_menu, p))
-
-        def from_menu(p):
-            if p in m.captives:
-                m.release_one(p)
-            if p and p.actor and p.actor.node.exists():
-                c.capture(p.actor.node)
-            if not m.captives:
-                close_menu()
-
-        def close_menu():
-            st['menu'] = False
-            m.opacity = 0
-            c.opacity = 1
-
-        def watchdog():
-            # everyone left the menu some other way (died etc.)
-            if st['menu'] and not m.captives:
-                close_menu()
-
-        sel_label()
-        refresh()
-
-        # --- live aim: red beam + ground ring where the drop will land ---
-        locs = []  # [line, ring] only exist while aiming, so nothing stale
-
-        def make_locs():
-            locs.append(bs.newnode('locator', attrs={
-                'shape': 'box',
-                'position': (0, DROP_Y / 2, 0),
-                'size': [0.06, DROP_Y, 0.06],
-                'color': (1, 0, 0),
-                'opacity': 1,
-                'draw_beauty': True,
-                'additive': True,
-            }))
-            locs.append(bs.newnode('locator', attrs={
-                'shape': 'circle',
-                'position': (0, GROUND_Y, 0),
-                'size': [1.6],
-                'color': (1, 0.15, 0.1),
-                'opacity': 0.7,
-                'draw_beauty': True,
-                'additive': True,
-            }))
-
-        def aim():
-            if c.captives and not st['menu'] and not c.on[0]:
-                ox, oy = c.cursor_off
-                wx, _, wz = screen_to_world(ox / c.sc, oy / c.sc)
-                if not locs:
-                    make_locs()
-                locs[0].position = (wx, DROP_Y / 2, wz)
-                locs[1].position = (wx, GROUND_Y, wz)
-            elif locs:
-                for n in locs:
-                    if n.exists():
-                        n.delete()
-                locs.clear()
-
-        # --- player markers (only while someone is looking) ---
-        trash = []
-        MS = 0.6  # marker scale
-        ox, oy = 0, -8
-
-        def mark(text, wx, wz, color):
-            px, py = world_to_screen(wx, wz)
-            trash.append(Text(
-                parent=c,
-                text=text,
-                color=color,
-                h_align='center',
-                scale=MS,
-                position=((px + ox) / MS, (py + oy) / MS)
-            ))
-
-        def spy():
-            for _ in trash:
-                if _:
-                    _.delete()
-            trash.clear()
-            if not b.active or st['menu']:
-                return
-            if b.node:
-                bx, by, bz = b.node.position
-                mark(sc.OUYA_BUTTON_Y.value + ' Console', bx, bz, YELLOW)
-            for n in bs.getnodes():
-                if not n or n.getnodetype() != 'spaz':
-                    continue
-                p = n.position
-                mark(sc.DPAD_CENTER_BUTTON.value + ' ' + (n.name or 'bot'),
-                     p[0], p[2], bright(n.color))
-
-        return [
-            bs.Timer(0.01, spy, repeat=True),
-            bs.Timer(0.25, watchdog, repeat=True),
-            bs.Timer(0.02, aim, repeat=True),
-        ]
