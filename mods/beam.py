@@ -409,9 +409,10 @@ class Container:
             ox,oy = [i*_.sc for i in _.position]
             px,py,pz = s.node.position
             b = ((px+ox)<x<(px+ox+zx)) and ((py+oy)<y<(py+oy+zy+32*s.sc))
+            b = b and o is None # first hovered button wins, but keep looping
             if (not _.up) and b: _.hl()
             elif _.up and not b: _.hl(False)
-            if b: o = _; break
+            if b: o = _
         s.on[0] = o
 
     def dump(s):
