@@ -176,6 +176,14 @@
         "mod_filename_base": "ueye"
     },
     {
+        "mod_name": "Antikick",
+        "mod_fancy_name": "No You Won't",
+        "mod_version": "1.0",
+        "mod_description": "Experimental",
+        "api_version": 9,
+        "mod_filename_base": "antikick"
+    },
+    {
         "mod_name": "bauiv1x",
         "mod_fancy_name": "Ballistica UI Extended",
         "mod_version": "1.0",
