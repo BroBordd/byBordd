@@ -35,10 +35,11 @@ class byBordd(Plugin):
         orig = cls._show
 
         def _show(self, state, source):
+            n = state.notice
             if isinstance(n, LangStrSpecResource) and n.name.endswith(
                 'kick_vote_started'
             ):
-                if (who := state.notice.subs.get('name', '')) == getme():
+                if (who := n.subs.get('name', '')) == getme():
                     screenmessage(
                         "Someone's trying to kick you.\nRejoining server..."
                     )
