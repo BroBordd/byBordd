@@ -108,7 +108,8 @@ class Hitomi:
 
             s.dot_nodes = []
             s.dot_last = None
-            s.dots_tmr = bs.Timer(0.25, s._dots_tick, repeat=True)
+            s.dot_shown = 0
+            s.dots_tmr = bs.Timer(1.0 / 60.0, s._dots_tick, repeat=True)
 
         s.read_cob()
 
@@ -686,12 +687,11 @@ class Hitomi:
         return sorted(out.values(), key=lambda v: v[0])[:s.DOT_MAX]
 
     def _clear_dots(s):
-        act = s._get_act()
         for n in s.dot_nodes:
             try:
-                if n: n.delete()
+                if n: n.opacity = 0.0
             except Exception: pass
-        s.dot_nodes = []
+        s.dot_shown = 0
         s.dot_last = None
 
     def _dots_tick(s):
@@ -700,24 +700,27 @@ class Hitomi:
         walking = (s.m_tmr is not None and not s.exploring and s.w_tris
                    and s.bot.node and s.bot.node.exists())
         if not walking:
-            if s.dot_nodes: s._clear_dots()
+            if s.dot_shown: s._clear_dots()
             return
         pos = tuple(s.bot.node.position)
-        if s.dot_last and math.dist(pos, s.dot_last) < 0.2: return
+        if pos == s.dot_last: return
         s.dot_last = pos
         items = s._dots_collect(pos)
         with act.context:
             nodes = s.dot_nodes
-            for i, (d, p, walk) in enumerate(items):
-                col = (0.1, 1.0, 0.2) if walk else (1.0, 0.1, 0.1)
-                if i < len(nodes):
-                    nodes[i].position = p
-                    nodes[i].color = col
-                else:
-                    nodes.append(bs.newnode('text', attrs={'text': '\u2022', 'in_world': True, 'position': p, 'color': col, 'scale': s.DOT_SIZE, 'flatness': 1.0, 'shadow': 0.0, 'h_align': 'center', 'v_align': 'center'}))
-            while len(nodes) > len(items):
-                n = nodes.pop()
-                if n: n.delete()
+            if not nodes:  # fixed pool, made once, reused forever
+                for _ in range(s.DOT_MAX):
+                    nodes.append(bs.newnode('text', attrs={'text': '\u2022', 'in_world': True, 'scale': s.DOT_SIZE, 'flatness': 1.0, 'shadow': 0.0, 'h_align': 'center', 'v_align': 'center', 'opacity': 0.0}))
+            n_items = min(len(items), len(nodes))
+            for i in range(n_items):
+                d, p, walk = items[i]
+                n = nodes[i]
+                n.position = p
+                n.color = (0.1, 1.0, 0.2) if walk else (1.0, 0.1, 0.1)
+                if i >= s.dot_shown: n.opacity = 1.0
+            for i in range(n_items, s.dot_shown):
+                nodes[i].opacity = 0.0
+            s.dot_shown = n_items
 
     def _chk_chat(s):
         m = bs.get_chat_messages()
