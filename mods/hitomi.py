@@ -555,12 +555,23 @@ class Hitomi:
 
         if s.idx < len(s.path) - 1:
             wp = s.path[s.idx]
-            d3d = math.dist(wp, b_feet)
-            y_dist = abs(b_feet[1] - wp[1])
-            if d3d <= s.fin_dist and y_dist <= 0.05:
-                s.idx += 1
+            for _ in range(3):
+                if s.idx >= len(s.path) - 1: break
                 wp = s.path[s.idx]
-                s._track_node(s.idx)
+                hd = math.hypot(wp[0] - b_feet[0], wp[2] - b_feet[2])
+                y_dist = abs(b_feet[1] - wp[1])
+                # slopes: feet y never lines up with the waypoint, so use a
+                # looser y and also count it reached once we're past it
+                # along the path direction (else we overshoot and go back)
+                nx_, nz_ = s.path[s.idx + 1][0] - wp[0], s.path[s.idx + 1][2] - wp[2]
+                nl = math.hypot(nx_, nz_)
+                passed = (nl > 1e-3 and hd < 1.0 and y_dist < 1.0 and
+                          ((b_feet[0] - wp[0]) * nx_ + (b_feet[2] - wp[2]) * nz_) / nl > 0)
+                if (hd <= s.fin_dist and y_dist <= 0.35) or passed:
+                    s.idx += 1
+                    wp = s.path[s.idx]
+                    s._track_node(s.idx)
+                else: break
 
             if s.far_pref > 0.0 and s.idx < len(s.path) - 1:
                 look_idx = min(len(s.path) - 1, s.idx + int(math.ceil(s.far_pref * 3.0)))
