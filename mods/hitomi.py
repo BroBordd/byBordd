@@ -106,6 +106,10 @@ class Hitomi:
             s.v_nodes = []
             s.v_tmr = bs.Timer(0.2, s._draw_path, repeat=True)
 
+            s.dot_nodes = []
+            s.dot_last = None
+            s.dots_tmr = bs.Timer(0.25, s._dots_tick, repeat=True)
+
         s.read_cob()
 
     def _get_act(s):
@@ -634,6 +638,86 @@ class Hitomi:
             for wp in s.path[s.idx:]:
                 n = bs.newnode('locator', attrs={'position': wp, 'color': (0.2, 1.0, 0.4), 'shape': 'circle', 'size': [0.4]})
                 s.v_nodes.append(n)
+
+    # --- debug: mesh dots in a sphere around her while she walks ---
+    # green = walkable tri, red = not. Tune these.
+    DOT_R = 2.5      # sphere radius
+    DOT_STEP = 0.5   # sample spacing on big triangles
+    DOT_MAX = 220    # max dots (nearest kept)
+    DOT_SIZE = 0.07
+
+    def _tri_pts(s, t):
+        e = max(math.dist(t.p1, t.p2), math.dist(t.p2, t.p3), math.dist(t.p3, t.p1))
+        n = max(1, min(8, int(e / s.DOT_STEP)))
+        pts = []
+        for i in range(n + 1):
+            for j in range(n + 1 - i):
+                a, b = i / n, j / n
+                c = 1.0 - a - b
+                pts.append((t.p1[0] * c + t.p2[0] * a + t.p3[0] * b,
+                            t.p1[1] * c + t.p2[1] * a + t.p3[1] * b,
+                            t.p1[2] * c + t.p2[2] * a + t.p3[2] * b))
+        return pts
+
+    def _dots_collect(s, pos):
+        R = s.DOT_R
+        gs = 2.0
+        x, y, z = pos
+        g0 = [int(math.floor((v - R) / gs)) for v in pos]
+        g1 = [int(math.floor((v + R) / gs)) for v in pos]
+        seen = set()
+        out = {}
+        for tbl, walk in ((s.obs_hash, False), (s.w_hash, True)):
+            for gx in range(g0[0], g1[0] + 1):
+                for gy in range(g0[1], g1[1] + 1):
+                    for gz in range(g0[2], g1[2] + 1):
+                        for t in tbl.get((gx, gy, gz), ()):
+                            if t.id in seen: continue
+                            seen.add(t.id)
+                            dx = max(t.min_x - x, 0.0, x - t.max_x)
+                            dy = max(t.min_y - y, 0.0, y - t.max_y)
+                            dz = max(t.min_z - z, 0.0, z - t.max_z)
+                            if dx * dx + dy * dy + dz * dz > R * R: continue
+                            for p in s._tri_pts(t):
+                                d = math.dist(p, pos)
+                                if d > R: continue
+                                k = (round(p[0], 2), round(p[1], 2), round(p[2], 2))
+                                if walk or k not in out: out[k] = (d, p, walk)
+        return sorted(out.values(), key=lambda v: v[0])[:s.DOT_MAX]
+
+    def _clear_dots(s):
+        act = s._get_act()
+        for n in s.dot_nodes:
+            try:
+                if n: n.delete()
+            except Exception: pass
+        s.dot_nodes = []
+        s.dot_last = None
+
+    def _dots_tick(s):
+        act = s._get_act()
+        if not act: return
+        walking = (s.m_tmr is not None and not s.exploring and s.w_tris
+                   and s.bot.node and s.bot.node.exists())
+        if not walking:
+            if s.dot_nodes: s._clear_dots()
+            return
+        pos = tuple(s.bot.node.position)
+        if s.dot_last and math.dist(pos, s.dot_last) < 0.2: return
+        s.dot_last = pos
+        items = s._dots_collect(pos)
+        with act.context:
+            nodes = s.dot_nodes
+            for i, (d, p, walk) in enumerate(items):
+                col = (0.1, 1.0, 0.2) if walk else (1.0, 0.1, 0.1)
+                if i < len(nodes):
+                    nodes[i].position = p
+                    nodes[i].color = col
+                else:
+                    nodes.append(bs.newnode('locator', attrs={'position': p, 'color': col, 'shape': 'circle', 'size': [s.DOT_SIZE]}))
+            while len(nodes) > len(items):
+                n = nodes.pop()
+                if n: n.delete()
 
     def _chk_chat(s):
         m = bs.get_chat_messages()
