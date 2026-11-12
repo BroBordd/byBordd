@@ -144,13 +144,18 @@ class Hitomi:
         s.m_name = getattr(act.map, 'name', 'Crag Castle')
         s.cob_data = None
         s.cob_path = None
+        err = None
         try: s.cob_data = s._cas_cob(s.m_name, type(act.map).__name__)
-        except Exception: s.cob_data = None
+        except Exception as e:
+            s.cob_data = None
+            err = f"{type(e).__name__}: {e}"
+        if s.cob_data is None and err is None: err = 'no leaf for map'
+        if err: print('[hitomi] cas lookup failed:', err)
         if s.cob_data is None:
             s.cob_path = s._find_cob(s.m_name)
             if not s.cob_path or not os.path.exists(s.cob_path):
                 with act.context:
-                    s.stream.push(f"Cannot find collision mesh for {s.m_name}")
+                    s.stream.push(f"Cannot find mesh: {(err or '?')[:70]}")
                 s.exploring = False
                 s.look_tmr = None
                 return
