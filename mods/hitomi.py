@@ -17,6 +17,10 @@ import bascenev1 as bs
 from babase import get_string_width
 from bascenev1lib.actor.spaz import Spaz
 
+# debug dots: green = walkable mesh, other = non-walkable (red)
+SHOW_GREEN_DOTS = True
+SHOW_OTHER_DOTS = True
+
 SPAZ_Y_OFF = 0.30
 _pc = getattr(bs, 'pushcall', getattr(babase, 'pushcall', None))
 def pushcall(call):
@@ -668,6 +672,7 @@ class Hitomi:
         seen = set()
         out = {}
         for tbl, walk in ((s.obs_hash, False), (s.w_hash, True)):
+            if (walk and not SHOW_GREEN_DOTS) or (not walk and not SHOW_OTHER_DOTS): continue
             for gx in range(g0[0], g1[0] + 1):
                 for gy in range(g0[1], g1[1] + 1):
                     for gz in range(g0[2], g1[2] + 1):
@@ -697,7 +702,7 @@ class Hitomi:
     def _dots_tick(s):
         act = s._get_act()
         if not act: return
-        walking = (s.m_tmr is not None and not s.exploring and s.w_tris
+        walking = ((SHOW_GREEN_DOTS or SHOW_OTHER_DOTS) and s.m_tmr is not None and not s.exploring and s.w_tris
                    and s.bot.node and s.bot.node.exists())
         if not walking:
             if s.dot_nodes: s._clear_dots()
