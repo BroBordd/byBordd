@@ -344,6 +344,14 @@
         "mod_filename_base": "fpp"
     },
     {
+        "mod_name": "hitomi (No Docstring)",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "No docstring found.",
+        "api_version": 9,
+        "mod_filename_base": "hitomi"
+    },
+    {
         "mod_name": "HTW",
         "mod_fancy_name": "Your highlight textwidget",
         "mod_version": "1.0",
