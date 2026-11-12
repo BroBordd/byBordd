@@ -644,7 +644,7 @@ class Hitomi:
     DOT_R = 2.5      # sphere radius
     DOT_STEP = 0.5   # sample spacing on big triangles
     DOT_MAX = 220    # max dots (nearest kept)
-    DOT_SIZE = 0.07
+    DOT_SIZE = 0.01  # text scale
 
     def _tri_pts(s, t):
         e = max(math.dist(t.p1, t.p2), math.dist(t.p2, t.p3), math.dist(t.p3, t.p1))
@@ -714,7 +714,7 @@ class Hitomi:
                     nodes[i].position = p
                     nodes[i].color = col
                 else:
-                    nodes.append(bs.newnode('locator', attrs={'position': p, 'color': col, 'shape': 'circle', 'size': [s.DOT_SIZE]}))
+                    nodes.append(bs.newnode('text', attrs={'text': '\u2022', 'in_world': True, 'position': p, 'color': col, 'scale': s.DOT_SIZE, 'flatness': 1.0, 'shadow': 0.0, 'h_align': 'center', 'v_align': 'center'}))
             while len(nodes) > len(items):
                 n = nodes.pop()
                 if n: n.delete()
