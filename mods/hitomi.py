@@ -142,18 +142,23 @@ class Hitomi:
         act = s._get_act()
         if not act or not hasattr(act, 'map'): return
         s.m_name = getattr(act.map, 'name', 'Crag Castle')
-        s.cob_path = s._find_cob(s.m_name)
-        if not s.cob_path or not os.path.exists(s.cob_path):
-            with act.context:
-                s.stream.push(f"Cannot find .cob for {s.m_name}")
-            s.exploring = False
-            s.look_tmr = None
-            return
+        s.cob_data = None
+        s.cob_path = None
+        try: s.cob_data = s._cas_cob(s.m_name, type(act.map).__name__)
+        except Exception: s.cob_data = None
+        if s.cob_data is None:
+            s.cob_path = s._find_cob(s.m_name)
+            if not s.cob_path or not os.path.exists(s.cob_path):
+                with act.context:
+                    s.stream.push(f"Cannot find collision mesh for {s.m_name}")
+                s.exploring = False
+                s.look_tmr = None
+                return
         threading.Thread(target=s._thread_load, daemon=True).start()
 
     def _thread_load(s):
         try:
-            vecs, faces = s._parse_cob(s.cob_path)
+            vecs, faces = s._parse_cob(s.cob_data if s.cob_data is not None else s.cob_path)
             s._bake(vecs, faces)
         except Exception as e:
             pushcall(lambda: s._on_err(str(e)))
@@ -174,6 +179,45 @@ class Hitomi:
         p.append(os.getcwd())
         return list(dict.fromkeys(p))
 
+    # 1.8: collision meshes are hash-named blobs in asset-packages, not
+    # loose .cob files. Resolve map -> logical path -> blob hash -> bytes.
+    _CAS_ALIAS = {'happythoughts': 'always_land_level_collide'}
+
+    def _cas_leaf(s, name, cls):
+        from bascenev1 import _classicmapassets as cma
+        tree = cma._TREE['meshes']
+        norm = lambda t: re.sub(r'[^a-z0-9]', '', t.lower())
+        for k in (norm(name), norm(cls)):
+            if k in s._CAS_ALIAS and tree.get(s._CAS_ALIAS[k]) == 'c':
+                return s._CAS_ALIAS[k]
+        bad = ('bumper', 'wall', 'railing', 'nature_background', 'stem')
+        cands = []
+        for leaf, kind in tree.items():
+            if kind != 'c' or any(b in leaf for b in bad): continue
+            nl = norm(leaf)
+            if any(k and (k in nl or nl in k) for k in (norm(name), norm(cls))):
+                cands.append(leaf)
+        return cands[0] if cands else None
+
+    def _cas_cob(s, name, cls):
+        import json
+        from bascenev1 import _classicmapassets as cma
+        leaf = s._cas_leaf(name, cls)
+        if not leaf: return None
+        try: import _babase
+        except Exception: _babase = babase._babase
+        assets = babase.app.assets
+        def rd(h):
+            try: b = assets._read_blob(h)
+            except Exception: b = None
+            return b if b is not None else _babase.bundled_cas_blob_bytes(h)
+        man = json.loads(_babase.bundled_asset_manifest_text())
+        fms = man['asset_package_versions'][str(int(cma._ASSET_PACKAGE))]['flavor_manifests']
+        fm = rd(fms['constant'])
+        ent = json.loads(fm)['e']['meshes/' + leaf]
+        part = next(k for k in ent if k.startswith('c.'))
+        return bytes(rd(ent[part]['h']))
+
     def _find_cob(s, name):
         c_name = re.sub(r'[^a-zA-Z0-9]', '', name).lower()
         cands = []
@@ -188,8 +232,10 @@ class Hitomi:
             if 'collide' in os.path.basename(c).lower(): return c
         return cands[0] if cands else None
 
-    def _parse_cob(s, path):
-        with open(path, 'rb') as f: d = f.read()
+    def _parse_cob(s, src):
+        if isinstance(src, (bytes, bytearray)): d = src
+        else:
+            with open(src, 'rb') as f: d = f.read()
         _, vc, fc = struct.unpack_from('<III', d, 0)
         off = 12
         v = [struct.unpack_from('<fff', d, off + i * 12) for i in range(vc)]
