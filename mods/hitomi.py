@@ -14,7 +14,22 @@ import time
 import weakref
 import babase
 import bascenev1 as bs
-from babase import get_string_width
+
+def _find_gsw():
+    for n in ('babase', 'bauiv1', 'bascenev1', '_babase', '_bauiv1', '_bascenev1'):
+        try:
+            m = __import__(n)
+            f = getattr(m, 'get_string_width', None)
+            if f: return f
+        except Exception: pass
+    return None
+_gsw = _find_gsw()
+def get_string_width(t, suppress_warning=False):
+    if _gsw:
+        try: return _gsw(t, suppress_warning=suppress_warning)
+        except TypeError: return _gsw(t)
+        except Exception: pass
+    return len(t) * 10.0
 from bascenev1lib.actor.spaz import Spaz
 
 SPAZ_Y_OFF = 0.30
@@ -166,11 +181,13 @@ class Hitomi:
 
     def _get_env_paths(s):
         p = []
-        for app in (getattr(bs, 'app', None), getattr(babase, 'app', None)):
-            if app and hasattr(app, 'env'):
+        app = getattr(babase, 'app', None) or getattr(bs, 'app', None)
+        if app:
+            for src in (getattr(app, 'env', None), app):
+                if not src: continue
                 for k in ('data_directory', 'python_directory_app', 'python_directory_user'):
-                    v = getattr(app.env, k, None)
-                    if v and os.path.exists(v): p.append(str(v))
+                    v = getattr(src, k, None)
+                    if v and os.path.exists(str(v)): p.append(str(v))
         p.append(os.getcwd())
         return list(dict.fromkeys(p))
 
@@ -662,7 +679,7 @@ class Stream:
         except: pass
 
 
-# ba_meta require api 9
+# ba_meta require api 8
 # ba_meta export bascenev1.GameActivity
 class HitomiDebugGame(bs.TeamGameActivity[bs.Player, bs.Team]):
     name = 'Playground v2'
@@ -670,7 +687,7 @@ class HitomiDebugGame(bs.TeamGameActivity[bs.Player, bs.Team]):
 
     @classmethod
     def get_supported_maps(cls, sessiontype):
-        return bs.app.classic.getmaps('melee')
+        return (getattr(babase, 'app', None) or bs.app).classic.getmaps('melee')
 
     @classmethod
     def supports_session_type(cls, sessiontype):
