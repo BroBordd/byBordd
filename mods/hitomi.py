@@ -216,12 +216,26 @@ class Hitomi:
             try: b = assets._read_blob(h)
             except Exception: b = None
             return b if b is not None else _babase.bundled_cas_blob_bytes(h)
-        man = json.loads(_babase.bundled_asset_manifest_text())
-        fms = man['asset_package_versions'][str(int(cma._ASSET_PACKAGE))]['flavor_manifests']
-        fm = rd(fms['constant'])
-        ent = json.loads(fm)['e']['meshes/' + leaf]
-        part = next(k for k in ent if k.startswith('c.'))
-        return bytes(rd(ent[part]['h']))
+        pk = str(int(cma._ASSET_PACKAGE))
+        srcs = []
+        try:
+            t = _babase.bundled_asset_manifest_text()
+            if t: srcs += [(k, v.get('flavor_manifests', {})) for k, v in json.loads(t).get('asset_package_versions', {}).items()]
+        except Exception: pass
+        try:
+            with open(os.path.join(str(babase.app.env.cache_directory), 'manifest.json'), encoding='utf-8') as f:
+                srcs += [(k, v.get('fm', {})) for k, v in json.load(f).get('p', {}).items()]
+        except Exception: pass
+        srcs.sort(key=lambda kv: kv[0] != pk)
+        for k, fms in srcs:
+            h = fms.get('constant')
+            if not h: continue
+            try: ent = json.loads(rd(h))['e'].get('meshes/' + leaf)
+            except Exception: continue
+            if not ent: continue
+            part = next((x for x in ent if x.startswith('c.')), None)
+            if part: return bytes(rd(ent[part]['h']))
+        raise LookupError(f'{leaf} not in {len(srcs)} pkgs (want {pk})')
 
     def _find_cob(s, name):
         c_name = re.sub(r'[^a-zA-Z0-9]', '', name).lower()
