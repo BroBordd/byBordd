@@ -327,6 +327,18 @@ class Player:
         self.camera_zoom = 1
         [setattr(self, attr, []) for attr in ['ui_widgets', 'camera_widgets', 'hide_widgets', 'cinema_widgets', 'cinema_ui_widgets']]
         
+        # The game (1.8) writes its seek snapshots in the compact stream framing
+        # but reads them back with the replay's own protocol, so seeking a replay
+        # recorded before protocol 44 (BombSquad 1.7) fails with 'invalid state
+        # message' and kills the session. Detect that up front and refuse to seek.
+        self.protocol = None
+        try:
+            with open(path, 'rb') as f:
+                self.protocol = _brp_header(f)[2]
+        except Exception:
+            pass
+        self.can_seek = self.protocol is None or self.protocol >= 44
+        
         # Start replay immediately
         bs.new_replay_session(path)
         
@@ -1329,6 +1341,8 @@ class Player:
 
     def seek(self, direction):
         """Seek with confirmed duration checking"""
+        if not self.check_can_seek():
+            return
         label = ['Forward by', 'Rewind by'][direction == -1]
         amount = direction * self.speed
         
@@ -1363,8 +1377,16 @@ class Player:
         amount = abs(round(amount, 2))
         self.show_message('Seek', label + f" {amount} second{['s', ''][amount == 1]}", self.COL4, self.COL5)
     
+    def check_can_seek(self):
+        if self.can_seek:
+            return True
+        show_warning(f"Can't seek: this replay is from an older version (protocol {self.protocol}) and BombSquad 1.8 can't seek it")
+        return False
+    
     def jump(self, percent):
         """Jump with WYSIWYG behavior - percent is based on ESTIMATED duration, checked against CONFIRMED"""
+        if not self.check_can_seek():
+            return
         # Calculate target time based on ESTIMATED duration (what user sees on bar)
         if self.scanning:
             target_time = self.estimated_duration * percent
@@ -1527,7 +1549,7 @@ class _Huffman:
 # 6 byte header; protocol >= 44 uses varint command lengths + zigzag varint
 # ints and may fold time steps into commands 65 / 67.
 def _brp_header(f):
-    """Read header from file at 0; returns (compact, data_offset)."""
+    """Read header from file at 0; returns (compact, data_offset, version)."""
     head = f.read(6)
     if len(head) < 6 or unpack('<I', head[:4])[0] != 83749:
         raise ValueError('not a brp file')
@@ -1543,7 +1565,7 @@ def _brp_header(f):
             if len(d) < 4:
                 raise ValueError('truncated brp header')
             f.seek(unpack('<I', d)[0], 1)
-    return version >= 44, f.tell()
+    return version >= 44, f.tell(), version
 def _brp_varint(b, p):
     v = shift = 0
     while True:
