@@ -405,7 +405,8 @@ class Player:
                 f.seek(0, 2)
                 file_size = f.tell()
                 self.scan_progress[1] = file_size
-                f.seek(6)
+                f.seek(0)
+                compact = _brp_header(f)[0]
                 
                 while True:
                     current_pos = f.tell()
@@ -437,19 +438,8 @@ class Player:
                     if not raw_msg or raw_msg[0] != 1:
                         continue
                     
-                    sub_off = 1
-                    while sub_off + 2 <= len(raw_msg):
-                        sub_size_bytes = raw_msg[sub_off:sub_off+2]
-                        if len(sub_size_bytes) < 2:
-                            break
-                        sub_size = int.from_bytes(sub_size_bytes, 'little')
-                        sub_off += 2
-                        if sub_off + sub_size > len(raw_msg):
-                            break
-                        sub_data = raw_msg[sub_off:sub_off+sub_size]
-                        if len(sub_data) >= 5 and sub_data[0] == 0:
-                            total_ms += int.from_bytes(sub_data[1:5], 'little')
-                        sub_off += sub_size
+                    for cmd in _brp_commands(raw_msg, compact):
+                        total_ms += _brp_step_ms(cmd, compact)
                     
                     # Update confirmed duration (this is safe to seek to!)
                     self.confirmed_duration_sec = total_ms / 1000
@@ -1533,12 +1523,76 @@ class _Huffman:
                 val=ptr[bi]if b_in_b==0 else(ptr[bi]>>b_in_b)|(ptr[bi+1]<<(8-b_in_b))
                 out.append(val&255);bit+=8
         return bytes(out)
+# 1.8 replay format: protocol >= 39 adds an asset-package listing after the
+# 6 byte header; protocol >= 44 uses varint command lengths + zigzag varint
+# ints and may fold time steps into commands 65 / 67.
+def _brp_header(f):
+    """Read header from file at 0; returns (compact, data_offset)."""
+    head = f.read(6)
+    if len(head) < 6 or unpack('<I', head[:4])[0] != 83749:
+        raise ValueError('not a brp file')
+    version = unpack('<H', head[4:])[0]
+    if version < 24 or 38 <= version <= 55:
+        raise ValueError(f'unsupported replay protocol {version}')
+    if version >= 39:
+        d = f.read(4)
+        if len(d) < 4:
+            raise ValueError('truncated brp header')
+        for _ in range(unpack('<I', d)[0]):
+            d = f.read(4)
+            if len(d) < 4:
+                raise ValueError('truncated brp header')
+            f.seek(unpack('<I', d)[0], 1)
+    return version >= 44, f.tell()
+def _brp_varint(b, p):
+    v = shift = 0
+    while True:
+        x = b[p]; p += 1
+        v |= (x & 0x7f) << shift
+        if not x & 0x80:
+            return v, p
+        shift += 7
+def _brp_zz(b, p):
+    v, p = _brp_varint(b, p)
+    return (v >> 1) ^ -(v & 1), p
+def _brp_commands(raw, compact):
+    off = 1
+    while off < len(raw):
+        try:
+            if compact:
+                size, off = _brp_varint(raw, off)
+            else:
+                if off + 2 > len(raw):
+                    return
+                size = unpack('<H', raw[off:off+2])[0]; off += 2
+        except IndexError:
+            return
+        if off + size > len(raw):
+            return
+        if size:
+            yield raw[off:off+size]
+        off += size
+def _brp_step_ms(cmd, compact):
+    """ms of time advanced by one command (0 if it is not a time command)."""
+    try:
+        c = cmd[0]
+        if c == 0:
+            return _brp_zz(cmd, 1)[0] if compact else unpack('<i', cmd[1:5])[0]
+        if compact and c == 65:  # step scene graph + time step
+            return _brp_zz(cmd, _brp_zz(cmd, 1)[1])[0]
+        if compact and c == 67:  # time step + step scene graph + time step
+            pre, p = _brp_zz(cmd, 1)
+            return pre + _brp_zz(cmd, _brp_zz(cmd, p)[1])[0]
+    except Exception:
+        pass
+    return 0
 def get_replay_duration(_h, brp_path, progress):
     total_ms = 0
     with open(brp_path, 'rb') as f:
         f.seek(0,2)
         progress[1] = f.tell()
-        f.seek(6)
+        f.seek(0)
+        compact = _brp_header(f)[0]
         while True:
             progress[0] = f.tell()
             b_data = f.read(1)
@@ -1556,19 +1610,8 @@ def get_replay_duration(_h, brp_path, progress):
             raw_msg = _h.decompress(f.read(comp_len))
             if not raw_msg or raw_msg[0] != 1:
                 continue
-            sub_off = 1
-            while sub_off + 2 <= len(raw_msg):
-                sub_size_bytes = raw_msg[sub_off:sub_off+2]
-                if len(sub_size_bytes) < 2:
-                    break
-                sub_size = int.from_bytes(sub_size_bytes, 'little')
-                sub_off += 2
-                if sub_off + sub_size > len(raw_msg):
-                    break
-                sub_data = raw_msg[sub_off:sub_off+sub_size]
-                if len(sub_data) >= 5 and sub_data[0] == 0:
-                    total_ms += int.from_bytes(sub_data[1:5], 'little')
-                sub_off += sub_size
+            for cmd in _brp_commands(raw_msg, compact):
+                total_ms += _brp_step_ms(cmd, compact)
     progress[0] = progress[1]
     return total_ms
 
