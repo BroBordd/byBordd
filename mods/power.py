@@ -26,7 +26,6 @@ from babase._devconsole import (
 from bascenev1 import (
     get_connection_to_host_info_2 as HOST,
     disconnect_from_host as LEAVE,
-    disconnect_client as DISC,
     broadcastmessage as push,
     get_chat_messages as GCM,
     connect_to_party as CON,
@@ -47,7 +46,43 @@ class Power(TAB):
         [setattr(s,_,{}) for _ in ['rr','hi']]
         [setattr(s,_,[]) for _ in ['cm','og','r','ls']]
         [setattr(s,_,0) for _ in ['ii','eii','ci','re','ri','eri','li','lii']]
+        s.dk = set(); s.sp = 0
+        s.ld()
         teck(3,s.spy)
+    def ld(s):
+        c = app.config
+        try:
+            s.ls = [(str(a),str(b)) for a,b in c.get('pw_logs',[])][-99:]
+            s.lii = len(s.ls)
+            s.cm = [(str(a),int(b)) for a,b in c.get('pw_chat',[])]
+            s.hi = {(str(a),str(b)):(str(a),d) for a,b,d in c.get('pw_servers',[])}
+        except Exception:
+            s.ls,s.cm,s.hi,s.lii = [],[],{},0
+        if s.cm:
+            try: s.og = GCM()
+            except Exception: pass
+    def sv(s,k):
+        s.dk.add(k)
+        if s.sp: return
+        s.sp = 1
+        teck(2,s._sv)
+    def _sv(s):
+        s.sp = 0
+        c = app.config
+        for k in s.dk:
+            if k == 'ls': c['pw_logs'] = [list(_) for _ in s.ls]
+            elif k == 'cm': c['pw_chat'] = [list(_) for _ in s.cm[:500]]
+            elif k == 'hi': c['pw_servers'] = [[a,b,d] for (a,b),(_,d) in s.hi.items()]
+        s.dk.clear()
+        try: c.commit()
+        except Exception: pass
+    def clr(s,k):
+        if k == 'ls': s.ls = []; s.li = s.lii = 0
+        elif k == 'cm': s.cm = []; s.ci = 0
+        elif k == 'hi': s.hi = {}; s.ii = s.eii = 0
+        s.sv(k)
+        push({'ls':'Logs','cm':'Chat','hi':'Servers'}[k]+' cleared',color=(1,1,0))
+        s.rf()
     def rf(s):
         try: s.request_refresh()
         except RuntimeError: pass
@@ -73,6 +108,7 @@ class Power(TAB):
                 if tt != '...':
                     if ('...', a) in s.hi:
                         del s.hi[('...', a)]
+                s.sv('hi')
         ng = GCM()
         if s.og != ng:
             s.og = ng
@@ -81,6 +117,7 @@ class Power(TAB):
             if ch and ls == s.cm[0][0]: s.cm[0] = (ls,ch+1)
             else: s.cm.insert(0,(ls,1))
             if s.ci: s.ci += 1
+            s.sv('cm')
             _ = 1
         _ and s.rf()
         teck(0.1,s.spy)
@@ -173,7 +210,7 @@ class Power(TAB):
                 size=(140 * sf, 40*zf),
                 pos=(x + 10 * sf, 140*zf),
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
-                disabled=bb or (s.c==-1)
+                disabled=bb or (s.c==-1) or bool(s.h)
             )
             B(
                 'Vote',
@@ -182,6 +219,20 @@ class Power(TAB):
                 call=CallPartial(chat,'1'),
                 disabled=not s.r
             )
+            for _l,_k,_d,_x,_y in [
+                ('Clear logs','ls',s.ls,10,95),
+                ('Clear chat','cm',s.cm,150,95),
+                ('Clear servers','hi',s.hi,10,50)
+            ]:
+                w = GSW(_l)
+                B(
+                    _l,
+                    size=(140 * sf, 40*zf),
+                    pos=(x + _x * sf, _y*zf),
+                    call=CallPartial(s.clr,_k),
+                    disabled=not _d,
+                    label_scale=1 if w < 130 * sf else (130 * sf)/w
+                )
             B(
                 '',
                 size=(2, 635*zf),
@@ -536,7 +587,7 @@ class Power(TAB):
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-62),
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
-                disabled=bb or (s.c==-1)
+                disabled=bb or (s.c==-1) or bool(s.h)
             )
             B(
                 'Vote',
@@ -739,6 +790,7 @@ class Power(TAB):
             s.lii += 1
             if s.li == s.lii-17: s.li += 1
         else: s.ls.pop(0)
+        s.sv('ls')
         s.rf()
     def mv(s,a,i):
         setattr(s,a,getattr(s,a)+i)
@@ -771,7 +823,27 @@ class Power(TAB):
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
-KICK = lambda f: DISC(f())
+def KICK(f):
+    try: c = f()
+    except KeyError: return
+    h = app.classic.host_ui
+    if HOST() is None:
+        h.kick_votes.kick(c)
+        return
+    r = h.get_kick_request(c)
+    if r is None:
+        push('This host offers no kick page',color=(1,0,0))
+        return
+    from bauiv1lib.hostdocui import show_host_docui_window
+    from bacommon.langstr import LangStrSpecValue
+    import bacommon.hostui as hui
+    import bacommon.docui.v2 as dui2
+    show_host_docui_window(hui.Button(
+        label=LangStrSpecValue.literal(''),
+        placement=hui.ButtonPlacement.PARTY_MENU,
+        request=r,
+        layout=dui2.WindowLayout.WIDE
+    ))
 FORCE = lambda: teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
