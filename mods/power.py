@@ -212,14 +212,13 @@ class Power(TAB):
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
-            if s.h:
-                B(
-                    'Vote',
-                    size=(140 * sf, 40*zf),
-                    pos=(x + 150 * sf, 140*zf),
-                    call=VOTE,
-                    disabled=not s.r
-                )
+            B(
+                'Vote',
+                size=(140 * sf, 40*zf),
+                pos=(x + 150 * sf, 140*zf),
+                call=VOTE,
+                disabled=not s.h or not s.r
+            )
             for _l,_k,_d,_x,_y in [
                 ('Clear logs','ls',s.ls,10,95),
                 ('Clear chat','cm',s.cm,150,95),
@@ -590,14 +589,13 @@ class Power(TAB):
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
-            if s.h:
-                B(
-                    'Vote',
-                    size=(120 * sf, 27),
-                    pos=(x + 407 * sf, s.height-90),
-                    call=VOTE,
-                    disabled=not s.r
-                )
+            B(
+                'Vote',
+                size=(120 * sf, 27),
+                pos=(x + 407 * sf, s.height-90),
+                call=VOTE,
+                disabled=not s.h or not s.r
+            )
             B(
                 '',
                 size=(2, s.height-17),
