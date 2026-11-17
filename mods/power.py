@@ -1,15 +1,33 @@
-# Copyright 2025 - Solely by BrotherBoard
+# Copyright 2026 - Solely by BrotherBoard
 # Intended for personal use only
-# Bug? Feedback? Telegram >> @BroBordd
+# Bug? Feedback? Discord >> @BrotherBoard
 
 """
-Power v2.7 - With one click
+Power v3.0.0 - With one click
 
-Experimental. Feedback is appreciated.
 Adds a dev console tab with some features I find useful.
 Power is mainly focused on the multiplayer side.
 Can be considered a good tool to have around.
 """
+
+plugman = dict(
+    plugin_name="power",
+    description=(
+        "Adds a dev console tab with some features I find useful. "
+        "Power is mainly focused on the multiplayer side. "
+        "Can be considered a good tool to have around."
+    ),
+    external_url="https://BroBordd.github.io/byBordd",
+    authors=[
+        {
+            "name": "BrotherBoard",
+            "email": "brobordd@gmail.com",
+            "discord": "BrotherBoard",
+            "github": "BroBordd"
+        },
+    ],
+    version='3.0.0',
+)
 
 from datetime import datetime as DT
 from typing import override
@@ -428,7 +446,7 @@ class Power(TAB):
                 style='bright'
             )
             0 if len(s.cm) else T(
-                'Chat is still empty.\nHurry up and fill it with nonesense',
+                'Chat is still empty\nHurry up and fill it with nonesense',
                 pos=(x+1320 * sf, 330 * zf)
             )
             for i,g in enumerate(s.cm):
@@ -690,7 +708,7 @@ class Power(TAB):
                     call=CallPartial(JOIN,a,p,False),
                     disabled=n == '...'
                 )
-            nt = "Your server join history\nwill appear here. Hi."
+            nt = "Your server join history\nwill appear here"
             w = GSW(nt)
             0 if len(s.hi) else T(
                 nt,
