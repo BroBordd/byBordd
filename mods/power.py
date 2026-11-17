@@ -192,7 +192,7 @@ class Power(TAB):
                     size=(280 * sf, rh),
                     pos=(x + 10 * sf, ry),
                     style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
-                    call=CallPartial(s.prv,c,p,n)
+                    call=CallPartial(s.sel,c,p,n)
                 )
                 T(
                     big,
@@ -588,7 +588,7 @@ class Power(TAB):
                     size=(210 * sf, 27),
                     pos=(x + 40 * sf, s.height-35-27*(i-s.ri)),
                     style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
-                    call=CallPartial(s.prv,c,p,n),
+                    call=CallPartial(s.sel,c,p,n),
                     label_scale=1 if w < 200 * sf else (200 * sf)/w
                 )
             bb = s.c is None
@@ -789,6 +789,9 @@ class Power(TAB):
     def prv(s,c,p,n):
         s.c,s.p,s.n = c,p,n
         s.rf()
+    def sel(s,c,p,n):
+        if s.c == c: s.prv(None,None,None)
+        else: s.prv(c,p,n)
     def chk(s,pn):
         y = 0
         for n,g in s.rr.items():
