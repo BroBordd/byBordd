@@ -186,8 +186,7 @@ class Power(TAB):
                 c,p = g
                 ry = (546-58.5*(i-s.eri))*zf
                 rh = 55.5*zf
-                big = ', '.join(str(_['name']) for _ in p) or n
-                sm = n if p else 'no player'
+                big = ', '.join(str(_['name']) for _ in p) if p else n
                 B(
                     '',
                     size=(280 * sf, rh),
@@ -197,13 +196,13 @@ class Power(TAB):
                 )
                 T(
                     big,
-                    pos=(x + 150 * sf, ry + rh*0.65),
+                    pos=(x + 150 * sf, ry + rh*(0.65 if p else 0.5)),
                     scale=FIT(big,260*sf)
                 )
-                T(
-                    sm,
+                p and T(
+                    n,
                     pos=(x + 150 * sf, ry + rh*0.27),
-                    scale=FIT(sm,260*sf,0.55),
+                    scale=FIT(n,260*sf,0.55),
                     style='faded'
                 )
             B(
