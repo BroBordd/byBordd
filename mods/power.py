@@ -202,8 +202,7 @@ class Power(TAB):
                 p and T(
                     n,
                     pos=(x + 150 * sf, ry + rh*0.27),
-                    scale=FIT(n,260*sf,0.55),
-                    style='faded'
+                    scale=FIT(n,260*sf,0.55)
                 )
             B(
                 '',
