@@ -143,42 +143,42 @@ class Power(TAB):
             B(
                 'Bomb' if bb else (['Client','Host'][s.c==-1]+f' {s.c}'),
                 pos=(x + 10 * sf, 230*zf),
-                size=(280 * sf, 40*zf),
+                size=(140 * sf, 40*zf),
                 disabled=bb,
                 call=CallPartial(push,str(s.n))
             )
             B(
                 'Mention',
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 185*zf),
+                size=(140 * sf, 40*zf),
+                pos=(x + 150 * sf, 230*zf),
                 call=CallPartial(chat,str(s.n)),
                 disabled=bb
             )
             B(
                 'Players',
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 140*zf),
+                size=(140 * sf, 40*zf),
+                pos=(x + 10 * sf, 185*zf),
                 call=CallPartial(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
                 disabled=bb or (not s.p)
             )
             B(
                 'Kick',
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 95*zf),
+                size=(140 * sf, 40*zf),
+                pos=(x + 150 * sf, 185*zf),
                 call=CallPartial(KICK,lambda:s.rr[s.n][0]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'JKick',
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 50*zf),
+                size=(140 * sf, 40*zf),
+                pos=(x + 10 * sf, 140*zf),
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'Vote',
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 5*zf),
+                size=(140 * sf, 40*zf),
+                pos=(x + 150 * sf, 140*zf),
                 call=CallPartial(chat,'1'),
                 disabled=not s.r
             )
