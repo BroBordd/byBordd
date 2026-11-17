@@ -824,7 +824,9 @@ def KICK(f):
 
 FORCE = lambda: teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
-GSW = lambda s: sw(s,suppress_warning=True)
+def GSW(s):
+    try: return sw(s,suppress_warning=True,suppress_logic_thread_warning=True)
+    except TypeError: return sw(s,suppress_warning=True)
 REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,CallPartial(JOIN,a,p,False))
 COPY = lambda s: ((CST(s) or 1) if CIS() else push('Clipboard not supported!')) and push('Copied!',color=(0,1,0))
 NOW = lambda: DT.now().strftime("%H:%M:%S")
