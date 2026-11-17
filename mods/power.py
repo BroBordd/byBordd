@@ -24,6 +24,7 @@ from babase._devconsole import (
     DevConsoleTab as TAB
 )
 from bascenev1 import (
+    disconnect_client as DISC,
     get_connection_to_host_info_2 as HOST,
     disconnect_from_host as LEAVE,
     broadcastmessage as push,
@@ -46,7 +47,7 @@ class Power(TAB):
         [setattr(s,_,{}) for _ in ['rr','hi']]
         [setattr(s,_,[]) for _ in ['cm','og','r','ls']]
         [setattr(s,_,0) for _ in ['ii','eii','ci','re','ri','eri','li','lii']]
-        s.dk = set(); s.sp = 0
+        s.dk = set(); s.sp = 0; s.vt = None
         s.ld()
         teck(3,s.spy)
     def ld(s):
@@ -118,6 +119,10 @@ class Power(TAB):
             else: s.cm.insert(0,(ls,1))
             if s.ci: s.ci += 1
             s.sv('cm')
+            _ = 1
+        v = VTARGET()
+        if v != s.vt:
+            s.vt = v
             _ = 1
         _ and s.rf()
         teck(0.1,s.spy)
@@ -212,17 +217,10 @@ class Power(TAB):
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
-            B(
-                'Vote',
-                size=(140 * sf, 40*zf),
-                pos=(x + 150 * sf, 140*zf),
-                call=VOTE,
-                disabled=not s.h or not s.r
-            )
             for _l,_k,_d,_x,_y in [
                 ('Clear logs','ls',s.ls,10,95),
                 ('Clear chat','cm',s.cm,150,95),
-                ('Clear servers','hi',s.hi,10,50)
+                ('Clear servers','hi',s.hi,150,140)
             ]:
                 w = GSW(_l)
                 B(
@@ -233,6 +231,16 @@ class Power(TAB):
                     disabled=not _d,
                     label_scale=1 if w < 130 * sf else (130 * sf)/w
                 )
+            vl = VL(s)
+            w = GSW(vl)
+            B(
+                vl,
+                size=(280 * sf, 40*zf),
+                pos=(x + 10 * sf, 50*zf),
+                call=VOTE,
+                disabled=not s.h or not s.r,
+                label_scale=1 if w < 270 * sf else (270 * sf)/w
+            )
             B(
                 '',
                 size=(2, 635*zf),
@@ -557,93 +565,40 @@ class Power(TAB):
             B(
                 'Bomb' if bb else (['Client','Host'][s.c==-1]+f' {s.c}'),
                 pos=(x + 287 * sf, s.height-34),
-                size=(120 * sf, 27),
+                size=(217 * sf, 27),
                 disabled=bb,
                 call=CallPartial(push,str(s.n))
             )
             B(
+                'Kick',
+                size=(217 * sf, 27),
+                pos=(x + 505 * sf, s.height-34),
+                call=CallPartial(KICK,lambda:s.rr[s.n][0]),
+                disabled=bb or (s.c==-1)
+            )
+            B(
                 'Mention',
-                size=(120 * sf, 27),
-                pos=(x + 287 * sf, s.height-90),
+                size=(217 * sf, 27),
+                pos=(x + 287 * sf, s.height-62),
                 call=CallPartial(chat,str(s.n)),
                 disabled=bb
             )
             B(
                 'Players',
-                size=(120 * sf, 27),
-                pos=(x + 287 * sf, s.height-62),
+                size=(217 * sf, 27),
+                pos=(x + 505 * sf, s.height-62),
                 call=CallPartial(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
                 disabled=bb or (not s.p)
             )
+            vl = VL(s)
+            w = GSW(vl)
             B(
-                'Kick',
-                size=(120 * sf, 27),
-                pos=(x + 407 * sf, s.height-34),
-                call=CallPartial(KICK,lambda:s.rr[s.n][0]),
-                disabled=bb or (s.c==-1)
-            )
-            B(
-                'JKick',
-                size=(120 * sf, 27),
-                pos=(x + 407 * sf, s.height-62),
-                call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
-                disabled=bb or (s.c==-1) or bool(s.h)
-            )
-            B(
-                'Vote',
-                size=(120 * sf, 27),
-                pos=(x + 407 * sf, s.height-90),
+                vl,
+                size=(435 * sf, 27),
+                pos=(x + 287 * sf, s.height-90),
                 call=VOTE,
-                disabled=not s.h or not s.r
-            )
-            B(
-                '',
-                size=(2, s.height-17),
-                pos=(x + 535 * sf, 10),
-                style='bright'
-            )
-            bb = s.j[0] is None
-            B(
-                'No job' if bb else 'Job',
-                size=(120 * sf, 27),
-                pos=(x + 544 * sf, s.height-34),
-                call=CallPartial(push,s.j[0]),
-                disabled=bb
-            )
-            w = 0 if bb else GSW(str(s.j[1]))
-            B(
-                'Target' if bb else str(s.j[1]),
-                size=(120 * sf, 27),
-                pos=(x + 544 * sf, s.height-62),
-                call=CallPartial(push,s.j[2]),
-                disabled=bb,
-                label_scale=1 if w<110 * sf else (110 * sf)/w
-            )
-            B(
-                'Stop',
-                size=(120 * sf, 27),
-                pos=(x + 544 * sf, s.height-90),
-                call=CallPartial(s.job,None,[None,None,None]),
-                disabled=bb
-            )
-            B(
-                '+',
-                size=(50 * sf, 27),
-                pos=(x + 664 * sf, s.height-34),
-                call=CallPartial(s.mv,'ji',1)
-            )
-            B(
-                str(s.ji or 0.1),
-                size=(50 * sf, 27),
-                pos=(x + 664 * sf, s.height-62),
-                call=CallPartial(push,f"Job runs every {s.ji or 0.1} second{['','s'][s.ji!=1]}")
-            )
-            B(
-                '-',
-                size=(50 * sf, 27),
-                pos=(x + 664 * sf, s.height-90),
-                disabled=s.ji<=0.5,
-                call=CallPartial(s.mv,'ji',-1)
+                disabled=not s.h or not s.r,
+                label_scale=1 if w < 425 * sf else (425 * sf)/w
             )
             B(
                 '',
@@ -690,16 +645,9 @@ class Power(TAB):
             )
             B(
                 'Rejoin',
-                size=(97 * sf, 27),
+                size=(197 * sf, 27),
                 pos=(x + 835 * sf, s.height-90),
                 call=CallPartial(REJOIN,a,p,lambda:s.re),
-                disabled=not s.h
-            )
-            B(
-                'JRejoin',
-                size=(97 * sf, 27),
-                pos=(x + 935 * sf, s.height-90),
-                call=CallPartial(s.job,CallPartial(REJOIN,a,p,lambda:s.re),['JRejoin',a,str(p)]),
                 disabled=not s.h
             )
             B(
@@ -832,27 +780,48 @@ def VOTE():
     from concurrent.futures import Future
     app.classic.host_ui.submit_request(hroutes.KickVoteCast(yes=True).request(),Future())
 
+VL = lambda s: 'Vote'+(f' {s.vt}' if s.vt else '')
+
+def VTARGET():
+    h = HOST()
+    if h is None or (getattr(h,'build_number',0) or 0) < VBUILD: return None
+    try:
+        import bacommon.docui.routes.classichost as hroutes
+        from bacommon.hostui import ButtonPlacement as BP
+        u = app.classic.host_ui
+        k = hroutes.KickVote().request().path
+        if not any(b.request.path == k for b in u.get_shown_buttons(BP.PARTY_MENU)): return None
+        v = u._shown.notice.subs
+        return next((i for i in (v.values() if isinstance(v,dict) else v) if isinstance(i,str)),None)
+    except Exception: return None
+
 def KICK(f):
     try: c = f()
     except KeyError: return
-    h = app.classic.host_ui
-    if HOST() is None:
-        h.kick_votes.kick(c)
+    u = app.classic.host_ui
+    h = HOST()
+    if h is None:
+        u.kick_votes.kick(c)
         return
-    r = h.get_kick_request(c)
+    r = u.get_kick_request(c) if (getattr(h,'build_number',0) or 0) >= VBUILD else None
     if r is None:
-        push('This host offers no kick page',color=(1,0,0))
+        DISC(c,ban_time=300) or push('Kick not available',color=(1,0,0))
         return
     from bauiv1lib.hostdocui import show_host_docui_window
     from bacommon.langstr import LangStrSpecValue
     import bacommon.hostui as hui
     import bacommon.docui.v2 as dui2
+    import bacommon.docui.routes.classichost as hroutes
+    from concurrent.futures import Future
     show_host_docui_window(hui.Button(
         label=LangStrSpecValue.literal(''),
         placement=hui.ButtonPlacement.PARTY_MENU,
         request=r,
         layout=dui2.WindowLayout.WIDE
     ))
+    if r.path == hroutes.KickVote().request().path:
+        teck(0.3,lambda: u.submit_request(hroutes.KickVoteStart(client_id=c).request(),Future()))
+
 FORCE = lambda: teck(0.7 if HAS() else 0.1,lambda: 0 if HAS() else app.classic.return_to_main_menu_session_gracefully())
 JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 GSW = lambda s: sw(s,suppress_warning=True)
