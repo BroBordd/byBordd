@@ -156,6 +156,13 @@ class Power(TAB):
             s.ji = s.re + 1
             push('Job time cannot be less than rejoin time\nwhen job is JRejoin. Updated job time to '+str(s.ji),color=(1,1,0))
         if s.height > 100:
+            RN = 5
+            ay = 546-58.5*(RN-1)-3-35
+            sy = ay-10
+            gt = sy-10
+            gh = (gt-8-20)/5
+            gy = lambda j: (gt-gh-j*(gh+5))*zf
+            gz = gh*zf
             B(
                 sc.UP_ARROW.value,
                 pos=(x + 10 * sf, 606*zf),
@@ -165,9 +172,9 @@ class Power(TAB):
             )
             B(
                 sc.DOWN_ARROW.value,
-                pos=(x + 10 * sf, 248*zf),
+                pos=(x + 10 * sf, ay*zf),
                 size=(280*sf,35*zf),
-                disabled=s.eri >= len(s.r)-5,
+                disabled=s.eri >= len(s.r)-RN,
                 call=CallPartial(s.mv,'eri',1)
             )
             nt = "No roster detected\nJoin some public party"
@@ -181,7 +188,7 @@ class Power(TAB):
             )
             for i,z in enumerate(s.rr.items()):
                 if i < s.eri: continue
-                if i>=(s.eri+5): break
+                if i>=(s.eri+RN): break
                 n,g = z
                 c,p = g
                 ry = (546-58.5*(i-s.eri))*zf
@@ -207,55 +214,55 @@ class Power(TAB):
             B(
                 '',
                 size=(280 * sf, 2),
-                pos=(x + 10 * sf, 238*zf),
+                pos=(x + 10 * sf, sy*zf),
                 style='bright'
             )
             bb = s.c is None
             B(
                 'Bomb' if bb else (['Client','Host'][s.c==-1]+f' {s.c}'),
-                pos=(x + 10 * sf, 188*zf),
-                size=(140 * sf, 40*zf),
+                pos=(x + 10 * sf, gy(0)),
+                size=(140 * sf, gz),
                 disabled=bb,
                 call=CallPartial(push,str(s.n))
             )
             B(
                 'Mention',
-                size=(140 * sf, 40*zf),
-                pos=(x + 150 * sf, 188*zf),
+                size=(140 * sf, gz),
+                pos=(x + 150 * sf, gy(0)),
                 call=CallPartial(chat,str(s.n)),
                 disabled=bb
             )
             B(
                 'Players',
-                size=(140 * sf, 40*zf),
-                pos=(x + 10 * sf, 143*zf),
+                size=(140 * sf, gz),
+                pos=(x + 10 * sf, gy(1)),
                 call=CallPartial(push,'\n'.join([' '.join([f'{i}={j}' for i,j in _.items()]) for _ in s.p]) if s.p else ''),
                 disabled=bb or (not s.p)
             )
             B(
                 'Kick',
-                size=(140 * sf, 40*zf),
-                pos=(x + 150 * sf, 143*zf),
+                size=(140 * sf, gz),
+                pos=(x + 150 * sf, gy(1)),
                 call=CallPartial(KICK,lambda:s.rr[s.n][0]),
                 disabled=bb or (s.c==-1)
             )
             B(
                 'JKick',
-                size=(140 * sf, 40*zf),
-                pos=(x + 10 * sf, 98*zf),
+                size=(140 * sf, gz),
+                pos=(x + 10 * sf, gy(2)),
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
             for _l,_k,_d,_x,_y in [
-                ('Clear logs','ls',s.ls,10,53),
-                ('Clear chat','cm',s.cm,150,53),
-                ('Clear servers','hi',s.hi,150,98)
+                ('Clear logs','ls',s.ls,10,gy(3)),
+                ('Clear chat','cm',s.cm,150,gy(3)),
+                ('Clear servers','hi',s.hi,150,gy(2))
             ]:
                 w = GSW(_l)
                 B(
                     _l,
-                    size=(140 * sf, 40*zf),
-                    pos=(x + _x * sf, _y*zf),
+                    size=(140 * sf, gz),
+                    pos=(x + _x * sf, _y),
                     call=CallPartial(s.clr,_k),
                     disabled=not _d,
                     label_scale=1 if w < 130 * sf else (130 * sf)/w
@@ -264,8 +271,8 @@ class Power(TAB):
             w = GSW(vl)
             B(
                 vl,
-                size=(280 * sf, 40*zf),
-                pos=(x + 10 * sf, 8*zf),
+                size=(280 * sf, gz),
+                pos=(x + 10 * sf, gy(4)),
                 call=VOTE,
                 disabled=not s.h or not s.r,
                 label_scale=1 if w < 270 * sf else (270 * sf)/w
