@@ -212,13 +212,14 @@ class Power(TAB):
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
-            B(
-                'Vote',
-                size=(140 * sf, 40*zf),
-                pos=(x + 150 * sf, 140*zf),
-                call=VOTE,
-                disabled=not s.r
-            )
+            if s.h:
+                B(
+                    'Vote',
+                    size=(140 * sf, 40*zf),
+                    pos=(x + 150 * sf, 140*zf),
+                    call=VOTE,
+                    disabled=not s.r
+                )
             for _l,_k,_d,_x,_y in [
                 ('Clear logs','ls',s.ls,10,95),
                 ('Clear chat','cm',s.cm,150,95),
@@ -589,13 +590,14 @@ class Power(TAB):
                 call=CallPartial(s.job,CallPartial(KICK,lambda:s.rr[s.n][0]),['JKick',s.c,s.n]),
                 disabled=bb or (s.c==-1) or bool(s.h)
             )
-            B(
-                'Vote',
-                size=(120 * sf, 27),
-                pos=(x + 407 * sf, s.height-90),
-                call=VOTE,
-                disabled=not s.r
-            )
+            if s.h:
+                B(
+                    'Vote',
+                    size=(120 * sf, 27),
+                    pos=(x + 407 * sf, s.height-90),
+                    call=VOTE,
+                    disabled=not s.r
+                )
             B(
                 '',
                 size=(2, s.height-17),
@@ -823,20 +825,14 @@ class Power(TAB):
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
+VBUILD = 23067
 def VOTE():
-    h = app.classic.host_ui
-    if HOST() is None:
-        v = h.kick_votes
-        if v.vote is None: push('No vote running',color=(1,1,0))
-        else: v.cast_vote(-1,True)
+    if (getattr(HOST(),'build_number',0) or 0) < VBUILD:
+        chat('1')
         return
     import bacommon.docui.routes.classichost as hroutes
-    from bacommon.hostui import ButtonPlacement as BP
     from concurrent.futures import Future
-    k = hroutes.KickVote().request().path
-    if any(b.request.path == k for b in h.get_shown_buttons(BP.PARTY_MENU)):
-        h.submit_request(hroutes.KickVoteCast(yes=True).request(),Future())
-    else: chat('1')
+    app.classic.host_ui.submit_request(hroutes.KickVoteCast(yes=True).request(),Future())
 
 def KICK(f):
     try: c = f()
