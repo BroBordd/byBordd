@@ -167,7 +167,7 @@ class Power(TAB):
                 sc.DOWN_ARROW.value,
                 pos=(x + 10 * sf, 290*zf),
                 size=(280*sf,35*zf),
-                disabled=s.eri >= len(s.r)-7,
+                disabled=s.eri >= len(s.r)-4,
                 call=CallPartial(s.mv,'eri',1)
             )
             nt = "No roster detected\nJoin some public party"
@@ -181,17 +181,30 @@ class Power(TAB):
             )
             for i,z in enumerate(s.rr.items()):
                 if i < s.eri: continue
-                if i>=(s.eri+7): break
+                if i>=(s.eri+4): break
                 n,g = z
                 c,p = g
-                w = GSW(n)
+                ry = (546-58.5*(i-s.eri))*zf
+                rh = 55.5*zf
+                big = ', '.join(str(_['name']) for _ in p) or n
+                sm = n if p else 'no player'
                 B(
-                    n,
-                    size=(280 * sf, 37*zf),
-                    pos=(x + 10 * sf, (564-39*(i-s.eri))*zf),
+                    '',
+                    size=(280 * sf, rh),
+                    pos=(x + 10 * sf, ry),
                     style=[['blue','blue_bright'],['purple','purple_bright']][not p][s.c==c],
-                    call=CallPartial(s.prv,c,p,n),
-                    label_scale=1 if w < 280 * sf else (280 * sf)/w
+                    call=CallPartial(s.prv,c,p,n)
+                )
+                T(
+                    big,
+                    pos=(x + 150 * sf, ry + rh*0.65),
+                    scale=FIT(big,260*sf)
+                )
+                T(
+                    sm,
+                    pos=(x + 150 * sf, ry + rh*0.27),
+                    scale=FIT(sm,260*sf,0.55),
+                    style='faded'
                 )
             B(
                 '',
@@ -845,6 +858,9 @@ JOIN = lambda *a: (SAVE() or 1) and CON(*a)
 def GSW(s):
     try: return sw(s,suppress_warning=True,suppress_logic_thread_warning=True)
     except TypeError: return sw(s,suppress_warning=True)
+def FIT(t,lim,mx=1.0):
+    w = GSW(t)
+    return mx if w*mx <= lim else lim/w
 REJOIN = lambda a,p,f: ((LEAVE() if getattr(HOST(),'name','') else 0) or 1) and teck(f() or 0.1,CallPartial(JOIN,a,p,False))
 COPY = lambda s: ((CST(s) or 1) if CIS() else push('Clipboard not supported!')) and push('Copied!',color=(0,1,0))
 NOW = lambda: DT.now().strftime("%H:%M:%S")
