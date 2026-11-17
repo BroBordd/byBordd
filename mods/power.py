@@ -216,7 +216,7 @@ class Power(TAB):
                 'Vote',
                 size=(140 * sf, 40*zf),
                 pos=(x + 150 * sf, 140*zf),
-                call=CallPartial(chat,'1'),
+                call=VOTE,
                 disabled=not s.r
             )
             for _l,_k,_d,_x,_y in [
@@ -593,7 +593,7 @@ class Power(TAB):
                 'Vote',
                 size=(120 * sf, 27),
                 pos=(x + 407 * sf, s.height-90),
-                call=CallPartial(chat,'1'),
+                call=VOTE,
                 disabled=not s.r
             )
             B(
@@ -823,6 +823,21 @@ class Power(TAB):
 
 HAS = app.ui_v1.has_main_window
 SAVE = app.classic.save_ui_state
+def VOTE():
+    h = app.classic.host_ui
+    if HOST() is None:
+        v = h.kick_votes
+        if v.vote is None: push('No vote running',color=(1,1,0))
+        else: v.cast_vote(-1,True)
+        return
+    import bacommon.docui.routes.classichost as hroutes
+    from bacommon.hostui import ButtonPlacement as BP
+    from concurrent.futures import Future
+    k = hroutes.KickVote().request().path
+    if any(b.request.path == k for b in h.get_shown_buttons(BP.PARTY_MENU)):
+        h.submit_request(hroutes.KickVoteCast(yes=True).request(),Future())
+    else: chat('1')
+
 def KICK(f):
     try: c = f()
     except KeyError: return
