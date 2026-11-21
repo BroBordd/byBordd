@@ -264,6 +264,14 @@
         "mod_filename_base": "checkboom"
     },
     {
+        "mod_name": "Chess v1.0.0 - Checkmate!",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "Experimental. Adds a team game.",
+        "api_version": 9,
+        "mod_filename_base": "chess"
+    },
+    {
         "mod_name": "ChestEye",
         "mod_fancy_name": "Auto claim/open chests",
         "mod_version": "1.0",
