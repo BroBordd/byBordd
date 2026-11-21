@@ -256,10 +256,10 @@
         "mod_filename_base": "chatools"
     },
     {
-        "mod_name": "Checkboom",
-        "mod_fancy_name": "Boom goes the king",
-        "mod_version": "1.0",
-        "mod_description": "Simple turn based game I made because bored.\nExperimental. Adds a Team game.",
+        "mod_name": "Checkboom v1.0.0 - Boom goes the king",
+        "mod_fancy_name": "N/A",
+        "mod_version": "N/A",
+        "mod_description": "A turn-based game like chess, for two players.,\nTake turns moving your pieces, and kill the King to win.",
         "api_version": 9,
         "mod_filename_base": "checkboom"
     },
