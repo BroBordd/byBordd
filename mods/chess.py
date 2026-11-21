@@ -3,19 +3,21 @@
 # Bug? Feedback? Discord >> @BrotherBoard
 
 """
-Chess v1.1.0 - Checkmate!
+Chess v1.0.0 - Checkmate!
 
 A full game of chess for two players, with clocks. Adds a team game.
 """
 
 from functools import partial
-from math import cos, exp, pi, sin
+from math import cos, exp, hypot, pi, sin
 
 import bauiv1 as bui
 import bascenev1 as bs
 from bascenev1._lobby import ChangeMessage
 
-__version__ = '1.1.0'
+__version__ = '1.0.0'
+
+DEBUG = False
 
 plugman = dict(
     plugin_name="chess",
@@ -418,7 +420,7 @@ class Game:
 
 
 def side_of_team(team):
-    return BLACK if team.id % 2 == 0 else WHITE
+    return WHITE if team.id % 2 == 0 else BLACK
 
 
 class Strings:
@@ -427,27 +429,27 @@ class Strings:
     INSTANCE_DESCRIPTION_SHORT = f'Checkmate! v{__version__}'
     SIDE = {'white': 'White', 'black': 'Black'}
     WAITING = 'Waiting for player...'
-    TO_MOVE = '{side} to move'
-    CHECK = 'Check!'
-    WINS = '{side} wins'
+    WINS = '{side} Won'
     DRAW = 'Draw'
-    OFFER = '{side} offers a draw'
-    OFFER_HINT = 'Press JUMP to accept'
-    HOLD = 'Keep holding to resign...'
-    HELP = (
-        'PUNCH   pick up / drop\n'
-        'BOMB    cancel\n'
-        'JUMP    offer / accept draw\n'
-        'GRAB    hold to resign'
-    )
+    OFFER_BTN = 'Offer draw'
+    OFFERED = 'Draw offered'
+    ACCEPT = 'Accept draw'
+    DECLINE = 'Decline'
+    RESIGN_BTN = 'Resign'
+    RESIGN_Q = 'Resign?'
+    OFFER_Q = 'Offer a draw?'
+    MOVE = 'Move'
+    CLICK = 'Select'
+    DUMMY = 'Dummy'
+    CANCEL = 'Cancel'
     REASONS = {
         'checkmate': 'by checkmate',
         'resignation': 'by resignation',
         'timeout': 'on time',
         'stalemate': 'by stalemate',
-        'insufficient material': 'insufficient material',
+        'insufficient material': 'by insufficient material',
         'repetition': 'by repetition',
-        '50-move rule': '50-move rule',
+        '50-move rule': 'by the 50-move rule',
         'agreement': 'by agreement',
         'timeout vs insufficient material':
             'timeout vs insufficient material',
@@ -554,9 +556,6 @@ class Chessboard(bs.Map):
             )
 
 
-# (shape, x, y, w, h, rotate, cut) in a 68px tile, y up. r=rect, c=circle.
-# cut shapes are drawn last in the outline color (eyes, bishop slit).
-
         glow = gettexture('glow_circle')
         self.glow = {}
         for side in ('white', 'black'):
@@ -574,60 +573,21 @@ class Chessboard(bs.Map):
             )
 
 
-PIECE_SHAPES = {
-    'pawn': (
-        ('r', 0, -22, 34, 8, 0, 0),
-        ('r', 0, -10, 16, 18, 0, 0),
-        ('r', 0, 1, 24, 5, 0, 0),
-        ('c', 0, 10, 18, 18, 0, 0),
-    ),
-    'rook': (
-        ('r', 0, -22, 38, 8, 0, 0),
-        ('r', 0, -8, 24, 24, 0, 0),
-        ('r', 0, 6, 32, 8, 0, 0),
-        ('r', -11, 14, 8, 8, 0, 0),
-        ('r', 0, 14, 8, 8, 0, 0),
-        ('r', 11, 14, 8, 8, 0, 0),
-    ),
-    'knight': (
-        ('r', 0, -22, 36, 8, 0, 0),
-        ('r', 2, -8, 24, 22, 0, 0),
-        ('r', 0, 8, 14, 24, 15, 0),
-        ('r', -7, 20, 24, 12, 20, 0),
-        ('r', 5, 28, 6, 8, 0, 0),
-        ('c', -3, 22, 4, 4, 0, 1),
-    ),
-    'bishop': (
-        ('r', 0, -22, 34, 8, 0, 0),
-        ('r', 0, -9, 16, 20, 0, 0),
-        ('r', 0, 2, 26, 5, 0, 0),
-        ('c', 0, 11, 18, 22, 0, 0),
-        ('c', 0, 24, 7, 7, 0, 0),
-        ('r', 2, 11, 3, 14, -40, 1),
-    ),
-    'queen': (
-        ('r', 0, -22, 38, 8, 0, 0),
-        ('r', 0, -8, 20, 24, 0, 0),
-        ('r', 0, 5, 30, 6, 0, 0),
-        ('r', 0, 14, 28, 10, 0, 0),
-        ('c', -12, 22, 8, 8, 0, 0),
-        ('c', 0, 25, 8, 8, 0, 0),
-        ('c', 12, 22, 8, 8, 0, 0),
-    ),
-    'king': (
-        ('r', 0, -22, 38, 8, 0, 0),
-        ('r', 0, -8, 20, 24, 0, 0),
-        ('r', 0, 5, 30, 6, 0, 0),
-        ('r', 0, 14, 24, 12, 0, 0),
-        ('r', 0, 26, 5, 14, 0, 0),
-        ('r', 0, 27, 14, 5, 0, 0),
-    ),
+GLYPHS = {
+    'king': '\u265a',
+    'queen': '\u265b',
+    'rook': '\u265c',
+    'bishop': '\u265d',
+    'knight': '\u265e',
+    'pawn': '\u265f\ufe0e',
 }
 
 
 class Piece:
     SCALE = 0.8
-    GROW = 3
+    GLYPH = 2.2
+    HALO = 1.14
+    DY = 0.0
     SLIDE = 0.18
     FILL = {'white': (0.95, 0.95, 0.95), 'black': (0.12, 0.12, 0.12)}
     LINE = {'white': (0.1, 0.1, 0.1), 'black': (0.85, 0.85, 0.85)}
@@ -654,28 +614,24 @@ class Piece:
         return bool(self.move or self.fade or self.pop or self.dirty)
 
     def build(self):
-        white = bs.gettexture('white')
-        circle = gettexture('circle')
-        # outlines first, then fills, then cuts, so each piece reads solid
-        for stage in range(3):
-            for shape, x, y, w, h, rot, cut in PIECE_SHAPES[self.kind]:
-                if bool(cut) != (stage == 2):
-                    continue
-                grow = self.GROW if stage == 0 else 0
-                node = bs.newnode(
-                    'image',
-                    attrs={
-                        'texture': white if shape == 'r' else circle,
-                        'absolute_scale': True,
-                        'attach': 'center',
-                        'rotate': rot,
-                        'color': (
-                            self.FILL[self.side] if stage == 1
-                            else self.LINE[self.side]),
-                        'opacity': self.alpha,
-                    }
-                )
-                self.parts.append((node, x, y, w + grow, h + grow))
+        glyph = GLYPHS[self.kind]
+        for k, color in ((self.HALO, self.LINE[self.side]),
+                         (1.0, self.FILL[self.side])):
+            node = bs.newnode(
+                'text',
+                attrs={
+                    'text': glyph,
+                    'h_attach': 'center',
+                    'v_attach': 'center',
+                    'h_align': 'center',
+                    'v_align': 'center',
+                    'flatness': 1.0,
+                    'shadow': 0.0,
+                    'color': color,
+                    'opacity': self.alpha,
+                }
+            )
+            self.parts.append((node, k))
         self.refresh()
 
     def refresh(self):
@@ -683,9 +639,9 @@ class Piece:
         if self.dead:
             return
         s = self.SCALE * Chessboard.TILE / 68 * self.zoom * self.bump
-        for node, x, y, w, h in self.parts:
-            node.position = (self.x + x * s, self.y + y * s)
-            node.scale = (w * s, h * s)
+        for node, k in self.parts:
+            node.position = (self.x, self.y + self.DY * s)
+            node.scale = self.GLYPH * s * k
             node.opacity = self.alpha
 
     def release(self):
@@ -772,7 +728,6 @@ class Piece:
 
 def setup_pieces():
     pieces = []
-    # white along the bottom, black along the top
     for side, back, front in ((WHITE, 0, 1), (BLACK, 7, 6)):
         for col, kind in enumerate(BACK_RANK):
             pieces.append(Piece(kind, side, col, back))
@@ -785,6 +740,7 @@ class PlayerInfo:
     ICON = 40
     GAP = 6
     CLOCK_W = 100
+    DOTS_W = 36
     BAR = (0.12, 0.12, 0.12)
     BAR_LIVE = (0.2, 0.2, 0.2)
 
@@ -795,10 +751,12 @@ class PlayerInfo:
         self.key = None
         self.live = None
         self.diff = None
+        self.dummy = False
         half = Chessboard.DIM * Chessboard.TILE / 2 + Chessboard.PAD
         sign = 1 if self.side == BLACK else -1
         self.y = sign * (half + self.GAP + self.HEIGHT / 2)
         self.left = -half
+        self.dots_x = half - 4 - self.DOTS_W / 2
         self.back = bs.newnode(
             'image',
             attrs={
@@ -818,7 +776,7 @@ class PlayerInfo:
         self.write_label()
         self.clock_back = self.clock = None
         if clocked:
-            cx = half - self.CLOCK_W / 2 - 4
+            cx = half - 4 - self.DOTS_W - 4 - self.CLOCK_W / 2
             self.clock_back = bs.newnode(
                 'image',
                 attrs={
@@ -922,7 +880,7 @@ class PlayerInfo:
     def refresh(self):
         player = next((p for p in self.team.players if p.exists()), None)
         name = player.getname() if player else None
-        key = (id(player), name)
+        key = (id(player), name, self.dummy and player is None)
         if key == self.key:
             return
         self.key = key
@@ -932,6 +890,9 @@ class PlayerInfo:
         if player:
             self.name.text = name
             self.name.color = readable(self.team.color)
+        elif self.dummy:
+            self.name.text = Strings.DUMMY
+            self.name.color = (0.7, 0.7, 0.7)
         else:
             self.name.text = Strings.WAITING
             self.name.color = (0.5, 0.5, 0.5)
@@ -941,6 +902,120 @@ class PlayerInfo:
                      self.clock_back, self.clock):
             if node:
                 node.delete()
+
+
+ICON_SHAPES = {
+    'check': (
+        (-6, -4, 4, 10, 45),
+        (3.5, -0.5, 4, 19, -45),
+    ),
+    'cross': (
+        (0, 0, 4, 20, 45),
+        (0, 0, 4, 20, -45),
+    ),
+    'flag': (
+        (-6, 0, 3, 22, 0),
+        (2, 5, 13, 10, 0),
+    ),
+    'dots': (
+        (-9, 0, 5, 5, 0, 'c'),
+        (0, 0, 5, 5, 0, 'c'),
+        (9, 0, 5, 5, 0, 'c'),
+    ),
+}
+
+
+class Button:
+    TONES = {
+        'gray': ((0.27, 0.26, 0.24), (0.36, 0.35, 0.33), (0.15, 0.14, 0.13)),
+        'green': ((0.51, 0.71, 0.27), (0.58, 0.78, 0.34), (0.27, 0.45, 0.14)),
+        'off': ((0.2, 0.19, 0.18), (0.2, 0.19, 0.18), (0.13, 0.12, 0.11)),
+    }
+    ICON = (0.95, 0.95, 0.93)
+    H = 44
+
+    def __init__(self, x, y, w, icon, label, call, tone='gray',
+                 enabled=True, owner=None, h=None):
+        self.x, self.y, self.w, self.h = x, y, w, h or self.H
+        self.call = call
+        self.enabled = enabled
+        self.owner = owner
+        self.hover = False
+        self.tone = tone
+        self.nodes = []
+        self.face, self.lit, shade = self.TONES[tone if enabled else 'off']
+        white = bs.gettexture('white')
+        circle = gettexture('circle')
+        tint = self.ICON if enabled else (0.5, 0.5, 0.48)
+        self.shade = self.rect(white, x, y, w, self.h, shade)
+        self.back = self.rect(white, x, y + 2, w, self.h - 4, self.face)
+        ix = x - w / 2 + 19 if label else x
+        if icon == 'half':
+            self.text(ix, y + 2, '\u00bd', 1.2, 'center', tint)
+        else:
+            for sx, sy, sw, sh, rot, *kind in ICON_SHAPES[icon]:
+                self.rect(
+                    circle if kind else white,
+                    ix + sx, y + 2 + sy, sw, sh, tint, rot)
+        if label:
+            self.text(x - w / 2 + 33, y + 2, label, 0.62, 'left', tint)
+
+    def rect(self, texture, x, y, w, h, color, rot=0):
+        node = bs.newnode(
+            'image',
+            attrs={
+                'texture': texture,
+                'absolute_scale': True,
+                'attach': 'center',
+                'position': (x, y),
+                'scale': (w, h),
+                'rotate': rot,
+                'color': color,
+                'opacity': 1.0,
+            }
+        )
+        self.nodes.append(node)
+        return node
+
+    def text(self, x, y, text, scale, align, color):
+        self.nodes.append(bs.newnode(
+            'text',
+            attrs={
+                'text': text,
+                'scale': scale,
+                'h_attach': 'center',
+                'v_attach': 'center',
+                'h_align': align,
+                'v_align': 'center',
+                'position': (x, y),
+                'color': color,
+            }
+        ))
+
+    def contains(self, x, y):
+        return abs(x - self.x) <= self.w / 2 and abs(y - self.y) <= self.h / 2
+
+    def allows(self, side):
+        return self.enabled and self.owner in (None, side)
+
+    def retone(self, tone):
+        if tone == self.tone:
+            return
+        self.tone = tone
+        self.face, self.lit, shade = self.TONES[tone if self.enabled else 'off']
+        self.shade.color = shade
+        self.back.color = self.lit if self.hover else self.face
+
+    def paint(self, hover):
+        hover = bool(hover and self.enabled)
+        if hover != self.hover:
+            self.hover = hover
+            self.back.color = self.lit if hover else self.face
+
+    def destroy(self):
+        for node in self.nodes:
+            node.delete()
+        self.nodes = []
 
 
 class Cursor:
@@ -953,12 +1028,13 @@ class Cursor:
     TAGX = 44
     TAGY = 60
     EDGE = 5
+    XLIM = 280
+    YLIM = 330
 
     def __init__(self, player):
         color = player.team.color
         self.color = color
         self.sq = None
-        # hover frame (edges only), under the pointer and label
         self.edges = [
             bs.newnode(
                 'image',
@@ -966,7 +1042,6 @@ class Cursor:
                     'texture': bs.gettexture('white'),
                     'absolute_scale': True,
                     'attach': 'center',
-                    'front': True,
                     'color': color,
                     'opacity': 0.9,
                 }
@@ -1021,9 +1096,14 @@ class Cursor:
         self.place()
         self.frame()
 
+    def on_board(self):
+        lim = Chessboard.DIM * Chessboard.TILE / 2
+        return abs(self.x) <= lim and abs(self.y) <= lim
+
     def frame(self):
-        # chess.com style hover: just the edges, inset in the square
         sq = self.sq = self.square()
+        self.board = self.on_board()
+        opacity = 0.9 if self.board else 0.0
         tile, w = Chessboard.TILE, self.EDGE
         sx, sy = Chessboard.square_offset(*sq)
         top, bottom, left, right = self.edges
@@ -1038,6 +1118,7 @@ class Cursor:
             node.position = pos
             node.scale = size
             node.color = color
+            node.opacity = opacity
 
     def square(self):
         half = Chessboard.DIM * Chessboard.TILE / 2
@@ -1062,11 +1143,10 @@ class Cursor:
         k = 1.0 - exp(-self.EASE * dt)
         self.vx += (self.h * self.SPEED - self.vx) * k
         self.vy += (self.v * self.SPEED - self.vy) * k
-        lim = Chessboard.DIM * Chessboard.TILE / 2
-        self.x = max(-lim, min(lim, self.x + self.vx * dt))
-        self.y = max(-lim, min(lim, self.y + self.vy * dt))
+        self.x = max(-self.XLIM, min(self.XLIM, self.x + self.vx * dt))
+        self.y = max(-self.YLIM, min(self.YLIM, self.y + self.vy * dt))
         self.place()
-        if self.square() != self.sq:
+        if self.square() != self.sq or self.on_board() != self.board:
             self.frame()
 
     def destroy(self):
@@ -1086,7 +1166,6 @@ def in_chess():
 
 
 def bring_front(chooser):
-    # draw the vanilla chooser in the front overlay pass, above the board
     for node in (chooser._text_node, getattr(chooser, 'icon', None)):
         if node:
             node.front = True
@@ -1096,8 +1175,7 @@ SCREEN_H = 720.0
 
 
 def slot(chooser, y):
-    # team 0 hangs from the top of the screen, team 1 mirrors from the bottom
-    return y if chooser._selected_team_index == 0 else -SCREEN_H - y
+    return -SCREEN_H - y if chooser._selected_team_index == 0 else y
 
 
 def move(chooser, node, x, y):
@@ -1106,7 +1184,6 @@ def move(chooser, node, x, y):
         bs.animate_array(
             node, 'position', 2, {0: node.position, 0.1: target})
     else:
-        # first appearance: spawn on our team's side, no slide from the other
         node.position = target
 
 
@@ -1125,11 +1202,10 @@ def update_position(chooser):
 
 
 def swap_axes(chooser):
-    # vanilla: up/down = profile, left/right = team. here it's flipped.
     player = chooser.sessionplayer
     for press, what, value in (
-        (bs.InputType.UP_PRESS, 'team', -1),
-        (bs.InputType.DOWN_PRESS, 'team', 1),
+        (bs.InputType.UP_PRESS, 'team', 1),
+        (bs.InputType.DOWN_PRESS, 'team', -1),
         (bs.InputType.LEFT_PRESS, 'profileindex', -1),
         (bs.InputType.RIGHT_PRESS, 'profileindex', 1),
     ):
@@ -1142,7 +1218,6 @@ def swap_axes(chooser):
 class Player(bs.Player['Team']):
     def __init__(self):
         self.cursor = None
-        self.hold = None
 
 
 class Team(bs.Team[Player]):
@@ -1172,7 +1247,7 @@ class Chess(bs.TeamGameActivity[Player, Team]):
     MARK = (1.0, 0.95, 0.0)
     TILE_BG = (0.93, 0.93, 0.93)
     TILE_HOVER = (0.62, 0.78, 1.0)
-    RESIGN_HOLD = 1.5
+    DRAG_DIST = 8
     OUTRO = 7.0
 
     @classmethod
@@ -1227,6 +1302,13 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.game = Game()
         self.sel = None
         self.drag = None
+        self.press = None
+        self.menu = None
+        self.dots = []
+        self.menu_buttons = []
+        self.menu_nodes = []
+        self.legend_cancel = []
+        self.cancel_on = False
         self.promo = None
         self.hints = []
         self.busy = False
@@ -1238,7 +1320,6 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.last_clock = 0.0
         self.banner = []
         self.panel = []
-        self.turn_text = self.note_text = None
 
     def spawn_player(self, player):
         return None
@@ -1270,6 +1351,13 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.close_picker()
         self.clear_hints()
         self.hide_banner()
+        for button in self.dots + self.menu_buttons:
+            button.destroy()
+        self.dots.clear()
+        self.menu_buttons.clear()
+        for node in self.menu_nodes:
+            node.delete()
+        self.menu_nodes.clear()
         for info in self.infos:
             info.destroy()
         self.infos.clear()
@@ -1284,36 +1372,82 @@ class Chess(bs.TeamGameActivity[Player, Team]):
     def on_begin(self):
         super().on_begin()
         cap_players(self.session)
-        # first two to join have the most right to play
         for sessionplayer in list(self.session.sessionplayers)[2:]:
             sessionplayer.remove_from_game()
         self.last = bs.time()
         self.infos = [PlayerInfo(team, bool(self.base)) for team in self.teams]
-        self.turn_text = self.panel_text(312, 40, 0.9, (1.0, 1.0, 1.0))
-        self.note_text = self.panel_text(312, 8, 0.65, (1.0, 0.85, 0.3))
-        self.panel_text(312, -70, 0.55, (0.6, 0.6, 0.6)).text = Strings.HELP
+        self.build_legend()
+        self.dots = [
+            Button(info.dots_x, info.y, PlayerInfo.DOTS_W, 'dots', None,
+                   self.toggle_menu, owner=info.side, h=34)
+            for info in self.infos]
         self.refresh_infos()
         self.refresh_clocks(self.last)
-        self.refresh_status()
+        self.refresh_menu()
         self.timer = bs.Timer(0.005, bs.WeakCallStrict(self.tick), repeat=True)
         self.info_timer = bs.Timer(
             0.2, bs.WeakCallStrict(self.refresh_infos), repeat=True)
 
-    def panel_text(self, x, y, scale, color):
-        node = bs.newnode(
-            'text',
-            attrs={
-                'scale': scale,
-                'h_attach': 'center',
-                'v_attach': 'center',
-                'h_align': 'left',
-                'v_align': 'center',
-                'position': (x, y),
-                'color': color,
-            }
+    def build_legend(self):
+        purple = (0.40, 0.23, 0.72)
+        light = (0.75, 0.50, 0.95)
+        rows = (
+            (50, 'nub', purple, Strings.MOVE, light),
+            (0, 'button_punch', (1.0, 1.0, 0.4), Strings.CLICK,
+             (1.0, 1.0, 0.4)),
+            (-50, 'button_bomb', (1.0, 0.2, 0.2), Strings.CANCEL,
+             (1.0, 0.3, 0.3)),
         )
-        self.panel.append(node)
-        return node
+        shown = []
+        for y, tex, color, text, tcolor in rows:
+            nodes = []
+            sizes = ((46, purple), (22, light)) if tex == 'nub' else (
+                (46, color),)
+            for size, tint in sizes:
+                nodes.append(bs.newnode(
+                    'image',
+                    attrs={
+                        'texture': gettexture(tex),
+                        'absolute_scale': True,
+                        'attach': 'centerLeft',
+                        'position': (30, y),
+                        'scale': (size, size),
+                        'color': tint,
+                        'opacity': 0.0,
+                    }
+                ))
+            nodes.append(bs.newnode(
+                'text',
+                attrs={
+                    'text': text,
+                    'h_attach': 'left',
+                    'v_attach': 'center',
+                    'position': (62, y),
+                    'v_align': 'center',
+                    'color': tcolor,
+                    'opacity': 0.0,
+                }
+            ))
+            self.panel.extend(nodes)
+            if tex == 'button_bomb':
+                self.legend_cancel = nodes
+            else:
+                shown.extend(nodes)
+        for node in shown:
+            bs.animate(node, 'opacity', {0.0: 0.0, 0.25: 0.8})
+
+    def refresh_legend(self):
+        want = bool(
+            not self.over and (
+                self.sel is not None or self.drag or self.press
+                or self.promo or self.menu))
+        if want == self.cancel_on:
+            return
+        self.cancel_on = want
+        for node in self.legend_cancel:
+            bs.animate(
+                node, 'opacity',
+                {0.0: node.opacity, 0.2: 0.8 if want else 0.0})
 
     def on_player_join(self, player):
         super().on_player_join(player)
@@ -1325,28 +1459,26 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         player.assigninput(
             bs.InputType.PUNCH_RELEASE, wcp(self.on_release, player))
         player.assigninput(bs.InputType.BOMB_PRESS, wcp(self.on_bomb, player))
-        player.assigninput(bs.InputType.JUMP_PRESS, wcp(self.on_jump, player))
-        player.assigninput(
-            bs.InputType.PICK_UP_PRESS, wcp(self.on_grab_press, player))
-        player.assigninput(
-            bs.InputType.PICK_UP_RELEASE, wcp(self.on_grab_release, player))
 
     def on_player_leave(self, player):
         if self.drag and self.drag['player'] is player:
             self.cancel_drag()
+        if self.press and self.press['player'] is player:
+            self.press = None
         if self.promo and self.promo['player'] is player:
             self.cancel_picker()
-        player.hold = None
         if player.cursor:
             player.cursor.destroy()
             player.cursor = None
         super().on_player_leave(player)
 
-    def solo(self):
-        return len(self.players) < 2
+    def debug_solo(self):
+        return DEBUG and len(self.players) < 2
 
     def side_of(self, player):
-        return self.game.turn if self.solo() else side_of_team(player.team)
+        if self.debug_solo():
+            return self.game.turn
+        return side_of_team(player.team)
 
     def can_act(self, player):
         return (
@@ -1354,9 +1486,25 @@ class Chess(bs.TeamGameActivity[Player, Team]):
             and self.side_of(player) == self.game.turn)
 
     def on_punch(self, player):
-        if not self.can_act(player) or self.drag:
+        cursor = player.cursor
+        if self.over or cursor is None:
             return
-        sq = player.cursor.square()
+        side = self.side_of(player)
+        button = self.button_at(cursor)
+        if button:
+            if button.allows(side):
+                button.call(player)
+            return
+        if self.menu and self.menu['side'] == side:
+            self.menu = None
+            self.refresh_menu()
+        if not cursor.on_board():
+            if self.promo and self.promo['player'] is player:
+                self.cancel_picker()
+            return
+        if not self.can_act(player) or self.drag or self.press:
+            return
+        sq = cursor.square()
         if self.promo:
             self.pick_promotion(player, sq)
             return
@@ -1373,18 +1521,31 @@ class Chess(bs.TeamGameActivity[Player, Team]):
                 return
             if mine:
                 if sq == self.sel:
-                    self.begin_drag(player, piece, True)
+                    self.arm(player, piece, True)
                 else:
                     self.select(sq)
-                    self.begin_drag(player, piece, False)
+                    self.arm(player, piece, False)
                 return
             self.deselect()
             return
         if mine:
             self.select(sq)
-            self.begin_drag(player, piece, False)
+            self.arm(player, piece, False)
+
+    def arm(self, player, piece, reclick):
+        cursor = player.cursor
+        self.press = {
+            'player': player, 'piece': piece, 'reclick': reclick,
+            'origin': (piece.col, piece.row), 'x': cursor.x, 'y': cursor.y,
+        }
 
     def on_release(self, player):
+        press = self.press
+        if press and press['player'] is player:
+            self.press = None
+            if press['reclick']:
+                self.deselect()
+            return
         drag = self.drag
         if not drag or drag['player'] is not player:
             return
@@ -1392,11 +1553,13 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         piece, origin = drag['piece'], drag['origin']
         piece.zoom = 1.0
         piece.dirty = True
-        sq = player.cursor.square() if player.cursor else origin
+        cursor = player.cursor
+        sq = cursor.square() if cursor and cursor.on_board() else None
+        if sq is None:
+            piece.glide(origin[0], origin[1], 0.15)
+            return
         if sq == origin:
             piece.glide(origin[0], origin[1], 0.08)
-            if drag['reclick']:
-                self.deselect()
             return
         cands = [m for m in self.game.moves_from(origin) if m.to == sq]
         if not cands:
@@ -1409,12 +1572,19 @@ class Chess(bs.TeamGameActivity[Player, Team]):
             self.commit(cands[0], glide=False)
 
     def on_bomb(self, player):
-        if self.promo:
+        side = self.side_of(player)
+        if self.promo and self.promo['player'] is player:
             self.cancel_picker()
-        elif self.drag:
+        elif self.drag and self.drag['player'] is player:
             self.cancel_drag()
             self.deselect()
-        elif self.sel is not None:
+        elif self.press and self.press['player'] is player:
+            self.press = None
+            self.deselect()
+        elif self.menu and self.menu['side'] == side:
+            self.menu = None
+            self.refresh_menu()
+        elif self.sel is not None and side == self.game.turn:
             self.deselect()
 
     def select(self, sq):
@@ -1513,6 +1683,8 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         game = self.game
         side = game.turn
         self.drag = None
+        self.press = None
+        self.menu = None
         self.sel = None
         self.clear_hints()
         self.clock_move(side)
@@ -1529,6 +1701,7 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.at[move.to] = piece
         if self.offer and self.offer != side:
             self.offer = None
+        self.refresh_menu()
         self.busy = True
         piece.zoom = 1.0
         done = partial(self.landed, piece, victim, move, info)
@@ -1552,13 +1725,12 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.refresh_marks()
         self.refresh_check()
         self.refresh_infos()
-        self.refresh_status()
         if self.game.result:
             self.finish()
         elif info['check']:
             play_sound('dingSmallHigh')
         elif victim:
-            play_sound('block')
+            play_sound('powerup01')
         else:
             play_sound('deek')
             if move.flag == 'castle':
@@ -1658,37 +1830,150 @@ class Chess(bs.TeamGameActivity[Player, Team]):
                 self.TILE_HOVER if hover == (promo['to'][0], row)
                 else self.TILE_BG)
 
-    def on_jump(self, player):
-        if self.over or player.cursor is None:
-            return
+    MENU_W = 152
+
+    def button_at(self, cursor):
+        for button in self.menu_buttons + self.dots:
+            if button.contains(cursor.x, cursor.y):
+                return button
+        return None
+
+    def toggle_menu(self, player):
         side = self.side_of(player)
-        if self.offer and self.offer != side:
+        if self.menu and self.menu['side'] == side:
+            self.menu = None
+        else:
+            self.menu = {'side': side, 'view': 'main'}
+        play_sound('tick')
+        self.refresh_menu()
+
+    def set_view(self, view, player):
+        menu = self.menu
+        if menu and menu['side'] == self.side_of(player):
+            menu['view'] = view
+            self.refresh_menu()
+
+    def confirm(self, player):
+        menu = self.menu
+        side = self.side_of(player)
+        if self.over or not menu or menu['side'] != side:
+            return
+        if menu['view'] == 'resign':
+            self.menu = None
+            self.game.resign(side)
+            self.finish()
+        elif menu['view'] == 'draw' and self.offer is None:
+            self.offer = side
+            self.menu = {'side': opponent(side), 'view': 'main'}
+            play_sound('tick')
+            self.refresh_menu()
+
+    def answer_draw(self, player, accept):
+        side = self.side_of(player)
+        if self.over or self.offer != opponent(side):
+            return
+        self.offer = None
+        self.menu = None
+        if accept:
             self.game.agree_draw()
             self.finish()
-            return
-        if self.offer == side:
-            return
-        self.offer = side
-        play_sound('tick')
-        self.refresh_status()
+        else:
+            self.refresh_menu()
 
-    def on_grab_press(self, player):
-        if self.over or player.cursor is None:
-            return
-        player.hold = bs.Timer(
-            self.RESIGN_HOLD, bs.WeakCallStrict(self.on_resign, player))
-        self.note_text.text = Strings.HOLD
+    def menu_rect(self, x, y, w, h, color):
+        self.menu_nodes.append(bs.newnode(
+            'image',
+            attrs={
+                'texture': bs.gettexture('white'),
+                'absolute_scale': True,
+                'attach': 'center',
+                'position': (x, y),
+                'scale': (w, h),
+                'color': color,
+                'opacity': 1.0,
+            }
+        ))
 
-    def on_grab_release(self, player):
-        player.hold = None
-        self.refresh_status()
-
-    def on_resign(self, player):
-        player.hold = None
-        if self.over:
+    def refresh_menu(self):
+        for button in self.menu_buttons:
+            button.destroy()
+        self.menu_buttons = []
+        for node in self.menu_nodes:
+            node.delete()
+        self.menu_nodes = []
+        menu = self.menu
+        for dots in self.dots:
+            pending = self.offer == opponent(dots.owner) and not self.over
+            dots.retone('green' if pending else 'gray')
+        if self.over or not menu:
             return
-        self.game.resign(self.side_of(player))
-        self.finish()
+        side = menu['side']
+        info = next((i for i in self.infos if i.side == side), None)
+        if info is None:
+            return
+        pad, gap, tall = 6, 4, Button.H
+        inner = self.MENU_W - pad * 2
+        offer = self.offer
+        confirming = menu['view'] != 'main'
+        if confirming:
+            heights = [22, tall]
+        else:
+            count = 3 if offer == opponent(side) else 2
+            heights = [tall] * count
+        total = sum(heights) + gap * (len(heights) - 1) + pad * 2
+        sign = -1 if side == BLACK else 1
+        edge = info.y + sign * (PlayerInfo.HEIGHT / 2 + 4)
+        center = edge + sign * total / 2
+        half = Chessboard.DIM * Chessboard.TILE / 2 + Chessboard.PAD
+        mx = half - self.MENU_W / 2
+        self.menu_rect(mx, center, self.MENU_W + 4, total + 4,
+                       (0.32, 0.31, 0.29))
+        self.menu_rect(mx, center, self.MENU_W, total, (0.15, 0.145, 0.13))
+        y = center + total / 2 - pad
+        make = partial(Button, owner=side)
+        if confirming:
+            self.menu_nodes.append(bs.newnode(
+                'text',
+                attrs={
+                    'text': (Strings.RESIGN_Q if menu['view'] == 'resign'
+                             else Strings.OFFER_Q),
+                    'scale': 0.62,
+                    'h_attach': 'center',
+                    'v_attach': 'center',
+                    'h_align': 'center',
+                    'v_align': 'center',
+                    'position': (mx, y - 11),
+                    'color': (0.85, 0.85, 0.82),
+                }
+            ))
+            y -= 22 + gap
+            bw = (inner - 6) / 2
+            self.menu_buttons += [
+                make(mx - inner / 2 + bw / 2, y - tall / 2, bw,
+                     'check', None, self.confirm, tone='green'),
+                make(mx + inner / 2 - bw / 2, y - tall / 2, bw,
+                     'cross', None, partial(self.set_view, 'main')),
+            ]
+            return
+        if offer == opponent(side):
+            items = [
+                ('check', Strings.ACCEPT,
+                 partial(self.answer_draw, accept=True), 'green', True),
+                ('cross', Strings.DECLINE,
+                 partial(self.answer_draw, accept=False), 'gray', True),
+            ]
+        else:
+            items = [(
+                'half', Strings.OFFERED if offer else Strings.OFFER_BTN,
+                partial(self.set_view, 'draw'), 'gray', offer is None)]
+        items.append((
+            'flag', Strings.RESIGN_BTN,
+            partial(self.set_view, 'resign'), 'gray', True))
+        for icon, label, call, tone, enabled in items:
+            self.menu_buttons.append(make(
+                mx, y - tall / 2, inner, icon, label, call,
+                tone=tone, enabled=enabled))
+            y -= tall + gap
 
     def remaining(self, side, now):
         left = self.clocks[side]
@@ -1718,28 +2003,14 @@ class Chess(bs.TeamGameActivity[Player, Team]):
 
     def refresh_infos(self):
         pos = self.game.pos
+        dummy = self.debug_solo()
         for info in self.infos:
+            info.dummy = dummy
             info.refresh()
             diff = pos.material(info.side) - pos.material(
                 opponent(info.side))
             info.set_advantage(diff)
             info.set_turn(info.side == pos.turn and not self.over)
-
-    def refresh_status(self):
-        if not self.turn_text or self.over:
-            return
-        game = self.game
-        self.turn_text.text = Strings.TO_MOVE.format(
-            side=Strings.SIDE[game.turn])
-        if self.offer:
-            self.note_text.text = Strings.OFFER.format(
-                side=Strings.SIDE[self.offer])
-            if self.offer != game.turn or not self.solo():
-                self.note_text.text += '\n' + Strings.OFFER_HINT
-        elif game.pos.in_check():
-            self.note_text.text = Strings.CHECK
-        else:
-            self.note_text.text = ''
 
     def tick(self):
         now = bs.time()
@@ -1750,6 +2021,22 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         for player in self.players:
             if player.cursor:
                 player.cursor.step(dt)
+        press = self.press
+        if press and not self.drag:
+            cursor = press['player'].cursor
+            if cursor is None:
+                self.press = None
+            elif hypot(cursor.x - press['x'],
+                       cursor.y - press['y']) >= self.DRAG_DIST:
+                self.press = None
+                self.begin_drag(
+                    press['player'], press['piece'], press['reclick'])
+        self.refresh_legend()
+        for button in self.menu_buttons + self.dots:
+            button.paint(any(
+                p.cursor and button.allows(self.side_of(p))
+                and button.contains(p.cursor.x, p.cursor.y)
+                for p in self.players))
         drag = self.drag
         if drag:
             cursor = drag['player'].cursor
@@ -1777,10 +2064,13 @@ class Chess(bs.TeamGameActivity[Player, Team]):
         self.over = True
         self.running = False
         self.offer = None
+        self.menu = None
+        self.press = None
         self.cancel_drag()
         if self.promo:
             self.cancel_picker()
         self.clear_hints()
+        self.refresh_menu()
         for info in self.infos:
             info.set_turn(False)
         self.refresh_clocks(bs.time())
@@ -1789,25 +2079,28 @@ class Chess(bs.TeamGameActivity[Player, Team]):
             Strings.WINS.format(side=Strings.SIDE[winner]) if winner
             else Strings.DRAW)
         sub = Strings.REASONS.get(reason, reason)
-        self.turn_text.text = title
-        self.note_text.text = sub
         white = bs.gettexture('white')
-        self.banner = [bs.newnode(
-            'image',
-            attrs={
-                'texture': white,
-                'absolute_scale': True,
-                'attach': 'center',
-                'position': (0, 0),
-                'scale': (440, 120),
-                'color': (0.0, 0.0, 0.0),
-                'opacity': 0.8,
-                'front': True,
-            }
-        )]
+        head = (0.51, 0.71, 0.27) if winner else (0.45, 0.44, 0.42)
+        self.banner = []
+        for pos, size, color in (
+                ((0, 0), (440, 140), (0.15, 0.145, 0.13)),
+                ((0, 40), (440, 60), head)):
+            self.banner.append(bs.newnode(
+                'image',
+                attrs={
+                    'texture': white,
+                    'absolute_scale': True,
+                    'attach': 'center',
+                    'position': pos,
+                    'scale': size,
+                    'color': color,
+                    'opacity': 1.0,
+                    'front': True,
+                }
+            ))
         for text, y, scale, color in (
-                (title, 18, 1.4, (1.0, 0.9, 0.3)),
-                (sub, -26, 0.8, (0.85, 0.85, 0.85))):
+                (title, 40, 1.3, (1.0, 1.0, 1.0)),
+                (sub, -22, 0.9, (0.85, 0.85, 0.82))):
             self.banner.append(bs.newnode(
                 'text',
                 attrs={
