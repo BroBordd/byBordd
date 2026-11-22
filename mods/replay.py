@@ -1340,7 +1340,7 @@ class Player:
         self.progress_timer = bui.AppTimer(self.TICK, self.update_progress_ui, repeat=True)
 
     def seek(self, direction):
-        """Seek with confirmed duration checking"""
+        """Seek; while buffering, the estimated duration is used"""
         if not self.check_can_seek():
             return
         label = ['Forward by', 'Rewind by'][direction == -1]
@@ -1355,15 +1355,8 @@ class Player:
         amount = (seek_base / 20) * amount
         new_time = (self.replay_time - self.start_time) + amount
         
-        # Check if trying to seek beyond confirmed duration while scanning
-        if self.scanning and new_time > self.confirmed_duration_sec:
-            current, total = self.scan_progress
-            percent = int((current / total) * 100) if total > 0 else 0
-            self.show_message('Buffering...', f'{percent}% loaded', self.COL2, self.COL3)
-            return
-        
-        # Use appropriate duration for loop check
-        max_duration = self.confirmed_duration_sec if self.scanning else self.duration_sec
+        # While buffering, seek against the estimated duration instead of refusing
+        max_duration = self.estimated_duration if self.scanning else self.duration_sec
         
         if (new_time >= max_duration) or (new_time <= 0):
             self.loop()
@@ -1384,7 +1377,7 @@ class Player:
         return False
     
     def jump(self, percent):
-        """Jump with WYSIWYG behavior - percent is based on ESTIMATED duration, checked against CONFIRMED"""
+        """Jump with WYSIWYG behavior - percent is based on the ESTIMATED duration while buffering"""
         if not self.check_can_seek():
             return
         # Calculate target time based on ESTIMATED duration (what user sees on bar)
@@ -1392,13 +1385,6 @@ class Player:
             target_time = self.estimated_duration * percent
         else:
             target_time = self.duration_sec * percent
-        
-        # Check if trying to jump beyond CONFIRMED duration while scanning
-        if self.scanning and target_time > self.confirmed_duration_sec:
-            current, total = self.scan_progress
-            scan_percent = int((current / total) * 100) if total > 0 else 0
-            self.show_message('Buffering...', f'{scan_percent}% loaded', self.COL2, self.COL3)
-            return
         
         self.start_time = self.replay_time - target_time
         self.reset_replay()
