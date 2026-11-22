@@ -1071,10 +1071,11 @@ class Player:
         self.replay_time += elapsed * self.speed
 
     def change_speed(self, direction):
-        new_exp = bs.get_replay_speed_exponent() + direction
-        bs.set_replay_speed_exponent(new_exp)
+        bs.set_replay_speed_exponent(bs.get_replay_speed_exponent() + direction)
+        # The engine clamps the exponent (+-3, x0.125..x8), so read back the real value
+        new_exp = bs.get_replay_speed_exponent()
         self.speed = 2 ** new_exp
-        label = 'Snail Mode' if self.speed == 0.0625 else 'Slow Motion' if self.speed < 1 else 'Quake Pro' if self.speed == 16 else 'Fast Motion' if self.speed > 1 else 'Normal Speed'
+        label = 'Snail Mode' if self.speed <= 0.125 else 'Slow Motion' if self.speed < 1 else 'Quake Pro' if self.speed >= 8 else 'Fast Motion' if self.speed > 1 else 'Normal Speed'
         self.show_message(label, f'Current exponent: x{self.speed}', self.COL2, self.COL3)
 
     def play(self):
