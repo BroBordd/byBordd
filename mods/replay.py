@@ -3,7 +3,7 @@
 # Bug? Feedback? Telegram >> @BroBordd
 
 """
-Replay v3.0 - Simple replay player
+Replay v3.1.1 - Simple replay player
 
 Experimental. Feedback is appreciated.
 Adds a Replay tab to the watch window and a Replay button to the pause menu.
@@ -33,7 +33,25 @@ from textwrap import wrap
 from threading import Thread
 from struct import unpack
 
-VER = '3.0'
+plugman = dict(
+    plugin_name="replay",
+    description=(
+        "Adds a button to pause menu and watch menu. "
+        "To see features, read the source, or just try it!"
+    ),
+    external_url="https://BroBordd.github.io/byBordd",
+    authors=[
+        {
+            "name": "BrotherBoard",
+            "email": "brobordd@gmail.com",
+            "discord": "BrotherBoard",
+            "github": "BroBordd"
+        },
+    ],
+    version='3.1.1',
+)
+
+VER = '3.1.1'
 
 
 class Player:
