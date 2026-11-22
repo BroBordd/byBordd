@@ -313,13 +313,16 @@ class Player:
     COL18 = (0.45, 0.45, 0.45)
     COL19 = (1, 0.8, 0)
 
+    ESTIMATE_MIN_SCAN = 0.05  # fraction of the file to scan before trusting the duration estimate
+
     def __init__(self, path, duration):
         self.path = path
         self.duration_ms = duration  # Will be None initially
         self.duration_sec = None if duration is None else duration / 1000
         self.scanning = duration is None
         self.scan_progress = [0, 1]
-        self.estimated_duration = 10.0  # Start with 10 second estimate
+        self.estimated_duration = 10.0  # Placeholder, not shown or used until estimate_ready
+        self.estimate_ready = duration is not None  # False until enough of the file is scanned to trust the estimate
         self.confirmed_duration_sec = 0
         self.paused = self.ui_hidden = self.camera_on = self.cinema_mode = self.manual_zoom = False
         self.camera_look = None
@@ -461,6 +464,11 @@ class Player:
                         if progress_percent > 0:
                             estimated_total_ms = total_ms / progress_percent
                             self.estimated_duration = max(10.0, estimated_total_ms / 1000)
+                            # The first stretch of a replay is setup-heavy and time-light, so
+                            # an early estimate is far too small. Wait for a meaningful share
+                            # of the file before the progress bar is allowed to use it.
+                            if progress_percent >= self.ESTIMATE_MIN_SCAN:
+                                self.estimate_ready = True
             
             self.scan_progress[0] = self.scan_progress[1]
             self.duration_ms = total_ms
@@ -470,6 +478,7 @@ class Player:
             self.duration_ms = 0
             self.duration_sec = 0
         finally:
+            self.estimate_ready = True
             self.scanning = False
     
     def update_scan_progress(self):
@@ -499,7 +508,7 @@ class Player:
                 
                 # Cycle between showing percentage and estimated time
                 self.scan_cycle += 1
-                show_percent = (self.scan_cycle // 10) % 2 == 0  # Switch every second
+                show_percent = (self.scan_cycle // 10) % 2 == 0 or not self.estimate_ready  # Switch every second; no estimate to show yet
                 
                 if show_percent:
                     # Show scan percentage
@@ -1348,9 +1357,12 @@ class Player:
         new_time = (self.replay_time - self.start_time) + amount
         
         # While buffering, seek against the estimated duration instead of refusing
-        max_duration = self.estimated_duration if self.scanning else self.duration_sec
+        if not self.scanning:
+            max_duration = self.duration_sec
+        else:
+            max_duration = self.estimated_duration if self.estimate_ready else None
         
-        if (new_time >= max_duration) or (new_time <= 0):
+        if (max_duration is not None and new_time >= max_duration) or (new_time <= 0):
             self.loop()
         else:
             self.start_time = self.replay_time - new_time
@@ -1371,6 +1383,9 @@ class Player:
     def jump(self, percent):
         """Jump with WYSIWYG behavior - percent is based on the ESTIMATED duration while buffering"""
         if not self.check_can_seek():
+            return
+        if self.scanning and not self.estimate_ready:
+            self.show_message('Estimating...', 'Duration not known yet', self.COL2, self.COL3)
             return
         # Calculate target time based on ESTIMATED duration (what user sees on bar)
         if self.scanning:
@@ -1407,7 +1422,7 @@ class Player:
         
         # Determine the current max duration to check against
         if self.scanning:
-            max_duration = self.estimated_duration
+            max_duration = self.estimated_duration if self.estimate_ready else None
         elif self.duration_sec:
             max_duration = self.duration_sec
         else:
@@ -1421,7 +1436,9 @@ class Player:
         nub_x, nub_y = self.nub_pos
         
         # Calculate progress
-        if self.scanning:
+        if self.scanning and not self.estimate_ready:
+            progress = 0  # hold the nub at the start until the estimate can be trusted
+        elif self.scanning:
             # Use estimated duration for progress bar
             if elapsed < self.estimated_duration:
                 progress = (elapsed / self.estimated_duration) * self.progress_width
