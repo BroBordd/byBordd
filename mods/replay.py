@@ -6,7 +6,7 @@
 Replay v3.0 - Simple replay player
 
 Experimental. Feedback is appreciated.
-Adds a button to pause menu and watch menu.
+Adds a Replay tab to the watch window and a Replay button to the pause menu.
 
 Features:
 - Common features (pause/play/seek/speed/replay)
@@ -29,266 +29,12 @@ import bascenev1 as bs
 import _babase as _ba
 import os
 from time import strftime, gmtime, time
-from random import uniform
+from textwrap import wrap
 from threading import Thread
 from struct import unpack
 
-class Replay:
-    VER = '3.0'
-    COL1 = (0.18, 0.18, 0.18)
-    COL2 = (1, 1, 1)
-    COL3 = (0, 1, 0)
-    COL4 = (0, 1, 1)
-    BUSY = False
+VER = '3.0'
 
-    @classmethod
-    def is_busy(cls, value=None):
-        if value is None:
-            return cls.BUSY
-        cls.BUSY = value
-
-    def __init__(self, source=None):
-        self.selected = self.replay_name = self.buffer = None
-        self.error = False
-        self.huffman = _Huffman()
-        self.parent = self.create_container(
-            src=source.get_screen_space_center(),
-            p=get_overlay_stack(),
-            size=(400, 500),
-            oac=lambda: (
-                bui.containerwidget(self.parent, transition='out_scale' if source and source.exists() else 'out_left'),
-                self.play_sound('laser'),
-                self.transition_sound.stop()
-            )
-        )
-        self.transition_sound = self.play_sound('powerup01')
-        self.create_text(
-            p=self.parent,
-            h_align='center',
-            text='Replay',
-            pos=(175, 460),
-            scale=2
-        )
-        scroll_y = 360
-        scroll_parent = bui.scrollwidget(
-            parent=self.parent,
-            size=(scroll_y, scroll_y),
-            position=(25, 80)
-        )
-        self.replays_dir = bui.get_replays_dir()
-        replays = [f for f in os.listdir(self.replays_dir) if f.endswith('.brp')]
-        scroll_height = 30 * len(replays)
-        scroll_content = bui.containerwidget(
-            parent=scroll_parent,
-            background=False,
-            size=(scroll_y, scroll_height)
-        )
-        self.replay_widgets = []
-        for idx, replay_file in enumerate(replays):
-            widget = self.create_text(
-                p=scroll_content,
-                click_activate=True,
-                selectable=True,
-                pos=(0, scroll_height - 30 * idx - 30),
-                text=replay_file,
-                maxwidth=scroll_y,
-                size=(scroll_y, 30),
-                color=self.COL2,
-                oac=CallPartial(self.highlight, idx, replay_file)
-            )
-            self.replay_widgets.append(widget)
-        self.play_source = None
-        for i in range(3):
-            btn = self.create_button(
-                p=self.parent,
-                pos=(25 + 120 * i, 30),
-                size=(120, 40),
-                label=['Show', 'Copy', 'Run'][i],
-                oac=CallPartial(self.execute, [self.show, self.copy, self.play][i]),
-                icon=bui.gettexture(['folder', 'file', 'nextLevelIcon'][i])
-            )
-            if i == 2:
-                self.play_source = btn
-
-    def play_sound(self, name):
-        sound = bui.getsound(name)
-        sound.play()
-        bui.apptimer(uniform(0.14, 0.17), sound.stop)
-        return sound
-
-    def get_replay_path(self):
-        return os.path.join(self.replays_dir, self.replay_name)
-
-    def copy(self):
-        self.play_sound('dingSmallHigh')
-        bui.clipboard_set_text(self.get_replay_path())
-        bui.screenmessage('Copied replay path to clipboard!', color=self.COL3)
-
-    def show(self):
-        bui.getsound('ding').play()
-        bui.screenmessage(self.get_replay_path(), color=self.COL3)
-
-    def execute(self, func):
-        if self.selected is None:
-            show_warning('Select a replay!')
-            return
-        if bs.is_in_replay():
-            show_warning('A replay is already running!')
-            return
-        return func()
-
-    def highlight(self, idx, name):
-        if self.selected == idx:
-            self.play_source = self.replay_widgets[idx]
-            self.play()
-            return
-        self.selected = idx
-        self.replay_name = name
-        [bui.textwidget(w, color=self.COL2) for w in self.replay_widgets]
-        bui.textwidget(self.replay_widgets[idx], color=self.COL3)
-
-    def play(self):
-        """Start replay immediately without waiting for duration calculation"""
-        if self.is_busy():
-            return
-        self.is_busy(True)
-        bui.getsound('deek').play()
-        
-        # Start replay immediately
-        bs.set_replay_speed_exponent(0)
-        bui.fade_screen(1)
-        
-        # Create player with unknown duration
-        Player(path=self.get_replay_path(), duration=None)
-        self.is_busy(False)
-
-    def load(self):
-        src = self.play_source.get_screen_space_center()
-        if self.play_source.get_widget_type() == 'text':
-            src = (src[0] - 170, src[1])
-        self.parent_container = container = self.create_container(
-            src=src,
-            size=(300, 200),
-            p=get_overlay_stack()
-        )
-        self.create_text(
-            p=container,
-            text='Player',
-            pos=(125, 150),
-            h_align='center',
-            scale=1.4
-        )
-        bui.spinnerwidget(
-            parent=container,
-            size=60,
-            position=(75, 100)
-        )
-        self.status_text = self.create_text(
-            p=container,
-            text='Reading...',
-            pos=(115, 87)
-        )
-        self.progress_text = self.create_text(
-            p=container,
-            pos=(125, 30),
-            maxwidth=240,
-            text=f'{self.replay_name} with total of {os.path.getsize(self.get_replay_path())} bytes\nstreaming bytes to pybrp_stream',
-            h_align='center'
-        )
-        self.progress_text2 = self.create_text(
-            p=container,
-            maxwidth=240,
-            pos=(30, 20),
-            v_align='bottom'
-        )
-        self.progress = [0, 1]
-        bui.apptimer(0.5, Thread(target=self.calculate).start)
-        bui.apptimer(0.5, self.update_progress)
-        self.wait_for_calculation(self.finish_calculation)
-
-    def update_progress(self):
-        current, total = self.progress
-        bui.apptimer(0.1, self.update_progress) if (current != total) and (not self.error) else 0
-        if not current:
-            return
-        percent = current / total * 100
-        bar = '\u2588' * int(percent) + '\u2591' * int(100 - percent)
-        if not self.error:
-            try:
-                bui.textwidget(self.progress_text, text=bar)
-                bui.textwidget(self.progress_text2, text=f'{current} of {total} bytes read')
-            except:
-                return
-
-    def calculate(self):
-        try:
-            self.buffer = get_replay_duration(self.huffman, self.get_replay_path(), self.progress)
-        except:
-            self.buffer = 0
-
-    def finish_calculation(self, duration):
-        bui.textwidget(self.status_text, text='Starting...' if duration else 'Wait what?')
-        bui.textwidget(self.progress_text2, text=f'result was {duration} milleseconds') if duration else duration
-        if not duration:
-            self.error = True
-            bui.textwidget(self.progress_text, text='pybrp returned zero duration, error?\nclosing this window in 5 seconds')
-            bui.textwidget(self.progress_text2, text='')
-        bui.apptimer(1 if duration else 5, CallPartial(self.start_player, duration))
-
-    def wait_for_calculation(self, callback, iterations=60):
-        if not iterations:
-            self.buffer = None
-            callback(None)
-            return
-        if self.buffer is not None:
-            result = self.buffer
-            self.buffer = None
-            callback(result)
-            return
-        bui.apptimer(0.5, CallPartial(self.wait_for_calculation, callback, iterations - 1))
-
-    def start_player(self, duration):
-        if duration == 0:
-            show_warning("Couldn't load replay!")
-            bui.containerwidget(self.parent_container, transition='out_scale')
-            self.is_busy(False)
-            return
-        bs.set_replay_speed_exponent(0)
-        bui.fade_screen(1)
-        Player(path=self.get_replay_path(), duration=duration)
-        self.is_busy(False)
-
-    def create_button(self, p=None, oac=None, pos=None, **kwargs):
-        return bui.buttonwidget(
-            parent=p,
-            color=self.COL1,
-            textcolor=self.COL2,
-            on_activate_call=oac,
-            position=pos,
-            button_type='square',
-            enable_sound=False,
-            **kwargs
-        )
-
-    def create_container(self, p=None, pos=None, src=None, oac=None, **kwargs):
-        return bui.containerwidget(
-            color=self.COL1,
-            parent=p,
-            position=pos,
-            scale_origin_stack_offset=src,
-            transition='in_scale',
-            on_outside_click_call=oac,
-            **kwargs
-        )
-
-    def create_text(self, color=None, oac=None, p=None, pos=None, **kwargs):
-        return bui.textwidget(
-            parent=p,
-            position=pos,
-            color=color or self.COL2,
-            on_activate_call=oac,
-            **kwargs
-        )
 
 class Player:
     TICK = 0.01
@@ -1236,7 +982,7 @@ class Player:
     def restart(self):
         self.loop()
         self.fix_pause()
-        self.show_message('Replay', f'Version {Replay.VER} BETA', self.COL12, self.COL13)
+        self.show_message('Replay', f'Version {VER} BETA', self.COL12, self.COL13)
 
     def destroy_ui(self):
         self.ui_visible = self.camera_on = False
@@ -1477,9 +1223,6 @@ class Player:
         )
 
 # Tools
-def get_ui_scale(small, medium, large=None):
-    scale = bui.app.ui_v1.uiscale
-    return small if scale is bui.UIScale.SMALL else medium if scale is bui.UIScale.MEDIUM else (large or medium)
 return_to_menu = lambda: bui.app.classic.return_to_main_menu_session_gracefully(reset_ui=False)
 show_warning = lambda text: (bui.getsound('block').play() or 1) and bui.screenmessage(text, color=(1, 1, 0))
 format_time = lambda seconds: strftime('%H:%M:%S', gmtime(seconds))
@@ -1692,32 +1435,223 @@ def get_replay_duration(_h, brp_path, progress):
     progress[0] = progress[1]
     return total_ms
 
+class TabId:
+    value = 'replay'
+
+
+class View:
+    BUTTON = (0.6, 0.53, 0.63)
+    BUTTON_TEXT = (0.75, 0.7, 0.8)
+    PATH = (0.75, 0.75, 0.85)
+    EMPTY = (0.6, 0.6, 0.6)
+    LAST = (1.0, 1.0, 0.4)
+    WHITE = (1, 1, 1)
+
+    def __init__(self, window):
+        self.dir = bui.get_replays_dir()
+        try:
+            self.names = sorted(
+                (n for n in os.listdir(self.dir) if n.endswith('.brp')),
+                key=str.lower
+            )
+        except Exception:
+            self.names = []
+        self.selected = None
+        prefix = window.main_window_id_prefix
+        width = window._scroll_width
+        height = window._scroll_height - 20
+        margin = 20
+        list_width = width * 0.42
+        left = margin * 2 + list_width
+        panel = width - left - margin
+        center = left + panel * 0.5
+        t_scale = 1.4
+        tab_button = window._tab_row.tabs[TabId].button
+        window._tab_container = root = bui.containerwidget(
+            parent=window._root_widget,
+            size=(width, height),
+            position=((window._width - width) * 0.5, window._scroll_y + 10),
+            background=False,
+            selection_loops_to_parent=True
+        )
+        scroll = bui.scrollwidget(
+            parent=root,
+            position=(margin, margin),
+            size=(list_width, height - margin * 2)
+        )
+        column = bui.columnwidget(
+            parent=scroll,
+            id=f'{prefix}|replay_column',
+            left_border=10,
+            border=2,
+            margin=0
+        )
+        self.name_text = bui.textwidget(
+            parent=root,
+            position=(left, height * 0.52),
+            size=(panel, height * 0.2),
+            h_align='center',
+            v_align='center',
+            scale=1.5,
+            maxwidth=panel,
+            color=self.WHITE,
+            text=''
+        )
+        self.play_button = bui.buttonwidget(
+            parent=root,
+            id=f'{prefix}|replay_play',
+            position=(center - panel * 0.25, height * 0.34),
+            size=(panel * 0.5, 64),
+            button_type='square',
+            color=self.BUTTON,
+            textcolor=self.BUTTON_TEXT,
+            text_scale=1.4,
+            label='Play',
+            icon=bui.gettexture('nextLevelIcon'),
+            iconscale=1.2,
+            autoselect=True,
+            on_activate_call=self.play
+        )
+        self.path_text = bui.textwidget(
+            parent=root,
+            position=(left, margin),
+            size=(panel, 80),
+            h_align='center',
+            v_align='center',
+            scale=0.7,
+            maxwidth=panel,
+            color=self.PATH,
+            text=''
+        )
+        rows = []
+        for i, name in enumerate(self.names):
+            rows.append(bui.textwidget(
+                parent=column,
+                id=f'{prefix}|replay{i}',
+                size=(list_width / t_scale, 30),
+                selectable=True,
+                always_highlight=True,
+                color=self.LAST if name == '__lastReplay.brp' else self.WHITE,
+                on_select_call=bui.CallStrict(self.select, name),
+                on_activate_call=self.play,
+                text=name,
+                h_align='left',
+                v_align='center',
+                corner_scale=t_scale,
+                maxwidth=(list_width / t_scale) * 0.93
+            ))
+        if rows:
+            bui.widget(edit=rows[0], up_widget=tab_button)
+            self.select(self.names[0])
+        else:
+            bui.textwidget(
+                edit=self.name_text,
+                text='No replays',
+                color=self.EMPTY
+            )
+        bui.widget(
+            edit=scroll,
+            autoselect=True,
+            up_widget=tab_button,
+            right_widget=self.play_button
+        )
+        bui.widget(
+            edit=self.play_button,
+            up_widget=tab_button,
+            left_widget=scroll
+        )
+        bui.widget(edit=tab_button, down_widget=scroll)
+        if bui.app.ui_v1.uiscale is bui.UIScale.SMALL:
+            bui.widget(
+                edit=scroll,
+                left_widget=bui.get_special_widget('back_button')
+            )
+        bui.containerwidget(edit=root, selected_child=scroll)
+
+    def select(self, name):
+        self.selected = name
+        bui.textwidget(edit=self.name_text, text=name, color=self.WHITE)
+        bui.textwidget(
+            edit=self.path_text,
+            text='\n'.join(wrap(
+                os.path.join(self.dir, name),
+                44,
+                break_long_words=True,
+                break_on_hyphens=False
+            ))
+        )
+
+    def play(self):
+        if self.selected is None:
+            show_warning('Select a replay!')
+            return
+        if bs.is_in_replay():
+            show_warning('A replay is already running!')
+            return
+        bui.getsound('deek').play()
+        bs.set_replay_speed_exponent(0)
+        bui.fade_screen(1)
+        Player(
+            path=os.path.join(self.dir, self.selected),
+            duration=None
+        )
+
+
+def open_watch(*_):
+    from bauiv1lib.watch import WatchWindow
+    window = bui.app.ui_v1.get_main_window()
+    if window is None:
+        return
+    bui.app.config['Watch Tab'] = TabId.value
+    window.main_window_replace(lambda: WatchWindow())
+
+
 # brobord collide grass
 # ba_meta require api 9
 # ba_meta export babase.Plugin
 class byBordd(Plugin):
     has_settings_ui = lambda c=0: True
-    show_settings_ui = lambda c=0, w=None: Replay(source=w)
-    def __init__(self):
-        from bauiv1lib.ingamemenu import InGameMenuWindow as ingame
-        orig_refresh = getattr(ingame, '_refresh_in_game')
-        setattr(ingame, '_refresh_in_game', lambda window, *args, **kwargs: (self.add_button(window), orig_refresh(window, *args, **kwargs))[1])
-        from bauiv1lib.watch import WatchWindow as watch
-        orig_init = getattr(watch, '__init__')
-        setattr(watch, '__init__', lambda window, *args, **kwargs: (orig_init(window, *args, **kwargs), self.add_button(window, 1))[0])
+    show_settings_ui = lambda c=0, w=None: open_watch()
 
-    def add_button(self, window, watch_mode=0):
-        if watch_mode:
-            btn_x = window._width / 2 + get_ui_scale(window._scroll_width * -0.5 + 93, 0) + 100
-            btn_y = window.yoffs - get_ui_scale(63, 10) - 25
-        self.button = Replay.create_button(
-            Replay,
-            p=window._root_widget,
-            label='Replay',
-            pos=(btn_x, btn_y) if watch_mode else (-70, 0),
-            icon=bui.gettexture('replayIcon'),
-            iconscale=1.6 if watch_mode else 0.8,
-            size=(140, 50) if watch_mode else (90, 35),
-            oac=lambda: Replay(source=self.button),
-            id='Replay'
-        )
+    def __init__(self):
+        from bauiv1lib.ingamemenu import InGameMenuWindow
+        from bauiv1lib.tabs import TabRow
+        from bauiv1lib.watch import WatchWindow
+
+        entries = InGameMenuWindow._get_custom_menu_entries
+        InGameMenuWindow._get_custom_menu_entries = lambda window: [
+            *entries(window),
+            {'label': 'Replay', 'call': open_watch, 'resume_on_call': False}
+        ]
+
+        row_init = TabRow.__init__
+
+        def tab_row_init(row, parent, tabdefs, pos, size, **kwargs):
+            if tabdefs and tabdefs[0][0] == WatchWindow.TabID.MY_REPLAYS:
+                width = size[0] / len(tabdefs) * (len(tabdefs) + 1)
+                pos = (pos[0] - (width - size[0]) * 0.5, pos[1])
+                size = (width, size[1])
+                tabdefs = (*tabdefs, (TabId, 'Replay'))
+            row_init(row, parent, tabdefs, pos, size, **kwargs)
+
+        TabRow.__init__ = tab_row_init
+
+        set_tab = WatchWindow._set_tab
+
+        def watch_set_tab(window, tab_id):
+            previous = window._current_tab
+            set_tab(window, tab_id)
+            if tab_id is TabId and previous is not TabId:
+                View(window)
+
+        WatchWindow._set_tab = watch_set_tab
+
+        watch_init = WatchWindow.__init__
+
+        def watch_init_tab(window, *args, **kwargs):
+            wanted = bui.app.config.get('Watch Tab') == TabId.value
+            watch_init(window, *args, **kwargs)
+            if wanted:
+                window._set_tab(TabId)
+
+        WatchWindow.__init__ = watch_init_tab
