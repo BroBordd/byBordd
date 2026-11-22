@@ -1344,15 +1344,8 @@ class Player:
         if not self.check_can_seek():
             return
         label = ['Forward by', 'Rewind by'][direction == -1]
-        amount = direction * self.speed
+        amount = direction * 5  # fixed 5 second seek
         
-        # Use estimated duration for calculating seek amount
-        if self.scanning:
-            seek_base = self.estimated_duration
-        else:
-            seek_base = self.duration_sec
-        
-        amount = (seek_base / 20) * amount
         new_time = (self.replay_time - self.start_time) + amount
         
         # While buffering, seek against the estimated duration instead of refusing
